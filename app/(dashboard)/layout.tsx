@@ -1,17 +1,37 @@
-export default function DashboardLayout({
+import { redirect } from "next/navigation";
+
+import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import type { TopbarProfile } from "@/components/dashboard/Topbar";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
-        <div className="container flex h-14 items-center justify-between">
-          <span className="text-base font-semibold">InvoxAI · Dashboard</span>
-          <span className="text-xs text-muted-foreground">app.invoxai.io</span>
-        </div>
-      </header>
-      <main className="container py-8">{children}</main>
-    </div>
-  );
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login?next=/dashboard");
+
+  const admin = createAdminClient();
+  const { data: profileRow } = await admin
+    .from("user_profiles")
+    .select(
+      "id, full_name, email, avatar_url, subscription_plan, subscription_status",
+    )
+    .eq("id", user.id)
+    .single();
+
+  const profile: TopbarProfile = {
+    full_name: profileRow?.full_name ?? null,
+    email: profileRow?.email ?? user.email ?? "",
+    avatar_url: profileRow?.avatar_url ?? null,
+    subscription_plan: profileRow?.subscription_plan ?? "free",
+    subscription_status: profileRow?.subscription_status ?? "inactive",
+  };
+
+  return <DashboardShell profile={profile}>{children}</DashboardShell>;
 }

@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { nanoid } from "nanoid";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTemplate } from "@/lib/templates/registry";
-import { isValidSlug } from "@/lib/templates/utils";
+import { isValidSlug, slugify } from "@/lib/templates/utils";
+import { PLANS, type PlanKey } from "@/lib/plans";
 
 export interface CreatePageInput {
   type: "payment" | "landing" | "lead_magnet";
@@ -169,4 +171,167 @@ export async function updatePageAction(
   revalidatePath(`/p/${input.slug}`);
   if (page.slug && page.slug !== input.slug) revalidatePath(`/p/${page.slug}`);
   return { ok: true, pageId: input.id, slug: input.slug };
+}
+
+/** Toggle status between published and paused. */
+export async function togglePagePublishAction(
+  pageId: string,
+): Promise<PageActionResult> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+
+  const admin = createAdminClient();
+  const { data: page } = await admin
+    .from("pages")
+    .select("id, user_id, slug, status")
+    .eq("id", pageId)
+    .single();
+  if (!page || page.user_id !== user.id) {
+    return { ok: false, message: "Not allowed" };
+  }
+
+  const nextStatus =
+    page.status === "published" ? "paused" : "published";
+  const publishedAt =
+    nextStatus === "published" ? new Date().toISOString() : undefined;
+
+  const { error } = await admin
+    .from("pages")
+    .update({ status: nextStatus, published_at: publishedAt })
+    .eq("id", pageId);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/dashboard/pages");
+  revalidatePath(`/p/${page.slug}`);
+  return { ok: true, pageId, slug: page.slug };
+}
+
+/** Duplicate a page (its config) under a fresh slug. */
+export async function duplicatePageAction(
+  pageId: string,
+): Promise<PageActionResult> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+
+  const admin = createAdminClient();
+  const { data: page } = await admin
+    .from("pages")
+    .select(
+      "id, user_id, title, slug, type, template_id, page_config, meta_title, meta_description",
+    )
+    .eq("id", pageId)
+    .single();
+  if (!page || page.user_id !== user.id) {
+    return { ok: false, message: "Not allowed" };
+  }
+
+  // Plan limit check
+  const limitCheck = await checkPageLimit(user.id);
+  if (!limitCheck.ok) return limitCheck;
+
+  const newTitle = `${page.title} (copy)`;
+  const newSlug = await findFreeSlug(`${slugify(page.title)}-copy`);
+
+  const { data: inserted, error } = await admin
+    .from("pages")
+    .insert({
+      user_id: user.id,
+      title: newTitle,
+      slug: newSlug,
+      type: page.type,
+      status: "draft",
+      template_id: page.template_id,
+      page_config: page.page_config,
+      meta_title: page.meta_title,
+      meta_description: page.meta_description,
+    })
+    .select("id, slug")
+    .single();
+  if (error || !inserted) {
+    return { ok: false, message: error?.message ?? "Duplicate failed" };
+  }
+
+  revalidatePath("/dashboard/pages");
+  return { ok: true, pageId: inserted.id, slug: inserted.slug };
+}
+
+/** Hard delete (the FK cascades will clean child rows). */
+export async function deletePageAction(
+  pageId: string,
+): Promise<PageActionResult> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+
+  const admin = createAdminClient();
+  const { data: page } = await admin
+    .from("pages")
+    .select("id, user_id, slug")
+    .eq("id", pageId)
+    .single();
+  if (!page || page.user_id !== user.id) {
+    return { ok: false, message: "Not allowed" };
+  }
+
+  const { error } = await admin.from("pages").delete().eq("id", pageId);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/dashboard/pages");
+  revalidatePath(`/p/${page.slug}`);
+  return { ok: true, pageId };
+}
+
+// ---- helpers ----
+
+async function findFreeSlug(base: string): Promise<string> {
+  const admin = createAdminClient();
+  const seed = base || `page-${nanoid(6)}`;
+  let candidate = seed;
+  for (let i = 0; i < 5; i++) {
+    const { data } = await admin
+      .from("pages")
+      .select("id")
+      .eq("slug", candidate)
+      .maybeSingle();
+    if (!data) return candidate;
+    candidate = `${seed}-${nanoid(4).toLowerCase()}`;
+  }
+  return `${seed}-${nanoid(8).toLowerCase()}`;
+}
+
+async function checkPageLimit(userId: string): Promise<PageActionResult> {
+  const admin = createAdminClient();
+  const [{ count }, { data: profile }] = await Promise.all([
+    admin
+      .from("pages")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId),
+    admin
+      .from("user_profiles")
+      .select("subscription_plan, subscription_status")
+      .eq("id", userId)
+      .single(),
+  ]);
+  const planKey = (profile?.subscription_plan ?? "free") as PlanKey;
+  const effective: PlanKey =
+    planKey === "free" ||
+    ["active", "trialing"].includes(profile?.subscription_status ?? "")
+      ? planKey
+      : "free";
+  const limit = PLANS[effective in PLANS ? effective : "free"].pages;
+  if (limit !== -1 && (count ?? 0) >= limit) {
+    return {
+      ok: false,
+      message: `You're at your ${PLANS[effective].name} plan limit of ${limit} pages. Upgrade to add more.`,
+    };
+  }
+  return { ok: true };
 }
