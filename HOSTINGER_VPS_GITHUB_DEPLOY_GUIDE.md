@@ -1,0 +1,427 @@
+# Hostinger VPS + GitHub Deployment Guide
+
+This guide is for deploying this LinkPlease-style Instagram DM automation app on a Hostinger VPS and connecting the project to a GitHub repository.
+
+Official Hostinger references used:
+
+- Hostinger VPS SSH guide: https://www.hostinger.com/support/5723772-how-to-connect-to-your-vps-via-ssh-at-hostinger/
+- Hostinger Node.js VPS support note: https://support.hostinger.com/en/articles/1583661-is-node-js-supported-at-hostinger
+- Hostinger Git deployment guide: https://www.hostinger.com/support/1583302-how-to-deploy-a-git-repository-in-hostinger
+- Hostinger VPS setup guide: https://www.hostinger.com/tutorials/how-to-set-up-vps
+
+## 1. What You Need
+
+Prepare these details first:
+
+```text
+Hostinger VPS IP address
+Hostinger VPS root password or SSH key
+Domain name
+GitHub repository URL
+Meta App ID
+Meta App Secret
+Meta Verify Token
+Meta Access Token
+Instagram Account ID
+Facebook Page ID
+Meta Business ID
+```
+
+Example GitHub repo URL:
+
+```text
+https://github.com/YOUR_USERNAME/YOUR_REPO.git
+```
+
+## 2. Connect To Hostinger VPS
+
+From your computer terminal:
+
+```bash
+ssh root@YOUR_VPS_IP
+```
+
+Example:
+
+```bash
+ssh root@123.45.67.89
+```
+
+If Hostinger gives you a username other than `root`, use that username.
+
+## 3. Update Server
+
+Run this on the VPS:
+
+```bash
+apt update && apt upgrade -y
+```
+
+Install basic tools:
+
+```bash
+apt install -y git curl nginx ufw
+```
+
+## 4. Install Node.js
+
+Use Node.js 22 LTS or newer.
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+apt install -y nodejs
+node -v
+npm -v
+```
+
+## 5. Install PM2
+
+PM2 keeps the Node backend running.
+
+```bash
+npm install -g pm2
+```
+
+## 6. Clone GitHub Repo On VPS
+
+Go to web folder:
+
+```bash
+mkdir -p /var/www
+cd /var/www
+```
+
+Clone your repo:
+
+```bash
+git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git linkplease
+cd linkplease
+```
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Build frontend:
+
+```bash
+npm run build
+```
+
+## 7. Create Environment File
+
+Create `.env`:
+
+```bash
+nano .env
+```
+
+Paste this and replace values:
+
+```env
+PORT=8080
+CORS_ORIGIN=https://your-domain.com
+ADMIN_SETUP_KEY=create_a_private_admin_setup_password
+
+META_APP_ID=your_meta_app_id
+META_APP_SECRET=your_meta_app_secret
+META_ACCESS_TOKEN=your_long_lived_page_or_instagram_token
+META_VERIFY_TOKEN=create_a_strong_random_verify_token
+META_GRAPH_VERSION=v25.0
+
+META_REDIRECT_URI=https://your-domain.com/auth/meta/callback
+PUBLIC_WEBHOOK_URL=https://your-domain.com/api/webhooks/instagram
+
+INSTAGRAM_ACCOUNT_ID=your_instagram_business_or_creator_account_id
+FACEBOOK_PAGE_ID=your_connected_facebook_page_id
+META_BUSINESS_ID=your_meta_business_id
+```
+
+Save and close:
+
+```text
+CTRL + O
+ENTER
+CTRL + X
+```
+
+## 8. Start App With PM2
+
+From project folder:
+
+```bash
+pm2 start npm --name linkplease -- start
+pm2 save
+pm2 startup
+```
+
+PM2 may print one command. Copy that command and run it.
+
+Check app:
+
+```bash
+pm2 status
+pm2 logs linkplease
+curl http://127.0.0.1:8080/api/health
+```
+
+## 9. Configure Nginx
+
+Create Nginx config:
+
+```bash
+nano /etc/nginx/sites-available/linkplease
+```
+
+Paste:
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com www.your-domain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+Enable site:
+
+```bash
+ln -s /etc/nginx/sites-available/linkplease /etc/nginx/sites-enabled/linkplease
+nginx -t
+systemctl reload nginx
+```
+
+## 10. Point Domain To VPS
+
+In Hostinger DNS:
+
+```text
+Type: A
+Name: @
+Value: YOUR_VPS_IP
+TTL: default
+```
+
+For `www`:
+
+```text
+Type: A
+Name: www
+Value: YOUR_VPS_IP
+TTL: default
+```
+
+Wait for DNS propagation.
+
+## 11. Install SSL
+
+Install Certbot:
+
+```bash
+apt install -y certbot python3-certbot-nginx
+```
+
+Create SSL:
+
+```bash
+certbot --nginx -d your-domain.com -d www.your-domain.com
+```
+
+Test:
+
+```bash
+certbot renew --dry-run
+```
+
+## 12. Meta App URLs
+
+In Meta Developer Dashboard, set:
+
+```text
+OAuth Redirect URI:
+https://your-domain.com/auth/meta/callback
+
+Webhook Callback URL:
+https://your-domain.com/api/webhooks/instagram
+
+Webhook Verify Token:
+same value as META_VERIFY_TOKEN
+```
+
+Test webhook:
+
+```bash
+curl "https://your-domain.com/api/webhooks/instagram?hub.mode=subscribe&hub.verify_token=YOUR_VERIFY_TOKEN&hub.challenge=12345"
+```
+
+Expected:
+
+```text
+12345
+```
+
+## 13. User Instagram Connect Flow
+
+After deployment:
+
+1. User opens `https://your-domain.com`.
+2. User clicks **Connect Instagram Account**.
+3. Meta login opens.
+4. User approves permissions.
+5. Meta redirects to `/auth/meta/callback`.
+6. Backend saves connected Instagram/Page details.
+7. Dashboard shows the connected Instagram account in **Settings > Instagram**.
+
+## 14. Admin Setup Flow
+
+Open:
+
+```text
+https://your-domain.com
+```
+
+Go to **Admin Dashboard**.
+
+Fill:
+
+```text
+Admin Setup Key
+Meta App ID
+Meta App Secret
+Access Token
+Webhook Verify Token
+Webhook Callback URL
+OAuth Redirect URI
+Graph API Version
+Instagram Account ID
+Facebook Page ID
+Meta Business ID
+```
+
+Click:
+
+```text
+Sync To Backend
+```
+
+Then restart app:
+
+```bash
+pm2 restart linkplease
+```
+
+## 15. Update App From GitHub
+
+When new code is pushed:
+
+```bash
+cd /var/www/linkplease
+git pull origin main
+npm install
+npm run build
+pm2 restart linkplease
+```
+
+If your branch is `master`, use:
+
+```bash
+git pull origin master
+```
+
+## 16. Push Local Project To GitHub
+
+Run this from your local project folder:
+
+```bash
+git init
+git add .
+git commit -m "Initial LinkPlease SaaS prototype"
+git branch -M main
+git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
+git push -u origin main
+```
+
+If the GitHub repo already exists and has files, first run:
+
+```bash
+git pull origin main --allow-unrelated-histories
+```
+
+Then resolve conflicts if any, commit, and push again.
+
+## 17. Important Security Rules
+
+Never push this file:
+
+```text
+.env
+```
+
+This project already ignores `.env`.
+
+Never expose these values in frontend code:
+
+```text
+META_APP_SECRET
+META_ACCESS_TOKEN
+ADMIN_SETUP_KEY
+```
+
+For production, protect the Admin Dashboard with real login before giving access to users.
+
+## 18. Common Commands
+
+Check app:
+
+```bash
+pm2 status
+```
+
+View logs:
+
+```bash
+pm2 logs linkplease
+```
+
+Restart app:
+
+```bash
+pm2 restart linkplease
+```
+
+Restart Nginx:
+
+```bash
+systemctl restart nginx
+```
+
+Check Nginx config:
+
+```bash
+nginx -t
+```
+
+Check backend:
+
+```bash
+curl http://127.0.0.1:8080/api/health
+```
+
+Check public site:
+
+```bash
+curl https://your-domain.com/api/health
+```
