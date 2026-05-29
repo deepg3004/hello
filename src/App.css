@@ -3710,13 +3710,30 @@ input {
   color: #1d4ed8;
 }
 
-/* Sticky footer */
+/* Inline footer — sits at the natural end of the form. No sticky overlap. */
 .wizard-footer {
+  position: static;
+  bottom: auto;
+  z-index: auto;
   background: #ffffff;
   border-top: 1px solid #e2e8f0;
-  padding: 14px 20px;
+  padding: 18px 28px 22px;
   gap: 10px;
   border-radius: 0 0 16px 16px;
+  box-shadow: none;
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+/* Let the form grow naturally — outer page scrolls. */
+.wizard-form {
+  position: relative;
+  background: #ffffff;
+  padding: 28px 28px 0;
+  max-height: none;
+  overflow: visible;
 }
 
 .wizard-footer .primary {
