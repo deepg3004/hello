@@ -5,6 +5,7 @@ import {
   CreditCard,
   FileText,
   LayoutDashboard,
+  Send,
   Settings,
   Sparkles,
   Users,
@@ -25,6 +26,7 @@ const NAV: NavItem[] = [
   { href: "/dashboard/pages", label: "Pages", Icon: FileText },
   { href: "/dashboard/transactions", label: "Transactions", Icon: CreditCard },
   { href: "/dashboard/customers", label: "Customers", Icon: Users },
+  { href: "/dashboard/telegram", label: "Telegram", Icon: Send },
   { href: "/dashboard/payouts", label: "Payouts", Icon: Wallet },
   { href: "/dashboard/settings", label: "Settings", Icon: Settings },
 ];

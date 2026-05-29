@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   const { data: order } = await admin
     .from("orders")
     .select(
-      "id, page_id, seller_user_id, product_id, amount, platform_commission, seller_amount, currency, coupon_id, status, buyer_email",
+      "id, page_id, seller_user_id, product_id, amount, platform_commission, seller_amount, currency, coupon_id, status, buyer_email, buyer_name",
     )
     .eq("id", order_id)
     .single();
@@ -145,9 +145,36 @@ export async function POST(request: Request) {
     }
   }
 
-  // 6. Post-purchase jobs (best-effort; failures don't block the response).
-  //    Email + invoice + telegram + OTO are stubbed for now — they'll be wired
-  //    up as we add Resend templates and the Telegram bot service.
+  // 6. Post-purchase: if the page has a Telegram VIP group attached, mint a
+  //    one-time invite + membership row. Best-effort — bot/group failures
+  //    surface on the thank-you page but don't block checkout.
+  try {
+    const { issueInviteForOrder } = await import("@/actions/telegram");
+    const inviteResult = await issueInviteForOrder(order_id);
+    if (inviteResult.ok && "invite_link" in inviteResult) {
+      const { inviteEmail, sendEmail } = await import("@/lib/email");
+      const { data: page } = await admin
+        .from("pages")
+        .select("telegram_group_id, telegram_vip_groups(group_name)")
+        .eq("id", order.page_id ?? "")
+        .single();
+      type Joined = { group_name: string | null };
+      const groupRel = (page as unknown as { telegram_vip_groups: Joined | Joined[] | null } | null)?.telegram_vip_groups;
+      const groupName = (Array.isArray(groupRel) ? groupRel[0]?.group_name : groupRel?.group_name) ?? undefined;
+      const tpl = inviteEmail({
+        buyerName: order.buyer_name ?? undefined,
+        groupName,
+        inviteLink: inviteResult.invite_link,
+      });
+      await sendEmail({
+        to: order.buyer_email,
+        subject: tpl.subject,
+        html: tpl.html,
+      });
+    }
+  } catch (e) {
+    console.error("[verify-payment] telegram invite failed", e);
+  }
 
   return NextResponse.json({
     ok: true,
