@@ -12,8 +12,8 @@ npm start
 
 The live backend serves both:
 
-- Dashboard: `https://your-domain.com`
-- API: `https://your-domain.com/api/...`
+- Dashboard: `https://hello.invoxai.io`
+- API: `https://hello.invoxai.io/api/...`
 
 ## 2. Add Server Environment Variables
 
@@ -21,15 +21,15 @@ Copy `.env.example` to `.env` on your server and fill your real values.
 
 ```env
 PORT=8080
-CORS_ORIGIN=https://your-domain.com
+CORS_ORIGIN=https://hello.invoxai.io
 ADMIN_SETUP_KEY=create_a_private_admin_setup_password
 META_APP_ID=your_meta_app_id
 META_APP_SECRET=your_meta_app_secret
 META_ACCESS_TOKEN=your_long_lived_page_or_instagram_token
 META_VERIFY_TOKEN=create_a_strong_random_verify_token
 META_GRAPH_VERSION=v25.0
-META_REDIRECT_URI=https://your-domain.com/auth/meta/callback
-PUBLIC_WEBHOOK_URL=https://your-domain.com/api/webhooks/instagram
+META_REDIRECT_URI=https://hello.invoxai.io/auth/meta/callback
+PUBLIC_WEBHOOK_URL=https://hello.invoxai.io/api/webhooks/instagram
 INSTAGRAM_ACCOUNT_ID=your_instagram_business_or_creator_account_id
 FACEBOOK_PAGE_ID=your_connected_facebook_page_id
 META_BUSINESS_ID=your_meta_business_id
@@ -50,7 +50,7 @@ You can also open the dashboard, go to **Admin Dashboard**, fill the same values
 7. Add OAuth redirect URL:
 
 ```text
-https://your-domain.com/auth/meta/callback
+https://hello.invoxai.io/auth/meta/callback
 ```
 
 ## 3A. User Connect Flow
@@ -62,14 +62,14 @@ After Admin setup is complete, normal users connect like this:
 3. Your app opens:
 
 ```text
-https://your-domain.com/auth/meta
+https://hello.invoxai.io/auth/meta
 ```
 
 4. Meta login opens and the user approves permissions.
 5. Meta redirects back to:
 
 ```text
-https://your-domain.com/auth/meta/callback
+https://hello.invoxai.io/auth/meta/callback
 ```
 
 6. The backend exchanges the code for a token.
@@ -85,7 +85,7 @@ http://127.0.0.1:8080/auth/meta
 For live hosting, the same button calls:
 
 ```text
-https://your-domain.com/auth/meta
+https://hello.invoxai.io/auth/meta
 ```
 
 ## 4. Instagram Requirements
@@ -100,7 +100,7 @@ https://your-domain.com/auth/meta
 In Meta dashboard, add this callback URL:
 
 ```text
-https://your-domain.com/api/webhooks/instagram
+https://hello.invoxai.io/api/webhooks/instagram
 ```
 
 Use the same value from `META_VERIFY_TOKEN` as the verify token.
@@ -119,13 +119,13 @@ Subscribe to these event fields:
 Health check:
 
 ```bash
-curl https://your-domain.com/api/health
+curl https://hello.invoxai.io/api/health
 ```
 
 Webhook verification test:
 
 ```bash
-curl "https://your-domain.com/api/webhooks/instagram?hub.mode=subscribe&hub.verify_token=YOUR_VERIFY_TOKEN&hub.challenge=12345"
+curl "https://hello.invoxai.io/api/webhooks/instagram?hub.mode=subscribe&hub.verify_token=YOUR_VERIFY_TOKEN&hub.challenge=12345"
 ```
 
 Expected response:
@@ -137,7 +137,7 @@ Expected response:
 Send message test:
 
 ```bash
-curl -X POST https://your-domain.com/api/messages/send \
+curl -X POST https://hello.invoxai.io/api/messages/send \
   -H "Content-Type: application/json" \
   -d "{\"recipientId\":\"IG_USER_ID\",\"text\":\"Hello from LinkPlease\"}"
 ```
@@ -182,3 +182,4 @@ After approval:
 - `GET /api/webhooks/instagram`
 - `POST /api/webhooks/instagram`
 - `POST /api/messages/send`
+

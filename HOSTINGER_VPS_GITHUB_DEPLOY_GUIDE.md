@@ -30,7 +30,7 @@ Meta Business ID
 Example GitHub repo URL:
 
 ```text
-https://github.com/YOUR_USERNAME/YOUR_REPO.git
+https://github.com/deepg3004/hello.git
 ```
 
 ## 2. Connect To Hostinger VPS
@@ -94,7 +94,7 @@ cd /var/www
 Clone your repo:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git linkplease
+git clone https://github.com/deepg3004/hello.git linkplease
 cd linkplease
 ```
 
@@ -122,7 +122,7 @@ Paste this and replace values:
 
 ```env
 PORT=8080
-CORS_ORIGIN=https://your-domain.com
+CORS_ORIGIN=https://hello.invoxai.io
 ADMIN_SETUP_KEY=create_a_private_admin_setup_password
 
 META_APP_ID=your_meta_app_id
@@ -131,8 +131,8 @@ META_ACCESS_TOKEN=your_long_lived_page_or_instagram_token
 META_VERIFY_TOKEN=create_a_strong_random_verify_token
 META_GRAPH_VERSION=v25.0
 
-META_REDIRECT_URI=https://your-domain.com/auth/meta/callback
-PUBLIC_WEBHOOK_URL=https://your-domain.com/api/webhooks/instagram
+META_REDIRECT_URI=https://hello.invoxai.io/auth/meta/callback
+PUBLIC_WEBHOOK_URL=https://hello.invoxai.io/api/webhooks/instagram
 
 INSTAGRAM_ACCOUNT_ID=your_instagram_business_or_creator_account_id
 FACEBOOK_PAGE_ID=your_connected_facebook_page_id
@@ -180,7 +180,7 @@ Paste:
 ```nginx
 server {
     listen 80;
-    server_name your-domain.com www.your-domain.com;
+    server_name hello.invoxai.io www.hello.invoxai.io;
 
     location / {
         proxy_pass http://127.0.0.1:8080;
@@ -237,7 +237,7 @@ apt install -y certbot python3-certbot-nginx
 Create SSL:
 
 ```bash
-certbot --nginx -d your-domain.com -d www.your-domain.com
+certbot --nginx -d hello.invoxai.io -d www.hello.invoxai.io
 ```
 
 Test:
@@ -252,10 +252,10 @@ In Meta Developer Dashboard, set:
 
 ```text
 OAuth Redirect URI:
-https://your-domain.com/auth/meta/callback
+https://hello.invoxai.io/auth/meta/callback
 
 Webhook Callback URL:
-https://your-domain.com/api/webhooks/instagram
+https://hello.invoxai.io/api/webhooks/instagram
 
 Webhook Verify Token:
 same value as META_VERIFY_TOKEN
@@ -264,7 +264,7 @@ same value as META_VERIFY_TOKEN
 Test webhook:
 
 ```bash
-curl "https://your-domain.com/api/webhooks/instagram?hub.mode=subscribe&hub.verify_token=YOUR_VERIFY_TOKEN&hub.challenge=12345"
+curl "https://hello.invoxai.io/api/webhooks/instagram?hub.mode=subscribe&hub.verify_token=YOUR_VERIFY_TOKEN&hub.challenge=12345"
 ```
 
 Expected:
@@ -277,7 +277,7 @@ Expected:
 
 After deployment:
 
-1. User opens `https://your-domain.com`.
+1. User opens `https://hello.invoxai.io`.
 2. User clicks **Connect Instagram Account**.
 3. Meta login opens.
 4. User approves permissions.
@@ -290,7 +290,7 @@ After deployment:
 Open:
 
 ```text
-https://your-domain.com
+https://hello.invoxai.io
 ```
 
 Go to **Admin Dashboard**.
@@ -350,7 +350,7 @@ git init
 git add .
 git commit -m "Initial LinkPlease SaaS prototype"
 git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
+git remote add origin https://github.com/deepg3004/hello.git
 git push -u origin main
 ```
 
@@ -423,5 +423,6 @@ curl http://127.0.0.1:8080/api/health
 Check public site:
 
 ```bash
-curl https://your-domain.com/api/health
+curl https://hello.invoxai.io/api/health
 ```
+
