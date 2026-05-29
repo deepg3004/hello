@@ -178,6 +178,7 @@ Paste this and replace values:
 PORT=8080
 CORS_ORIGIN=https://hello.invoxai.io
 ADMIN_SETUP_KEY=create_a_private_admin_setup_password
+DATABASE_PATH=/var/www/linkplease/server/data/linkplease.sqlite
 
 META_APP_ID=your_meta_app_id
 META_APP_SECRET=your_meta_app_secret
@@ -199,6 +200,42 @@ Save and close:
 CTRL + O
 ENTER
 CTRL + X
+```
+
+## 7A. Database Setup
+
+This app uses SQLite on the VPS. It is a real database stored in:
+
+```text
+/var/www/linkplease/server/data/linkplease.sqlite
+```
+
+You do not need to install MySQL or PostgreSQL for the first live version.
+
+The database tables are created automatically when the app starts:
+
+```text
+instagram_connections
+automations
+contacts
+messages
+products
+orders
+```
+
+The database file is ignored by Git, so real user data will stay on the VPS and will not be pushed to GitHub.
+
+Back up the database:
+
+```bash
+mkdir -p /root/backups
+cp /var/www/linkplease/server/data/linkplease.sqlite /root/backups/linkplease-$(date +%F).sqlite
+```
+
+Check database file:
+
+```bash
+ls -lh /var/www/linkplease/server/data
 ```
 
 ## 8. Start App With PM2

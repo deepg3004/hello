@@ -6,6 +6,7 @@ import morgan from 'morgan'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { db, getDashboardMetrics, insertMessage, nowIso, upsertContactFromEvent } from './db.js'
 import {
   buildAuthUrl,
   exchangeCodeForToken,
@@ -39,6 +40,64 @@ app.get('/api/health', (_request, response) => {
   })
 })
 
+app.get('/api/dashboard', (_request, response) => {
+  response.json({
+    ok: true,
+    metrics: getDashboardMetrics(),
+  })
+})
+
+app.get('/api/automations', (_request, response) => {
+  const rows = db.prepare('SELECT * FROM automations ORDER BY created_at DESC').all()
+  response.json({ ok: true, automations: rows })
+})
+
+app.post('/api/automations', (request, response) => {
+  const timestamp = nowIso()
+  const {
+    name = 'New automation',
+    trigger = 'User comments on post or reel',
+    openingMessage = '',
+    ctaLabel = '',
+    ctaUrl = '',
+    status = 'inactive',
+  } = request.body || {}
+
+  const result = db.prepare(`
+    INSERT INTO automations (name, trigger, opening_message, cta_label, cta_url, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(name, trigger, openingMessage, ctaLabel, ctaUrl, status, timestamp, timestamp)
+
+  response.status(201).json({
+    ok: true,
+    automation: db.prepare('SELECT * FROM automations WHERE id = ?').get(result.lastInsertRowid),
+  })
+})
+
+app.patch('/api/automations/:id/status', (request, response) => {
+  const status = request.body?.status === 'active' ? 'active' : 'inactive'
+  db.prepare('UPDATE automations SET status = ?, updated_at = ? WHERE id = ?').run(status, nowIso(), request.params.id)
+  response.json({
+    ok: true,
+    automation: db.prepare('SELECT * FROM automations WHERE id = ?').get(request.params.id),
+  })
+})
+
+app.get('/api/contacts', (_request, response) => {
+  const contacts = db.prepare('SELECT * FROM contacts ORDER BY last_seen_at DESC').all()
+  response.json({ ok: true, contacts })
+})
+
+app.get('/api/products', (_request, response) => {
+  const products = db.prepare('SELECT * FROM products ORDER BY created_at DESC').all()
+  response.json({ ok: true, products })
+})
+
+app.get('/api/orders', (_request, response) => {
+  const orders = db.prepare('SELECT * FROM orders ORDER BY created_at DESC').all()
+  response.json({ ok: true, orders })
+})
+
 app.get('/api/instagram/connection', async (_request, response) => {
   response.json({
     ok: true,
@@ -48,6 +107,7 @@ app.get('/api/instagram/connection', async (_request, response) => {
 
 app.delete('/api/instagram/connection', async (_request, response) => {
   await fs.rm(connectionPath, { force: true })
+  db.prepare('DELETE FROM instagram_connections WHERE id = 1').run()
   response.json({
     ok: true,
     message: 'Instagram account disconnected from this local dashboard.',
@@ -226,13 +286,35 @@ function normalizeInstagramEvents(body) {
 async function handleAutomationEvent(event) {
   if (event.type !== 'message' || !event.senderId || !event.text) return
 
+  const contact = upsertContactFromEvent({
+    instagramUserId: event.senderId,
+    source: 'Instagram DM',
+    status: 'messaged',
+  })
+  insertMessage({
+    contactId: contact?.id,
+    instagramUserId: event.senderId,
+    direction: 'inbound',
+    body: event.text,
+    eventType: event.type,
+    raw: event.raw,
+  })
+
   const lowerText = event.text.toLowerCase()
   if (!lowerText.includes('guide') && !lowerText.includes('link')) return
 
+  const reply = 'Thanks for your message. Here is your link: https://hello.invoxai.io/product/creator-growth-playbook'
   await sendInstagramTextMessage(
     event.senderId,
-    'Thanks for your message. Here is your link: https://your-domain.com/product/creator-growth-playbook',
+    reply,
   )
+  insertMessage({
+    contactId: contact?.id,
+    instagramUserId: event.senderId,
+    direction: 'outbound',
+    body: reply,
+    eventType: 'automation_reply',
+  })
 }
 
 function isAdminAuthorized(request) {
@@ -306,6 +388,24 @@ async function createConnectedAccount(tokenPayload) {
 }
 
 async function readConnectedAccount() {
+  const row = db.prepare('SELECT * FROM instagram_connections WHERE id = 1').get()
+  if (row) {
+    return {
+      status: row.status,
+      message: row.message,
+      username: row.username,
+      instagramAccountId: row.instagram_account_id,
+      profilePictureUrl: row.profile_picture_url,
+      facebookPageId: row.facebook_page_id,
+      facebookPageName: row.facebook_page_name,
+      pageAccessToken: maskSecret(row.page_access_token),
+      userAccessToken: maskSecret(row.user_access_token),
+      tokenType: row.token_type,
+      expiresIn: row.expires_in,
+      connectedAt: row.connected_at,
+    }
+  }
+
   const data = await fs.readFile(connectionPath, 'utf8').catch(() => '')
   if (!data) return null
 
@@ -324,6 +424,30 @@ async function readConnectedAccount() {
 async function saveConnectedAccount(account) {
   await fs.mkdir(dataDir, { recursive: true })
   await fs.writeFile(connectionPath, JSON.stringify(account, null, 2), 'utf8')
+  db.prepare(`
+    INSERT INTO instagram_connections (
+      id, status, message, username, instagram_account_id, profile_picture_url,
+      facebook_page_id, facebook_page_name, page_access_token, user_access_token,
+      token_type, expires_in, connected_at, updated_at
+    )
+    VALUES (1, @status, @message, @username, @instagramAccountId, @profilePictureUrl,
+      @facebookPageId, @facebookPageName, @pageAccessToken, @userAccessToken,
+      @tokenType, @expiresIn, @connectedAt, @updatedAt)
+    ON CONFLICT(id) DO UPDATE SET
+      status = excluded.status,
+      message = excluded.message,
+      username = excluded.username,
+      instagram_account_id = excluded.instagram_account_id,
+      profile_picture_url = excluded.profile_picture_url,
+      facebook_page_id = excluded.facebook_page_id,
+      facebook_page_name = excluded.facebook_page_name,
+      page_access_token = excluded.page_access_token,
+      user_access_token = excluded.user_access_token,
+      token_type = excluded.token_type,
+      expires_in = excluded.expires_in,
+      connected_at = excluded.connected_at,
+      updated_at = excluded.updated_at
+  `).run({ ...account, updatedAt: nowIso() })
 }
 
 function maskSecret(value) {

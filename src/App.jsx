@@ -51,57 +51,6 @@ const navigation = [
   { id: 'settings', label: 'Settings', icon: Settings },
 ]
 
-const automationSeed = [
-  {
-    name: 'Auto DM from reel comments',
-    trigger: 'User comments on post or reel',
-    status: true,
-    created: 'May 20, 2026',
-    modified: 'Today',
-    leads: 184,
-    image:
-      'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=180&q=80',
-  },
-  {
-    name: 'Lead magnet keyword: GUIDE',
-    trigger: 'User DMs to you',
-    status: true,
-    created: 'May 18, 2026',
-    modified: 'Yesterday',
-    leads: 96,
-    image:
-      'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=180&q=80',
-  },
-  {
-    name: 'Live class product link',
-    trigger: 'User comments on your LIVE',
-    status: false,
-    created: 'May 10, 2026',
-    modified: 'May 23, 2026',
-    leads: 43,
-    image:
-      'https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&w=180&q=80',
-  },
-]
-
-const contacts = [
-  { handle: '@nisha.creates', name: 'Nisha Rao', source: 'Reel comment', date: 'Today', status: 'New lead' },
-  { handle: '@growthwitharyan', name: 'Aryan Mehta', source: 'DM keyword', date: 'Yesterday', status: 'Clicked' },
-  { handle: '@designbypooja', name: 'Pooja Shah', source: 'Story reply', date: 'May 27', status: 'Seen' },
-]
-
-const productRows = [
-  { name: 'Creator Growth Playbook', price: '₹499', sales: 32, revenue: '₹15,968', payments: true, discount: '50% off' },
-  { name: 'Reel Hooks Swipe File', price: '₹199', sales: 19, revenue: '₹3,781', payments: true, discount: 'New' },
-  { name: 'DM Sales Templates', price: '₹799', sales: 8, revenue: '₹6,392', payments: false, discount: 'Draft' },
-]
-
-const orders = [
-  { date: 'May 29, 2026', email: 'buyer1@example.com', product: 'Creator Growth Playbook', amount: '₹499', payout: '₹449' },
-  { date: 'May 28, 2026', email: 'student@example.com', product: 'DM Sales Templates', amount: '₹799', payout: '₹719' },
-  { date: 'May 27, 2026', email: 'lead@example.com', product: 'Reel Hooks Swipe File', amount: '₹199', payout: '₹179' },
-]
-
 const videos = [
   {
     title: 'How to generate leads in Instagram DMs',
@@ -160,7 +109,16 @@ const adminSteps = [
 function App() {
   const [activePage, setActivePage] = useState('home')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [automations, setAutomations] = useState(automationSeed)
+  const [automations, setAutomations] = useState([])
+  const [realContacts, setRealContacts] = useState([])
+  const [realProducts, setRealProducts] = useState([])
+  const [realOrders, setRealOrders] = useState([])
+  const [metrics, setMetrics] = useState({
+    messagesSent: 0,
+    messagesSeen: 0,
+    totalClicks: 0,
+    followersGained: 0,
+  })
   const [builderOpen, setBuilderOpen] = useState(false)
   const [selectedTrigger, setSelectedTrigger] = useState('User comments on post or reel')
   const [openingEnabled, setOpeningEnabled] = useState(true)
@@ -189,6 +147,35 @@ function App() {
     }
   }, [apiBase])
 
+  const loadRealData = useCallback(async () => {
+    const [dashboardResponse, automationsResponse, contactsResponse, productsResponse, ordersResponse] =
+      await Promise.all([
+        fetch(`${apiBase}/api/dashboard`),
+        fetch(`${apiBase}/api/automations`),
+        fetch(`${apiBase}/api/contacts`),
+        fetch(`${apiBase}/api/products`),
+        fetch(`${apiBase}/api/orders`),
+      ])
+    const [dashboardData, automationsData, contactsData, productsData, ordersData] = await Promise.all([
+      dashboardResponse.json(),
+      automationsResponse.json(),
+      contactsResponse.json(),
+      productsResponse.json(),
+      ordersResponse.json(),
+    ])
+
+    setMetrics(dashboardData.metrics || {
+      messagesSent: 0,
+      messagesSeen: 0,
+      totalClicks: 0,
+      followersGained: 0,
+    })
+    setAutomations(automationsData.automations || [])
+    setRealContacts(contactsData.contacts || [])
+    setRealProducts(productsData.products || [])
+    setRealOrders(ordersData.orders || [])
+  }, [apiBase])
+
   useEffect(() => {
     let ignore = false
 
@@ -200,6 +187,37 @@ function App() {
       .catch(() => {
         if (!ignore) setConnectedAccount(null)
       })
+
+    return () => {
+      ignore = true
+    }
+  }, [apiBase])
+
+  useEffect(() => {
+    let ignore = false
+
+    Promise.all([
+      fetch(`${apiBase}/api/dashboard`),
+      fetch(`${apiBase}/api/automations`),
+      fetch(`${apiBase}/api/contacts`),
+      fetch(`${apiBase}/api/products`),
+      fetch(`${apiBase}/api/orders`),
+    ])
+      .then((responses) => Promise.all(responses.map((response) => response.json())))
+      .then(([dashboardData, automationsData, contactsData, productsData, ordersData]) => {
+        if (ignore) return
+        setMetrics(dashboardData.metrics || {
+          messagesSent: 0,
+          messagesSeen: 0,
+          totalClicks: 0,
+          followersGained: 0,
+        })
+        setAutomations(automationsData.automations || [])
+        setRealContacts(contactsData.contacts || [])
+        setRealProducts(productsData.products || [])
+        setRealOrders(ordersData.orders || [])
+      })
+      .catch(() => {})
 
     return () => {
       ignore = true
@@ -221,28 +239,30 @@ function App() {
   )
 
   const addAutomation = () => {
-    setAutomations((items) => [
-      {
+    fetch(`${apiBase}/api/automations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         name: 'New comment to DM flow',
         trigger: selectedTrigger,
-        status: automationActive,
-        created: 'Today',
-        modified: 'Just now',
-        leads: 0,
-        image:
-          'https://images.unsplash.com/photo-1611162617474-5b21e879e113?auto=format&fit=crop&w=180&q=80',
-      },
-      ...items,
-    ])
-    setBuilderOpen(false)
+        openingMessage: 'Hey! Thanks for commenting. Tap below and I will send the resource instantly.',
+        ctaLabel: 'Get the link',
+        ctaUrl: 'https://hello.invoxai.io',
+        status: automationActive ? 'active' : 'inactive',
+      }),
+    })
+      .then(() => loadRealData())
+      .finally(() => setBuilderOpen(false))
   }
 
   const toggleAutomation = (index) => {
-    setAutomations((items) =>
-      items.map((item, itemIndex) =>
-        itemIndex === index ? { ...item, status: !item.status, modified: 'Just now' } : item,
-      ),
-    )
+    const automation = automations[index]
+    if (!automation) return
+    fetch(`${apiBase}/api/automations/${automation.id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: automation.status === 'active' ? 'inactive' : 'active' }),
+    }).then(() => loadRealData())
   }
 
   const renderPage = () => {
@@ -252,6 +272,7 @@ function App() {
           setActivePage={setActivePage}
           connectedAccount={connectedAccount}
           startInstagramConnect={startInstagramConnect}
+          metrics={metrics}
         />
       )
     }
@@ -289,9 +310,9 @@ function App() {
         />
       )
     }
-    if (activePage === 'contacts') return <ContactsPage />
-    if (activePage === 'products') return <ProductsPage />
-    if (activePage === 'orders') return <OrdersPage />
+    if (activePage === 'contacts') return <ContactsPage contacts={realContacts} />
+    if (activePage === 'products') return <ProductsPage products={realProducts} />
+    if (activePage === 'orders') return <OrdersPage orders={realOrders} />
     if (activePage === 'refer') return <ReferPage />
     if (activePage === 'settings') {
       return (
@@ -310,6 +331,7 @@ function App() {
         setActivePage={setActivePage}
         connectedAccount={connectedAccount}
         startInstagramConnect={startInstagramConnect}
+        metrics={metrics}
       />
     )
   }
@@ -566,7 +588,7 @@ function Progress({ label, value, total }) {
   )
 }
 
-function HomePage({ setActivePage, connectedAccount, startInstagramConnect }) {
+function HomePage({ setActivePage, connectedAccount, startInstagramConnect, metrics }) {
   return (
     <div className="page-grid">
       <section className="panel hero-panel">
@@ -626,10 +648,10 @@ function HomePage({ setActivePage, connectedAccount, startInstagramConnect }) {
           <button className="secondary" type="button">Last 7 days <ChevronDown size={16} /></button>
         </div>
         <div className="metric-grid">
-          <Metric label="Messages Sent" value="2,840" delta="+18%" icon={MessageCircle} />
-          <Metric label="Messages Seen" value="1,924" delta="+11%" icon={Eye} />
-          <Metric label="Total Clicks" value="716" delta="+24%" icon={Link} />
-          <Metric label="Followers Gained" value="392" delta="+9%" icon={UserPlus} />
+          <Metric label="Messages Sent" value={metrics.messagesSent} delta="Real DB" icon={MessageCircle} />
+          <Metric label="Messages Seen" value={metrics.messagesSeen} delta="Real DB" icon={Eye} />
+          <Metric label="Total Clicks" value={metrics.totalClicks} delta="Real DB" icon={Link} />
+          <Metric label="Followers Gained" value={metrics.followersGained} delta="Real DB" icon={UserPlus} />
         </div>
       </section>
 
@@ -703,19 +725,19 @@ function AutomationsPage(props) {
             <tbody>
               {props.automations.map((item, index) => (
                 <tr key={`${item.name}-${index}`}>
-                  <td><img className="thumb" src={item.image} alt="" /></td>
+                  <td><div className="thumb placeholder-thumb"><Bot size={18} /></div></td>
                   <td>
                     <strong>{item.name}</strong>
-                    <span>{item.trigger} · {item.leads} leads</span>
+                    <span>{item.trigger}</span>
                   </td>
                   <td>
-                    <button className={`status-pill ${item.status ? 'on' : ''}`} type="button" onClick={() => props.toggleAutomation(index)}>
-                      {item.status ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
-                      {item.status ? 'Active' : 'Inactive'}
+                    <button className={`status-pill ${item.status === 'active' ? 'on' : ''}`} type="button" onClick={() => props.toggleAutomation(index)}>
+                      {item.status === 'active' ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+                      {item.status === 'active' ? 'Active' : 'Inactive'}
                     </button>
                   </td>
-                  <td>{item.created}</td>
-                  <td>{item.modified}</td>
+                  <td>{formatDate(item.created_at)}</td>
+                  <td>{formatDate(item.updated_at)}</td>
                   <td>
                     <div className="row-actions">
                       <button className="icon-button" type="button" aria-label="View user data"><Eye size={17} /></button>
@@ -728,9 +750,10 @@ function AutomationsPage(props) {
             </tbody>
           </table>
         </div>
+        {!props.automations.length && <div className="empty-state">No real automations yet. Create your first automation to save it in the database.</div>}
         <div className="pagination">
           <span>Rows per page: 10</span>
-          <span>1-3 of 3</span>
+          <span>{props.automations.length} records</span>
         </div>
       </section>
 
@@ -801,7 +824,7 @@ function AutomationsPage(props) {
   )
 }
 
-function ContactsPage() {
+function ContactsPage({ contacts }) {
   return (
     <section className="panel">
       <div className="panel-heading">
@@ -815,27 +838,28 @@ function ContactsPage() {
       <div className="cards-list">
         {contacts.map((contact) => (
           <div className="contact-row" key={contact.handle}>
-            <div className="avatar">{contact.name.split(' ').map((part) => part[0]).join('')}</div>
+            <div className="avatar">{getInitials(contact.name || contact.handle || 'IG')}</div>
             <div>
-              <strong>{contact.name}</strong>
-              <span>{contact.handle}</span>
+              <strong>{contact.name || contact.handle || 'Instagram user'}</strong>
+              <span>{contact.instagram_user_id || contact.handle || 'No handle yet'}</span>
             </div>
             <p>{contact.source}</p>
-            <p>{contact.date}</p>
+            <p>{formatDate(contact.last_seen_at)}</p>
             <small>{contact.status}</small>
           </div>
         ))}
       </div>
+      {!contacts.length && <div className="empty-state">No real contacts yet. Contacts will appear after Instagram users trigger webhooks.</div>}
     </section>
   )
 }
 
-function ProductsPage() {
+function ProductsPage({ products }) {
   return (
     <div className="stack">
       <div className="metric-grid two">
-        <Metric label="Total Purchases" value="59" delta="+16 this week" icon={Package} />
-        <Metric label="Total Revenue" value="₹26,141" delta="KYC required for payouts" icon={Wallet} />
+        <Metric label="Total Purchases" value="0" delta="Real DB" icon={Package} />
+        <Metric label="Total Revenue" value="INR 0" delta="Real DB" icon={Wallet} />
       </div>
       <section className="panel">
         <div className="panel-heading">
@@ -858,30 +882,31 @@ function ProductsPage() {
               </tr>
             </thead>
             <tbody>
-              {productRows.map((product) => (
-                <tr key={product.name}>
-                  <td><strong>{product.name}</strong><span>{product.discount}</span></td>
-                  <td>{product.price}</td>
-                  <td>{product.sales}</td>
-                  <td>{product.revenue}</td>
-                  <td><span className={`status-pill ${product.payments ? 'on' : ''}`}>{product.payments ? 'Enabled' : 'KYC needed'}</span></td>
+              {products.map((product) => (
+                <tr key={product.id}>
+                  <td><strong>{product.name}</strong><span>Real product</span></td>
+                  <td>{formatMoney(product.price, product.currency)}</td>
+                  <td>0</td>
+                  <td>INR 0</td>
+                  <td><span className={`status-pill ${product.payments_enabled ? 'on' : ''}`}>{product.payments_enabled ? 'Enabled' : 'KYC needed'}</span></td>
                   <td><div className="row-actions"><button className="icon-button" type="button" aria-label="Copy link"><Copy size={17} /></button><button className="icon-button" type="button" aria-label="More"><MoreHorizontal size={17} /></button></div></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        {!products.length && <div className="empty-state">No real products yet. Product creation can be connected to this database next.</div>}
       </section>
     </div>
   )
 }
 
-function OrdersPage() {
+function OrdersPage({ orders }) {
   return (
     <div className="stack">
       <div className="metric-grid two">
-        <Metric label="Net Revenue" value="₹23,528" delta="After 10% commission" icon={BarChart3} />
-        <Metric label="Balance" value="₹18,420" delta="Available for payout" icon={Wallet} />
+        <Metric label="Net Revenue" value="INR 0" delta="After 10% commission" icon={BarChart3} />
+        <Metric label="Balance" value="INR 0" delta="Available for payout" icon={Wallet} />
       </div>
       <section className="panel">
         <div className="panel-heading">
@@ -898,13 +923,14 @@ function OrdersPage() {
             </thead>
             <tbody>
               {orders.map((order) => (
-                <tr key={`${order.email}-${order.date}`}>
-                  <td>{order.date}</td><td>{order.email}</td><td>{order.product}</td><td>{order.amount}</td><td>{order.payout}</td>
+                <tr key={order.id}>
+                  <td>{formatDate(order.created_at)}</td><td>{order.customer_email}</td><td>{order.product_name}</td><td>{formatMoney(order.amount, order.currency)}</td><td>{formatMoney(order.payout_amount, order.currency)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        {!orders.length && <div className="empty-state">No real orders yet. Orders will appear after payment integration is connected.</div>}
       </section>
     </div>
   )
@@ -1058,3 +1084,24 @@ function PricingPage() {
 }
 
 export default App
+
+function formatDate(value) {
+  if (!value) return 'Not yet'
+  return new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(new Date(value))
+}
+
+function formatMoney(value = 0, currency = 'INR') {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency }).format(value / 100)
+}
+
+function getInitials(value) {
+  return value
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'IG'
+}
+
+
+
