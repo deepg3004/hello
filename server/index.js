@@ -6,7 +6,7 @@ import morgan from 'morgan'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { db, getDashboardMetrics, insertMessage, nowIso, upsertContactFromEvent } from './db.js'
+import { getDashboardMetrics, insertMessage, nowIso, pool, upsertContactFromEvent } from './db.js'
 import {
   buildAuthUrl,
   exchangeCodeForToken,
@@ -24,35 +24,50 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const rootDir = path.resolve(__dirname, '..')
 const distDir = path.join(rootDir, 'dist')
-const dataDir = path.join(rootDir, 'server', 'data')
-const connectionPath = path.join(dataDir, 'connected-instagram.json')
 
 app.use(helmet({ contentSecurityPolicy: false }))
 app.use(cors({ origin: process.env.CORS_ORIGIN || true }))
 app.use(express.json({ limit: '2mb' }))
 app.use(morgan('dev'))
 
-app.get('/api/health', (_request, response) => {
+app.get('/api/health', async (_request, response) => {
+  let dbOk = false
+  try {
+    await pool.query('SELECT 1')
+    dbOk = true
+  } catch (error) {
+    console.error('Health DB check failed:', error.message)
+  }
+
   response.json({
     ok: true,
     service: 'linkplease-live-backend',
+    database: dbOk ? 'supabase-postgres' : 'unreachable',
     meta: getConfigStatus(),
   })
 })
 
-app.get('/api/dashboard', (_request, response) => {
-  response.json({
-    ok: true,
-    metrics: getDashboardMetrics(),
-  })
+app.get('/api/dashboard', async (_request, response) => {
+  try {
+    response.json({
+      ok: true,
+      metrics: await getDashboardMetrics(),
+    })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
 })
 
-app.get('/api/automations', (_request, response) => {
-  const rows = db.prepare('SELECT * FROM automations ORDER BY created_at DESC').all()
-  response.json({ ok: true, automations: rows })
+app.get('/api/automations', async (_request, response) => {
+  try {
+    const result = await pool.query('SELECT * FROM automations ORDER BY created_at DESC')
+    response.json({ ok: true, automations: result.rows })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
 })
 
-app.post('/api/automations', (request, response) => {
+app.post('/api/automations', async (request, response) => {
   const timestamp = nowIso()
   const {
     name = 'New automation',
@@ -63,105 +78,129 @@ app.post('/api/automations', (request, response) => {
     status = 'inactive',
   } = request.body || {}
 
-  const result = db.prepare(`
-    INSERT INTO automations (name, trigger, opening_message, cta_label, cta_url, status, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(name, trigger, openingMessage, ctaLabel, ctaUrl, status, timestamp, timestamp)
-
-  response.status(201).json({
-    ok: true,
-    automation: db.prepare('SELECT * FROM automations WHERE id = ?').get(result.lastInsertRowid),
-  })
+  try {
+    const result = await pool.query(
+      `INSERT INTO automations (name, trigger, opening_message, cta_label, cta_url, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+       RETURNING *`,
+      [name, trigger, openingMessage, ctaLabel, ctaUrl, status, timestamp],
+    )
+    response.status(201).json({ ok: true, automation: result.rows[0] })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
 })
 
-app.patch('/api/automations/:id/status', (request, response) => {
+app.patch('/api/automations/:id/status', async (request, response) => {
   const status = request.body?.status === 'active' ? 'active' : 'inactive'
-  db.prepare('UPDATE automations SET status = ?, updated_at = ? WHERE id = ?').run(status, nowIso(), request.params.id)
-  response.json({
-    ok: true,
-    automation: db.prepare('SELECT * FROM automations WHERE id = ?').get(request.params.id),
-  })
+  try {
+    const result = await pool.query(
+      'UPDATE automations SET status = $1, updated_at = $2 WHERE id = $3 RETURNING *',
+      [status, nowIso(), request.params.id],
+    )
+    response.json({ ok: true, automation: result.rows[0] || null })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
 })
 
-app.get('/api/contacts', (_request, response) => {
-  const contacts = db.prepare('SELECT * FROM contacts ORDER BY last_seen_at DESC').all()
-  response.json({ ok: true, contacts })
+app.get('/api/contacts', async (_request, response) => {
+  try {
+    const result = await pool.query('SELECT * FROM contacts ORDER BY last_seen_at DESC')
+    response.json({ ok: true, contacts: result.rows })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
 })
 
-app.get('/api/products', (_request, response) => {
-  const products = db.prepare('SELECT * FROM products ORDER BY created_at DESC').all()
-  response.json({ ok: true, products })
+app.get('/api/products', async (_request, response) => {
+  try {
+    const result = await pool.query('SELECT * FROM products ORDER BY created_at DESC')
+    response.json({ ok: true, products: result.rows })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
 })
 
-app.post('/api/products', (request, response) => {
+app.post('/api/products', async (request, response) => {
   const timestamp = nowIso()
   const body = request.body || {}
   const price = toMinorUnits(body.minimumPrice || body.price)
   const suggestedPrice = toMinorUnits(body.suggestedPrice)
   const slug = slugify(body.slug || body.title || 'product')
 
-  const result = db.prepare(`
-    INSERT INTO products (
-      name, slug, description, seller_name, seller_email, cover_image, button_text,
-      pricing_mode, suggested_price, accent_color, theme, resource_link, settings_json,
-      price, currency, payments_enabled, created_at, updated_at
-    )
-    VALUES (
-      @name, @slug, @description, @sellerName, @sellerEmail, @coverImage, @buttonText,
-      @pricingMode, @suggestedPrice, @accentColor, @theme, @resourceLink, @settingsJson,
-      @price, @currency, @paymentsEnabled, @createdAt, @updatedAt
-    )
-  `).run({
-    name: body.title || body.name || 'Untitled product',
-    slug,
-    description: body.description || '',
-    sellerName: body.sellerName || '',
-    sellerEmail: body.sellerEmail || '',
-    coverImage: body.coverImage || '',
-    buttonText: body.buttonText || 'Make Payment',
-    pricingMode: body.pricingMode || 'fixed',
-    suggestedPrice,
-    accentColor: body.accent || '#F5C518',
-    theme: body.theme || 'Dawn',
-    resourceLink: body.resourceLink || '',
-    settingsJson: JSON.stringify({
-      phoneRequired: Boolean(body.phoneRequired),
-      emailOtp: Boolean(body.emailOtp),
-      phoneOtp: Boolean(body.phoneOtp),
-      limitQuantity: Boolean(body.limitQuantity),
-    }),
-    price,
-    currency: body.currency || 'INR',
-    paymentsEnabled: 0,
-    createdAt: timestamp,
-    updatedAt: timestamp,
+  const settingsJson = JSON.stringify({
+    phoneRequired: Boolean(body.phoneRequired),
+    emailOtp: Boolean(body.emailOtp),
+    phoneOtp: Boolean(body.phoneOtp),
+    limitQuantity: Boolean(body.limitQuantity),
   })
 
-  response.status(201).json({
-    ok: true,
-    product: db.prepare('SELECT * FROM products WHERE id = ?').get(result.lastInsertRowid),
-  })
+  try {
+    const result = await pool.query(
+      `INSERT INTO products (
+        name, slug, description, seller_name, seller_email, cover_image, button_text,
+        pricing_mode, suggested_price, accent_color, theme, resource_link, settings_json,
+        price, currency, payments_enabled, created_at, updated_at
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$17)
+      RETURNING *`,
+      [
+        body.title || body.name || 'Untitled product',
+        slug,
+        body.description || '',
+        body.sellerName || '',
+        body.sellerEmail || '',
+        body.coverImage || '',
+        body.buttonText || 'Make Payment',
+        body.pricingMode || 'fixed',
+        suggestedPrice,
+        body.accent || '#F5C518',
+        body.theme || 'Dawn',
+        body.resourceLink || '',
+        settingsJson,
+        price,
+        body.currency || 'INR',
+        0,
+        timestamp,
+      ],
+    )
+    response.status(201).json({ ok: true, product: result.rows[0] })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
 })
 
-app.get('/api/orders', (_request, response) => {
-  const orders = db.prepare('SELECT * FROM orders ORDER BY created_at DESC').all()
-  response.json({ ok: true, orders })
+app.get('/api/orders', async (_request, response) => {
+  try {
+    const result = await pool.query('SELECT * FROM orders ORDER BY created_at DESC')
+    response.json({ ok: true, orders: result.rows })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
 })
 
 app.get('/api/instagram/connection', async (_request, response) => {
-  response.json({
-    ok: true,
-    connectedAccount: await readConnectedAccount(),
-  })
+  try {
+    response.json({
+      ok: true,
+      connectedAccount: await readConnectedAccount(),
+    })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
 })
 
 app.delete('/api/instagram/connection', async (_request, response) => {
-  await fs.rm(connectionPath, { force: true })
-  db.prepare('DELETE FROM instagram_connections WHERE id = 1').run()
-  response.json({
-    ok: true,
-    message: 'Instagram account disconnected from this local dashboard.',
-  })
+  try {
+    await pool.query('DELETE FROM instagram_connections WHERE id = 1')
+    response.json({
+      ok: true,
+      message: 'Instagram account disconnected.',
+    })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
 })
 
 app.post('/api/admin/config', async (request, response) => {
@@ -270,7 +309,11 @@ app.post('/api/webhooks/instagram', async (request, response) => {
   console.log('Instagram webhook event received:', JSON.stringify(events, null, 2))
 
   for (const event of events) {
-    await handleAutomationEvent(event)
+    try {
+      await handleAutomationEvent(event)
+    } catch (error) {
+      console.error('Automation event failed:', error.message)
+    }
   }
 
   response.sendStatus(200)
@@ -336,12 +379,12 @@ function normalizeInstagramEvents(body) {
 async function handleAutomationEvent(event) {
   if (event.type !== 'message' || !event.senderId || !event.text) return
 
-  const contact = upsertContactFromEvent({
+  const contact = await upsertContactFromEvent({
     instagramUserId: event.senderId,
     source: 'Instagram DM',
     status: 'messaged',
   })
-  insertMessage({
+  await insertMessage({
     contactId: contact?.id,
     instagramUserId: event.senderId,
     direction: 'inbound',
@@ -354,11 +397,8 @@ async function handleAutomationEvent(event) {
   if (!lowerText.includes('guide') && !lowerText.includes('link')) return
 
   const reply = 'Thanks for your message. Here is your link: https://hello.invoxai.io/product/creator-growth-playbook'
-  await sendInstagramTextMessage(
-    event.senderId,
-    reply,
-  )
-  insertMessage({
+  await sendInstagramTextMessage(event.senderId, reply)
+  await insertMessage({
     contactId: contact?.id,
     instagramUserId: event.senderId,
     direction: 'outbound',
@@ -438,66 +478,64 @@ async function createConnectedAccount(tokenPayload) {
 }
 
 async function readConnectedAccount() {
-  const row = db.prepare('SELECT * FROM instagram_connections WHERE id = 1').get()
-  if (row) {
-    return {
-      status: row.status,
-      message: row.message,
-      username: row.username,
-      instagramAccountId: row.instagram_account_id,
-      profilePictureUrl: row.profile_picture_url,
-      facebookPageId: row.facebook_page_id,
-      facebookPageName: row.facebook_page_name,
-      pageAccessToken: maskSecret(row.page_access_token),
-      userAccessToken: maskSecret(row.user_access_token),
-      tokenType: row.token_type,
-      expiresIn: row.expires_in,
-      connectedAt: row.connected_at,
-    }
-  }
+  const result = await pool.query('SELECT * FROM instagram_connections WHERE id = 1')
+  const row = result.rows[0]
+  if (!row) return null
 
-  const data = await fs.readFile(connectionPath, 'utf8').catch(() => '')
-  if (!data) return null
-
-  try {
-    const account = JSON.parse(data)
-    return {
-      ...account,
-      pageAccessToken: maskSecret(account.pageAccessToken),
-      userAccessToken: maskSecret(account.userAccessToken),
-    }
-  } catch {
-    return null
+  return {
+    status: row.status,
+    message: row.message,
+    username: row.username,
+    instagramAccountId: row.instagram_account_id,
+    profilePictureUrl: row.profile_picture_url,
+    facebookPageId: row.facebook_page_id,
+    facebookPageName: row.facebook_page_name,
+    pageAccessToken: maskSecret(row.page_access_token),
+    userAccessToken: maskSecret(row.user_access_token),
+    tokenType: row.token_type,
+    expiresIn: row.expires_in,
+    connectedAt: row.connected_at,
   }
 }
 
 async function saveConnectedAccount(account) {
-  await fs.mkdir(dataDir, { recursive: true })
-  await fs.writeFile(connectionPath, JSON.stringify(account, null, 2), 'utf8')
-  db.prepare(`
-    INSERT INTO instagram_connections (
+  await pool.query(
+    `INSERT INTO instagram_connections (
       id, status, message, username, instagram_account_id, profile_picture_url,
       facebook_page_id, facebook_page_name, page_access_token, user_access_token,
       token_type, expires_in, connected_at, updated_at
     )
-    VALUES (1, @status, @message, @username, @instagramAccountId, @profilePictureUrl,
-      @facebookPageId, @facebookPageName, @pageAccessToken, @userAccessToken,
-      @tokenType, @expiresIn, @connectedAt, @updatedAt)
-    ON CONFLICT(id) DO UPDATE SET
-      status = excluded.status,
-      message = excluded.message,
-      username = excluded.username,
-      instagram_account_id = excluded.instagram_account_id,
-      profile_picture_url = excluded.profile_picture_url,
-      facebook_page_id = excluded.facebook_page_id,
-      facebook_page_name = excluded.facebook_page_name,
-      page_access_token = excluded.page_access_token,
-      user_access_token = excluded.user_access_token,
-      token_type = excluded.token_type,
-      expires_in = excluded.expires_in,
-      connected_at = excluded.connected_at,
-      updated_at = excluded.updated_at
-  `).run({ ...account, updatedAt: nowIso() })
+    VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    ON CONFLICT (id) DO UPDATE SET
+      status = EXCLUDED.status,
+      message = EXCLUDED.message,
+      username = EXCLUDED.username,
+      instagram_account_id = EXCLUDED.instagram_account_id,
+      profile_picture_url = EXCLUDED.profile_picture_url,
+      facebook_page_id = EXCLUDED.facebook_page_id,
+      facebook_page_name = EXCLUDED.facebook_page_name,
+      page_access_token = EXCLUDED.page_access_token,
+      user_access_token = EXCLUDED.user_access_token,
+      token_type = EXCLUDED.token_type,
+      expires_in = EXCLUDED.expires_in,
+      connected_at = EXCLUDED.connected_at,
+      updated_at = EXCLUDED.updated_at`,
+    [
+      account.status,
+      account.message,
+      account.username,
+      account.instagramAccountId,
+      account.profilePictureUrl,
+      account.facebookPageId,
+      account.facebookPageName,
+      account.pageAccessToken,
+      account.userAccessToken,
+      account.tokenType,
+      account.expiresIn,
+      account.connectedAt,
+      nowIso(),
+    ],
+  )
 }
 
 function maskSecret(value) {

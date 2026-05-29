@@ -1,6 +1,6 @@
 # LinkPlease Live Server Setup
 
-This project now has a React dashboard and a Node backend for Meta Instagram setup.
+This project has a React dashboard, a Node backend for Meta Instagram setup, and uses Supabase Postgres as the database. Database step-by-step is in `SUPABASE_SETUP.md`.
 
 ## 1. Install And Build
 
@@ -23,6 +23,7 @@ Copy `.env.example` to `.env` on your server and fill your real values.
 PORT=8080
 CORS_ORIGIN=https://hello.invoxai.io
 ADMIN_SETUP_KEY=create_a_private_admin_setup_password
+DATABASE_URL=postgresql://postgres.YOUR_PROJECT_REF:YOUR_DB_PASSWORD@aws-0-ap-south-1.pooler.supabase.com:6543/postgres
 META_APP_ID=your_meta_app_id
 META_APP_SECRET=your_meta_app_secret
 META_ACCESS_TOKEN=your_long_lived_page_or_instagram_token

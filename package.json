@@ -9,16 +9,17 @@
     "build": "vite build",
     "start": "node server/index.js",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "db:migrate": "node server/migrate-from-sqlite.js"
   },
   "dependencies": {
-    "better-sqlite3": "^12.10.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "helmet": "^8.2.0",
     "lucide-react": "^1.17.0",
     "morgan": "^1.10.1",
+    "pg": "^8.13.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },

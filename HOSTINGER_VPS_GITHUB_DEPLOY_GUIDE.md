@@ -178,7 +178,7 @@ Paste this and replace values:
 PORT=8080
 CORS_ORIGIN=https://hello.invoxai.io
 ADMIN_SETUP_KEY=create_a_private_admin_setup_password
-DATABASE_PATH=/var/www/linkplease/server/data/linkplease.sqlite
+DATABASE_URL=postgresql://postgres.YOUR_PROJECT_REF:YOUR_DB_PASSWORD@aws-0-ap-south-1.pooler.supabase.com:6543/postgres
 
 META_APP_ID=your_meta_app_id
 META_APP_SECRET=your_meta_app_secret
@@ -202,17 +202,19 @@ ENTER
 CTRL + X
 ```
 
-## 7A. Database Setup
+## 7A. Database Setup (Supabase Postgres)
 
-This app uses SQLite on the VPS. It is a real database stored in:
+This app uses Supabase (hosted PostgreSQL). The VPS only runs the Node app and Nginx — the database lives in Supabase.
 
-```text
-/var/www/linkplease/server/data/linkplease.sqlite
-```
+Full step-by-step guide is in `SUPABASE_SETUP.md`. Short version:
 
-You do not need to install MySQL or PostgreSQL for the first live version.
+1. Create a Supabase project at https://supabase.com (region: closest to your VPS).
+2. In Supabase → **SQL Editor**, paste the contents of `server/schema.sql` and click **Run**.
+3. In Supabase → **Project Settings → Database → Connection string**, copy the **Transaction pooler** URL (port 6543).
+4. On the VPS, put it in `.env` as `DATABASE_URL=...`.
+5. (Optional) Restrict access to only your VPS IP under **Project Settings → Database → Network Restrictions**.
 
-The database tables are created automatically when the app starts:
+Tables created by `schema.sql`:
 
 ```text
 instagram_connections
@@ -223,20 +225,7 @@ products
 orders
 ```
 
-The database file is ignored by Git, so real user data will stay on the VPS and will not be pushed to GitHub.
-
-Back up the database:
-
-```bash
-mkdir -p /root/backups
-cp /var/www/linkplease/server/data/linkplease.sqlite /root/backups/linkplease-$(date +%F).sqlite
-```
-
-Check database file:
-
-```bash
-ls -lh /var/www/linkplease/server/data
-```
+Backups are automatic in Supabase (daily on Free plan, point-in-time recovery on Pro).
 
 ## 8. Start App With PM2
 
