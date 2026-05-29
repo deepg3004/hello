@@ -67,6 +67,18 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS products (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
+    slug TEXT,
+    description TEXT,
+    seller_name TEXT,
+    seller_email TEXT,
+    cover_image TEXT,
+    button_text TEXT,
+    pricing_mode TEXT NOT NULL DEFAULT 'fixed',
+    suggested_price INTEGER NOT NULL DEFAULT 0,
+    accent_color TEXT NOT NULL DEFAULT '#F5C518',
+    theme TEXT NOT NULL DEFAULT 'Dawn',
+    resource_link TEXT,
+    settings_json TEXT,
     price INTEGER NOT NULL DEFAULT 0,
     currency TEXT NOT NULL DEFAULT 'INR',
     payments_enabled INTEGER NOT NULL DEFAULT 0,
@@ -84,6 +96,28 @@ db.exec(`
     created_at TEXT NOT NULL
   );
 `)
+
+const productColumns = {
+  slug: 'TEXT',
+  description: 'TEXT',
+  seller_name: 'TEXT',
+  seller_email: 'TEXT',
+  cover_image: 'TEXT',
+  button_text: 'TEXT',
+  pricing_mode: "TEXT NOT NULL DEFAULT 'fixed'",
+  suggested_price: 'INTEGER NOT NULL DEFAULT 0',
+  accent_color: "TEXT NOT NULL DEFAULT '#F5C518'",
+  theme: "TEXT NOT NULL DEFAULT 'Dawn'",
+  resource_link: 'TEXT',
+  settings_json: 'TEXT',
+}
+
+const existingProductColumns = db.prepare('PRAGMA table_info(products)').all().map((column) => column.name)
+for (const [column, definition] of Object.entries(productColumns)) {
+  if (!existingProductColumns.includes(column)) {
+    db.exec(`ALTER TABLE products ADD COLUMN ${column} ${definition}`)
+  }
+}
 
 export function nowIso() {
   return new Date().toISOString()

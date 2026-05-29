@@ -93,6 +93,56 @@ app.get('/api/products', (_request, response) => {
   response.json({ ok: true, products })
 })
 
+app.post('/api/products', (request, response) => {
+  const timestamp = nowIso()
+  const body = request.body || {}
+  const price = toMinorUnits(body.minimumPrice || body.price)
+  const suggestedPrice = toMinorUnits(body.suggestedPrice)
+  const slug = slugify(body.slug || body.title || 'product')
+
+  const result = db.prepare(`
+    INSERT INTO products (
+      name, slug, description, seller_name, seller_email, cover_image, button_text,
+      pricing_mode, suggested_price, accent_color, theme, resource_link, settings_json,
+      price, currency, payments_enabled, created_at, updated_at
+    )
+    VALUES (
+      @name, @slug, @description, @sellerName, @sellerEmail, @coverImage, @buttonText,
+      @pricingMode, @suggestedPrice, @accentColor, @theme, @resourceLink, @settingsJson,
+      @price, @currency, @paymentsEnabled, @createdAt, @updatedAt
+    )
+  `).run({
+    name: body.title || body.name || 'Untitled product',
+    slug,
+    description: body.description || '',
+    sellerName: body.sellerName || '',
+    sellerEmail: body.sellerEmail || '',
+    coverImage: body.coverImage || '',
+    buttonText: body.buttonText || 'Make Payment',
+    pricingMode: body.pricingMode || 'fixed',
+    suggestedPrice,
+    accentColor: body.accent || '#F5C518',
+    theme: body.theme || 'Dawn',
+    resourceLink: body.resourceLink || '',
+    settingsJson: JSON.stringify({
+      phoneRequired: Boolean(body.phoneRequired),
+      emailOtp: Boolean(body.emailOtp),
+      phoneOtp: Boolean(body.phoneOtp),
+      limitQuantity: Boolean(body.limitQuantity),
+    }),
+    price,
+    currency: body.currency || 'INR',
+    paymentsEnabled: 0,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  })
+
+  response.status(201).json({
+    ok: true,
+    product: db.prepare('SELECT * FROM products WHERE id = ?').get(result.lastInsertRowid),
+  })
+})
+
 app.get('/api/orders', (_request, response) => {
   const orders = db.prepare('SELECT * FROM orders ORDER BY created_at DESC').all()
   response.json({ ok: true, orders })
@@ -454,4 +504,20 @@ function maskSecret(value) {
   if (!value) return ''
   if (value.length <= 8) return '***'
   return `${value.slice(0, 5)}...${value.slice(-4)}`
+}
+
+function toMinorUnits(value) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed < 0) return 0
+  return Math.round(parsed * 100)
+}
+
+function slugify(value) {
+  return value
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .slice(0, 80) || 'product'
 }

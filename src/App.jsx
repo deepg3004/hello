@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  ArrowRight,
   BadgeCheck,
   BarChart3,
   BookOpen,
@@ -15,6 +16,7 @@ import {
   Eye,
   Gift,
   Home,
+  Image as ImageIcon,
   Link,
   Mail,
   Menu,
@@ -29,9 +31,11 @@ import {
   ShieldCheck,
   ShoppingBag,
   Sparkles,
+  Paintbrush,
   ToggleLeft,
   ToggleRight,
   Trash2,
+  Upload,
   UserPlus,
   Users,
   Wallet,
@@ -106,6 +110,32 @@ const adminSteps = [
   'After approval, switch Meta app to Live mode and monitor webhook errors on your server.',
 ]
 
+const defaultProductBuilder = {
+  title: 'Instagram Growth Playbook',
+  sellerName: 'InvoxAI Creator',
+  sellerEmail: 'support@invoxai.io',
+  coverImage: 'https://images.unsplash.com/photo-1611162618071-b39a2ec055fb?auto=format&fit=crop&w=1200&q=80',
+  description: 'A complete digital resource for creators who want to turn Instagram comments and DMs into leads, followers, and paid customers.',
+  buttonText: 'Make Payment',
+  currency: 'INR',
+  minimumPrice: '5000',
+  suggestedPrice: '12499',
+  pricingMode: 'customers',
+  accent: '#F5C518',
+  theme: 'Dawn',
+  slug: 'instagram-growth-playbook',
+  fileName: '',
+  resourceLink: '',
+  phoneRequired: true,
+  emailOtp: true,
+  phoneOtp: false,
+  limitQuantity: false,
+  termsOpen: false,
+}
+
+const themeCards = ['Default', 'Dawn', 'Dusk']
+const colorSwatches = ['#7C3AED', '#2563EB', '#16A34A', '#F5C518', '#EF4444']
+
 function App() {
   const [activePage, setActivePage] = useState('home')
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -120,6 +150,9 @@ function App() {
     followersGained: 0,
   })
   const [builderOpen, setBuilderOpen] = useState(false)
+  const [productBuilderOpen, setProductBuilderOpen] = useState(false)
+  const [productBuilderTab, setProductBuilderTab] = useState('details')
+  const [productBuilder, setProductBuilder] = useState(defaultProductBuilder)
   const [selectedTrigger, setSelectedTrigger] = useState('User comments on post or reel')
   const [openingEnabled, setOpeningEnabled] = useState(true)
   const [automationActive, setAutomationActive] = useState(true)
@@ -265,6 +298,16 @@ function App() {
     }).then(() => loadRealData())
   }
 
+  const createProduct = () => {
+    fetch(`${apiBase}/api/products`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(productBuilder),
+    })
+      .then(() => loadRealData())
+      .then(() => setProductBuilderOpen(false))
+  }
+
   const renderPage = () => {
     if (activePage === 'home') {
       return (
@@ -311,7 +354,20 @@ function App() {
       )
     }
     if (activePage === 'contacts') return <ContactsPage contacts={realContacts} />
-    if (activePage === 'products') return <ProductsPage products={realProducts} />
+    if (activePage === 'products') {
+      return (
+        <ProductsPage
+          products={realProducts}
+          builderOpen={productBuilderOpen}
+          setBuilderOpen={setProductBuilderOpen}
+          builderTab={productBuilderTab}
+          setBuilderTab={setProductBuilderTab}
+          builder={productBuilder}
+          setBuilder={setProductBuilder}
+          createProduct={createProduct}
+        />
+      )
+    }
     if (activePage === 'orders') return <OrdersPage orders={realOrders} />
     if (activePage === 'refer') return <ReferPage />
     if (activePage === 'settings') {
@@ -854,7 +910,23 @@ function ContactsPage({ contacts }) {
   )
 }
 
-function ProductsPage({ products }) {
+function ProductsPage({
+  products,
+  builderOpen,
+  setBuilderOpen,
+  builderTab,
+  setBuilderTab,
+  builder,
+  setBuilder,
+  createProduct,
+}) {
+  const updateBuilder = (field, value) => {
+    setBuilder((current) => ({ ...current, [field]: value }))
+  }
+
+  const suggestedPrices = [builder.minimumPrice, '8749.5', builder.suggestedPrice, '21248.5']
+  const displayPrice = Number(builder.suggestedPrice || builder.minimumPrice || 0)
+
   return (
     <div className="stack">
       <div className="metric-grid two">
@@ -867,7 +939,7 @@ function ProductsPage({ products }) {
             <span className="eyebrow">Creator commerce</span>
             <h3>Digital products</h3>
           </div>
-          <button className="primary" type="button"><Plus size={17} /> Create</button>
+          <button className="primary" type="button" onClick={() => setBuilderOpen(true)}><Plus size={17} /> Create</button>
         </div>
         <div className="table-wrap">
           <table>
@@ -884,7 +956,7 @@ function ProductsPage({ products }) {
             <tbody>
               {products.map((product) => (
                 <tr key={product.id}>
-                  <td><strong>{product.name}</strong><span>Real product</span></td>
+                  <td><strong>{product.name}</strong><span>{product.slug ? `/p/${product.slug}` : 'Real product'}</span></td>
                   <td>{formatMoney(product.price, product.currency)}</td>
                   <td>0</td>
                   <td>INR 0</td>
@@ -895,9 +967,265 @@ function ProductsPage({ products }) {
             </tbody>
           </table>
         </div>
-        {!products.length && <div className="empty-state">No real products yet. Product creation can be connected to this database next.</div>}
+        {!products.length && <div className="empty-state">No real products yet. Click Create to build your first payment page and save it in the VPS database.</div>}
       </section>
+
+      {builderOpen && (
+        <section className="payment-builder">
+          <div className="builder-panel">
+            <div className="panel-heading">
+              <div>
+                <span className="eyebrow"><CreditCard size={16} /> Payment page builder</span>
+                <h3>SuperProfile style checkout page</h3>
+              </div>
+              <button className="icon-button" type="button" aria-label="Close payment builder" onClick={() => setBuilderOpen(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="tabs builder-tabs">
+              {[
+                ['details', 'Page Details'],
+                ['payment', 'Payment Page Details'],
+                ['advanced', 'Advanced Settings'],
+              ].map(([id, label]) => (
+                <button className={builderTab === id ? 'active' : ''} key={id} type="button" onClick={() => setBuilderTab(id)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {builderTab === 'details' && (
+              <div className="builder-form">
+                <label>
+                  Payment Page Title
+                  <input maxLength={75} value={builder.title} onChange={(event) => updateBuilder('title', event.target.value)} />
+                </label>
+                <label>
+                  Creator / Seller Name
+                  <input value={builder.sellerName} onChange={(event) => updateBuilder('sellerName', event.target.value)} />
+                </label>
+                <label>
+                  Seller Email
+                  <input value={builder.sellerEmail} onChange={(event) => updateBuilder('sellerEmail', event.target.value)} />
+                </label>
+                <label>
+                  Cover Image URL
+                  <input value={builder.coverImage} onChange={(event) => updateBuilder('coverImage', event.target.value)} />
+                </label>
+                <div className="upload-drop">
+                  <Upload size={20} />
+                  <strong>Drag and drop cover image</strong>
+                  <span>{builder.fileName || 'No file selected. Add a live image URL above for now.'}</span>
+                </div>
+                <label className="wide-field">
+                  Description
+                  <div className="editor-toolbar" aria-label="Rich text controls">
+                    <button type="button"><strong>B</strong></button>
+                    <button type="button"><em>I</em></button>
+                    <button type="button"><u>U</u></button>
+                    <button type="button"><ListIcon /></button>
+                    <button type="button"><ImageIcon size={16} /></button>
+                    <button type="button"><Link size={16} /></button>
+                  </div>
+                  <textarea value={builder.description} onChange={(event) => updateBuilder('description', event.target.value)} />
+                </label>
+                <label>
+                  Button Text
+                  <input maxLength={25} value={builder.buttonText} onChange={(event) => updateBuilder('buttonText', event.target.value)} />
+                </label>
+                <div className="option-chips">
+                  {['Gallery', 'Testimonials', 'FAQ', 'About Me', 'Showcase Products'].map((item) => (
+                    <button type="button" key={item}>{item}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {builderTab === 'payment' && (
+              <div className="builder-form">
+                <div className="upload-drop wide-field">
+                  <Upload size={20} />
+                  <strong>Upload digital files</strong>
+                  <span>Unlimited files, 100MB limit</span>
+                </div>
+                <label className="wide-field">
+                  Resource Link
+                  <div className="inline-field">
+                    <input value={builder.resourceLink} onChange={(event) => updateBuilder('resourceLink', event.target.value)} placeholder="https://..." />
+                    <button className="secondary" type="button">Add</button>
+                  </div>
+                </label>
+                <div className="pricing-mode wide-field">
+                  {[
+                    ['fixed', 'Fixed Price', 'Customer pays one fixed amount.'],
+                    ['customers', 'Customers decide price', 'Let buyers pay from minimum or suggested prices.'],
+                  ].map(([id, title, detail]) => (
+                    <button className={builder.pricingMode === id ? 'selected' : ''} type="button" key={id} onClick={() => updateBuilder('pricingMode', id)}>
+                      <Check size={18} />
+                      <strong>{title}</strong>
+                      <span>{detail}</span>
+                    </button>
+                  ))}
+                </div>
+                <label>
+                  Minimum Price
+                  <span className="money-input"><b>INR</b><input value={builder.minimumPrice} onChange={(event) => updateBuilder('minimumPrice', event.target.value)} /></span>
+                </label>
+                <label>
+                  Suggested Price
+                  <span className="money-input"><b>INR</b><input value={builder.suggestedPrice} onChange={(event) => updateBuilder('suggestedPrice', event.target.value)} /></span>
+                </label>
+                <label className="check-toggle">
+                  <input type="checkbox" checked={builder.limitQuantity} onChange={(event) => updateBuilder('limitQuantity', event.target.checked)} />
+                  Limit Quantity
+                </label>
+                <details className="advanced-drop wide-field">
+                  <summary>Advanced Settings</summary>
+                  <p>Quantity limits, coupon rules, file delivery, and post-purchase behaviour can be connected here.</p>
+                </details>
+              </div>
+            )}
+
+            {builderTab === 'advanced' && (
+              <div className="builder-form">
+                <div className="wide-field">
+                  <label>Theme & Styling</label>
+                  <div className="theme-grid">
+                    {themeCards.map((theme) => (
+                      <button className={builder.theme === theme ? 'selected' : ''} type="button" key={theme} onClick={() => updateBuilder('theme', theme)}>
+                        <Paintbrush size={18} />
+                        <strong>{theme}</strong>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="swatches">
+                    {colorSwatches.map((color) => (
+                      <button
+                        className={builder.accent === color ? 'selected' : ''}
+                        style={{ background: color }}
+                        type="button"
+                        key={color}
+                        aria-label={`Use color ${color}`}
+                        onClick={() => updateBuilder('accent', color)}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <SettingRow title="Same Page Checkout" action="Customise" />
+                <SettingRow title="Email ID Field" enabled={builder.emailOtp} onToggle={() => updateBuilder('emailOtp', !builder.emailOtp)} />
+                <div className="warning-panel wide-field">
+                  <strong>OTP warning</strong>
+                  <span>Turning off OTP verification could lead to spam and lower quality customer records.</span>
+                </div>
+                <SettingRow title="Phone Number Field" enabled={builder.phoneRequired} onToggle={() => updateBuilder('phoneRequired', !builder.phoneRequired)} />
+                <SettingRow title="Phone Verification Code" enabled={builder.phoneOtp} onToggle={() => updateBuilder('phoneOtp', !builder.phoneOtp)} />
+                {['Bump Offer', 'Automated Email', 'Discount Coupons', 'Terms & Conditions', 'Refund Policy', 'Privacy Policy'].map((item) => (
+                  <SettingRow key={item} title={item} action="Setup" />
+                ))}
+                <label className="wide-field">
+                  Page URL
+                  <span className="slug-field"><span>hello.invoxai.io/p/</span><input value={builder.slug} onChange={(event) => updateBuilder('slug', event.target.value)} /><Edit3 size={16} /></span>
+                </label>
+                <SettingRow title="Post Purchase Behaviour" action="Edit" />
+              </div>
+            )}
+
+            <div className="publish-bar">
+              <button className="primary" type="button" onClick={createProduct}>Publish Changes</button>
+            </div>
+          </div>
+
+          <PaymentPreview builder={builder} displayPrice={displayPrice} suggestedPrices={suggestedPrices} />
+        </section>
+      )}
     </div>
+  )
+}
+
+function ListIcon() {
+  return <span className="list-icon">=</span>
+}
+
+function SettingRow({ title, action, enabled, onToggle }) {
+  return (
+    <div className="setting-row">
+      <strong>{title}</strong>
+      {typeof enabled === 'boolean' ? (
+        <button className={`status-pill ${enabled ? 'on' : ''}`} type="button" onClick={onToggle}>
+          {enabled ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+          {enabled ? 'On' : 'Off'}
+        </button>
+      ) : (
+        <button className="secondary" type="button">{action}</button>
+      )}
+    </div>
+  )
+}
+
+function PaymentPreview({ builder, displayPrice, suggestedPrices }) {
+  const isDusk = builder.theme === 'Dusk'
+  const accent = builder.accent
+
+  return (
+    <aside className="preview-shell">
+      <div className="browser-frame">
+        <div className="browser-dots"><span /><span /><span /></div>
+        <div className={`payment-page-preview ${isDusk ? 'dusk' : ''}`} style={{ '--accent': accent }}>
+          <div className="preview-left">
+            <div className="seller-logo">IA</div>
+            <h2>{builder.title}</h2>
+            <img src={builder.coverImage} alt="" />
+            <h3>Description</h3>
+            <p>{builder.description}</p>
+            <div className="contact-seller">
+              <strong>Contact {builder.sellerName}</strong>
+              <span><Mail size={14} /> {builder.sellerEmail}</span>
+            </div>
+            <button className="terms-toggle" type="button">
+              <Plus size={15} />
+              Terms and conditions
+            </button>
+            <footer className="preview-branding">
+              <strong><Sparkles size={15} /> SuperProfile</strong>
+              <span>Want to create your own payment page? Experience hassle-free payouts and premium support. <a href="#products">Get started now!</a></span>
+            </footer>
+          </div>
+          <div className="preview-accent" />
+          <div className="checkout-card">
+            <label>
+              <span>Access to this purchase will be sent to this email</span>
+              Email Address
+              <input placeholder="customer@email.com" />
+            </label>
+            <div>
+              <strong>Pay what you like *</strong>
+              <div className="price-pills">
+                {suggestedPrices.map((price, index) => (
+                  <button className={index === 2 ? 'popular' : ''} type="button" key={`${price}-${index}`} style={index === 2 ? { background: accent } : undefined}>
+                    {index === 2 && <span>Popular</span>}
+                    INR {price}
+                  </button>
+                ))}
+                <button type="button">Other</button>
+              </div>
+            </div>
+            <label>
+              Add your phone number *
+              <span className="phone-field"><b>+91</b><input placeholder="9876543210" /></span>
+            </label>
+            <div className="checkout-total">
+              <div><span>Sub Total</span><strong>INR {displayPrice}</strong></div>
+              <div><b>Total</b><strong>INR {displayPrice}</strong></div>
+            </div>
+            <button className="pay-button" style={{ background: accent }} type="button">
+              {builder.buttonText}
+              <ArrowRight size={18} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
   )
 }
 
