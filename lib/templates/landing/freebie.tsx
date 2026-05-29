@@ -1,6 +1,6 @@
-// Lead magnet / freebie download page.
+// Freebie / lead magnet — definition + adapter.
 
-import { LeadCaptureForm } from "@/components/pages/LeadCaptureForm";
+import { FreebieLeadPage } from "@/components/templates/FreebieLeadPage";
 import { extractDefaults, readField } from "@/lib/templates/utils";
 import type { Template, TemplateDefinition, TemplateRender } from "@/lib/templates/types";
 
@@ -18,12 +18,7 @@ const definition: TemplateDefinition = {
       label: "Hero",
       type: "hero",
       fields: [
-        {
-          key: "badge_text",
-          label: "Badge text",
-          type: "text",
-          defaultValue: "Free Download",
-        },
+        { key: "badge_text", label: "Badge text", type: "text", defaultValue: "Free Download" },
         {
           key: "hero_headline",
           label: "Headline",
@@ -34,8 +29,7 @@ const definition: TemplateDefinition = {
           key: "hero_subheadline",
           label: "Subheadline",
           type: "textarea",
-          defaultValue:
-            "Battle-tested email questions that booked 312 sales calls last quarter.",
+          defaultValue: "Battle-tested email questions that booked 312 sales calls last quarter.",
         },
       ],
     },
@@ -44,20 +38,13 @@ const definition: TemplateDefinition = {
       label: "What's inside",
       type: "benefits",
       fields: [
-        {
-          key: "inside_title",
-          label: "Section title",
-          type: "text",
-          defaultValue: "What's inside",
-        },
+        { key: "inside_title", label: "Section title", type: "text", defaultValue: "What's inside" },
         {
           key: "inside_items",
           label: "Bullets",
           type: "list",
           itemLabel: "bullet",
-          itemFields: [
-            { key: "text", label: "Text", type: "text", defaultValue: "" },
-          ],
+          itemFields: [{ key: "text", label: "Text", type: "text", defaultValue: "" }],
           defaultValue: [
             { text: "25 cold-outreach questions categorized by intent" },
             { text: "5 follow-up sequences you can copy-paste" },
@@ -71,87 +58,39 @@ const definition: TemplateDefinition = {
       label: "Opt-in form",
       type: "form",
       fields: [
-        {
-          key: "optin_cta",
-          label: "Button label",
-          type: "text",
-          defaultValue: "Send me the swipe file",
-        },
+        { key: "optin_cta", label: "Button label", type: "text", defaultValue: "Send me the swipe file" },
         {
           key: "optin_privacy",
           label: "Privacy line",
           type: "text",
           defaultValue: "We'll never spam you. Unsubscribe in one click.",
         },
+        {
+          key: "redirect_url",
+          label: "Redirect after submit (optional)",
+          type: "text",
+          defaultValue: "",
+          hint: "Direct download URL — buyer is taken straight to the file.",
+        },
       ],
     },
   ],
 };
 
-interface BulletItem { text: string }
-
-const Render: TemplateRender = ({ values, pageId, isPreview }) => {
-  const badge = readField(values, "badge_text", "Free Download");
-  const headline = readField(values, "hero_headline", "");
-  const sub = readField(values, "hero_subheadline", "");
-  const insideTitle = readField(values, "inside_title", "");
-  const inside = readField<BulletItem[]>(values, "inside_items", []);
-  const cta = readField(values, "optin_cta", "Send it to me");
-  const privacy = readField(values, "optin_privacy", "");
-
-  return (
-    <div className="min-h-screen bg-[#fff7ed] text-zinc-900">
-      <section className="mx-auto max-w-2xl px-6 py-16 text-center">
-        {badge && (
-          <span className="inline-block rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-rose-600">
-            {badge}
-          </span>
-        )}
-        <h1 className="mt-4 text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
-          {headline}
-        </h1>
-        {sub && (
-          <p className="mt-5 text-lg leading-relaxed text-zinc-600">{sub}</p>
-        )}
-      </section>
-
-      {inside.length > 0 && (
-        <section className="border-y border-rose-100 bg-white py-12">
-          <div className="mx-auto max-w-2xl px-6">
-            <h2 className="text-xl font-semibold tracking-tight">{insideTitle}</h2>
-            <ul className="mt-5 space-y-3">
-              {inside.map((b, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <span className="mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-100 text-xs font-semibold text-rose-600">
-                    ✓
-                  </span>
-                  <span>{b.text}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-      )}
-
-      <section className="py-16">
-        <div className="mx-auto max-w-md px-6">
-          <div className="rounded-xl border border-rose-100 bg-white p-6 shadow-sm">
-            {pageId && !isPreview ? (
-              <LeadCaptureForm pageId={pageId} ctaLabel={cta} requirePhone={false} />
-            ) : (
-              <p className="text-center text-sm text-zinc-500">
-                Opt-in form renders on the live page.
-              </p>
-            )}
-          </div>
-          {privacy && (
-            <p className="mt-4 text-center text-xs text-zinc-500">{privacy}</p>
-          )}
-        </div>
-      </section>
-    </div>
-  );
-};
+const Render: TemplateRender = ({ values, pageId, isPreview }) => (
+  <FreebieLeadPage
+    pageId={pageId}
+    isPreview={isPreview}
+    badge_text={readField(values, "badge_text", "")}
+    hero_headline={readField(values, "hero_headline", "")}
+    hero_subheadline={readField(values, "hero_subheadline", "")}
+    inside_title={readField(values, "inside_title", "")}
+    inside_items={readField(values, "inside_items", [])}
+    optin_cta={readField(values, "optin_cta", "")}
+    optin_privacy={readField(values, "optin_privacy", "")}
+    redirect_url={readField(values, "redirect_url", "") || undefined}
+  />
+);
 
 export const freebieTemplate: Template = {
   definition,

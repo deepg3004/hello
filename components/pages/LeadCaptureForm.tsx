@@ -22,12 +22,15 @@ interface LeadCaptureFormProps {
   pageId: string;
   ctaLabel?: string;
   requirePhone?: boolean;
+  /** Optional URL the buyer is redirected to after a successful submit. */
+  redirectUrl?: string;
 }
 
 export function LeadCaptureForm({
   pageId,
   ctaLabel = "Submit",
   requirePhone = false,
+  redirectUrl,
 }: LeadCaptureFormProps) {
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
@@ -64,6 +67,10 @@ export function LeadCaptureForm({
       });
       const body = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !body.ok) throw new Error(body.error ?? "Submit failed");
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
+        return;
+      }
       setDone(true);
     } catch (e) {
       toast({
