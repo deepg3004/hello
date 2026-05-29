@@ -3453,3 +3453,299 @@ input {
   color: #475569;
   border: 1px solid rgba(100, 116, 139, 0.22);
 }
+
+/* =========================================================================
+   WIZARD UX REFRESH — friendlier, lighter, mobile-aware.
+   These rules deliberately follow the existing `.payment-wizard` block to
+   override its dark theme and tighter spacing without rewriting it.
+   ========================================================================= */
+
+.payment-wizard {
+  background: #f5f7fb;
+  border-radius: 16px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.wizard-header {
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 14px 20px;
+  border-radius: 16px 16px 0 0;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.wizard-header > button {
+  color: #1f2937;
+  background: transparent;
+  border: 1px solid #d6deeb;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.wizard-header > button:hover {
+  border-color: #94a3b8;
+}
+
+/* Old dot indicator — hide; replaced by step-pills */
+.step-indicator { display: none; }
+
+.step-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.step-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 8px 8px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: not-allowed;
+  transition: all 160ms;
+}
+
+.step-pill.is-past {
+  background: #f1f5f9;
+  color: #1f7a57;
+  border-color: #bfe8d6;
+  cursor: pointer;
+}
+
+.step-pill.is-past:hover {
+  background: #ecfdf5;
+  transform: translateY(-1px);
+}
+
+.step-pill.is-active {
+  background: #ffffff;
+  color: #1d4ed8;
+  border-color: #93c5fd;
+  cursor: default;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.18);
+}
+
+.step-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #64748b;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 12px;
+  transition: background 160ms;
+}
+
+.step-pill.is-past .step-circle {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.step-pill.is-active .step-circle {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.step-label {
+  white-space: nowrap;
+}
+
+/* Lighter form column */
+.wizard-form {
+  background: #ffffff;
+  padding: 28px 28px 110px;
+}
+
+.wizard-fields {
+  gap: 22px;
+}
+
+.wizard-step-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed #e2e8f0;
+  margin-bottom: 4px;
+}
+
+.wizard-step-intro h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.wizard-step-intro p {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
+/* Field labels */
+.wizard-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wizard-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.wizard-label-row .counter {
+  font-size: 11px;
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.wizard-help-text {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: -2px;
+}
+
+.wizard-label input,
+.wizard-label textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #d6deeb;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  background: #ffffff;
+  transition: border-color 160ms, box-shadow 160ms;
+}
+
+.wizard-label input:focus,
+.wizard-label textarea:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.wizard-label input.field-error,
+.wizard-label textarea.field-error {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+}
+
+.required-star {
+  color: #ef4444;
+  font-weight: 700;
+}
+
+.error-text {
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Optional sections grid */
+.optional-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+}
+
+.optional-grid-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.optional-grid-head strong { font-size: 14px; color: #1f2937; }
+.optional-grid-head small { color: #64748b; font-size: 12px; }
+
+.optional-grid > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #ffffff;
+  border: 1px solid #d6deeb;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 160ms, background 160ms;
+}
+
+.optional-grid > button:hover {
+  border-color: #93c5fd;
+}
+
+.optional-grid > button.selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+/* Sticky footer */
+.wizard-footer {
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
+  padding: 14px 20px;
+  gap: 10px;
+  border-radius: 0 0 16px 16px;
+}
+
+.wizard-footer .primary {
+  padding: 12px 22px;
+  font-weight: 700;
+  border-radius: 10px;
+}
+
+.wizard-footer .ghost-button {
+  background: transparent;
+  border: 1px solid #d6deeb;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.wizard-footer .ghost-button:hover {
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+@media (max-width: 880px) {
+  .step-label { display: none; }
+  .step-pill { padding: 6px; }
+  .wizard-header > button { padding: 6px 10px; font-size: 12px; }
+  .wizard-form { padding: 20px 16px 110px; }
+  .wizard-step-intro h2 { font-size: 18px; }
+  .wizard-footer { padding: 12px 14px; flex-wrap: wrap; }
+  .wizard-footer .primary,
+  .wizard-footer .ghost-button { flex: 1; min-width: 100px; }
+}

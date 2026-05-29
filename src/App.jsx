@@ -1305,10 +1305,28 @@ function ProductsPage({
         <section className="payment-wizard">
           <div className="wizard-header">
             <button type="button" onClick={() => setBuilderOpen(false)}><X size={18} /> {editingProductId ? 'Edit page' : 'New page'}</button>
-            <StepIndicator step={builderStep} />
+            <StepIndicator step={builderStep} onJumpTo={(target) => setBuilderStep(target)} />
           </div>
           <div className="wizard-body">
             <div className="wizard-form">
+              {builderStep === 1 && (
+                <div className="wizard-step-intro">
+                  <h2>Tell us about your product</h2>
+                  <p>This is what buyers see when they land on your page.</p>
+                </div>
+              )}
+              {builderStep === 2 && (
+                <div className="wizard-step-intro">
+                  <h2>Set your price & delivery</h2>
+                  <p>What buyers get and how much they pay.</p>
+                </div>
+              )}
+              {builderStep === 3 && (
+                <div className="wizard-step-intro">
+                  <h2>Pick a vibe & polish</h2>
+                  <p>Theme, color, terms, and tracking. None of this is required to publish.</p>
+                </div>
+              )}
               {builderStep === 1 && (
                 <StepOne builder={builder} updateBuilder={updateBuilder} errors={errors} allProducts={allProducts} />
               )}
@@ -1406,12 +1424,27 @@ function SellChoice({ icon: Icon, tone, title, description, onClick }) {
   )
 }
 
-function StepIndicator({ step }) {
-  const labels = ['Page Details', 'Payment Page Details', 'Advanced Settings']
+function StepIndicator({ step, onJumpTo }) {
+  const labels = ['Page details', 'Pricing & files', 'Advanced settings']
   return (
-    <div className="step-indicator">
-      <span>{[1, 2, 3].map((item) => <b className={item <= step ? 'active' : ''} key={item} />)}</span>
-      <strong>Step {step} - {labels[step - 1]}</strong>
+    <div className="step-pills">
+      {labels.map((label, index) => {
+        const num = index + 1
+        const isActive = step === num
+        const isPast = step > num
+        return (
+          <button
+            key={num}
+            type="button"
+            className={`step-pill ${isActive ? 'is-active' : ''} ${isPast ? 'is-past' : ''}`}
+            onClick={() => isPast && onJumpTo?.(num)}
+            disabled={!isPast}
+          >
+            <span className="step-circle">{isPast ? <Check size={13} /> : num}</span>
+            <span className="step-label">{label}</span>
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -1433,15 +1466,49 @@ function StepOne({ builder, updateBuilder, errors, allProducts }) {
 
   return (
     <div className="wizard-fields">
-      <WizardTextField required label="Payment Page Title" value={builder.title} max={75} placeholder="Your Payment Page Title Here" error={errors.title} onChange={(value) => updateBuilder('title', value)} />
-      <UploadCard title="Cover Image / Video Upload" subtitle="1280 x 720 (16:9) recommended; Up to 10 MB each" linkPlaceholder="Add video link (Youtube, Vimeo, etc.)" value={builder.coverImage} error={errors.cover} onChange={(value) => updateBuilder('coverImage', value)} />
+      <WizardTextField
+        required
+        label="Product title"
+        value={builder.title}
+        max={75}
+        placeholder="e.g. Instagram Growth Playbook"
+        error={errors.title}
+        help="Shows as the big heading on your public page."
+        onChange={(value) => updateBuilder('title', value)}
+      />
+      <UploadCard
+        title="Cover image or video"
+        subtitle="1280 × 720 recommended. Paste any image/YouTube/Vimeo URL — file upload coming soon."
+        linkPlaceholder="https://example.com/cover.jpg"
+        value={builder.coverImage}
+        error={errors.cover}
+        onChange={(value) => updateBuilder('coverImage', value)}
+      />
       <label className="wizard-label">
-        Description
-        <textarea placeholder="Add full product description here..." value={builder.description} onChange={(event) => updateBuilder('description', event.target.value)} />
+        <span className="wizard-label-row"><span>Description</span></span>
+        <small className="wizard-help-text">A short pitch — what is it, what's inside, what does the buyer get?</small>
+        <textarea
+          placeholder="What is this product? Who is it for? What's inside?"
+          value={builder.description}
+          onChange={(event) => updateBuilder('description', event.target.value)}
+          rows={4}
+        />
       </label>
-      <WizardTextField required label="Button Text" value={builder.buttonText} max={25} placeholder="Get it now" error={errors.buttonText} onChange={(value) => updateBuilder('buttonText', value)} />
+      <WizardTextField
+        required
+        label="Button text"
+        value={builder.buttonText}
+        max={25}
+        placeholder="e.g. Get it now"
+        error={errors.buttonText}
+        help="The label on the big checkout button."
+        onChange={(value) => updateBuilder('buttonText', value)}
+      />
       <div className="optional-grid">
-        <strong>Optional Sections</strong>
+        <span className="optional-grid-head">
+          <strong>Add extra sections</strong>
+          <small>Optional. Each one appears on your public page below the description.</small>
+        </span>
         {OPTIONAL_SECTIONS.map((item) => (
           <button
             type="button"
@@ -1827,12 +1894,15 @@ function StepThree({ builder, updateBuilder, openSetup }) {
   )
 }
 
-function WizardTextField({ label, value, max, placeholder, required, error, onChange }) {
+function WizardTextField({ label, value, max, placeholder, required, error, help, onChange }) {
   return (
     <label className="wizard-label">
-      {label} {required && <RequiredStar />}
+      <span className="wizard-label-row">
+        <span>{label} {required && <RequiredStar />}</span>
+        {max && <span className="counter">{value.length}/{max}</span>}
+      </span>
+      {help && <small className="wizard-help-text">{help}</small>}
       <input className={error ? 'field-error' : ''} maxLength={max} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
-      <span className="counter">{value.length}/{max}</span>
       {error && <small className="error-text">{error}</small>}
     </label>
   )
