@@ -54,13 +54,37 @@ If Hostinger gives you a username other than `root`, use that username.
 Run this on the VPS:
 
 ```bash
-apt update && apt upgrade -y
+apt update
 ```
 
 Install basic tools:
 
 ```bash
 apt install -y git curl nginx ufw
+```
+
+Because this VPS already hosts other websites, do not delete or replace existing Nginx files. This project only needs a new server block for:
+
+```text
+hello.invoxai.io
+```
+
+The app uses internal port `8080` by default. Before installing, check whether another app already uses that port:
+
+```bash
+ss -ltnp | grep ':8080'
+```
+
+If nothing appears, port `8080` is free. If something appears, change this project to another port such as `8081`:
+
+```env
+PORT=8081
+```
+
+Then update the Nginx proxy line:
+
+```nginx
+proxy_pass http://127.0.0.1:8081;
 ```
 
 ## 3A. Faster One-Command Project Setup
@@ -75,6 +99,14 @@ git clone https://github.com/deepg3004/hello.git linkplease
 cd linkplease
 bash deploy/hostinger-vps-setup.sh
 ```
+
+The script creates only this Nginx site:
+
+```text
+/etc/nginx/sites-available/hello-invoxai
+```
+
+It does not remove your other websites.
 
 Then edit your real credentials:
 

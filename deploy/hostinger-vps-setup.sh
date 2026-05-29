@@ -7,8 +7,15 @@ DOMAIN="hello.invoxai.io"
 APP_NAME="hello-invoxai"
 
 echo "Updating server packages..."
-apt update && apt upgrade -y
+apt update
 apt install -y git curl nginx ufw
+
+if ss -ltn | awk '{print $4}' | grep -q ':8080$'; then
+  echo "Port 8080 is already in use."
+  echo "If another website uses this port, change PORT in .env and update deploy/nginx-hello.invoxai.io.conf before continuing."
+  echo "To inspect: ss -ltnp | grep ':8080'"
+  exit 1
+fi
 
 if ! command -v node >/dev/null 2>&1; then
   echo "Installing Node.js 22..."
