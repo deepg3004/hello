@@ -1,16 +1,21 @@
-# React + Vite
+# hello
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Fresh repo — a new project will land here.
 
-Currently, two official plugins are available:
+The previous LinkPlease v1 codebase (Instagram DM automation SaaS that ran
+at hello.invoxai.io) was archived on 2026-05-29.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+To restore the old code:
 
-## React Compiler
+```bash
+# Browse on GitHub
+https://github.com/deepg3004/hello/tree/linkplease-final-archive
+https://github.com/deepg3004/hello/releases/tag/v1-linkplease-final
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+# Or check out locally
+git clone https://github.com/deepg3004/hello
+cd hello
+git checkout linkplease-final-archive   # full archive branch
+# or
+git checkout v1-linkplease-final         # tagged final commit
+```
