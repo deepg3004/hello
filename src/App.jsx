@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import {
   ArrowRight,
   BadgeCheck,
@@ -46,18 +46,25 @@ import {
   X,
 } from 'lucide-react'
 import PaymentPage from './PaymentPage.jsx'
+import PublicPage from './pages/PublicPage.jsx'
+import Overview from './pages/dashboard/Overview.jsx'
+import InstagramPage from './pages/dashboard/Instagram.jsx'
 import './App.css'
 
 function App() {
   return (
     <Routes>
+      <Route path="/" element={<Navigate to="/dashboard/overview" replace />} />
       <Route path="/p/:slug" element={<PaymentPage />} />
+      <Route path="/u/:handle" element={<PublicPage />} />
+      <Route path="/dashboard/*" element={<Dashboard />} />
       <Route path="*" element={<Dashboard />} />
     </Routes>
   )
 }
 
 const navigation = [
+  { id: 'overview', label: 'Overview', icon: BarChart3 },
   { id: 'home', label: 'Home', icon: Home },
   { id: 'admin', label: 'Admin Dashboard', icon: ShieldCheck },
   { id: 'learn', label: 'Learn', icon: BookOpen, badge: 'NEW' },
@@ -65,6 +72,7 @@ const navigation = [
   { id: 'contacts', label: 'Contacts', icon: Users },
   { id: 'products', label: 'Products', icon: ShoppingBag },
   { id: 'orders', label: 'Orders', icon: ClipboardList },
+  { id: 'instagram', label: 'Instagram', icon: Camera },
   { id: 'refer', label: 'Refer and Earn', icon: Gift },
   { id: 'settings', label: 'Settings', icon: Settings },
 ]
@@ -216,7 +224,13 @@ const themeCards = ['Default', 'Dawn', 'Dusk']
 const colorSwatches = ['#7C3AED', '#2563EB', '#16A34A', '#F5C518', '#EF4444']
 
 function Dashboard() {
-  const [activePage, setActivePage] = useState('home')
+  const location = useLocation()
+  const navigate = useNavigate()
+  const pathSection = location.pathname.match(/^\/dashboard\/([^/]+)/)?.[1]
+  const activePage = pathSection || 'overview'
+  const setActivePage = useCallback((next) => {
+    navigate(`/dashboard/${next}`)
+  }, [navigate])
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [automations, setAutomations] = useState([])
   const [realContacts, setRealContacts] = useState([])
@@ -446,6 +460,8 @@ function Dashboard() {
   }
 
   const renderPage = () => {
+    if (activePage === 'overview') return <Overview />
+    if (activePage === 'instagram') return <InstagramPage />
     if (activePage === 'home') {
       return (
         <HomePage

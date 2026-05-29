@@ -127,3 +127,51 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS stock_limit BIGINT;
 CREATE INDEX IF NOT EXISTS idx_products_published ON products(published, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_products_slug ON products(slug);
+
+-- ===== Linktree-style creator profile + link tracking =====
+CREATE TABLE IF NOT EXISTS creator_profiles (
+  id BIGSERIAL PRIMARY KEY,
+  handle TEXT UNIQUE NOT NULL,
+  display_name TEXT,
+  bio TEXT,
+  avatar_url TEXT,
+  instagram_url TEXT,
+  twitter_url TEXT,
+  youtube_url TEXT,
+  whatsapp_url TEXT,
+  primary_color TEXT DEFAULT '#7c3aed',
+  meta_pixel_id TEXT,
+  ga_tracking_id TEXT,
+  is_published BOOLEAN NOT NULL DEFAULT true,
+  view_count BIGINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_creator_profiles_handle ON creator_profiles(handle);
+
+CREATE TABLE IF NOT EXISTS profile_links (
+  id BIGSERIAL PRIMARY KEY,
+  profile_id BIGINT NOT NULL REFERENCES creator_profiles(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  subtitle TEXT,
+  url TEXT NOT NULL,
+  price_minor BIGINT,
+  currency TEXT DEFAULT 'INR',
+  position INTEGER NOT NULL DEFAULT 0,
+  is_visible BOOLEAN NOT NULL DEFAULT true,
+  click_count BIGINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_profile_links_profile ON profile_links(profile_id, position);
+
+CREATE TABLE IF NOT EXISTS link_clicks (
+  id BIGSERIAL PRIMARY KEY,
+  link_id BIGINT REFERENCES profile_links(id) ON DELETE SET NULL,
+  profile_id BIGINT REFERENCES creator_profiles(id) ON DELETE SET NULL,
+  ip_addr TEXT,
+  user_agent TEXT,
+  referer TEXT,
+  clicked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_link_clicks_link ON link_clicks(link_id, clicked_at DESC);
+CREATE INDEX IF NOT EXISTS idx_link_clicks_profile ON link_clicks(profile_id, clicked_at DESC);

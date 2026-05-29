@@ -111,6 +111,69 @@ app.patch('/api/automations/:id/status', async (request, response) => {
   }
 })
 
+app.get('/api/messages', async (request, response) => {
+  const limit = Math.min(Number(request.query.limit) || 10, 100)
+  try {
+    const result = await pool.query(
+      `SELECT m.id, m.instagram_user_id, m.direction, m.body, m.event_type, m.created_at,
+              c.handle, c.name
+       FROM messages m
+       LEFT JOIN contacts c ON c.id = m.contact_id
+       ORDER BY m.created_at DESC
+       LIMIT $1`,
+      [limit],
+    )
+    response.json({ ok: true, messages: result.rows })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
+})
+
+app.get('/api/analytics/revenue', async (request, response) => {
+  const days = Math.min(Number(request.query.days) || 7, 90)
+  try {
+    const result = await pool.query(
+      `SELECT date_trunc('day', created_at) AS day,
+              SUM(amount) AS revenue,
+              COUNT(*) AS orders
+       FROM orders
+       WHERE status = 'paid' AND created_at >= NOW() - ($1 || ' days')::interval
+       GROUP BY 1 ORDER BY 1`,
+      [days],
+    )
+    response.json({
+      ok: true,
+      days: result.rows.map((r) => ({
+        day: r.day,
+        revenue: Number(r.revenue) || 0,
+        orders: Number(r.orders) || 0,
+      })),
+    })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
+})
+
+app.post('/api/analytics/click', async (request, response) => {
+  const { linkId } = request.body || {}
+  if (!linkId) {
+    response.status(400).json({ ok: false, message: 'linkId is required.' })
+    return
+  }
+  const ip = request.headers['x-forwarded-for']?.split(',')[0] || request.ip
+  try {
+    await pool.query(
+      `INSERT INTO link_clicks (link_id, profile_id, ip_addr, user_agent, referer)
+       SELECT $1, profile_id, $2, $3, $4 FROM profile_links WHERE id = $1`,
+      [linkId, ip, request.headers['user-agent'] || '', request.headers.referer || ''],
+    )
+    await pool.query('UPDATE profile_links SET click_count = click_count + 1 WHERE id = $1', [linkId])
+    response.json({ ok: true })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
+})
+
 app.get('/api/contacts', async (_request, response) => {
   try {
     const result = await pool.query('SELECT * FROM contacts ORDER BY last_seen_at DESC')
@@ -354,6 +417,224 @@ app.get('/api/public/config', (_request, response) => {
       provider: emailProviderName(),
     },
   })
+})
+
+// ===== Linktree-style creator profile =====
+
+app.get('/api/public/profiles/:handle', async (request, response) => {
+  try {
+    const profileResult = await pool.query(
+      `SELECT id, handle, display_name, bio, avatar_url, instagram_url, twitter_url,
+              youtube_url, whatsapp_url, primary_color, meta_pixel_id, ga_tracking_id, view_count
+       FROM creator_profiles
+       WHERE handle = $1 AND is_published = true LIMIT 1`,
+      [request.params.handle.toLowerCase()],
+    )
+    const profile = profileResult.rows[0]
+    if (!profile) {
+      response.status(404).json({ ok: false, message: 'Profile not found.' })
+      return
+    }
+
+    const linksResult = await pool.query(
+      `SELECT id, title, subtitle, url, price_minor, currency, position
+       FROM profile_links
+       WHERE profile_id = $1 AND is_visible = true
+       ORDER BY position, id`,
+      [profile.id],
+    )
+
+    pool.query('UPDATE creator_profiles SET view_count = view_count + 1 WHERE id = $1', [profile.id])
+      .catch(() => {})
+
+    response.json({ ok: true, profile, links: linksResult.rows })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
+})
+
+app.post('/api/payments/create-order', async (request, response) => {
+  // Alias for spec compatibility — delegates to public orders endpoint shape
+  const { amount, currency = 'INR', notes = {} } = request.body || {}
+  if (!amount || amount <= 0) {
+    response.status(400).json({ ok: false, message: 'amount is required and must be > 0' })
+    return
+  }
+  if (!isRazorpayConfigured()) {
+    response.status(503).json({ ok: false, configured: false, message: 'Payments not configured.' })
+    return
+  }
+  const orderResult = await createRazorpayOrder({
+    amount: Math.round(amount * 100),
+    currency,
+    receipt: `quick-${Date.now()}`,
+    notes,
+  })
+  if (!orderResult.ok) {
+    response.status(502).json({ ok: false, message: orderResult.message })
+    return
+  }
+  response.json({
+    ok: true,
+    razorpayOrderId: orderResult.order.id,
+    amount: orderResult.order.amount,
+    currency: orderResult.order.currency,
+    keyId: razorpayPublicKeyId(),
+  })
+})
+
+// ===== Profile management (admin) =====
+
+app.get('/api/profiles/me', async (_request, response) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, handle, display_name, bio, avatar_url, instagram_url, twitter_url,
+              youtube_url, whatsapp_url, primary_color, meta_pixel_id, ga_tracking_id,
+              is_published, view_count
+       FROM creator_profiles ORDER BY id LIMIT 1`,
+    )
+    response.json({ ok: true, profile: result.rows[0] || null })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
+})
+
+app.put('/api/profiles/me', async (request, response) => {
+  const body = request.body || {}
+  const handle = (body.handle || '').toLowerCase().replace(/[^a-z0-9_-]/g, '')
+  if (!handle) {
+    response.status(400).json({ ok: false, message: 'handle is required (a-z, 0-9, _ , - only)' })
+    return
+  }
+  try {
+    const existing = await pool.query('SELECT id FROM creator_profiles ORDER BY id LIMIT 1')
+    if (existing.rowCount) {
+      const updated = await pool.query(
+        `UPDATE creator_profiles SET
+          handle = $1, display_name = $2, bio = $3, avatar_url = $4,
+          instagram_url = $5, twitter_url = $6, youtube_url = $7, whatsapp_url = $8,
+          primary_color = $9, meta_pixel_id = $10, ga_tracking_id = $11,
+          is_published = $12, updated_at = NOW()
+         WHERE id = $13 RETURNING *`,
+        [handle, body.displayName || '', body.bio || '', body.avatarUrl || '',
+         body.instagramUrl || '', body.twitterUrl || '', body.youtubeUrl || '', body.whatsappUrl || '',
+         body.primaryColor || '#7c3aed', body.metaPixelId || '', body.gaTrackingId || '',
+         body.isPublished !== false, existing.rows[0].id],
+      )
+      response.json({ ok: true, profile: updated.rows[0] })
+    } else {
+      const created = await pool.query(
+        `INSERT INTO creator_profiles
+          (handle, display_name, bio, avatar_url, instagram_url, twitter_url, youtube_url,
+           whatsapp_url, primary_color, meta_pixel_id, ga_tracking_id, is_published)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+        [handle, body.displayName || '', body.bio || '', body.avatarUrl || '',
+         body.instagramUrl || '', body.twitterUrl || '', body.youtubeUrl || '', body.whatsappUrl || '',
+         body.primaryColor || '#7c3aed', body.metaPixelId || '', body.gaTrackingId || '',
+         body.isPublished !== false],
+      )
+      response.status(201).json({ ok: true, profile: created.rows[0] })
+    }
+  } catch (error) {
+    if (error.code === '23505') {
+      response.status(409).json({ ok: false, message: 'That handle is already taken.' })
+      return
+    }
+    response.status(500).json({ ok: false, message: error.message })
+  }
+})
+
+app.get('/api/profiles/me/links', async (_request, response) => {
+  try {
+    const profile = await pool.query('SELECT id FROM creator_profiles ORDER BY id LIMIT 1')
+    if (!profile.rowCount) {
+      response.json({ ok: true, links: [] })
+      return
+    }
+    const result = await pool.query(
+      'SELECT * FROM profile_links WHERE profile_id = $1 ORDER BY position, id',
+      [profile.rows[0].id],
+    )
+    response.json({ ok: true, links: result.rows })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
+})
+
+app.post('/api/profiles/me/links', async (request, response) => {
+  const body = request.body || {}
+  if (!body.title || !body.url) {
+    response.status(400).json({ ok: false, message: 'title and url are required' })
+    return
+  }
+  try {
+    const profile = await pool.query('SELECT id FROM creator_profiles ORDER BY id LIMIT 1')
+    if (!profile.rowCount) {
+      response.status(400).json({ ok: false, message: 'Create your profile first.' })
+      return
+    }
+    const next = await pool.query(
+      'SELECT COALESCE(MAX(position), 0) + 1 AS pos FROM profile_links WHERE profile_id = $1',
+      [profile.rows[0].id],
+    )
+    const result = await pool.query(
+      `INSERT INTO profile_links (profile_id, title, subtitle, url, price_minor, currency, position)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [profile.rows[0].id, body.title, body.subtitle || '', body.url,
+       body.priceMinor || null, body.currency || 'INR', next.rows[0].pos],
+    )
+    response.status(201).json({ ok: true, link: result.rows[0] })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
+})
+
+app.patch('/api/profiles/me/links/:id', async (request, response) => {
+  const body = request.body || {}
+  const sets = []
+  const params = []
+  let i = 1
+  for (const [key, col] of [
+    ['title', 'title'], ['subtitle', 'subtitle'], ['url', 'url'],
+    ['priceMinor', 'price_minor'], ['currency', 'currency'],
+    ['position', 'position'], ['isVisible', 'is_visible'],
+  ]) {
+    if (body[key] !== undefined) {
+      sets.push(`${col} = $${i++}`)
+      params.push(body[key])
+    }
+  }
+  if (!sets.length) {
+    response.status(400).json({ ok: false, message: 'No fields to update.' })
+    return
+  }
+  params.push(request.params.id)
+  try {
+    const result = await pool.query(
+      `UPDATE profile_links SET ${sets.join(', ')} WHERE id = $${i} RETURNING *`,
+      params,
+    )
+    if (!result.rowCount) {
+      response.status(404).json({ ok: false, message: 'Link not found.' })
+      return
+    }
+    response.json({ ok: true, link: result.rows[0] })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
+})
+
+app.delete('/api/profiles/me/links/:id', async (request, response) => {
+  try {
+    const result = await pool.query('DELETE FROM profile_links WHERE id = $1 RETURNING id', [request.params.id])
+    if (!result.rowCount) {
+      response.status(404).json({ ok: false, message: 'Link not found.' })
+      return
+    }
+    response.json({ ok: true })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
 })
 
 app.get('/api/public/products/:slug', async (request, response) => {
