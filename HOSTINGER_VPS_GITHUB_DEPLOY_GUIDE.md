@@ -63,6 +63,28 @@ Install basic tools:
 apt install -y git curl nginx ufw
 ```
 
+## 3A. Faster One-Command Project Setup
+
+After connecting to the VPS, you can run the project setup script instead of copying every command manually:
+
+```bash
+apt update && apt install -y git
+mkdir -p /var/www
+cd /var/www
+git clone https://github.com/deepg3004/hello.git linkplease
+cd linkplease
+bash deploy/hostinger-vps-setup.sh
+```
+
+Then edit your real credentials:
+
+```bash
+nano /var/www/linkplease/.env
+pm2 restart hello-invoxai
+```
+
+Manual steps are still listed below if you prefer doing each part yourself.
+
 ## 4. Install Node.js
 
 Use Node.js 22 LTS or newer.
@@ -152,7 +174,7 @@ CTRL + X
 From project folder:
 
 ```bash
-pm2 start npm --name linkplease -- start
+pm2 startOrReload ecosystem.config.cjs
 pm2 save
 pm2 startup
 ```
@@ -163,7 +185,7 @@ Check app:
 
 ```bash
 pm2 status
-pm2 logs linkplease
+pm2 logs hello-invoxai
 curl http://127.0.0.1:8080/api/health
 ```
 
@@ -172,7 +194,7 @@ curl http://127.0.0.1:8080/api/health
 Create Nginx config:
 
 ```bash
-nano /etc/nginx/sites-available/linkplease
+nano /etc/nginx/sites-available/hello-invoxai
 ```
 
 Paste:
@@ -199,7 +221,7 @@ server {
 Enable site:
 
 ```bash
-ln -s /etc/nginx/sites-available/linkplease /etc/nginx/sites-enabled/linkplease
+ln -s /etc/nginx/sites-available/hello-invoxai /etc/nginx/sites-enabled/hello-invoxai
 nginx -t
 systemctl reload nginx
 ```
@@ -320,7 +342,7 @@ Sync To Backend
 Then restart app:
 
 ```bash
-pm2 restart linkplease
+pm2 restart hello-invoxai
 ```
 
 ## 15. Update App From GitHub
@@ -332,7 +354,13 @@ cd /var/www/linkplease
 git pull origin main
 npm install
 npm run build
-pm2 restart linkplease
+pm2 restart hello-invoxai
+```
+
+Or run the included update script:
+
+```bash
+bash /var/www/linkplease/deploy/update-from-github.sh
 ```
 
 If your branch is `master`, use:
@@ -393,13 +421,13 @@ pm2 status
 View logs:
 
 ```bash
-pm2 logs linkplease
+pm2 logs hello-invoxai
 ```
 
 Restart app:
 
 ```bash
-pm2 restart linkplease
+pm2 restart hello-invoxai
 ```
 
 Restart Nginx:
