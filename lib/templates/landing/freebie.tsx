@@ -89,6 +89,7 @@ const Render: TemplateRender = ({ values, pageId, isPreview }) => (
     optin_cta={readField(values, "optin_cta", "")}
     optin_privacy={readField(values, "optin_privacy", "")}
     redirect_url={readField(values, "redirect_url", "") || undefined}
+    formConfig={(values.form_config as import("@/lib/leads").FormConfig | undefined) ?? undefined}
   />
 );
 

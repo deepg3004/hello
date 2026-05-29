@@ -124,6 +124,7 @@ export function LandingWebinarPage(props: LandingWebinarPageProps) {
                 ctaLabel={props.register_cta ?? "Register free"}
                 requirePhone
                 redirectUrl={props.redirect_url}
+                formConfig={props.formConfig}
               />
             ) : (
               <p className="text-center text-sm text-zinc-500">

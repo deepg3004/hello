@@ -131,6 +131,7 @@ const Render: TemplateRender = ({ values, pageId, isPreview }) => {
       register_cta={readField(values, "register_cta", "")}
       register_count_label={readField(values, "register_count_label", "")}
       redirect_url={readField(values, "redirect_url", "") || undefined}
+      formConfig={(values.form_config as import("@/lib/leads").FormConfig | undefined) ?? undefined}
     />
   );
 };

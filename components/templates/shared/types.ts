@@ -1,5 +1,7 @@
 // Shared prop types for the polished buyer-facing template components.
 
+import type { FormConfig } from "@/lib/leads";
+
 export interface TemplateProduct {
   id: string;
   name: string;
@@ -44,6 +46,8 @@ export interface BaseTemplateProps {
   timer?: TimerConfig;
   orderBump?: OrderBumpConfig;
   socialProofEnabled?: boolean;
+  /** Form Builder config from page_config.form_config. */
+  formConfig?: FormConfig;
 }
 
 export const DEFAULT_THEME: Required<ThemeConfig> = {

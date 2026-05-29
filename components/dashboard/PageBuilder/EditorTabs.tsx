@@ -17,8 +17,10 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Customizer } from "./Customizer";
+import { FormBuilderTab } from "./FormBuilderTab";
 import { useToast } from "@/hooks/use-toast";
 import { updatePageAction, type UpdatePageInput } from "@/actions/pages";
+import type { FormConfig, LeadMagnetMeta } from "@/lib/leads";
 
 export interface ExistingPage {
   id: string;
@@ -120,6 +122,7 @@ export function PageEditorTabs({ initial }: { initial: ExistingPage }) {
       <Tabs defaultValue="content">
         <TabsList>
           <TabsTrigger value="content">Content</TabsTrigger>
+          <TabsTrigger value="form">Form</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
           <TabsTrigger value="pixels">Pixels</TabsTrigger>
           <TabsTrigger value="conversion">Conversion</TabsTrigger>
@@ -135,6 +138,18 @@ export function PageEditorTabs({ initial }: { initial: ExistingPage }) {
             slugLocked
             values={values}
             onValuesChange={setValues}
+          />
+        </TabsContent>
+
+        <TabsContent value="form" className="mt-6">
+          <FormBuilderTab
+            pageId={initial.id}
+            pageType={initial.type}
+            formConfig={(values.form_config as FormConfig) ?? {}}
+            leadMagnet={(values.lead_magnet as LeadMagnetMeta) ?? null}
+            onFormConfigChange={(next) =>
+              setValues({ ...values, form_config: next })
+            }
           />
         </TabsContent>
 

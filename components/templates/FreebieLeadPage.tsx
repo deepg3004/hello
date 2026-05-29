@@ -67,6 +67,7 @@ export function FreebieLeadPage(props: FreebieLeadPageProps) {
                 ctaLabel={props.optin_cta ?? "Send it to me"}
                 requirePhone={false}
                 redirectUrl={props.redirect_url}
+                formConfig={props.formConfig}
               />
             ) : (
               <p className="text-center text-sm text-zinc-500">

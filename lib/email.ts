@@ -152,3 +152,107 @@ export function inviteEmail(vars: InviteEmailVars): { subject: string; html: str
     `),
   };
 }
+
+// ============================================================================
+// Lead-magnet / CRM templates
+// ============================================================================
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export interface ConfirmationEmailVars {
+  leadName?: string;
+  subject?: string;
+  body?: string;
+  pageTitle?: string;
+}
+
+export function confirmationEmail(vars: ConfirmationEmailVars): {
+  subject: string;
+  html: string;
+} {
+  const hello = vars.leadName ? `Hi ${vars.leadName},` : "Hi,";
+  const body =
+    vars.body ??
+    `Thanks for signing up. We've got your details and you'll hear from us soon.`;
+  return {
+    subject:
+      vars.subject ??
+      `Thanks for signing up${vars.pageTitle ? ` — ${vars.pageTitle}` : ""}`,
+    html: SHELL(`
+      <h2 style="margin:0 0 12px;font-size:20px">You're in</h2>
+      <p style="margin:0 0 12px;line-height:1.5">${hello}</p>
+      <p style="margin:0 0 16px;line-height:1.5;white-space:pre-wrap">${escapeHtml(body)}</p>
+    `),
+  };
+}
+
+export interface MagnetDeliveryEmailVars {
+  leadName?: string;
+  pageTitle?: string;
+  downloadUrl: string;
+  expiresLabel?: string;
+}
+
+export function leadMagnetDeliveryEmail(vars: MagnetDeliveryEmailVars): {
+  subject: string;
+  html: string;
+} {
+  const hello = vars.leadName ? `Hi ${vars.leadName},` : "Hi,";
+  return {
+    subject: `Your download — ${vars.pageTitle ?? "InvoxAI"}`,
+    html: SHELL(`
+      <h2 style="margin:0 0 12px;font-size:20px">Here's your download</h2>
+      <p style="margin:0 0 12px;line-height:1.5">${hello}</p>
+      <p style="margin:0 0 16px;line-height:1.5">Tap the button below to grab your file.</p>
+      <p style="margin:0 0 12px"><a href="${vars.downloadUrl}" style="display:inline-block;background:#0a0a0a;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;font-weight:600">Download now</a></p>
+      <p style="margin:0;color:#71717a;font-size:12px">${vars.expiresLabel ?? "Link expires in 7 days."}</p>
+    `),
+  };
+}
+
+export interface NewLeadEmailVars {
+  sellerName?: string;
+  leadName?: string;
+  leadEmail: string;
+  leadPhone?: string;
+  pageTitle?: string;
+  customFields?: Record<string, unknown>;
+  crmUrl?: string;
+}
+
+export function newLeadNotificationEmail(vars: NewLeadEmailVars): {
+  subject: string;
+  html: string;
+} {
+  const hello = vars.sellerName ? `Hi ${vars.sellerName},` : "Hi,";
+  const customs = Object.entries(vars.customFields ?? {})
+    .filter(([, v]) => v !== undefined && v !== null && v !== "")
+    .map(
+      ([k, v]) =>
+        `<tr><td style="padding:4px 12px 4px 0;color:#71717a">${escapeHtml(k)}</td><td style="padding:4px 0">${escapeHtml(String(v))}</td></tr>`,
+    )
+    .join("");
+
+  return {
+    subject: `New lead from ${vars.pageTitle ?? "your page"}`,
+    html: SHELL(`
+      <h2 style="margin:0 0 12px;font-size:20px">New lead captured</h2>
+      <p style="margin:0 0 12px;line-height:1.5">${hello}</p>
+      <table style="border-collapse:collapse;font-size:14px;margin:0 0 16px">
+        <tr><td style="padding:4px 12px 4px 0;color:#71717a">Name</td><td style="padding:4px 0">${escapeHtml(vars.leadName ?? "—")}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#71717a">Email</td><td style="padding:4px 0">${escapeHtml(vars.leadEmail)}</td></tr>
+        ${vars.leadPhone ? `<tr><td style="padding:4px 12px 4px 0;color:#71717a">Phone</td><td style="padding:4px 0">${escapeHtml(vars.leadPhone)}</td></tr>` : ""}
+        ${vars.pageTitle ? `<tr><td style="padding:4px 12px 4px 0;color:#71717a">Page</td><td style="padding:4px 0">${escapeHtml(vars.pageTitle)}</td></tr>` : ""}
+        ${customs}
+      </table>
+      ${vars.crmUrl ? `<p style="margin:0 0 12px"><a href="${vars.crmUrl}" style="display:inline-block;background:#0a0a0a;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-weight:600">Open in CRM</a></p>` : ""}
+    `),
+  };
+}
