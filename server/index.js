@@ -171,6 +171,22 @@ app.post('/api/products', async (request, response) => {
   }
 })
 
+app.delete('/api/products/:id', async (request, response) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM products WHERE id = $1 RETURNING id',
+      [request.params.id],
+    )
+    if (!result.rowCount) {
+      response.status(404).json({ ok: false, message: 'Product not found.' })
+      return
+    }
+    response.json({ ok: true, deletedId: result.rows[0].id })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
+})
+
 app.get('/api/orders', async (_request, response) => {
   try {
     const result = await pool.query('SELECT * FROM orders ORDER BY created_at DESC')

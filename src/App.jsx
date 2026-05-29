@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowRight,
   BadgeCheck,
@@ -311,6 +311,16 @@ function App() {
       .then(() => setProductBuilderOpen(false))
   }
 
+  const deleteProduct = async (productId) => {
+    const response = await fetch(`${apiBase}/api/products/${productId}`, { method: 'DELETE' })
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      window.alert(data.message || 'Could not delete product.')
+      return
+    }
+    await loadRealData()
+  }
+
   const renderPage = () => {
     if (activePage === 'home') {
       return (
@@ -370,6 +380,7 @@ function App() {
           builder={productBuilder}
           setBuilder={setProductBuilder}
           createProduct={createProduct}
+          deleteProduct={deleteProduct}
         />
       )
     }
@@ -926,10 +937,50 @@ function ProductsPage({
   builder,
   setBuilder,
   createProduct,
+  deleteProduct,
 }) {
   const [errors, setErrors] = useState({})
   const [resourceLinks, setResourceLinks] = useState([])
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [openMenuId, setOpenMenuId] = useState(null)
+  const [copiedId, setCopiedId] = useState(null)
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!openMenuId) return
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setOpenMenuId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [openMenuId])
+
+  const productUrl = (product) =>
+    `${window.location.origin}/p/${product.slug || product.id}`
+
+  const handleCopyLink = async (product) => {
+    try {
+      await navigator.clipboard.writeText(productUrl(product))
+      setCopiedId(product.id)
+      window.setTimeout(() => setCopiedId(null), 1500)
+    } catch {
+      window.prompt('Copy this link:', productUrl(product))
+    }
+    setOpenMenuId(null)
+  }
+
+  const handleViewPage = (product) => {
+    window.open(productUrl(product), '_blank', 'noopener')
+    setOpenMenuId(null)
+  }
+
+  const handleDeleteProduct = async (product) => {
+    setOpenMenuId(null)
+    if (!window.confirm(`Delete "${product.name}"? This cannot be undone.`)) return
+    await deleteProduct(product.id)
+  }
 
   const updateBuilder = (field, value) => {
     setBuilder((current) => ({ ...current, [field]: value }))
@@ -1009,7 +1060,43 @@ function ProductsPage({
                   <td>0</td>
                   <td>INR 0</td>
                   <td><span className={`status-pill ${product.payments_enabled ? 'on' : ''}`}>{product.payments_enabled ? 'Enabled' : 'KYC needed'}</span></td>
-                  <td><div className="row-actions"><button className="icon-button" type="button" aria-label="Copy link"><Copy size={17} /></button><button className="icon-button" type="button" aria-label="More"><MoreHorizontal size={17} /></button></div></td>
+                  <td>
+                    <div className="row-actions">
+                      <button
+                        className="icon-button"
+                        type="button"
+                        aria-label={copiedId === product.id ? 'Link copied' : 'Copy link'}
+                        onClick={() => handleCopyLink(product)}
+                      >
+                        {copiedId === product.id ? <Check size={17} /> : <Copy size={17} />}
+                      </button>
+                      <div className="action-menu-wrap" ref={openMenuId === product.id ? menuRef : null}>
+                        <button
+                          className="icon-button"
+                          type="button"
+                          aria-label="More actions"
+                          aria-haspopup="menu"
+                          aria-expanded={openMenuId === product.id}
+                          onClick={() => setOpenMenuId(openMenuId === product.id ? null : product.id)}
+                        >
+                          <MoreHorizontal size={17} />
+                        </button>
+                        {openMenuId === product.id && (
+                          <div className="action-menu" role="menu">
+                            <button type="button" role="menuitem" onClick={() => handleViewPage(product)}>
+                              <Eye size={15} /> Open page
+                            </button>
+                            <button type="button" role="menuitem" onClick={() => handleCopyLink(product)}>
+                              <Copy size={15} /> Copy link
+                            </button>
+                            <button type="button" role="menuitem" className="danger" onClick={() => handleDeleteProduct(product)}>
+                              <Trash2 size={15} /> Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
