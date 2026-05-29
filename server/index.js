@@ -21,6 +21,7 @@ import {
   publicKeyId as razorpayPublicKeyId,
   verifySignature as verifyRazorpaySignature,
 } from './payments.js'
+import { isEmailConfigured, sendOrderConfirmation } from './email.js'
 
 dotenv.config()
 
@@ -145,6 +146,7 @@ app.post('/api/products', async (request, response) => {
   const sections = safeJson(body.sections, {
     gallery: false, testimonials: false, faq: false, aboutMe: false, showcase: false,
   })
+  const published = body.published === true || body.published === 'true'
 
   try {
     const result = await pool.query(
@@ -154,9 +156,10 @@ app.post('/api/products', async (request, response) => {
         price, currency, payments_enabled,
         sections, gallery, testimonials, faq, about_me, showcase_product_ids,
         custom_questions, terms_text, refund_text, privacy_text, meta_pixel_id, ga_tracking_id,
+        published, published_at, theme_preset, stock_limit,
         created_at, updated_at
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$29)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$33)
       RETURNING *`,
       [
         body.title || body.name || 'Untitled product',
@@ -187,8 +190,67 @@ app.post('/api/products', async (request, response) => {
         body.privacyText || '',
         body.metaPixelId || '',
         body.gaTrackingId || '',
+        published,
+        published ? timestamp : null,
+        body.themePreset || 'aurora',
+        body.stockLimit ? Number(body.stockLimit) : null,
         timestamp,
       ],
+    )
+    response.status(201).json({ ok: true, product: result.rows[0] })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
+})
+
+app.patch('/api/products/:id/publish', async (request, response) => {
+  const published = request.body?.published !== false
+  try {
+    const result = await pool.query(
+      `UPDATE products SET published = $1, published_at = $2, updated_at = $3 WHERE id = $4 RETURNING *`,
+      [published, published ? nowIso() : null, nowIso(), request.params.id],
+    )
+    if (!result.rowCount) {
+      response.status(404).json({ ok: false, message: 'Product not found.' })
+      return
+    }
+    response.json({ ok: true, product: result.rows[0] })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
+})
+
+app.post('/api/products/:id/duplicate', async (request, response) => {
+  try {
+    const sourceResult = await pool.query('SELECT * FROM products WHERE id = $1', [request.params.id])
+    const source = sourceResult.rows[0]
+    if (!source) {
+      response.status(404).json({ ok: false, message: 'Product not found.' })
+      return
+    }
+    const timestamp = nowIso()
+    const newSlug = `${source.slug || 'product'}-copy-${Date.now().toString().slice(-5)}`
+    const result = await pool.query(
+      `INSERT INTO products (
+        name, slug, description, seller_name, seller_email, cover_image, button_text,
+        pricing_mode, suggested_price, accent_color, theme, resource_link, settings_json,
+        price, currency, payments_enabled,
+        sections, gallery, testimonials, faq, about_me, showcase_product_ids,
+        custom_questions, terms_text, refund_text, privacy_text, meta_pixel_id, ga_tracking_id,
+        published, published_at, theme_preset, stock_limit,
+        created_at, updated_at
+      )
+      SELECT
+        name || ' (Copy)', $1, description, seller_name, seller_email, cover_image, button_text,
+        pricing_mode, suggested_price, accent_color, theme, resource_link, settings_json,
+        price, currency, payments_enabled,
+        sections, gallery, testimonials, faq, about_me, showcase_product_ids,
+        custom_questions, terms_text, refund_text, privacy_text, meta_pixel_id, ga_tracking_id,
+        false, NULL, theme_preset, stock_limit,
+        $2, $2
+      FROM products WHERE id = $3
+      RETURNING *`,
+      [newSlug, timestamp, request.params.id],
     )
     response.status(201).json({ ok: true, product: result.rows[0] })
   } catch (error) {
@@ -211,6 +273,7 @@ app.patch('/api/products/:id', async (request, response) => {
     pricingMode: { col: 'pricing_mode', value: body.pricingMode },
     accent: { col: 'accent_color', value: body.accent },
     theme: { col: 'theme', value: body.theme },
+    themePreset: { col: 'theme_preset', value: body.themePreset },
     resourceLink: { col: 'resource_link', value: body.resourceLink },
     currency: { col: 'currency', value: body.currency },
     aboutMe: { col: 'about_me', value: body.aboutMe },
@@ -219,6 +282,7 @@ app.patch('/api/products/:id', async (request, response) => {
     privacyText: { col: 'privacy_text', value: body.privacyText },
     metaPixelId: { col: 'meta_pixel_id', value: body.metaPixelId },
     gaTrackingId: { col: 'ga_tracking_id', value: body.gaTrackingId },
+    stockLimit: { col: 'stock_limit', value: body.stockLimit === '' ? null : (body.stockLimit != null ? Number(body.stockLimit) : undefined) },
   }
 
   const sets = []
@@ -285,6 +349,9 @@ app.get('/api/public/config', (_request, response) => {
       configured: isRazorpayConfigured(),
       keyId: razorpayPublicKeyId(),
     },
+    email: {
+      configured: isEmailConfigured(),
+    },
   })
 })
 
@@ -293,18 +360,31 @@ app.get('/api/public/products/:slug', async (request, response) => {
     const result = await pool.query(
       `SELECT
         id, name, slug, description, cover_image, button_text, pricing_mode,
-        price, suggested_price, currency, accent_color, theme,
+        price, suggested_price, currency, accent_color, theme, theme_preset,
         sections, gallery, testimonials, faq, about_me, showcase_product_ids,
         custom_questions, terms_text, refund_text, privacy_text,
-        meta_pixel_id, ga_tracking_id, seller_name
+        meta_pixel_id, ga_tracking_id, seller_name, published, view_count, stock_limit
       FROM products WHERE slug = $1 LIMIT 1`,
       [request.params.slug],
     )
-    if (!result.rowCount) {
+    const product = result.rows[0]
+    if (!product || !product.published) {
       response.status(404).json({ ok: false, message: 'Product not found.' })
       return
     }
-    response.json({ ok: true, product: result.rows[0] })
+    response.json({ ok: true, product })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
+})
+
+app.post('/api/public/products/:slug/view', async (request, response) => {
+  try {
+    await pool.query(
+      "UPDATE products SET view_count = view_count + 1 WHERE slug = $1 AND published = true",
+      [request.params.slug],
+    )
+    response.json({ ok: true })
   } catch (error) {
     response.status(500).json({ ok: false, message: error.message })
   }
@@ -422,12 +502,36 @@ app.post('/api/public/orders/verify', async (request, response) => {
   }
 
   try {
-    await pool.query(
+    const updated = await pool.query(
       `UPDATE orders
        SET status = 'paid', razorpay_payment_id = $1, razorpay_signature = $2
-       WHERE razorpay_order_id = $3`,
+       WHERE razorpay_order_id = $3
+       RETURNING customer_email, product_name, product_id, amount, currency`,
       [razorpayPaymentId, razorpaySignature, razorpayOrderId],
     )
+
+    const order = updated.rows[0]
+    if (order) {
+      let resourceLink = ''
+      let accentColor = '#6366f1'
+      if (order.product_id) {
+        const productLookup = await pool.query(
+          'SELECT resource_link, accent_color FROM products WHERE id = $1',
+          [order.product_id],
+        )
+        resourceLink = productLookup.rows[0]?.resource_link || ''
+        accentColor = productLookup.rows[0]?.accent_color || accentColor
+      }
+      sendOrderConfirmation({
+        to: order.customer_email,
+        productName: order.product_name,
+        amount: order.amount,
+        currency: order.currency,
+        resourceLink,
+        accentColor,
+      }).catch((err) => console.error('Order email failed:', err.message))
+    }
+
     response.json({ ok: true })
   } catch (error) {
     response.status(500).json({ ok: false, message: error.message })
@@ -622,6 +726,58 @@ app.post('/api/messages/send', async (request, response) => {
 })
 
 app.use(express.static(distDir))
+
+let cachedIndexHtml = null
+async function loadIndexHtml() {
+  if (cachedIndexHtml) return cachedIndexHtml
+  cachedIndexHtml = await fs.readFile(path.join(distDir, 'index.html'), 'utf8').catch(() => '')
+  return cachedIndexHtml
+}
+
+app.get('/p/:slug', async (request, response, next) => {
+  try {
+    const html = await loadIndexHtml()
+    if (!html) return next()
+
+    const productResult = await pool.query(
+      `SELECT name, description, cover_image, seller_name FROM products
+       WHERE slug = $1 AND published = true LIMIT 1`,
+      [request.params.slug],
+    )
+    const product = productResult.rows[0]
+
+    const escape = (value) =>
+      String(value || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+
+    const fullUrl = `${request.protocol}://${request.get('host')}${request.originalUrl}`
+    const title = product ? `${product.name} — InvoxAI` : 'Page not found — InvoxAI'
+    const description = product?.description?.slice(0, 200) || 'Discover digital products from creators.'
+    const image = product?.cover_image || ''
+
+    const ogTags = `
+    <title>${escape(title)}</title>
+    <meta name="description" content="${escape(description)}" />
+    <meta property="og:type" content="product" />
+    <meta property="og:title" content="${escape(title)}" />
+    <meta property="og:description" content="${escape(description)}" />
+    <meta property="og:url" content="${escape(fullUrl)}" />
+    ${image ? `<meta property="og:image" content="${escape(image)}" />` : ''}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${escape(title)}" />
+    <meta name="twitter:description" content="${escape(description)}" />
+    ${image ? `<meta name="twitter:image" content="${escape(image)}" />` : ''}
+  `
+
+    const injected = html.replace('</head>', `${ogTags}</head>`)
+    response.setHeader('Content-Type', 'text/html; charset=utf-8')
+    response.send(injected)
+  } catch (error) {
+    console.error('OG inject failed:', error.message)
+    next()
+  }
+})
 
 app.get(/.*/, (_request, response) => {
   response.sendFile(path.join(distDir, 'index.html'))

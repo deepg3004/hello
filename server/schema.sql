@@ -118,3 +118,12 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS phone TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS custom_answers JSONB DEFAULT '{}'::jsonb;
 CREATE INDEX IF NOT EXISTS idx_orders_product ON orders(product_id);
 CREATE INDEX IF NOT EXISTS idx_orders_razorpay ON orders(razorpay_order_id);
+
+-- ===== Phase 1: Premium product page additions =====
+ALTER TABLE products ADD COLUMN IF NOT EXISTS published BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS view_count BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS theme_preset TEXT NOT NULL DEFAULT 'aurora';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS stock_limit BIGINT;
+CREATE INDEX IF NOT EXISTS idx_products_published ON products(published, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_products_slug ON products(slug);

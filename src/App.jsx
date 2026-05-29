@@ -124,6 +124,14 @@ const adminSteps = [
   'After approval, switch Meta app to Live mode and monitor webhook errors on your server.',
 ]
 
+const THEME_PRESETS = [
+  { id: 'aurora', name: 'Aurora', colors: ['#7c3aed', '#06b6d4'], vibe: 'Modern & dynamic' },
+  { id: 'sunset', name: 'Sunset', colors: ['#f97316', '#ec4899'], vibe: 'Warm & energetic' },
+  { id: 'mint',   name: 'Mint',   colors: ['#10b981', '#14b8a6'], vibe: 'Fresh & clean' },
+  { id: 'royal',  name: 'Royal',  colors: ['#1e3a8a', '#f59e0b'], vibe: 'Premium & classic' },
+  { id: 'mono',   name: 'Mono',   colors: ['#0f172a', '#64748b'], vibe: 'Minimal & sharp' },
+]
+
 const defaultProductBuilder = {
   title: 'Instagram Growth Playbook',
   sellerName: 'InvoxAI Creator',
@@ -135,14 +143,16 @@ const defaultProductBuilder = {
   minimumPrice: '5000',
   suggestedPrice: '12499',
   pricingMode: 'customers',
-  accent: '#F5C518',
+  accent: '#7c3aed',
   theme: 'Dawn',
+  themePreset: 'aurora',
   slug: 'instagram-growth-playbook',
   resourceLink: '',
   phoneRequired: true,
   emailOtp: true,
   phoneOtp: false,
   limitQuantity: false,
+  stockLimit: '',
   termsOpen: false,
   sections: { gallery: false, testimonials: false, faq: false, aboutMe: false, showcase: false },
   gallery: [],
@@ -156,6 +166,50 @@ const defaultProductBuilder = {
   privacyText: '',
   metaPixelId: '',
   gaTrackingId: '',
+  published: false,
+}
+
+function productToBuilder(product) {
+  if (!product) return defaultProductBuilder
+  const safeJson = (value, fallback) => {
+    if (value && typeof value === 'object') return value
+    if (typeof value === 'string') {
+      try { return JSON.parse(value) } catch { return fallback }
+    }
+    return fallback
+  }
+  return {
+    ...defaultProductBuilder,
+    title: product.name || '',
+    sellerName: product.seller_name || '',
+    sellerEmail: product.seller_email || '',
+    coverImage: product.cover_image || '',
+    description: product.description || '',
+    buttonText: product.button_text || 'Make Payment',
+    currency: product.currency || 'INR',
+    minimumPrice: ((product.price || 0) / 100).toString(),
+    suggestedPrice: ((product.suggested_price || 0) / 100).toString(),
+    pricingMode: product.pricing_mode || 'fixed',
+    accent: product.accent_color || '#7c3aed',
+    theme: product.theme || 'Dawn',
+    themePreset: product.theme_preset || 'aurora',
+    slug: product.slug || '',
+    resourceLink: product.resource_link || '',
+    stockLimit: product.stock_limit != null ? String(product.stock_limit) : '',
+    sections: safeJson(product.sections, defaultProductBuilder.sections),
+    gallery: safeJson(product.gallery, []),
+    testimonials: safeJson(product.testimonials, []),
+    faq: safeJson(product.faq, []),
+    aboutMe: product.about_me || '',
+    showcaseProductIds: safeJson(product.showcase_product_ids, []),
+    customQuestions: safeJson(product.custom_questions, []),
+    termsText: product.terms_text || '',
+    refundText: product.refund_text || '',
+    privacyText: product.privacy_text || '',
+    metaPixelId: product.meta_pixel_id || '',
+    gaTrackingId: product.ga_tracking_id || '',
+    published: Boolean(product.published),
+  }
 }
 
 const themeCards = ['Default', 'Dawn', 'Dusk']
@@ -179,6 +233,7 @@ function Dashboard() {
   const [productBuilderOpen, setProductBuilderOpen] = useState(false)
   const [productBuilderStep, setProductBuilderStep] = useState(1)
   const [productBuilder, setProductBuilder] = useState(defaultProductBuilder)
+  const [editingProductId, setEditingProductId] = useState(null)
   const [selectedTrigger, setSelectedTrigger] = useState('User comments on post or reel')
   const [openingEnabled, setOpeningEnabled] = useState(true)
   const [automationActive, setAutomationActive] = useState(true)
@@ -324,14 +379,36 @@ function Dashboard() {
     }).then(() => loadRealData())
   }
 
-  const createProduct = () => {
-    return fetch(`${apiBase}/api/products`, {
-      method: 'POST',
+  const saveProduct = async (publishOverride) => {
+    const payload = publishOverride === undefined
+      ? productBuilder
+      : { ...productBuilder, published: publishOverride }
+
+    const isUpdate = Boolean(editingProductId)
+    const url = isUpdate
+      ? `${apiBase}/api/products/${editingProductId}`
+      : `${apiBase}/api/products`
+    const response = await fetch(url, {
+      method: isUpdate ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(productBuilder),
+      body: JSON.stringify(payload),
     })
-      .then(() => loadRealData())
-      .then(() => setProductBuilderOpen(false))
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      window.alert(data.message || 'Could not save product.')
+      return
+    }
+    await loadRealData()
+    setEditingProductId(null)
+    setProductBuilder(defaultProductBuilder)
+    setProductBuilderOpen(false)
+  }
+
+  const openEditProduct = (product) => {
+    setEditingProductId(product.id)
+    setProductBuilder(productToBuilder(product))
+    setProductBuilderStep(1)
+    setProductBuilderOpen(true)
   }
 
   const deleteProduct = async (productId) => {
@@ -339,6 +416,30 @@ function Dashboard() {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
       window.alert(data.message || 'Could not delete product.')
+      return
+    }
+    await loadRealData()
+  }
+
+  const duplicateProduct = async (productId) => {
+    const response = await fetch(`${apiBase}/api/products/${productId}/duplicate`, { method: 'POST' })
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      window.alert(data.message || 'Could not duplicate product.')
+      return
+    }
+    await loadRealData()
+  }
+
+  const togglePublish = async (product) => {
+    const response = await fetch(`${apiBase}/api/products/${product.id}/publish`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ published: !product.published }),
+    })
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      window.alert(data.message || 'Could not update publish status.')
       return
     }
     await loadRealData()
@@ -397,13 +498,23 @@ function Dashboard() {
           choiceOpen={productChoiceOpen}
           setChoiceOpen={setProductChoiceOpen}
           builderOpen={productBuilderOpen}
-          setBuilderOpen={setProductBuilderOpen}
+          setBuilderOpen={(open) => {
+            setProductBuilderOpen(open)
+            if (!open) {
+              setEditingProductId(null)
+              setProductBuilder(defaultProductBuilder)
+            }
+          }}
           builderStep={productBuilderStep}
           setBuilderStep={setProductBuilderStep}
           builder={productBuilder}
           setBuilder={setProductBuilder}
-          createProduct={createProduct}
+          saveProduct={saveProduct}
+          editingProductId={editingProductId}
+          openEditProduct={openEditProduct}
           deleteProduct={deleteProduct}
+          duplicateProduct={duplicateProduct}
+          togglePublish={togglePublish}
           allProducts={realProducts}
         />
       )
@@ -960,8 +1071,12 @@ function ProductsPage({
   setBuilderStep,
   builder,
   setBuilder,
-  createProduct,
+  saveProduct,
+  editingProductId,
+  openEditProduct,
   deleteProduct,
+  duplicateProduct,
+  togglePublish,
   allProducts = [],
 }) {
   const [errors, setErrors] = useState({})
@@ -1008,6 +1123,21 @@ function ProductsPage({
     await deleteProduct(product.id)
   }
 
+  const handleEdit = (product) => {
+    setOpenMenuId(null)
+    openEditProduct(product)
+  }
+
+  const handleDuplicate = async (product) => {
+    setOpenMenuId(null)
+    await duplicateProduct(product.id)
+  }
+
+  const handleTogglePublish = async (product) => {
+    setOpenMenuId(null)
+    await togglePublish(product)
+  }
+
   const updateBuilder = (field, value) => {
     setBuilder((current) => ({ ...current, [field]: value }))
   }
@@ -1040,7 +1170,11 @@ function ProductsPage({
       setBuilderStep((step) => step + 1)
       return
     }
-    await createProduct()
+    await saveProduct(true)
+  }
+
+  const saveDraftAndClose = async () => {
+    await saveProduct(false)
   }
 
   const addResource = () => {
@@ -1081,7 +1215,18 @@ function ProductsPage({
             <tbody>
               {products.map((product) => (
                 <tr key={product.id}>
-                  <td><strong>{product.name}</strong><span>{product.slug ? `/p/${product.slug}` : 'Real product'}</span></td>
+                  <td>
+                    <div className="product-cell">
+                      <strong>{product.name}</strong>
+                      <span className="product-cell-meta">
+                        <em className={`pub-pill ${product.published ? 'is-live' : 'is-draft'}`}>
+                          {product.published ? <Check size={11} /> : <Edit3 size={11} />}
+                          {product.published ? 'Live' : 'Draft'}
+                        </em>
+                        <small>{product.slug ? `/p/${product.slug}` : 'No slug'}</small>
+                      </span>
+                    </div>
+                  </td>
                   <td>{formatMoney(product.price, product.currency)}</td>
                   <td>0</td>
                   <td>INR 0</td>
@@ -1111,6 +1256,17 @@ function ProductsPage({
                           <div className="action-menu" role="menu">
                             <button type="button" role="menuitem" onClick={() => handleViewPage(product)}>
                               <Eye size={15} /> Open page
+                            </button>
+                            <button type="button" role="menuitem" onClick={() => handleEdit(product)}>
+                              <Edit3 size={15} /> Edit
+                            </button>
+                            <button type="button" role="menuitem" onClick={() => handleDuplicate(product)}>
+                              <Copy size={15} /> Duplicate
+                            </button>
+                            <button type="button" role="menuitem" onClick={() => handleTogglePublish(product)}>
+                              {product.published
+                                ? <><ToggleRight size={15} /> Unpublish</>
+                                : <><ToggleLeft size={15} /> Publish</>}
                             </button>
                             <button type="button" role="menuitem" onClick={() => handleCopyLink(product)}>
                               <Copy size={15} /> Copy link
@@ -1148,7 +1304,7 @@ function ProductsPage({
       {builderOpen && (
         <section className="payment-wizard">
           <div className="wizard-header">
-            <button type="button" onClick={() => setBuilderOpen(false)}><X size={18} /> New page</button>
+            <button type="button" onClick={() => setBuilderOpen(false)}><X size={18} /> {editingProductId ? 'Edit page' : 'New page'}</button>
             <StepIndicator step={builderStep} />
           </div>
           <div className="wizard-body">
@@ -1173,9 +1329,14 @@ function ProductsPage({
               )}
               <div className="wizard-footer">
                 {builderStep > 1 && <button className="ghost-button" type="button" onClick={() => setBuilderStep((step) => step - 1)}>Back</button>}
+                {builderStep === 3 && (
+                  <button className="ghost-button" type="button" onClick={saveDraftAndClose}>
+                    Save as Draft
+                  </button>
+                )}
                 <button className="primary wizard-action" type="button" onClick={continueWizard}>
                   {builderStep === 3 ? <Rocket size={17} /> : null}
-                  {builderStep === 3 ? 'Publish' : 'Save and Continue'}
+                  {builderStep === 3 ? (editingProductId ? 'Save & Publish' : 'Publish') : 'Save and Continue'}
                 </button>
               </div>
             </div>
@@ -1520,6 +1681,7 @@ function StepTwo({ builder, updateBuilder, errors, resourceLinks, setResourceLin
 function StepThree({ builder, updateBuilder, openSetup }) {
   const colorInputRef = useRef(null)
   const customQuestions = builder.customQuestions || []
+  const activePresetId = builder.themePreset || 'aurora'
 
   const updateQuestion = (index, key, value) => {
     updateBuilder(
@@ -1548,14 +1710,27 @@ function StepThree({ builder, updateBuilder, openSetup }) {
   return (
     <div className="wizard-fields">
       <section className="wizard-section">
-        <h4>Theme and Styling</h4>
-        <div className="theme-grid">
-          {themeCards.map((theme) => (
-            <button className={builder.theme === theme ? 'selected' : ''} type="button" key={theme} onClick={() => updateBuilder('theme', theme)}>
-              <Paintbrush size={18} /><strong>{theme}</strong>
+        <h4>Page theme</h4>
+        <p className="wizard-help">Pick a vibe for the public payment page. You can fine-tune the accent color below.</p>
+        <div className="preset-grid">
+          {THEME_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              className={`preset-card ${activePresetId === preset.id ? 'selected' : ''}`}
+              onClick={() => {
+                updateBuilder('themePreset', preset.id)
+                updateBuilder('accent', preset.colors[0])
+              }}
+            >
+              <span className="preset-swatch" style={{ background: `linear-gradient(135deg, ${preset.colors[0]}, ${preset.colors[1]})` }} />
+              <strong>{preset.name}</strong>
+              <small>{preset.vibe}</small>
             </button>
           ))}
         </div>
+
+        <h4 style={{ marginTop: 24 }}>Accent color override</h4>
         <div className="swatches">
           {colorSwatches.map((color) => (
             <button className={builder.accent === color ? 'selected' : ''} style={{ background: color }} type="button" key={color} aria-label={`Use color ${color}`} onClick={() => updateBuilder('accent', color)} />
@@ -1565,8 +1740,8 @@ function StepThree({ builder, updateBuilder, openSetup }) {
           <button className="secondary" type="button" onClick={() => colorInputRef.current?.click()}>
             <Paintbrush size={15} /> Pick custom color
           </button>
-          <button className="secondary" type="button" onClick={() => updateBuilder('accent', '#F5C518')}>
-            <RotateCcw size={15} /> Reset to default
+          <button className="secondary" type="button" onClick={() => updateBuilder('accent', THEME_PRESETS.find((p) => p.id === activePresetId)?.colors[0] || '#7c3aed')}>
+            <RotateCcw size={15} /> Reset to preset
           </button>
           <input
             ref={colorInputRef}
@@ -1577,7 +1752,7 @@ function StepThree({ builder, updateBuilder, openSetup }) {
             aria-label="Custom accent color"
           />
         </div>
-        <div className="info-box">Theme + accent are applied live to the preview and the published payment page.</div>
+        <div className="info-box">Theme + accent apply to your live <code>/p/{builder.slug || 'your-slug'}</code> page.</div>
       </section>
 
       <SettingRow title="Same Page Checkout" description="Checkout opens on the same page as the product." action="Coming soon" onAction={() => openSetup('samePage')} />

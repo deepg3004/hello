@@ -1,24 +1,28 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { ArrowRight, Check, ChevronDown, Copy, Mail, Sparkles } from 'lucide-react'
 import {
-  AboutMeSection,
-  FaqSection,
-  GallerySection,
-  ShowcaseSection,
-  TestimonialsSection,
+  ArrowRight, Check, ChevronDown, Copy, Eye, Lock, Mail, RefreshCw,
+  ShieldCheck, Sparkles, Star, Zap,
+} from 'lucide-react'
+import {
+  AboutMeSection, FaqSection, GallerySection, ShowcaseSection, TestimonialsSection,
 } from './PublicSections.jsx'
 import './App.css'
 
 const apiBase = window.location.port === '5173' ? 'http://127.0.0.1:8080' : ''
 const RAZORPAY_SCRIPT = 'https://checkout.razorpay.com/v1/checkout.js'
 
+const THEME_PRESETS = {
+  aurora: { name: 'Aurora', accent: '#7c3aed', accent2: '#06b6d4' },
+  sunset: { name: 'Sunset', accent: '#f97316', accent2: '#ec4899' },
+  mint: { name: 'Mint', accent: '#10b981', accent2: '#14b8a6' },
+  royal: { name: 'Royal', accent: '#1e3a8a', accent2: '#f59e0b' },
+  mono: { name: 'Mono', accent: '#0f172a', accent2: '#64748b' },
+}
+
 function loadRazorpayScript() {
   return new Promise((resolve) => {
-    if (window.Razorpay) {
-      resolve(true)
-      return
-    }
+    if (window.Razorpay) return resolve(true)
     const existing = document.querySelector(`script[src="${RAZORPAY_SCRIPT}"]`)
     if (existing) {
       existing.addEventListener('load', () => resolve(true))
@@ -35,18 +39,13 @@ function loadRazorpayScript() {
 }
 
 function formatMoney(minor, currency = 'INR') {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency }).format((minor || 0) / 100)
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 0 }).format((minor || 0) / 100)
 }
 
 function asArray(value) {
   if (Array.isArray(value)) return value
   if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value)
-      return Array.isArray(parsed) ? parsed : []
-    } catch {
-      return []
-    }
+    try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : [] } catch { return [] }
   }
   return []
 }
@@ -54,12 +53,7 @@ function asArray(value) {
 function asObject(value, fallback = {}) {
   if (value && typeof value === 'object' && !Array.isArray(value)) return value
   if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value)
-      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback
-    } catch {
-      return fallback
-    }
+    try { const parsed = JSON.parse(value); return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback } catch { return fallback }
   }
   return fallback
 }
@@ -69,11 +63,10 @@ export default function PaymentPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [product, setProduct] = useState(null)
   const [status, setStatus] = useState('loading')
-  const [config, setConfig] = useState({ configured: false, keyId: '' })
+  const [config, setConfig] = useState({ razorpay: { configured: false } })
   const [toast, setToast] = useState(null)
   const [submitting, setSubmitting] = useState(false)
-  const [termsOpen, setTermsOpen] = useState(false)
-  const [policyOpen, setPolicyOpen] = useState({ refund: false, privacy: false })
+  const [checkoutOpen, setCheckoutOpen] = useState(false)
 
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -103,6 +96,7 @@ export default function PaymentPage() {
         setProduct(p)
         setStatus('ready')
         setSelectedPrice(p.pricing_mode === 'fixed' ? p.price : (p.suggested_price || p.price))
+        fetch(`${apiBase}/api/public/products/${encodeURIComponent(slug)}/view`, { method: 'POST' }).catch(() => {})
       })
       .catch((error) => {
         if (cancelled) return
@@ -111,7 +105,7 @@ export default function PaymentPage() {
 
     fetch(`${apiBase}/api/public/config`)
       .then((res) => res.json())
-      .then((data) => { if (!cancelled) setConfig(data.razorpay || { configured: false }) })
+      .then((data) => { if (!cancelled) setConfig(data) })
       .catch(() => {})
 
     return () => { cancelled = true }
@@ -126,10 +120,7 @@ export default function PaymentPage() {
   const [showcaseProducts, setShowcaseProducts] = useState([])
 
   useEffect(() => {
-    if (!showcaseIds.length) {
-      setShowcaseProducts([])
-      return
-    }
+    if (!showcaseIds.length) { setShowcaseProducts([]); return }
     fetch(`${apiBase}/api/products`)
       .then((res) => res.json())
       .then((data) => {
@@ -150,22 +141,19 @@ export default function PaymentPage() {
     ? (product?.price || 0)
     : (otherActive ? Math.round(Number(customPrice) * 100) || 0 : selectedPrice || 0)
 
-  const accent = product?.accent_color || '#F5C518'
-  const theme = product?.theme || 'Dawn'
+  const themePreset = product?.theme_preset || 'aurora'
+  const preset = THEME_PRESETS[themePreset] || THEME_PRESETS.aurora
+  const accent = product?.accent_color && product.accent_color !== '#F5C518' ? product.accent_color : preset.accent
+  const accent2 = preset.accent2
 
   const handlePay = async () => {
-    if (!email.trim()) {
-      showToast('Please enter your email.', 'error')
-      return
-    }
+    if (!email.trim()) return showToast('Please enter your email.', 'error')
     if (product?.pricing_mode !== 'fixed' && chargeMinor < (product?.price || 0)) {
-      showToast(`Minimum price is ${formatMoney(product.price, product.currency)}.`, 'error')
-      return
+      return showToast(`Minimum price is ${formatMoney(product.price, product.currency)}.`, 'error')
     }
     for (const q of customQuestions) {
       if (q.required && !customAnswers[q.label]?.trim()) {
-        showToast(`Please answer: ${q.label}`, 'error')
-        return
+        return showToast(`Please answer: ${q.label}`, 'error')
       }
     }
 
@@ -175,15 +163,11 @@ export default function PaymentPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          slug,
-          email: email.trim(),
-          phone: phone.trim(),
-          price: chargeMinor / 100,
-          customAnswers,
+          slug, email: email.trim(), phone: phone.trim(),
+          price: chargeMinor / 100, customAnswers,
         }),
       })
       const data = await res.json()
-
       if (!res.ok || !data.ok) {
         showToast(data.message || 'Payments coming soon.', 'error')
         setSubmitting(false)
@@ -217,16 +201,11 @@ export default function PaymentPage() {
             }),
           })
           const verifyData = await verify.json()
-          if (verifyData.ok) {
-            setSearchParams({ paid: '1' })
-          } else {
-            showToast(verifyData.message || 'Payment verification failed.', 'error')
-          }
+          if (verifyData.ok) setSearchParams({ paid: '1' })
+          else showToast(verifyData.message || 'Payment verification failed.', 'error')
           setSubmitting(false)
         },
-        modal: {
-          ondismiss: () => setSubmitting(false),
-        },
+        modal: { ondismiss: () => setSubmitting(false) },
       })
       rzp.open()
     } catch (error) {
@@ -249,10 +228,7 @@ export default function PaymentPage() {
     const id = product.meta_pixel_id.trim()
     if (!id || window.fbq) return
     const script = document.createElement('script')
-    script.innerHTML = `
-      !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-      fbq('init', '${id}'); fbq('track', 'PageView');
-    `
+    script.innerHTML = `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init', '${id}'); fbq('track', 'PageView');`
     document.head.appendChild(script)
   }, [product?.meta_pixel_id])
 
@@ -269,20 +245,19 @@ export default function PaymentPage() {
     document.head.appendChild(inline)
   }, [product?.ga_tracking_id])
 
-  if (status === 'loading') {
-    return <div className="public-empty"><Sparkles size={24} /><p>Loading…</p></div>
-  }
+  if (status === 'loading') return <PaymentPageSkeleton />
   if (status === 'not_found') {
     return (
-      <div className="public-empty">
+      <div className="px-page px-empty">
         <h2>This page is not available.</h2>
         <p>The creator may have unpublished it or the link is incorrect.</p>
+        <a className="px-link" href="/">Back to home →</a>
       </div>
     )
   }
   if (status === 'error') {
     return (
-      <div className="public-empty">
+      <div className="px-page px-empty">
         <h2>Something went wrong.</h2>
         <p>Try refreshing in a moment.</p>
       </div>
@@ -291,17 +266,19 @@ export default function PaymentPage() {
 
   if (paid) {
     return (
-      <div className="public-thankyou" style={{ '--accent': accent }}>
-        <div className="public-thankyou-card">
-          <span className="check-badge"><Check size={32} /></span>
-          <h2>Thank you for your purchase!</h2>
+      <div className={`px-page px-thanks theme-${themePreset}`} style={{ '--accent': accent, '--accent2': accent2 }}>
+        <div className="px-bg-orb px-bg-orb-1" />
+        <div className="px-bg-orb px-bg-orb-2" />
+        <div className="px-thanks-card">
+          <div className="px-thanks-badge"><Check size={36} /></div>
+          <h1>Payment confirmed</h1>
           <p>A receipt has been sent to <strong>{email || 'your email'}</strong>.</p>
           {product.resource_link && (
-            <a className="primary" href={product.resource_link} target="_blank" rel="noopener noreferrer">
+            <a className="px-cta" href={product.resource_link} target="_blank" rel="noopener noreferrer" style={{ background: accent }}>
               Access your product <ArrowRight size={18} />
             </a>
           )}
-          <button className="secondary" type="button" onClick={() => setSearchParams({})}>
+          <button className="px-ghost" type="button" onClick={() => setSearchParams({})}>
             Back to page
           </button>
         </div>
@@ -310,21 +287,43 @@ export default function PaymentPage() {
   }
 
   return (
-    <div className={`public-page theme-${theme.toLowerCase()}`} style={{ '--accent': accent }}>
+    <div
+      className={`px-page theme-${themePreset}`}
+      style={{ '--accent': accent, '--accent2': accent2 }}
+    >
+      <div className="px-bg-orb px-bg-orb-1" />
+      <div className="px-bg-orb px-bg-orb-2" />
+      <div className="px-bg-orb px-bg-orb-3" />
+
       {toast && (
-        <div className={`toast ${toast.kind === 'error' ? 'error' : ''}`} role="status">
+        <div className={`px-toast ${toast.kind === 'error' ? 'is-error' : ''}`} role="status">
           {toast.message}
         </div>
       )}
-      <div className="public-grid">
-        <div className="public-left">
-          <div className="public-topline">
-            <span className="seller-avatar">{(product.seller_name || product.name || 'P').slice(0, 2).toUpperCase()}</span>
-            <strong>Built with <Sparkles size={13} /> on InvoxAI</strong>
+
+      <div className="px-shell">
+        <div className="px-main">
+          <div className="px-creator">
+            <span className="px-avatar">{(product.seller_name || product.name).slice(0, 2).toUpperCase()}</span>
+            <div>
+              <small>Made by</small>
+              <strong>{product.seller_name || 'InvoxAI Creator'}</strong>
+            </div>
+            <div className="px-creator-stats">
+              <span title="Page views"><Eye size={13} /> {product.view_count || 0}</span>
+            </div>
           </div>
-          <h1>{product.name}</h1>
+
+          <h1 className="px-title">{product.name}</h1>
+
+          <div className="px-trust">
+            <span><ShieldCheck size={14} /> Secure checkout</span>
+            <span><Zap size={14} /> Instant delivery</span>
+            <span><Lock size={14} /> 256-bit SSL</span>
+          </div>
+
           {product.cover_image && (
-            <div className="public-cover">
+            <div className="px-cover">
               {product.cover_image.match(/\.(mp4|webm|ogg)$/i)
                 ? <video src={product.cover_image} controls />
                 : <img src={product.cover_image} alt={product.name} />}
@@ -332,77 +331,61 @@ export default function PaymentPage() {
           )}
 
           {product.description && (
-            <section className="public-section">
-              <header><h3>Description</h3></header>
-              <div
-                className="public-description ProseMirror"
-                dangerouslySetInnerHTML={{ __html: product.description }}
-              />
+            <section className="px-block px-reveal">
+              <h3 className="px-h3">About this product</h3>
+              <div className="px-prose" style={{ whiteSpace: 'pre-wrap' }}>{product.description}</div>
             </section>
           )}
 
-          {sections.gallery && <GallerySection items={gallery} />}
-          {sections.testimonials && <TestimonialsSection items={testimonials} />}
-          {sections.faq && <FaqSection items={faq} />}
-          {sections.aboutMe && <AboutMeSection text={product.about_me} />}
-          {sections.showcase && <ShowcaseSection items={showcaseProducts} accent={accent} />}
-
-          {product.seller_name && (
-            <section className="public-section public-contact">
-              <Mail size={16} />
-              <span>Contact {product.seller_name}</span>
-            </section>
-          )}
+          {sections.gallery && <div className="px-reveal"><GallerySection items={gallery} /></div>}
+          {sections.testimonials && <div className="px-reveal"><TestimonialsSection items={testimonials} /></div>}
+          {sections.faq && <div className="px-reveal"><FaqSection items={faq} /></div>}
+          {sections.aboutMe && <div className="px-reveal"><AboutMeSection text={product.about_me} /></div>}
+          {sections.showcase && <div className="px-reveal"><ShowcaseSection items={showcaseProducts} accent={accent} /></div>}
 
           {(product.terms_text || product.refund_text || product.privacy_text) && (
-            <section className="public-section">
+            <section className="px-block">
               {product.terms_text && (
-                <details className="public-accordion" open={termsOpen} onToggle={(e) => setTermsOpen(e.target.open)}>
-                  <summary>Terms and conditions <ChevronDown size={14} /></summary>
-                  <p>{product.terms_text}</p>
-                </details>
+                <details className="px-policy"><summary>Terms and conditions <ChevronDown size={14} /></summary><p>{product.terms_text}</p></details>
               )}
               {product.refund_text && (
-                <details className="public-accordion" open={policyOpen.refund} onToggle={(e) => setPolicyOpen((s) => ({ ...s, refund: e.target.open }))}>
-                  <summary>Refund policy <ChevronDown size={14} /></summary>
-                  <p>{product.refund_text}</p>
-                </details>
+                <details className="px-policy"><summary>Refund policy <ChevronDown size={14} /></summary><p>{product.refund_text}</p></details>
               )}
               {product.privacy_text && (
-                <details className="public-accordion" open={policyOpen.privacy} onToggle={(e) => setPolicyOpen((s) => ({ ...s, privacy: e.target.open }))}>
-                  <summary>Privacy policy <ChevronDown size={14} /></summary>
-                  <p>{product.privacy_text}</p>
-                </details>
+                <details className="px-policy"><summary>Privacy policy <ChevronDown size={14} /></summary><p>{product.privacy_text}</p></details>
               )}
             </section>
           )}
 
-          <footer className="public-branding">
-            <strong><Sparkles size={15} /> InvoxAI</strong>
-            <span>Want to create your own payment page? <a href="/">Get started now!</a></span>
+          <footer className="px-foot">
+            <strong><Sparkles size={14} /> Built on InvoxAI</strong>
+            <span>Want a page like this? <a href="/">Get started →</a></span>
           </footer>
         </div>
 
-        <aside className="public-right" aria-label="Decorative panel" />
+        <aside className="px-checkout" aria-label="Checkout">
+          <div className="px-card">
+            <div className="px-card-head">
+              <span><Star size={14} fill="currentColor" /> Premium product</span>
+              <strong className="px-price-big">{formatMoney(chargeMinor, product.currency)}</strong>
+            </div>
 
-        <div className="public-checkout">
-          <div className="checkout-card">
-            <label>
-              <span>Access to this purchase will be sent to this email</span>
-              Email Address
+            <label className="px-field">
+              <span>Email</span>
               <input
                 type="email"
-                placeholder="customer@email.com"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 autoComplete="email"
               />
+              <small>Your receipt + product link goes here</small>
             </label>
 
             {product.pricing_mode !== 'fixed' && (
-              <div>
-                <strong>Pay what you like *</strong>
-                <div className="price-pills">
+              <div className="px-field">
+                <span>Choose your price</span>
+                <div className="px-pills">
                   {suggestedPills.map((priceMinor, index) => {
                     const isPopular = index === 2
                     const isSelected = !otherActive && selectedPrice === priceMinor
@@ -410,25 +393,24 @@ export default function PaymentPage() {
                       <button
                         key={`${priceMinor}-${index}`}
                         type="button"
-                        className={`${isPopular ? 'popular' : ''} ${isSelected ? 'selected' : ''}`}
-                        style={isSelected ? { background: accent, borderColor: accent } : undefined}
+                        className={`px-pill ${isPopular ? 'is-popular' : ''} ${isSelected ? 'is-selected' : ''}`}
                         onClick={() => { setSelectedPrice(priceMinor); setOtherActive(false) }}
                       >
-                        {isPopular && <span>Popular</span>}
+                        {isPopular && <em>Popular</em>}
                         {formatMoney(priceMinor, product.currency)}
                       </button>
                     )
                   })}
                   <button
                     type="button"
-                    className={otherActive ? 'selected' : ''}
+                    className={`px-pill ${otherActive ? 'is-selected' : ''}`}
                     onClick={() => setOtherActive(true)}
                   >
                     Other
                   </button>
                 </div>
                 {otherActive && (
-                  <span className="money-input">
+                  <div className="px-money-row">
                     <b>{product.currency || 'INR'}</b>
                     <input
                       type="number"
@@ -438,14 +420,14 @@ export default function PaymentPage() {
                       placeholder={`Min ${(product.price || 0) / 100}`}
                       onChange={(event) => setCustomPrice(event.target.value)}
                     />
-                  </span>
+                  </div>
                 )}
               </div>
             )}
 
-            <label>
-              Add your phone number
-              <span className="phone-field">
+            <label className="px-field">
+              <span>Phone</span>
+              <div className="px-money-row">
                 <b>+91</b>
                 <input
                   type="tel"
@@ -454,12 +436,12 @@ export default function PaymentPage() {
                   onChange={(event) => setPhone(event.target.value)}
                   autoComplete="tel"
                 />
-              </span>
+              </div>
             </label>
 
             {customQuestions.map((q, index) => (
-              <label key={`${q.label}-${index}`}>
-                {q.label}{q.required && <span className="required-star">*</span>}
+              <label className="px-field" key={`${q.label}-${index}`}>
+                <span>{q.label}{q.required && <em className="px-required"> *</em>}</span>
                 <input
                   type="text"
                   value={customAnswers[q.label] || ''}
@@ -468,36 +450,91 @@ export default function PaymentPage() {
               </label>
             ))}
 
-            <div className="checkout-total">
-              <div><span>Sub Total</span><strong>{formatMoney(chargeMinor, product.currency)}</strong></div>
-              <div><b>Total</b><strong>{formatMoney(chargeMinor, product.currency)}</strong></div>
+            <div className="px-divider" />
+            <div className="px-total">
+              <div><span>Subtotal</span><strong>{formatMoney(chargeMinor, product.currency)}</strong></div>
+              <div className="px-total-big"><b>You pay</b><strong>{formatMoney(chargeMinor, product.currency)}</strong></div>
             </div>
 
             <button
-              className="pay-button"
+              className="px-cta"
               style={{ background: accent }}
               type="button"
               onClick={handlePay}
               disabled={submitting}
             >
-              {submitting ? 'Processing…' : (product.button_text || 'Make Payment')}
-              {!submitting && <ArrowRight size={18} />}
+              {submitting ? <><RefreshCw size={18} className="px-spin" /> Processing…</>
+                          : <>{product.button_text || 'Make Payment'} <ArrowRight size={18} /></>}
             </button>
 
-            {!config.configured && (
-              <p className="public-note">
-                <Sparkles size={13} /> Payments are not yet live on this page — the seller is setting it up.
-              </p>
+            {!config.razorpay?.configured && (
+              <p className="px-note"><Sparkles size={13} /> Payments will go live shortly — the seller is finalizing setup.</p>
             )}
 
-            <div className="invite-box">
-              <strong>Invite your network</strong>
-              <button className="secondary" type="button" onClick={copyShareLink}>
-                <Copy size={15} /> Copy link
+            <div className="px-share">
+              <button className="px-ghost-small" type="button" onClick={copyShareLink}>
+                <Copy size={14} /> Share
+              </button>
+              <span className="px-share-trust"><ShieldCheck size={13} /> Powered by Razorpay</span>
+            </div>
+          </div>
+        </aside>
+
+        <button
+          className="px-mobile-cta"
+          type="button"
+          style={{ background: accent }}
+          onClick={() => setCheckoutOpen(true)}
+        >
+          <strong>{formatMoney(chargeMinor, product.currency)}</strong>
+          <span>{product.button_text || 'Make Payment'} <ArrowRight size={16} /></span>
+        </button>
+
+        {checkoutOpen && (
+          <div className="px-sheet-backdrop" onClick={() => setCheckoutOpen(false)}>
+            <div className="px-sheet" onClick={(event) => event.stopPropagation()}>
+              <button className="px-sheet-close" type="button" onClick={() => setCheckoutOpen(false)} aria-label="Close">×</button>
+              <h3>Checkout</h3>
+              <p className="px-sheet-hint">Same checkout as on desktop. Fill in your details above.</p>
+              <button
+                className="px-cta"
+                style={{ background: accent }}
+                type="button"
+                onClick={() => { setCheckoutOpen(false); handlePay() }}
+                disabled={submitting}
+              >
+                {product.button_text || 'Make Payment'} <ArrowRight size={18} />
               </button>
             </div>
           </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PaymentPageSkeleton() {
+  return (
+    <div className="px-page theme-aurora">
+      <div className="px-bg-orb px-bg-orb-1" />
+      <div className="px-bg-orb px-bg-orb-2" />
+      <div className="px-shell">
+        <div className="px-main">
+          <div className="px-skel" style={{ height: 24, width: 180 }} />
+          <div className="px-skel" style={{ height: 40, width: '70%', marginTop: 12 }} />
+          <div className="px-skel" style={{ height: 280, marginTop: 24, borderRadius: 16 }} />
+          <div className="px-skel" style={{ height: 18, width: '100%', marginTop: 24 }} />
+          <div className="px-skel" style={{ height: 18, width: '85%', marginTop: 8 }} />
+          <div className="px-skel" style={{ height: 18, width: '60%', marginTop: 8 }} />
         </div>
+        <aside className="px-checkout">
+          <div className="px-card">
+            <div className="px-skel" style={{ height: 32, width: 120 }} />
+            <div className="px-skel" style={{ height: 44, marginTop: 16 }} />
+            <div className="px-skel" style={{ height: 44, marginTop: 12 }} />
+            <div className="px-skel" style={{ height: 52, marginTop: 24, borderRadius: 12 }} />
+          </div>
+        </aside>
       </div>
     </div>
   )
