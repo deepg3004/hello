@@ -12,6 +12,7 @@ import {
   ClipboardList,
   Copy,
   CreditCard,
+  Download,
   Edit3,
   Eye,
   Gift,
@@ -23,6 +24,7 @@ import {
   MessageCircle,
   MoreHorizontal,
   Package,
+  Rocket,
   Plus,
   RefreshCw,
   Search,
@@ -150,8 +152,9 @@ function App() {
     followersGained: 0,
   })
   const [builderOpen, setBuilderOpen] = useState(false)
+  const [productChoiceOpen, setProductChoiceOpen] = useState(false)
   const [productBuilderOpen, setProductBuilderOpen] = useState(false)
-  const [productBuilderTab, setProductBuilderTab] = useState('details')
+  const [productBuilderStep, setProductBuilderStep] = useState(1)
   const [productBuilder, setProductBuilder] = useState(defaultProductBuilder)
   const [selectedTrigger, setSelectedTrigger] = useState('User comments on post or reel')
   const [openingEnabled, setOpeningEnabled] = useState(true)
@@ -299,7 +302,7 @@ function App() {
   }
 
   const createProduct = () => {
-    fetch(`${apiBase}/api/products`, {
+    return fetch(`${apiBase}/api/products`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(productBuilder),
@@ -358,10 +361,12 @@ function App() {
       return (
         <ProductsPage
           products={realProducts}
+          choiceOpen={productChoiceOpen}
+          setChoiceOpen={setProductChoiceOpen}
           builderOpen={productBuilderOpen}
           setBuilderOpen={setProductBuilderOpen}
-          builderTab={productBuilderTab}
-          setBuilderTab={setProductBuilderTab}
+          builderStep={productBuilderStep}
+          setBuilderStep={setProductBuilderStep}
           builder={productBuilder}
           setBuilder={setProductBuilder}
           createProduct={createProduct}
@@ -912,20 +917,63 @@ function ContactsPage({ contacts }) {
 
 function ProductsPage({
   products,
+  choiceOpen,
+  setChoiceOpen,
   builderOpen,
   setBuilderOpen,
-  builderTab,
-  setBuilderTab,
+  builderStep,
+  setBuilderStep,
   builder,
   setBuilder,
   createProduct,
 }) {
+  const [errors, setErrors] = useState({})
+  const [resourceLinks, setResourceLinks] = useState([])
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+
   const updateBuilder = (field, value) => {
     setBuilder((current) => ({ ...current, [field]: value }))
   }
 
-  const suggestedPrices = [builder.minimumPrice, '8749.5', builder.suggestedPrice, '21248.5']
+  const openWizard = () => {
+    setErrors({})
+    setBuilderStep(1)
+    setChoiceOpen(false)
+    setBuilderOpen(true)
+  }
+
+  const validateStep = () => {
+    const nextErrors = {}
+    if (builderStep === 1) {
+      if (!builder.title.trim()) nextErrors.title = 'Payment page title is required'
+      if (!builder.coverImage.trim()) nextErrors.cover = 'Cover image/video is required'
+      if (!builder.buttonText.trim()) nextErrors.buttonText = 'Button text is required'
+    }
+    if (builderStep === 2) {
+      if (!builder.resourceLink.trim() && !resourceLinks.length) nextErrors.files = 'Digital files are required'
+      if (!builder.minimumPrice || Number(builder.minimumPrice) <= 0) nextErrors.price = 'Price is required'
+    }
+    setErrors(nextErrors)
+    return !Object.keys(nextErrors).length
+  }
+
+  const continueWizard = async () => {
+    if (!validateStep()) return
+    if (builderStep < 3) {
+      setBuilderStep((step) => step + 1)
+      return
+    }
+    await createProduct()
+  }
+
+  const addResource = () => {
+    if (!builder.resourceLink.trim()) return
+    setResourceLinks((links) => [...links, builder.resourceLink.trim()])
+    setErrors((current) => ({ ...current, files: '' }))
+  }
+
   const displayPrice = Number(builder.suggestedPrice || builder.minimumPrice || 0)
+  const suggestedPrices = [builder.minimumPrice, '8749.5', builder.suggestedPrice, '21248.5']
 
   return (
     <div className="stack">
@@ -939,7 +987,7 @@ function ProductsPage({
             <span className="eyebrow">Creator commerce</span>
             <h3>Digital products</h3>
           </div>
-          <button className="primary" type="button" onClick={() => setBuilderOpen(true)}><Plus size={17} /> Create</button>
+          <button className="primary" type="button" onClick={() => setChoiceOpen(true)}><Plus size={17} /> Create Payment Page</button>
         </div>
         <div className="table-wrap">
           <table>
@@ -967,197 +1015,253 @@ function ProductsPage({
             </tbody>
           </table>
         </div>
-        {!products.length && <div className="empty-state">No real products yet. Click Create to build your first payment page and save it in the VPS database.</div>}
+        {!products.length && <div className="empty-state">No real products yet. Click Create Payment Page to build your first checkout page.</div>}
       </section>
 
+      {choiceOpen && (
+        <div className="modal-backdrop">
+          <section className="sell-modal" aria-label="What do you want to sell">
+            <button className="icon-button" type="button" aria-label="Close sell choices" onClick={() => setChoiceOpen(false)}>
+              <X size={18} />
+            </button>
+            <h3>What do you want to sell?</h3>
+            <SellChoice icon={Download} tone="green" title="Digital Products" description="Sell images, videos, music, docs, and more" onClick={openWizard} />
+            <SellChoice icon={Package} tone="blue" title="List Multiple Products" description="Offer an e-commerce style experience" onClick={openWizard} />
+            <SellChoice icon={ArrowRight} tone="pink" title="Existing Product" description="Give access to your existing product" onClick={openWizard} />
+          </section>
+        </div>
+      )}
+
       {builderOpen && (
-        <section className="payment-builder">
-          <div className="builder-panel">
-            <div className="panel-heading">
-              <div>
-                <span className="eyebrow"><CreditCard size={16} /> Payment page builder</span>
-                <h3>SuperProfile style checkout page</h3>
-              </div>
-              <button className="icon-button" type="button" aria-label="Close payment builder" onClick={() => setBuilderOpen(false)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="tabs builder-tabs">
-              {[
-                ['details', 'Page Details'],
-                ['payment', 'Payment Page Details'],
-                ['advanced', 'Advanced Settings'],
-              ].map(([id, label]) => (
-                <button className={builderTab === id ? 'active' : ''} key={id} type="button" onClick={() => setBuilderTab(id)}>
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {builderTab === 'details' && (
-              <div className="builder-form">
-                <label>
-                  Payment Page Title
-                  <input maxLength={75} value={builder.title} onChange={(event) => updateBuilder('title', event.target.value)} />
-                </label>
-                <label>
-                  Creator / Seller Name
-                  <input value={builder.sellerName} onChange={(event) => updateBuilder('sellerName', event.target.value)} />
-                </label>
-                <label>
-                  Seller Email
-                  <input value={builder.sellerEmail} onChange={(event) => updateBuilder('sellerEmail', event.target.value)} />
-                </label>
-                <label>
-                  Cover Image URL
-                  <input value={builder.coverImage} onChange={(event) => updateBuilder('coverImage', event.target.value)} />
-                </label>
-                <div className="upload-drop">
-                  <Upload size={20} />
-                  <strong>Drag and drop cover image</strong>
-                  <span>{builder.fileName || 'No file selected. Add a live image URL above for now.'}</span>
-                </div>
-                <label className="wide-field">
-                  Description
-                  <div className="editor-toolbar" aria-label="Rich text controls">
-                    <button type="button"><strong>B</strong></button>
-                    <button type="button"><em>I</em></button>
-                    <button type="button"><u>U</u></button>
-                    <button type="button"><ListIcon /></button>
-                    <button type="button"><ImageIcon size={16} /></button>
-                    <button type="button"><Link size={16} /></button>
-                  </div>
-                  <textarea value={builder.description} onChange={(event) => updateBuilder('description', event.target.value)} />
-                </label>
-                <label>
-                  Button Text
-                  <input maxLength={25} value={builder.buttonText} onChange={(event) => updateBuilder('buttonText', event.target.value)} />
-                </label>
-                <div className="option-chips">
-                  {['Gallery', 'Testimonials', 'FAQ', 'About Me', 'Showcase Products'].map((item) => (
-                    <button type="button" key={item}>{item}</button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {builderTab === 'payment' && (
-              <div className="builder-form">
-                <div className="upload-drop wide-field">
-                  <Upload size={20} />
-                  <strong>Upload digital files</strong>
-                  <span>Unlimited files, 100MB limit</span>
-                </div>
-                <label className="wide-field">
-                  Resource Link
-                  <div className="inline-field">
-                    <input value={builder.resourceLink} onChange={(event) => updateBuilder('resourceLink', event.target.value)} placeholder="https://..." />
-                    <button className="secondary" type="button">Add</button>
-                  </div>
-                </label>
-                <div className="pricing-mode wide-field">
-                  {[
-                    ['fixed', 'Fixed Price', 'Customer pays one fixed amount.'],
-                    ['customers', 'Customers decide price', 'Let buyers pay from minimum or suggested prices.'],
-                  ].map(([id, title, detail]) => (
-                    <button className={builder.pricingMode === id ? 'selected' : ''} type="button" key={id} onClick={() => updateBuilder('pricingMode', id)}>
-                      <Check size={18} />
-                      <strong>{title}</strong>
-                      <span>{detail}</span>
-                    </button>
-                  ))}
-                </div>
-                <label>
-                  Minimum Price
-                  <span className="money-input"><b>INR</b><input value={builder.minimumPrice} onChange={(event) => updateBuilder('minimumPrice', event.target.value)} /></span>
-                </label>
-                <label>
-                  Suggested Price
-                  <span className="money-input"><b>INR</b><input value={builder.suggestedPrice} onChange={(event) => updateBuilder('suggestedPrice', event.target.value)} /></span>
-                </label>
-                <label className="check-toggle">
-                  <input type="checkbox" checked={builder.limitQuantity} onChange={(event) => updateBuilder('limitQuantity', event.target.checked)} />
-                  Limit Quantity
-                </label>
-                <details className="advanced-drop wide-field">
-                  <summary>Advanced Settings</summary>
-                  <p>Quantity limits, coupon rules, file delivery, and post-purchase behaviour can be connected here.</p>
-                </details>
-              </div>
-            )}
-
-            {builderTab === 'advanced' && (
-              <div className="builder-form">
-                <div className="wide-field">
-                  <label>Theme & Styling</label>
-                  <div className="theme-grid">
-                    {themeCards.map((theme) => (
-                      <button className={builder.theme === theme ? 'selected' : ''} type="button" key={theme} onClick={() => updateBuilder('theme', theme)}>
-                        <Paintbrush size={18} />
-                        <strong>{theme}</strong>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="swatches">
-                    {colorSwatches.map((color) => (
-                      <button
-                        className={builder.accent === color ? 'selected' : ''}
-                        style={{ background: color }}
-                        type="button"
-                        key={color}
-                        aria-label={`Use color ${color}`}
-                        onClick={() => updateBuilder('accent', color)}
-                      />
-                    ))}
-                  </div>
-                </div>
-                <SettingRow title="Same Page Checkout" action="Customise" />
-                <SettingRow title="Email ID Field" enabled={builder.emailOtp} onToggle={() => updateBuilder('emailOtp', !builder.emailOtp)} />
-                <div className="warning-panel wide-field">
-                  <strong>OTP warning</strong>
-                  <span>Turning off OTP verification could lead to spam and lower quality customer records.</span>
-                </div>
-                <SettingRow title="Phone Number Field" enabled={builder.phoneRequired} onToggle={() => updateBuilder('phoneRequired', !builder.phoneRequired)} />
-                <SettingRow title="Phone Verification Code" enabled={builder.phoneOtp} onToggle={() => updateBuilder('phoneOtp', !builder.phoneOtp)} />
-                {['Bump Offer', 'Automated Email', 'Discount Coupons', 'Terms & Conditions', 'Refund Policy', 'Privacy Policy'].map((item) => (
-                  <SettingRow key={item} title={item} action="Setup" />
-                ))}
-                <label className="wide-field">
-                  Page URL
-                  <span className="slug-field"><span>hello.invoxai.io/p/</span><input value={builder.slug} onChange={(event) => updateBuilder('slug', event.target.value)} /><Edit3 size={16} /></span>
-                </label>
-                <SettingRow title="Post Purchase Behaviour" action="Edit" />
-              </div>
-            )}
-
-            <div className="publish-bar">
-              <button className="primary" type="button" onClick={createProduct}>Publish Changes</button>
-            </div>
+        <section className="payment-wizard">
+          <div className="wizard-header">
+            <button type="button" onClick={() => setBuilderOpen(false)}><X size={18} /> New page</button>
+            <StepIndicator step={builderStep} />
           </div>
-
-          <PaymentPreview builder={builder} displayPrice={displayPrice} suggestedPrices={suggestedPrices} />
+          <div className="wizard-body">
+            <div className="wizard-form">
+              {builderStep === 1 && (
+                <StepOne builder={builder} updateBuilder={updateBuilder} errors={errors} />
+              )}
+              {builderStep === 2 && (
+                <StepTwo
+                  builder={builder}
+                  updateBuilder={updateBuilder}
+                  errors={errors}
+                  resourceLinks={resourceLinks}
+                  setResourceLinks={setResourceLinks}
+                  addResource={addResource}
+                  advancedOpen={advancedOpen}
+                  setAdvancedOpen={setAdvancedOpen}
+                />
+              )}
+              {builderStep === 3 && (
+                <StepThree builder={builder} updateBuilder={updateBuilder} />
+              )}
+              <div className="wizard-footer">
+                {builderStep > 1 && <button className="ghost-button" type="button" onClick={() => setBuilderStep((step) => step - 1)}>Back</button>}
+                <button className="primary wizard-action" type="button" onClick={continueWizard}>
+                  {builderStep === 3 ? <Rocket size={17} /> : null}
+                  {builderStep === 3 ? 'Publish' : 'Save and Continue'}
+                </button>
+              </div>
+            </div>
+            <PaymentPreview builder={builder} displayPrice={displayPrice} suggestedPrices={suggestedPrices} />
+          </div>
         </section>
       )}
     </div>
   )
 }
 
-function ListIcon() {
-  return <span className="list-icon">=</span>
+function SellChoice({ icon: Icon, tone, title, description, onClick }) {
+  return (
+    <button className="sell-choice" type="button" onClick={onClick}>
+      <span className={`sell-icon ${tone}`}><Icon size={22} /></span>
+      <span><strong>{title}</strong><small>{description}</small></span>
+    </button>
+  )
 }
 
-function SettingRow({ title, action, enabled, onToggle }) {
+function StepIndicator({ step }) {
+  const labels = ['Page Details', 'Payment Page Details', 'Advanced Settings']
+  return (
+    <div className="step-indicator">
+      <span>{[1, 2, 3].map((item) => <b className={item <= step ? 'active' : ''} key={item} />)}</span>
+      <strong>Step {step} - {labels[step - 1]}</strong>
+    </div>
+  )
+}
+
+function StepOne({ builder, updateBuilder, errors }) {
+  return (
+    <div className="wizard-fields">
+      <WizardTextField required label="Payment Page Title" value={builder.title} max={75} placeholder="Your Payment Page Title Here" error={errors.title} onChange={(value) => updateBuilder('title', value)} />
+      <UploadCard title="Cover Image / Video Upload" subtitle="1280 x 720 (16:9) recommended; Up to 10 MB each" linkPlaceholder="Add video link (Youtube, Vimeo, etc.)" value={builder.coverImage} error={errors.cover} onChange={(value) => updateBuilder('coverImage', value)} />
+      <label className="wizard-label">
+        Description
+        <RichToolbar />
+        <textarea placeholder="Add full product description here..." value={builder.description} onChange={(event) => updateBuilder('description', event.target.value)} />
+      </label>
+      <WizardTextField required label="Button Text" value={builder.buttonText} max={25} placeholder="Get it now" error={errors.buttonText} onChange={(value) => updateBuilder('buttonText', value)} />
+      <div className="optional-grid">
+        <strong>Optional Sections</strong>
+        {['Gallery', 'Testimonials', 'FAQ', 'About Me', 'Showcase Products'].map((item) => <button type="button" key={item}>{item}</button>)}
+      </div>
+    </div>
+  )
+}
+
+function StepTwo({ builder, updateBuilder, errors, resourceLinks, setResourceLinks, addResource, advancedOpen, setAdvancedOpen }) {
+  return (
+    <div className="wizard-fields">
+      <UploadCard title="Upload Your Digital Files" subtitle="Unlimited files, 100MB total limit" linkPlaceholder="Add resource link" value={builder.resourceLink} error={errors.files} onChange={(value) => updateBuilder('resourceLink', value)} onAdd={addResource} />
+      {!!resourceLinks.length && (
+        <div className="resource-list">
+          {resourceLinks.map((link, index) => (
+            <div key={link}>
+              <Link size={15} /><span>{link}</span>
+              <button type="button" onClick={() => setResourceLinks((links) => links.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={15} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="pricing-mode wizard-pricing">
+        {[
+          ['fixed', 'Fixed Price', 'Charge a one-time fixed pay'],
+          ['customers', 'Customers decide price', 'Let customers pay any price'],
+        ].map(([id, title, detail]) => (
+          <button className={builder.pricingMode === id ? 'selected' : ''} type="button" key={id} onClick={() => updateBuilder('pricingMode', id)}>
+            <Check size={18} />
+            <strong>{title}</strong>
+            <span>{detail}</span>
+          </button>
+        ))}
+      </div>
+      <label className="wizard-label">
+        {builder.pricingMode === 'fixed' ? 'Price' : 'Minimum Price'} <RequiredStar />
+        <span className={`money-input ${errors.price ? 'field-error' : ''}`}><b>INR</b><input value={builder.minimumPrice} onChange={(event) => updateBuilder('minimumPrice', event.target.value)} /></span>
+        {errors.price && <small className="error-text">{errors.price}</small>}
+      </label>
+      {builder.pricingMode === 'customers' && (
+        <label className="wizard-label">
+          Suggested Price
+          <span className="money-input"><b>INR</b><input value={builder.suggestedPrice} onChange={(event) => updateBuilder('suggestedPrice', event.target.value)} /></span>
+        </label>
+      )}
+      <label className="check-toggle wizard-check"><input type="checkbox" /> Offer discounted price</label>
+      <button className="accordion-button" type="button" onClick={() => setAdvancedOpen(!advancedOpen)}>
+        Advanced Settings <ChevronDown size={16} />
+      </button>
+      {advancedOpen && (
+        <div className="accordion-panel">
+          <SettingRow title="Purchasing Power Parity" description="Charge different prices based on the cost of living in a country." enabled={false} />
+          <SettingRow title="Limit Quantity" description="Limit total number of purchases? Set a maximum limit on total stock available." enabled={builder.limitQuantity} onToggle={() => updateBuilder('limitQuantity', !builder.limitQuantity)} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StepThree({ builder, updateBuilder }) {
+  return (
+    <div className="wizard-fields">
+      <section className="wizard-section">
+        <h4>Theme and Styling</h4>
+        <div className="theme-grid">
+          {themeCards.map((theme) => (
+            <button className={builder.theme === theme ? 'selected' : ''} type="button" key={theme} onClick={() => updateBuilder('theme', theme)}>
+              <Paintbrush size={18} /><strong>{theme}</strong>
+            </button>
+          ))}
+        </div>
+        <div className="swatches">
+          {colorSwatches.map((color) => (
+            <button className={builder.accent === color ? 'selected' : ''} style={{ background: color }} type="button" key={color} aria-label={`Use color ${color}`} onClick={() => updateBuilder('accent', color)} />
+          ))}
+        </div>
+        <div className="row-actions"><button className="secondary" type="button">Change</button><button className="secondary" type="button">Reset to default</button></div>
+        <div className="info-box">The default style uses the same styling you have on your store. <a href="#learn">Learn more</a></div>
+      </section>
+      <SettingRow title="Same Page Checkout" action="Customise" />
+      <SettingRow title="Email ID" description="Verification Code" enabled={builder.emailOtp} onToggle={() => updateBuilder('emailOtp', !builder.emailOtp)} />
+      <div className="warning-panel"><strong>OTP warning</strong><span>Turning off OTP verification could lead to your customers sharing spam emails. <a href="#learn">Learn more</a></span></div>
+      <SettingRow title="Phone number" description="Verification Code" enabled={builder.phoneRequired} onToggle={() => updateBuilder('phoneRequired', !builder.phoneRequired)} actionIcon={Eye} />
+      <button className="link-button" type="button">+ Add Question</button>
+      {['GST', 'Bump Offer', 'Automated Email', 'Discount Coupons', 'Terms and Conditions', 'Refund Policy', 'Privacy Policy', 'Post Purchase Behaviour', 'Meta Pixel', 'Google Analytics'].map((item) => (
+        <SettingRow key={item} title={item} description={settingDescription(item)} action="Setup" />
+      ))}
+      <label className="wizard-label">
+        Page URL
+        <small>Customise the slug of your page URL</small>
+        <span className="slug-field"><span>hello.invoxai.io/p/</span><input value={builder.slug} onChange={(event) => updateBuilder('slug', event.target.value)} /><Edit3 size={16} /></span>
+      </label>
+    </div>
+  )
+}
+
+function WizardTextField({ label, value, max, placeholder, required, error, onChange }) {
+  return (
+    <label className="wizard-label">
+      {label} {required && <RequiredStar />}
+      <input className={error ? 'field-error' : ''} maxLength={max} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
+      <span className="counter">{value.length}/{max}</span>
+      {error && <small className="error-text">{error}</small>}
+    </label>
+  )
+}
+
+function RequiredStar() {
+  return <span className="required-star">*</span>
+}
+
+function UploadCard({ title, subtitle, linkPlaceholder, value, error, onChange, onAdd }) {
+  return (
+    <div className={`wizard-upload ${error ? 'has-error' : ''}`}>
+      <strong>{title}</strong>
+      <Upload size={24} />
+      <p><a href="#upload">Upload</a> or drag & drop</p>
+      <small>{subtitle}</small>
+      <div className="divider-text">OR</div>
+      <div className="inline-field">
+        <input value={value} placeholder={linkPlaceholder} onChange={(event) => onChange(event.target.value)} />
+        <button className="secondary" type="button" onClick={onAdd}>Add</button>
+      </div>
+      {error && <small className="error-text">{error}</small>}
+    </div>
+  )
+}
+
+function RichToolbar() {
+  return (
+    <div className="editor-toolbar" aria-label="Rich text controls">
+      <button type="button"><strong>B</strong></button>
+      <button type="button"><u>U</u></button>
+      <button type="button"><em>I</em></button>
+      <button type="button">1.</button>
+      <button type="button">≡</button>
+      <button type="button"><Link size={16} /></button>
+      <button type="button">14px</button>
+      <button type="button"><ImageIcon size={16} /></button>
+      <button type="button">☺</button>
+      <button type="button">↶</button>
+      <button type="button">↷</button>
+      <button type="button">A</button>
+    </div>
+  )
+}
+
+function SettingRow({ title, description, action, enabled, onToggle, actionIcon: ActionIcon }) {
   return (
     <div className="setting-row">
-      <strong>{title}</strong>
+      <span><strong>{title}</strong>{description && <small>{description}</small>}</span>
       {typeof enabled === 'boolean' ? (
         <button className={`status-pill ${enabled ? 'on' : ''}`} type="button" onClick={onToggle}>
           {enabled ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
           {enabled ? 'On' : 'Off'}
         </button>
       ) : (
-        <button className="secondary" type="button">{action}</button>
+        <button className="secondary" type="button">{ActionIcon && <ActionIcon size={16} />}{action || 'Setup'}</button>
       )}
     </div>
   )
@@ -1168,27 +1272,25 @@ function PaymentPreview({ builder, displayPrice, suggestedPrices }) {
   const accent = builder.accent
 
   return (
-    <aside className="preview-shell">
+    <aside className="preview-shell wizard-preview">
       <div className="browser-frame">
-        <div className="browser-dots"><span /><span /><span /></div>
+        <div className="browser-url">
+          <span className="browser-dots"><span /><span /><span /></span>
+          <code>cosmofeed.com/vp</code>
+        </div>
         <div className={`payment-page-preview ${isDusk ? 'dusk' : ''}`} style={{ '--accent': accent }}>
+          <div className="preview-topline">
+            <span className="seller-avatar">IA</span>
+            <strong>Built with love on SuperProfile</strong>
+          </div>
           <div className="preview-left">
-            <div className="seller-logo">IA</div>
-            <h2>{builder.title}</h2>
-            <img src={builder.coverImage} alt="" />
+            <h2>{builder.title || 'Your Payment Page Title Here'}</h2>
+            <img src={builder.coverImage || defaultProductBuilder.coverImage} alt="" />
             <h3>Description</h3>
-            <p>{builder.description}</p>
-            <div className="contact-seller">
-              <strong>Contact {builder.sellerName}</strong>
-              <span><Mail size={14} /> {builder.sellerEmail}</span>
-            </div>
-            <button className="terms-toggle" type="button">
-              <Plus size={15} />
-              Terms and conditions
-            </button>
+            <p>{builder.description || 'Your product description will appear here.'}</p>
             <footer className="preview-branding">
               <strong><Sparkles size={15} /> SuperProfile</strong>
-              <span>Want to create your own payment page? Experience hassle-free payouts and premium support. <a href="#products">Get started now!</a></span>
+              <span>Want to create your own payment page? <a href="#products">Get started now!</a></span>
             </footer>
           </div>
           <div className="preview-accent" />
@@ -1198,35 +1300,57 @@ function PaymentPreview({ builder, displayPrice, suggestedPrices }) {
               Email Address
               <input placeholder="customer@email.com" />
             </label>
-            <div>
-              <strong>Pay what you like *</strong>
-              <div className="price-pills">
-                {suggestedPrices.map((price, index) => (
-                  <button className={index === 2 ? 'popular' : ''} type="button" key={`${price}-${index}`} style={index === 2 ? { background: accent } : undefined}>
-                    {index === 2 && <span>Popular</span>}
-                    INR {price}
-                  </button>
-                ))}
-                <button type="button">Other</button>
-              </div>
-            </div>
             <label>
               Add your phone number *
               <span className="phone-field"><b>+91</b><input placeholder="9876543210" /></span>
             </label>
+            {builder.pricingMode === 'customers' && (
+              <div>
+                <strong>Pay what you like *</strong>
+                <div className="price-pills">
+                  {suggestedPrices.map((price, index) => (
+                    <button className={index === 2 ? 'popular' : ''} type="button" key={`${price}-${index}`} style={index === 2 ? { background: accent } : undefined}>
+                      {index === 2 && <span>Popular</span>}
+                      INR {price}
+                    </button>
+                  ))}
+                  <button type="button">Other</button>
+                </div>
+              </div>
+            )}
             <div className="checkout-total">
               <div><span>Sub Total</span><strong>INR {displayPrice}</strong></div>
               <div><b>Total</b><strong>INR {displayPrice}</strong></div>
             </div>
             <button className="pay-button" style={{ background: accent }} type="button">
-              {builder.buttonText}
+              {builder.buttonText || 'Get it now'}
               <ArrowRight size={18} />
             </button>
+            <div className="invite-box">
+              <strong>Invite your network</strong>
+              <button className="secondary" type="button"><Copy size={15} /> Copy link</button>
+            </div>
           </div>
         </div>
       </div>
     </aside>
   )
+}
+
+function settingDescription(item) {
+  const descriptions = {
+    GST: 'You can enable or disable GST on price here',
+    'Bump Offer': 'Offer add-on product during checkout',
+    'Automated Email': 'Trigger Email Automations based on certain triggers',
+    'Discount Coupons': 'Offer discounts to your audience to boost sales',
+    'Terms and Conditions': 'Add additional terms you want to show to the users',
+    'Refund Policy': 'Refund policy will be shown to the customers',
+    'Privacy Policy': 'Privacy policy will be shown to the customers',
+    'Post Purchase Behaviour': 'Define what needs to happen when someone complete the purchase',
+    'Meta Pixel': 'Connect your Pixel IDs to this product to run re-marketing campaigns on Meta Business',
+    'Google Analytics': 'Add your Google Analytics Tracking IDs to get visitor-level data',
+  }
+  return descriptions[item]
 }
 
 function OrdersPage({ orders }) {
