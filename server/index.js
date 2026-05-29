@@ -21,7 +21,7 @@ import {
   publicKeyId as razorpayPublicKeyId,
   verifySignature as verifyRazorpaySignature,
 } from './payments.js'
-import { isEmailConfigured, sendOrderConfirmation } from './email.js'
+import { emailProviderName, isEmailConfigured, sendOrderConfirmation } from './email.js'
 
 dotenv.config()
 
@@ -351,6 +351,7 @@ app.get('/api/public/config', (_request, response) => {
     },
     email: {
       configured: isEmailConfigured(),
+      provider: emailProviderName(),
     },
   })
 })

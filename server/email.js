@@ -1,24 +1,67 @@
 /**
- * Resend (https://resend.com) wrapper for transactional emails.
- * Set RESEND_API_KEY in .env to enable. Falls back to a console log no-op when missing.
+ * Email module with two providers:
+ *   1. Gmail SMTP via nodemailer  (preferred — GMAIL_USER + GMAIL_APP_PASSWORD)
+ *   2. Resend HTTPS API           (fallback — RESEND_API_KEY)
+ *
+ * If neither is configured, sendOrderConfirmation logs and no-ops.
  */
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails'
 
-export function isEmailConfigured() {
+let nodemailerTransporter = null
+let nodemailerLoadAttempted = false
+
+export function isGmailConfigured() {
+  return Boolean(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD)
+}
+
+export function isResendConfigured() {
   return Boolean(process.env.RESEND_API_KEY)
 }
 
+export function isEmailConfigured() {
+  return isGmailConfigured() || isResendConfigured()
+}
+
+export function emailProviderName() {
+  if (isGmailConfigured()) return 'gmail'
+  if (isResendConfigured()) return 'resend'
+  return null
+}
+
+async function getGmailTransporter() {
+  if (!isGmailConfigured()) return null
+  if (nodemailerTransporter) return nodemailerTransporter
+  if (nodemailerLoadAttempted) return null
+  nodemailerLoadAttempted = true
+
+  try {
+    const { default: nodemailer } = await import('nodemailer')
+    nodemailerTransporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD,
+      },
+    })
+    return nodemailerTransporter
+  } catch (error) {
+    console.warn('nodemailer not installed or failed to load:', error.message)
+    return null
+  }
+}
+
 function fromAddress() {
+  if (isGmailConfigured()) {
+    return process.env.GMAIL_FROM || process.env.GMAIL_USER
+  }
   return process.env.RESEND_FROM_EMAIL || 'orders@invoxai.io'
 }
 
 export async function sendOrderConfirmation({ to, productName, amount, currency, resourceLink, accentColor }) {
-  if (!isEmailConfigured()) {
-    console.log(`[email] would send order confirmation to ${to} for ${productName} (${currency} ${amount / 100}) — RESEND_API_KEY not set`)
-    return { ok: false, skipped: true }
-  }
+  if (!to) return { ok: false, message: 'No recipient email.' }
 
+  const subject = `Your ${productName} is ready`
   const html = orderConfirmationTemplate({
     productName,
     amount,
@@ -27,25 +70,46 @@ export async function sendOrderConfirmation({ to, productName, amount, currency,
     accentColor: accentColor || '#6366f1',
   })
 
-  try {
-    const response = await fetch(RESEND_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+  const gmail = await getGmailTransporter()
+  if (gmail) {
+    try {
+      const info = await gmail.sendMail({
         from: fromAddress(),
-        to: [to],
-        subject: `Your ${productName} is ready`,
+        to,
+        subject,
         html,
-      }),
-    })
-    const payload = await response.json().catch(() => ({}))
-    return { ok: response.ok, status: response.status, payload }
-  } catch (error) {
-    return { ok: false, error: error.message }
+      })
+      return { ok: true, via: 'gmail', messageId: info.messageId }
+    } catch (error) {
+      console.warn('Gmail send failed:', error.message)
+      // fall through to Resend if configured
+    }
   }
+
+  if (isResendConfigured()) {
+    try {
+      const response = await fetch(RESEND_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: fromAddress(),
+          to: [to],
+          subject,
+          html,
+        }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      return { ok: response.ok, via: 'resend', status: response.status, payload }
+    } catch (error) {
+      return { ok: false, via: 'resend', error: error.message }
+    }
+  }
+
+  console.log(`[email] No provider configured. Would email ${to} (${productName} ${currency} ${amount / 100})`)
+  return { ok: false, skipped: true }
 }
 
 function orderConfirmationTemplate({ productName, amount, currency, resourceLink, accentColor }) {
