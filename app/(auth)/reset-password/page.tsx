@@ -1,20 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
-import { requestPasswordResetAction } from "@/actions/auth";
+import { updatePasswordAction } from "@/actions/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -28,65 +27,56 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 
-const schema = z.object({
-  email: z.string().email("Enter a valid email address"),
-});
+const schema = z
+  .object({
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[A-Z]/, "Include at least one uppercase letter")
+      .regex(/[0-9]/, "Include at least one number"),
+    confirm: z.string(),
+  })
+  .refine((v) => v.password === v.confirm, {
+    path: ["confirm"],
+    message: "Passwords don't match",
+  });
 
 type FormValues = z.infer<typeof schema>;
 
-export default function ForgotPasswordPage() {
+export default function ResetPasswordPage() {
+  const router = useRouter();
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
-  const [sent, setSent] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { email: "" },
+    defaultValues: { password: "", confirm: "" },
   });
 
   async function onSubmit(values: FormValues) {
     setSubmitting(true);
-    const result = await requestPasswordResetAction(values.email);
+    const result = await updatePasswordAction(values.password);
     setSubmitting(false);
+
     if (!result.ok) {
       toast({
-        title: "Couldn't send the email",
+        title: "Couldn't update password",
         description: result.message,
         variant: "destructive",
       });
       return;
     }
-    setSent(values.email);
-  }
 
-  if (sent) {
-    return (
-      <Card>
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <CheckCircle2 className="h-6 w-6" />
-          </div>
-          <CardTitle>Check your inbox</CardTitle>
-          <CardDescription>
-            If an account exists for <strong>{sent}</strong>, we&apos;ve sent a
-            password reset link.
-          </CardDescription>
-        </CardHeader>
-        <CardFooter className="justify-center">
-          <Link href="/login" className="text-sm text-muted-foreground hover:underline">
-            Back to log in
-          </Link>
-        </CardFooter>
-      </Card>
-    );
+    toast({ title: "Password updated", description: "You can now log in." });
+    router.push("/dashboard");
   }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Forgot your password?</CardTitle>
+        <CardTitle>Set a new password</CardTitle>
         <CardDescription>
-          Enter your email and we&apos;ll send a reset link.
+          Choose a strong password you don&apos;t use anywhere else.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -94,15 +84,31 @@ export default function ForgotPasswordPage() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="email"
+              name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>New password</FormLabel>
                   <FormControl>
                     <Input
-                      type="email"
-                      autoComplete="email"
-                      placeholder="you@example.com"
+                      type="password"
+                      autoComplete="new-password"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="confirm"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Confirm new password</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="password"
+                      autoComplete="new-password"
                       {...field}
                     />
                   </FormControl>
@@ -112,16 +118,11 @@ export default function ForgotPasswordPage() {
             />
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Send reset link
+              Update password
             </Button>
           </form>
         </Form>
       </CardContent>
-      <CardFooter className="justify-center">
-        <Link href="/login" className="text-sm text-muted-foreground hover:underline">
-          Back to log in
-        </Link>
-      </CardFooter>
     </Card>
   );
 }
