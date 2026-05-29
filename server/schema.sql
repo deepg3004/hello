@@ -91,3 +91,30 @@ CREATE INDEX IF NOT EXISTS idx_contacts_last_seen ON contacts(last_seen_at DESC)
 CREATE INDEX IF NOT EXISTS idx_automations_created ON automations(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_products_created ON products(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at DESC);
+
+-- ===== SuperProfile-style payment page additions =====
+-- Optional Sections, custom questions, terms/refund/privacy, tracking IDs
+ALTER TABLE products ADD COLUMN IF NOT EXISTS sections JSONB
+  DEFAULT '{"gallery":false,"testimonials":false,"faq":false,"aboutMe":false,"showcase":false}'::jsonb;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS gallery JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS testimonials JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS faq JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS about_me TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS showcase_product_ids JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS custom_questions JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS terms_text TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS refund_text TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS privacy_text TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS meta_pixel_id TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS ga_tracking_id TEXT;
+
+-- Orders: link to product, capture Razorpay refs, store buyer answers
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS product_id BIGINT REFERENCES products(id) ON DELETE SET NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS razorpay_order_id TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS razorpay_payment_id TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS razorpay_signature TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS custom_answers JSONB DEFAULT '{}'::jsonb;
+CREATE INDEX IF NOT EXISTS idx_orders_product ON orders(product_id);
+CREATE INDEX IF NOT EXISTS idx_orders_razorpay ON orders(razorpay_order_id);

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Route, Routes } from 'react-router-dom'
 import {
   ArrowRight,
   BadgeCheck,
@@ -27,6 +28,7 @@ import {
   Rocket,
   Plus,
   RefreshCw,
+  RotateCcw,
   Search,
   Server,
   Settings,
@@ -43,7 +45,17 @@ import {
   Wallet,
   X,
 } from 'lucide-react'
+import PaymentPage from './PaymentPage.jsx'
 import './App.css'
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/p/:slug" element={<PaymentPage />} />
+      <Route path="*" element={<Dashboard />} />
+    </Routes>
+  )
+}
 
 const navigation = [
   { id: 'home', label: 'Home', icon: Home },
@@ -126,19 +138,30 @@ const defaultProductBuilder = {
   accent: '#F5C518',
   theme: 'Dawn',
   slug: 'instagram-growth-playbook',
-  fileName: '',
   resourceLink: '',
   phoneRequired: true,
   emailOtp: true,
   phoneOtp: false,
   limitQuantity: false,
   termsOpen: false,
+  sections: { gallery: false, testimonials: false, faq: false, aboutMe: false, showcase: false },
+  gallery: [],
+  testimonials: [],
+  faq: [],
+  aboutMe: '',
+  showcaseProductIds: [],
+  customQuestions: [],
+  termsText: '',
+  refundText: '',
+  privacyText: '',
+  metaPixelId: '',
+  gaTrackingId: '',
 }
 
 const themeCards = ['Default', 'Dawn', 'Dusk']
 const colorSwatches = ['#7C3AED', '#2563EB', '#16A34A', '#F5C518', '#EF4444']
 
-function App() {
+function Dashboard() {
   const [activePage, setActivePage] = useState('home')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [automations, setAutomations] = useState([])
@@ -381,6 +404,7 @@ function App() {
           setBuilder={setProductBuilder}
           createProduct={createProduct}
           deleteProduct={deleteProduct}
+          allProducts={realProducts}
         />
       )
     }
@@ -938,12 +962,14 @@ function ProductsPage({
   setBuilder,
   createProduct,
   deleteProduct,
+  allProducts = [],
 }) {
   const [errors, setErrors] = useState({})
   const [resourceLinks, setResourceLinks] = useState([])
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [openMenuId, setOpenMenuId] = useState(null)
   const [copiedId, setCopiedId] = useState(null)
+  const [setupModal, setSetupModal] = useState(null)
   const menuRef = useRef(null)
 
   useEffect(() => {
@@ -1128,7 +1154,7 @@ function ProductsPage({
           <div className="wizard-body">
             <div className="wizard-form">
               {builderStep === 1 && (
-                <StepOne builder={builder} updateBuilder={updateBuilder} errors={errors} />
+                <StepOne builder={builder} updateBuilder={updateBuilder} errors={errors} allProducts={allProducts} />
               )}
               {builderStep === 2 && (
                 <StepTwo
@@ -1143,7 +1169,7 @@ function ProductsPage({
                 />
               )}
               {builderStep === 3 && (
-                <StepThree builder={builder} updateBuilder={updateBuilder} />
+                <StepThree builder={builder} updateBuilder={updateBuilder} openSetup={setSetupModal} />
               )}
               <div className="wizard-footer">
                 {builderStep > 1 && <button className="ghost-button" type="button" onClick={() => setBuilderStep((step) => step - 1)}>Back</button>}
@@ -1155,8 +1181,57 @@ function ProductsPage({
             </div>
             <PaymentPreview builder={builder} displayPrice={displayPrice} suggestedPrices={suggestedPrices} />
           </div>
+          {setupModal && (
+            <SetupModal
+              kind={setupModal}
+              builder={builder}
+              updateBuilder={updateBuilder}
+              onClose={() => setSetupModal(null)}
+            />
+          )}
         </section>
       )}
+    </div>
+  )
+}
+
+function SetupModal({ kind, builder, updateBuilder, onClose }) {
+  const config = {
+    terms: { title: 'Terms and conditions', field: 'termsText', placeholder: 'Add the terms buyers must agree to before checkout.' },
+    refund: { title: 'Refund policy', field: 'refundText', placeholder: 'Describe your refund / return policy.' },
+    privacy: { title: 'Privacy policy', field: 'privacyText', placeholder: 'Explain how you handle buyer data.' },
+  }[kind]
+
+  const isComingSoon = !config
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="setup-modal" onClick={(event) => event.stopPropagation()}>
+        <header className="panel-heading">
+          <h3>{config?.title || 'Coming soon'}</h3>
+          <button className="icon-button" type="button" aria-label="Close" onClick={onClose}><X size={18} /></button>
+        </header>
+        {isComingSoon ? (
+          <div className="setup-coming">
+            <Sparkles size={28} />
+            <p>{kind} configuration isn&apos;t live yet. Want it sooner? Let us know.</p>
+            <button className="primary" type="button" onClick={onClose}>Got it</button>
+          </div>
+        ) : (
+          <>
+            <textarea
+              rows={10}
+              placeholder={config.placeholder}
+              value={builder[config.field] || ''}
+              onChange={(event) => updateBuilder(config.field, event.target.value)}
+            />
+            <div className="setup-actions">
+              <button className="secondary" type="button" onClick={onClose}>Close</button>
+              <button className="primary" type="button" onClick={onClose}>Save</button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -1180,20 +1255,212 @@ function StepIndicator({ step }) {
   )
 }
 
-function StepOne({ builder, updateBuilder, errors }) {
+const OPTIONAL_SECTIONS = [
+  { id: 'gallery', label: 'Gallery' },
+  { id: 'testimonials', label: 'Testimonials' },
+  { id: 'faq', label: 'FAQ' },
+  { id: 'aboutMe', label: 'About Me' },
+  { id: 'showcase', label: 'Showcase Products' },
+]
+
+function StepOne({ builder, updateBuilder, errors, allProducts }) {
+  const sections = builder.sections || {}
+
+  const toggleSection = (id) => {
+    updateBuilder('sections', { ...sections, [id]: !sections[id] })
+  }
+
   return (
     <div className="wizard-fields">
       <WizardTextField required label="Payment Page Title" value={builder.title} max={75} placeholder="Your Payment Page Title Here" error={errors.title} onChange={(value) => updateBuilder('title', value)} />
       <UploadCard title="Cover Image / Video Upload" subtitle="1280 x 720 (16:9) recommended; Up to 10 MB each" linkPlaceholder="Add video link (Youtube, Vimeo, etc.)" value={builder.coverImage} error={errors.cover} onChange={(value) => updateBuilder('coverImage', value)} />
       <label className="wizard-label">
         Description
-        <RichToolbar />
         <textarea placeholder="Add full product description here..." value={builder.description} onChange={(event) => updateBuilder('description', event.target.value)} />
       </label>
       <WizardTextField required label="Button Text" value={builder.buttonText} max={25} placeholder="Get it now" error={errors.buttonText} onChange={(value) => updateBuilder('buttonText', value)} />
       <div className="optional-grid">
         <strong>Optional Sections</strong>
-        {['Gallery', 'Testimonials', 'FAQ', 'About Me', 'Showcase Products'].map((item) => <button type="button" key={item}>{item}</button>)}
+        {OPTIONAL_SECTIONS.map((item) => (
+          <button
+            type="button"
+            key={item.id}
+            className={sections[item.id] ? 'selected' : ''}
+            onClick={() => toggleSection(item.id)}
+            aria-pressed={Boolean(sections[item.id])}
+          >
+            {sections[item.id] ? <Check size={14} /> : <Plus size={14} />} {item.label}
+          </button>
+        ))}
+      </div>
+
+      {sections.gallery && (
+        <GalleryEditor items={builder.gallery || []} onChange={(value) => updateBuilder('gallery', value)} />
+      )}
+      {sections.testimonials && (
+        <TestimonialsEditor items={builder.testimonials || []} onChange={(value) => updateBuilder('testimonials', value)} />
+      )}
+      {sections.faq && (
+        <FaqEditor items={builder.faq || []} onChange={(value) => updateBuilder('faq', value)} />
+      )}
+      {sections.aboutMe && (
+        <label className="wizard-label">
+          About Me
+          <textarea
+            rows={4}
+            placeholder="Tell buyers who you are."
+            value={builder.aboutMe || ''}
+            onChange={(event) => updateBuilder('aboutMe', event.target.value)}
+          />
+        </label>
+      )}
+      {sections.showcase && (
+        <ShowcasePicker
+          items={builder.showcaseProductIds || []}
+          allProducts={allProducts || []}
+          currentSlug={builder.slug}
+          onChange={(value) => updateBuilder('showcaseProductIds', value)}
+        />
+      )}
+    </div>
+  )
+}
+
+function GalleryEditor({ items, onChange }) {
+  const add = () => onChange([...items, ''])
+  const update = (index, value) => onChange(items.map((item, i) => (i === index ? value : item)))
+  const remove = (index) => onChange(items.filter((_, i) => i !== index))
+
+  return (
+    <div className="section-editor">
+      <header>
+        <strong>Gallery images</strong>
+        <button className="link-button" type="button" onClick={add}><Plus size={14} /> Add image URL</button>
+      </header>
+      {!items.length && <small>No images yet — add an image URL to show a gallery on your page.</small>}
+      {items.map((url, index) => (
+        <div className="section-row" key={index}>
+          <input
+            value={url}
+            placeholder="https://…image.jpg"
+            onChange={(event) => update(index, event.target.value)}
+          />
+          <button className="icon-button danger" type="button" aria-label="Remove image" onClick={() => remove(index)}>
+            <Trash2 size={15} />
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function TestimonialsEditor({ items, onChange }) {
+  const add = () => onChange([...items, { name: '', text: '', rating: 5 }])
+  const update = (index, key, value) => onChange(items.map((item, i) => (i === index ? { ...item, [key]: value } : item)))
+  const remove = (index) => onChange(items.filter((_, i) => i !== index))
+
+  return (
+    <div className="section-editor">
+      <header>
+        <strong>Testimonials</strong>
+        <button className="link-button" type="button" onClick={add}><Plus size={14} /> Add testimonial</button>
+      </header>
+      {!items.length && <small>Quote buyers who loved the product.</small>}
+      {items.map((item, index) => (
+        <div className="section-stack" key={index}>
+          <div className="section-row">
+            <input
+              value={item.name}
+              placeholder="Buyer name"
+              onChange={(event) => update(index, 'name', event.target.value)}
+            />
+            <input
+              type="number"
+              min="1"
+              max="5"
+              value={item.rating || 5}
+              onChange={(event) => update(index, 'rating', Number(event.target.value))}
+              style={{ maxWidth: 72 }}
+            />
+            <button className="icon-button danger" type="button" aria-label="Remove" onClick={() => remove(index)}>
+              <Trash2 size={15} />
+            </button>
+          </div>
+          <textarea
+            rows={2}
+            value={item.text}
+            placeholder="What they said"
+            onChange={(event) => update(index, 'text', event.target.value)}
+          />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function FaqEditor({ items, onChange }) {
+  const add = () => onChange([...items, { q: '', a: '' }])
+  const update = (index, key, value) => onChange(items.map((item, i) => (i === index ? { ...item, [key]: value } : item)))
+  const remove = (index) => onChange(items.filter((_, i) => i !== index))
+
+  return (
+    <div className="section-editor">
+      <header>
+        <strong>Frequently asked questions</strong>
+        <button className="link-button" type="button" onClick={add}><Plus size={14} /> Add question</button>
+      </header>
+      {!items.length && <small>Add common buyer questions and your answers.</small>}
+      {items.map((item, index) => (
+        <div className="section-stack" key={index}>
+          <div className="section-row">
+            <input
+              value={item.q}
+              placeholder="Question"
+              onChange={(event) => update(index, 'q', event.target.value)}
+            />
+            <button className="icon-button danger" type="button" aria-label="Remove" onClick={() => remove(index)}>
+              <Trash2 size={15} />
+            </button>
+          </div>
+          <textarea
+            rows={2}
+            value={item.a}
+            placeholder="Answer"
+            onChange={(event) => update(index, 'a', event.target.value)}
+          />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ShowcasePicker({ items, allProducts, currentSlug, onChange }) {
+  const candidates = allProducts.filter((product) => product.slug !== currentSlug)
+  const toggle = (id) => {
+    onChange(items.includes(id) ? items.filter((value) => value !== id) : [...items, id])
+  }
+
+  return (
+    <div className="section-editor">
+      <header>
+        <strong>Showcase products</strong>
+        <small>Pick other products to recommend on this page.</small>
+      </header>
+      {!candidates.length && <small>You don&apos;t have other products yet.</small>}
+      <div className="showcase-grid">
+        {candidates.map((product) => {
+          const selected = items.includes(product.id)
+          return (
+            <button
+              key={product.id}
+              type="button"
+              className={selected ? 'selected' : ''}
+              onClick={() => toggle(product.id)}
+            >
+              {selected ? <Check size={14} /> : <Plus size={14} />} {product.name}
+            </button>
+          )
+        })}
       </div>
     </div>
   )
@@ -1250,7 +1517,34 @@ function StepTwo({ builder, updateBuilder, errors, resourceLinks, setResourceLin
   )
 }
 
-function StepThree({ builder, updateBuilder }) {
+function StepThree({ builder, updateBuilder, openSetup }) {
+  const colorInputRef = useRef(null)
+  const customQuestions = builder.customQuestions || []
+
+  const updateQuestion = (index, key, value) => {
+    updateBuilder(
+      'customQuestions',
+      customQuestions.map((item, i) => (i === index ? { ...item, [key]: value } : item)),
+    )
+  }
+  const removeQuestion = (index) => {
+    updateBuilder('customQuestions', customQuestions.filter((_, i) => i !== index))
+  }
+  const addQuestion = () => {
+    updateBuilder('customQuestions', [...customQuestions, { label: '', required: false }])
+  }
+
+  const setupRows = [
+    { key: 'gst', title: 'GST', kind: 'comingsoon' },
+    { key: 'bumpOffer', title: 'Bump Offer', kind: 'comingsoon' },
+    { key: 'automatedEmail', title: 'Automated Email', kind: 'comingsoon' },
+    { key: 'discountCoupons', title: 'Discount Coupons', kind: 'comingsoon' },
+    { key: 'terms', title: 'Terms and Conditions', kind: 'terms' },
+    { key: 'refund', title: 'Refund Policy', kind: 'refund' },
+    { key: 'privacy', title: 'Privacy Policy', kind: 'privacy' },
+    { key: 'postPurchase', title: 'Post Purchase Behaviour', kind: 'comingsoon' },
+  ]
+
   return (
     <div className="wizard-fields">
       <section className="wizard-section">
@@ -1267,20 +1561,91 @@ function StepThree({ builder, updateBuilder }) {
             <button className={builder.accent === color ? 'selected' : ''} style={{ background: color }} type="button" key={color} aria-label={`Use color ${color}`} onClick={() => updateBuilder('accent', color)} />
           ))}
         </div>
-        <div className="row-actions"><button className="secondary" type="button">Change</button><button className="secondary" type="button">Reset to default</button></div>
-        <div className="info-box">The default style uses the same styling you have on your store. <a href="#learn">Learn more</a></div>
+        <div className="row-actions">
+          <button className="secondary" type="button" onClick={() => colorInputRef.current?.click()}>
+            <Paintbrush size={15} /> Pick custom color
+          </button>
+          <button className="secondary" type="button" onClick={() => updateBuilder('accent', '#F5C518')}>
+            <RotateCcw size={15} /> Reset to default
+          </button>
+          <input
+            ref={colorInputRef}
+            type="color"
+            value={builder.accent}
+            onChange={(event) => updateBuilder('accent', event.target.value)}
+            style={{ width: 1, height: 1, opacity: 0, position: 'absolute' }}
+            aria-label="Custom accent color"
+          />
+        </div>
+        <div className="info-box">Theme + accent are applied live to the preview and the published payment page.</div>
       </section>
-      <SettingRow title="Same Page Checkout" action="Customise" />
-      <SettingRow title="Email ID" description="Verification Code" enabled={builder.emailOtp} onToggle={() => updateBuilder('emailOtp', !builder.emailOtp)} />
-      <div className="warning-panel"><strong>OTP warning</strong><span>Turning off OTP verification could lead to your customers sharing spam emails. <a href="#learn">Learn more</a></span></div>
-      <SettingRow title="Phone number" description="Verification Code" enabled={builder.phoneRequired} onToggle={() => updateBuilder('phoneRequired', !builder.phoneRequired)} actionIcon={Eye} />
-      <button className="link-button" type="button">+ Add Question</button>
-      {['GST', 'Bump Offer', 'Automated Email', 'Discount Coupons', 'Terms and Conditions', 'Refund Policy', 'Privacy Policy', 'Post Purchase Behaviour', 'Meta Pixel', 'Google Analytics'].map((item) => (
-        <SettingRow key={item} title={item} description={settingDescription(item)} action="Setup" />
+
+      <SettingRow title="Same Page Checkout" description="Checkout opens on the same page as the product." action="Coming soon" onAction={() => openSetup('samePage')} />
+      <SettingRow title="Email verification" description="Send a one-time code to the buyer's email at checkout." enabled={builder.emailOtp} onToggle={() => updateBuilder('emailOtp', !builder.emailOtp)} />
+      {!builder.emailOtp && (
+        <div className="warning-panel"><strong>OTP off</strong><span>Without OTP, buyers may submit fake or typo'd emails — they won&apos;t get the resource link.</span></div>
+      )}
+      <SettingRow title="Phone number" description="Collect a phone number on the checkout form." enabled={builder.phoneRequired} onToggle={() => updateBuilder('phoneRequired', !builder.phoneRequired)} actionIcon={Eye} />
+
+      <div className="setting-row stacked">
+        <div className="row-header">
+          <strong>Custom checkout questions</strong>
+          <button className="link-button" type="button" onClick={addQuestion}><Plus size={14} /> Add question</button>
+        </div>
+        {customQuestions.length === 0 && <small>Ask buyers extra info (e.g. company name, t-shirt size).</small>}
+        {customQuestions.map((q, index) => (
+          <div className="custom-question" key={index}>
+            <input
+              placeholder="Question label"
+              value={q.label}
+              onChange={(event) => updateQuestion(index, 'label', event.target.value)}
+            />
+            <label className="check-toggle">
+              <input
+                type="checkbox"
+                checked={q.required}
+                onChange={(event) => updateQuestion(index, 'required', event.target.checked)}
+              /> Required
+            </label>
+            <button className="icon-button danger" type="button" aria-label="Remove question" onClick={() => removeQuestion(index)}>
+              <Trash2 size={15} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {setupRows.map((row) => (
+        <SettingRow
+          key={row.key}
+          title={row.title}
+          description={settingDescription(row.title)}
+          action={row.kind === 'comingsoon' ? 'Setup' : (builder[`${row.kind}Text`]?.trim() ? 'Edit' : 'Setup')}
+          onAction={() => openSetup(row.kind)}
+        />
       ))}
+
+      <label className="wizard-label">
+        Meta Pixel ID
+        <small>Add your Meta Pixel ID to track payment events.</small>
+        <input
+          value={builder.metaPixelId || ''}
+          placeholder="123456789012345"
+          onChange={(event) => updateBuilder('metaPixelId', event.target.value)}
+        />
+      </label>
+      <label className="wizard-label">
+        Google Analytics ID
+        <small>Add your GA4 measurement ID (e.g. G-XXXXXXXXXX).</small>
+        <input
+          value={builder.gaTrackingId || ''}
+          placeholder="G-XXXXXXXXXX"
+          onChange={(event) => updateBuilder('gaTrackingId', event.target.value)}
+        />
+      </label>
+
       <label className="wizard-label">
         Page URL
-        <small>Customise the slug of your page URL</small>
+        <small>Customise the slug of your page URL.</small>
         <span className="slug-field"><span>hello.invoxai.io/p/</span><input value={builder.slug} onChange={(event) => updateBuilder('slug', event.target.value)} /><Edit3 size={16} /></span>
       </label>
     </div>
@@ -1319,26 +1684,7 @@ function UploadCard({ title, subtitle, linkPlaceholder, value, error, onChange, 
   )
 }
 
-function RichToolbar() {
-  return (
-    <div className="editor-toolbar" aria-label="Rich text controls">
-      <button type="button"><strong>B</strong></button>
-      <button type="button"><u>U</u></button>
-      <button type="button"><em>I</em></button>
-      <button type="button">1.</button>
-      <button type="button">≡</button>
-      <button type="button"><Link size={16} /></button>
-      <button type="button">14px</button>
-      <button type="button"><ImageIcon size={16} /></button>
-      <button type="button">☺</button>
-      <button type="button">↶</button>
-      <button type="button">↷</button>
-      <button type="button">A</button>
-    </div>
-  )
-}
-
-function SettingRow({ title, description, action, enabled, onToggle, actionIcon: ActionIcon }) {
+function SettingRow({ title, description, action, enabled, onToggle, onAction, actionIcon: ActionIcon }) {
   return (
     <div className="setting-row">
       <span><strong>{title}</strong>{description && <small>{description}</small>}</span>
@@ -1348,7 +1694,7 @@ function SettingRow({ title, description, action, enabled, onToggle, actionIcon:
           {enabled ? 'On' : 'Off'}
         </button>
       ) : (
-        <button className="secondary" type="button">{ActionIcon && <ActionIcon size={16} />}{action || 'Setup'}</button>
+        <button className="secondary" type="button" onClick={onAction}>{ActionIcon && <ActionIcon size={16} />}{action || 'Setup'}</button>
       )}
     </div>
   )

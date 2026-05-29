@@ -244,3 +244,17 @@ Run `pm2 logs hello-invoxai` to see the actual error. Most often: VPS IP not yet
 
 **Migration script errors with `relation "automations" does not exist`**
 You forgot step 2 — apply `server/schema.sql` in Supabase SQL Editor before migrating.
+
+---
+
+## Re-running schema.sql for new columns
+
+`server/schema.sql` is **idempotent** — every `CREATE TABLE`, `CREATE INDEX`, and `ALTER TABLE ADD COLUMN` uses `IF NOT EXISTS`. Whenever a new release adds columns (e.g. the SuperProfile-style payment-page release added 13 columns to `products` and 7 to `orders`), simply re-run the file from the VPS:
+
+```bash
+PGPASSWORD=<your-password> psql \
+  "host=db.<your-ref>.supabase.co port=5432 dbname=postgres user=postgres sslmode=require" \
+  -f /var/www/linkplease/server/schema.sql
+```
+
+You'll see `CREATE TABLE` / `CREATE INDEX` lines for new objects and silent no-ops for existing ones. No data is touched.

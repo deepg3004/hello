@@ -15,6 +15,12 @@ import {
   getMetaConfig,
   sendInstagramTextMessage,
 } from './meta.js'
+import {
+  createOrder as createRazorpayOrder,
+  isConfigured as isRazorpayConfigured,
+  publicKeyId as razorpayPublicKeyId,
+  verifySignature as verifyRazorpaySignature,
+} from './payments.js'
 
 dotenv.config()
 
@@ -136,14 +142,21 @@ app.post('/api/products', async (request, response) => {
     limitQuantity: Boolean(body.limitQuantity),
   })
 
+  const sections = safeJson(body.sections, {
+    gallery: false, testimonials: false, faq: false, aboutMe: false, showcase: false,
+  })
+
   try {
     const result = await pool.query(
       `INSERT INTO products (
         name, slug, description, seller_name, seller_email, cover_image, button_text,
         pricing_mode, suggested_price, accent_color, theme, resource_link, settings_json,
-        price, currency, payments_enabled, created_at, updated_at
+        price, currency, payments_enabled,
+        sections, gallery, testimonials, faq, about_me, showcase_product_ids,
+        custom_questions, terms_text, refund_text, privacy_text, meta_pixel_id, ga_tracking_id,
+        created_at, updated_at
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$17)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$29)
       RETURNING *`,
       [
         body.title || body.name || 'Untitled product',
@@ -162,10 +175,260 @@ app.post('/api/products', async (request, response) => {
         price,
         body.currency || 'INR',
         0,
+        JSON.stringify(sections),
+        JSON.stringify(Array.isArray(body.gallery) ? body.gallery : []),
+        JSON.stringify(Array.isArray(body.testimonials) ? body.testimonials : []),
+        JSON.stringify(Array.isArray(body.faq) ? body.faq : []),
+        body.aboutMe || '',
+        JSON.stringify(Array.isArray(body.showcaseProductIds) ? body.showcaseProductIds : []),
+        JSON.stringify(Array.isArray(body.customQuestions) ? body.customQuestions : []),
+        body.termsText || '',
+        body.refundText || '',
+        body.privacyText || '',
+        body.metaPixelId || '',
+        body.gaTrackingId || '',
         timestamp,
       ],
     )
     response.status(201).json({ ok: true, product: result.rows[0] })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
+})
+
+app.patch('/api/products/:id', async (request, response) => {
+  const body = request.body || {}
+  const timestamp = nowIso()
+  const fieldMap = {
+    title: { col: 'name', value: body.title },
+    name: { col: 'name', value: body.name },
+    slug: { col: 'slug', value: body.slug ? slugify(body.slug) : undefined },
+    description: { col: 'description', value: body.description },
+    sellerName: { col: 'seller_name', value: body.sellerName },
+    sellerEmail: { col: 'seller_email', value: body.sellerEmail },
+    coverImage: { col: 'cover_image', value: body.coverImage },
+    buttonText: { col: 'button_text', value: body.buttonText },
+    pricingMode: { col: 'pricing_mode', value: body.pricingMode },
+    accent: { col: 'accent_color', value: body.accent },
+    theme: { col: 'theme', value: body.theme },
+    resourceLink: { col: 'resource_link', value: body.resourceLink },
+    currency: { col: 'currency', value: body.currency },
+    aboutMe: { col: 'about_me', value: body.aboutMe },
+    termsText: { col: 'terms_text', value: body.termsText },
+    refundText: { col: 'refund_text', value: body.refundText },
+    privacyText: { col: 'privacy_text', value: body.privacyText },
+    metaPixelId: { col: 'meta_pixel_id', value: body.metaPixelId },
+    gaTrackingId: { col: 'ga_tracking_id', value: body.gaTrackingId },
+  }
+
+  const sets = []
+  const params = []
+  let i = 1
+
+  for (const key in fieldMap) {
+    const { col, value } = fieldMap[key]
+    if (value !== undefined) {
+      sets.push(`${col} = $${i++}`)
+      params.push(value)
+    }
+  }
+  if (body.minimumPrice !== undefined || body.price !== undefined) {
+    sets.push(`price = $${i++}`)
+    params.push(toMinorUnits(body.minimumPrice ?? body.price))
+  }
+  if (body.suggestedPrice !== undefined) {
+    sets.push(`suggested_price = $${i++}`)
+    params.push(toMinorUnits(body.suggestedPrice))
+  }
+  for (const [key, col] of [
+    ['sections', 'sections'],
+    ['gallery', 'gallery'],
+    ['testimonials', 'testimonials'],
+    ['faq', 'faq'],
+    ['showcaseProductIds', 'showcase_product_ids'],
+    ['customQuestions', 'custom_questions'],
+  ]) {
+    if (body[key] !== undefined) {
+      sets.push(`${col} = $${i++}`)
+      params.push(JSON.stringify(body[key]))
+    }
+  }
+
+  if (!sets.length) {
+    response.status(400).json({ ok: false, message: 'No fields to update.' })
+    return
+  }
+
+  sets.push(`updated_at = $${i++}`)
+  params.push(timestamp)
+  params.push(request.params.id)
+
+  try {
+    const result = await pool.query(
+      `UPDATE products SET ${sets.join(', ')} WHERE id = $${i} RETURNING *`,
+      params,
+    )
+    if (!result.rowCount) {
+      response.status(404).json({ ok: false, message: 'Product not found.' })
+      return
+    }
+    response.json({ ok: true, product: result.rows[0] })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
+})
+
+app.get('/api/public/config', (_request, response) => {
+  response.json({
+    ok: true,
+    razorpay: {
+      configured: isRazorpayConfigured(),
+      keyId: razorpayPublicKeyId(),
+    },
+  })
+})
+
+app.get('/api/public/products/:slug', async (request, response) => {
+  try {
+    const result = await pool.query(
+      `SELECT
+        id, name, slug, description, cover_image, button_text, pricing_mode,
+        price, suggested_price, currency, accent_color, theme,
+        sections, gallery, testimonials, faq, about_me, showcase_product_ids,
+        custom_questions, terms_text, refund_text, privacy_text,
+        meta_pixel_id, ga_tracking_id, seller_name
+      FROM products WHERE slug = $1 LIMIT 1`,
+      [request.params.slug],
+    )
+    if (!result.rowCount) {
+      response.status(404).json({ ok: false, message: 'Product not found.' })
+      return
+    }
+    response.json({ ok: true, product: result.rows[0] })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
+})
+
+app.post('/api/public/orders', async (request, response) => {
+  const { slug, email, phone, price, customAnswers } = request.body || {}
+
+  if (!slug || !email) {
+    response.status(400).json({ ok: false, message: 'slug and email are required.' })
+    return
+  }
+
+  const productResult = await pool.query(
+    'SELECT id, name, price, currency, pricing_mode, suggested_price FROM products WHERE slug = $1 LIMIT 1',
+    [slug],
+  )
+  const product = productResult.rows[0]
+  if (!product) {
+    response.status(404).json({ ok: false, message: 'Product not found.' })
+    return
+  }
+
+  const requestedMinor = toMinorUnits(price)
+  const minimumMinor = product.price || 0
+  const chargeMinor = product.pricing_mode === 'fixed'
+    ? minimumMinor
+    : Math.max(requestedMinor, minimumMinor)
+
+  if (chargeMinor <= 0) {
+    response.status(400).json({ ok: false, message: 'Price must be greater than zero.' })
+    return
+  }
+
+  if (!isRazorpayConfigured()) {
+    response.status(503).json({
+      ok: false,
+      configured: false,
+      message: 'Payments coming soon — Razorpay keys not configured on the server yet.',
+    })
+    return
+  }
+
+  const orderResult = await createRazorpayOrder({
+    amount: chargeMinor,
+    currency: product.currency || 'INR',
+    receipt: `lp-${product.id}-${Date.now()}`,
+    notes: { productId: String(product.id), email },
+  })
+
+  if (!orderResult.ok) {
+    response.status(502).json({
+      ok: false,
+      configured: orderResult.configured ?? true,
+      message: orderResult.message || 'Could not create order.',
+    })
+    return
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO orders (
+        customer_email, product_name, product_id, amount, payout_amount, currency,
+        razorpay_order_id, status, phone, custom_answers, created_at
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',$8,$9,$10)`,
+      [
+        email,
+        product.name,
+        product.id,
+        chargeMinor,
+        Math.round(chargeMinor * 0.9),
+        product.currency || 'INR',
+        orderResult.order.id,
+        phone || '',
+        JSON.stringify(customAnswers || {}),
+        nowIso(),
+      ],
+    )
+  } catch (error) {
+    console.error('Order insert failed:', error.message)
+  }
+
+  response.json({
+    ok: true,
+    razorpayOrderId: orderResult.order.id,
+    amount: orderResult.order.amount,
+    currency: orderResult.order.currency,
+    keyId: razorpayPublicKeyId(),
+    productName: product.name,
+  })
+})
+
+app.post('/api/public/orders/verify', async (request, response) => {
+  const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = request.body || {}
+
+  if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+    response.status(400).json({ ok: false, message: 'Missing Razorpay fields.' })
+    return
+  }
+
+  const valid = verifyRazorpaySignature({
+    orderId: razorpayOrderId,
+    paymentId: razorpayPaymentId,
+    signature: razorpaySignature,
+  })
+
+  if (!valid) {
+    await pool.query(
+      "UPDATE orders SET status = 'failed' WHERE razorpay_order_id = $1",
+      [razorpayOrderId],
+    ).catch(() => {})
+    response.status(400).json({ ok: false, message: 'Invalid Razorpay signature.' })
+    return
+  }
+
+  try {
+    await pool.query(
+      `UPDATE orders
+       SET status = 'paid', razorpay_payment_id = $1, razorpay_signature = $2
+       WHERE razorpay_order_id = $3`,
+      [razorpayPaymentId, razorpaySignature, razorpayOrderId],
+    )
+    response.json({ ok: true })
   } catch (error) {
     response.status(500).json({ ok: false, message: error.message })
   }
@@ -564,6 +827,14 @@ function toMinorUnits(value) {
   const parsed = Number(value)
   if (!Number.isFinite(parsed) || parsed < 0) return 0
   return Math.round(parsed * 100)
+}
+
+function safeJson(value, fallback) {
+  if (value && typeof value === 'object') return value
+  if (typeof value === 'string') {
+    try { return JSON.parse(value) } catch { return fallback }
+  }
+  return fallback
 }
 
 function slugify(value) {
