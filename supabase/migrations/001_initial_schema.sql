@@ -1,709 +1,614 @@
 -- =============================================================================
--- InvoxAI — 001_initial_schema.sql
--- Initial database schema: 18 tables, helpers, indexes, triggers, RLS policies.
--- Apply once in a fresh Supabase project (SQL Editor → New Query → paste → Run,
--- or via `supabase db push` if using the CLI).
+-- InvoxAI — initial schema
+-- File: supabase/migrations/001_initial_schema.sql
+--
+-- 18 tables, row level security, indexes, auth->profile trigger, updated_at
+-- triggers. Run in Supabase SQL editor or via `supabase db push`.
 -- =============================================================================
 
--- -----------------------------------------------------------------------------
--- 0. Extensions
--- -----------------------------------------------------------------------------
-CREATE EXTENSION IF NOT EXISTS pgcrypto;       -- gen_random_uuid()
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";    -- belt and braces
+begin;
 
--- -----------------------------------------------------------------------------
--- 1. Helper functions
---    Declared early so RLS policies and triggers below can reference them.
--- -----------------------------------------------------------------------------
+-- ---------------------------------------------------------------------------
+-- Extensions
+-- ---------------------------------------------------------------------------
+create extension if not exists "pgcrypto";
 
--- Generic BEFORE-UPDATE trigger function: keeps updated_at honest.
-CREATE OR REPLACE FUNCTION public.set_updated_at()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
+-- ---------------------------------------------------------------------------
+-- Shared trigger function: keep updated_at fresh
+-- ---------------------------------------------------------------------------
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
 $$;
 
--- SECURITY DEFINER admin check — bypasses RLS so policies on user_profiles
--- itself can call this without recursing. STABLE = cached per statement.
-CREATE OR REPLACE FUNCTION public.is_admin(uid uuid)
-RETURNS boolean
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-STABLE
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.user_profiles
-    WHERE id = uid AND is_admin = TRUE
+-- ===========================================================================
+-- 1. user_profiles
+-- ===========================================================================
+create table public.user_profiles (
+  id                     uuid primary key references auth.users(id) on delete cascade,
+  full_name              text,
+  email                  text unique not null,
+  phone                  text,
+  avatar_url             text,
+  kyc_level              smallint default 0 check (kyc_level in (0, 1, 2, 3)),
+  payouts_enabled        boolean default false,
+  subscription_plan      text default 'free'
+    check (subscription_plan in ('free', 'starter', 'pro', 'business')),
+  subscription_status    text default 'inactive'
+    check (subscription_status in ('active', 'inactive', 'past_due', 'cancelled', 'trialing')),
+  subscription_ends_at   timestamptz,
+  razorpay_customer_id   text,
+  bank_account_number    text,
+  bank_ifsc              text,
+  bank_holder_name       text,
+  bank_verified          boolean default false,
+  pan_number             text,
+  pan_verified           boolean default false,
+  gstin                  text,
+  is_admin               boolean default false,
+  total_revenue          decimal(12, 2) default 0,
+  created_at             timestamptz default now(),
+  updated_at             timestamptz default now()
+);
+
+create trigger user_profiles_set_updated_at
+  before update on public.user_profiles
+  for each row execute function public.set_updated_at();
+
+-- ---------------------------------------------------------------------------
+-- is_admin() — SECURITY DEFINER so RLS policies can call it safely
+-- ---------------------------------------------------------------------------
+create or replace function public.is_admin(uid uuid default auth.uid())
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (select is_admin from public.user_profiles where id = uid),
+    false
   );
 $$;
 
--- Auto-create a user_profiles row whenever auth.users gets a new signup.
--- SECURITY DEFINER because the signup happens with no logged-in role.
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  INSERT INTO public.user_profiles (id, email, full_name)
-  VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', NULL)
-  )
-  ON CONFLICT (id) DO NOTHING;
-  RETURN NEW;
-END;
-$$;
-
--- =============================================================================
--- 2. Tables (dependency order)
--- =============================================================================
-
--- -- user_profiles --------------------------------------------------------------
-CREATE TABLE public.user_profiles (
-  id                     UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  full_name              TEXT,
-  email                  TEXT UNIQUE NOT NULL,
-  phone                  TEXT,
-  avatar_url             TEXT,
-  kyc_level              SMALLINT DEFAULT 0 CHECK (kyc_level IN (0,1,2,3)),
-  payouts_enabled        BOOLEAN DEFAULT FALSE,
-  subscription_plan      TEXT DEFAULT 'free'
-                           CHECK (subscription_plan IN ('free','starter','pro','business')),
-  subscription_status    TEXT DEFAULT 'inactive'
-                           CHECK (subscription_status IN ('active','inactive','past_due','cancelled','trialing')),
-  subscription_ends_at   TIMESTAMPTZ,
-  razorpay_customer_id   TEXT,
-  bank_account_number    TEXT,
-  bank_ifsc              TEXT,
-  bank_holder_name       TEXT,
-  bank_verified          BOOLEAN DEFAULT FALSE,
-  pan_number             TEXT,
-  pan_verified           BOOLEAN DEFAULT FALSE,
-  gstin                  TEXT,
-  is_admin               BOOLEAN DEFAULT FALSE,
-  total_revenue          DECIMAL(12,2) DEFAULT 0,
-  created_at             TIMESTAMPTZ DEFAULT NOW(),
-  updated_at             TIMESTAMPTZ DEFAULT NOW()
+-- ===========================================================================
+-- 2. pages
+-- ===========================================================================
+create table public.pages (
+  id                  uuid primary key default gen_random_uuid(),
+  user_id             uuid not null references public.user_profiles(id) on delete cascade,
+  title               text not null,
+  slug                text unique not null,
+  type                text not null check (type in ('payment', 'landing', 'lead_magnet')),
+  status              text default 'draft'
+    check (status in ('draft', 'published', 'paused', 'archived')),
+  template_id         text,
+  page_config         jsonb default '{}'::jsonb,
+  custom_domain       text,
+  meta_title          text,
+  meta_description    text,
+  meta_image_url      text,
+  thumbnail_url       text,
+  view_count          bigint default 0,
+  conversion_count    bigint default 0,
+  total_revenue       decimal(12, 2) default 0,
+  created_at          timestamptz default now(),
+  updated_at          timestamptz default now()
 );
 
--- -- pages ---------------------------------------------------------------------
-CREATE TABLE public.pages (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id             UUID NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
-  title               TEXT NOT NULL,
-  slug                TEXT UNIQUE NOT NULL,
-  type                TEXT NOT NULL CHECK (type IN ('payment','landing','lead_magnet')),
-  status              TEXT DEFAULT 'draft'
-                        CHECK (status IN ('draft','published','paused','archived')),
-  template_id         TEXT,
-  page_config         JSONB DEFAULT '{}'::jsonb,
-  custom_domain       TEXT,
-  meta_title          TEXT,
-  meta_description    TEXT,
-  meta_image_url      TEXT,
-  thumbnail_url       TEXT,
-  view_count          BIGINT DEFAULT 0,
-  conversion_count    BIGINT DEFAULT 0,
-  total_revenue       DECIMAL(12,2) DEFAULT 0,
-  created_at          TIMESTAMPTZ DEFAULT NOW(),
-  updated_at          TIMESTAMPTZ DEFAULT NOW()
+create index pages_slug_idx    on public.pages(slug);
+create index pages_user_id_idx on public.pages(user_id);
+create index pages_status_idx  on public.pages(status);
+
+create trigger pages_set_updated_at
+  before update on public.pages
+  for each row execute function public.set_updated_at();
+
+-- ===========================================================================
+-- 3. products
+-- ===========================================================================
+create table public.products (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references public.user_profiles(id) on delete cascade,
+  page_id      uuid references public.pages(id) on delete set null,
+  name         text not null,
+  description  text,
+  price        decimal(10, 2) not null default 0,
+  currency     text default 'INR',
+  tax_rate     decimal(5, 2) default 18,
+  hsn_sac_code text,
+  type         text default 'one_time'
+    check (type in ('one_time', 'subscription', 'free')),
+  active       boolean default true,
+  created_at   timestamptz default now()
 );
 
--- -- products ------------------------------------------------------------------
-CREATE TABLE public.products (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id       UUID NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
-  page_id       UUID REFERENCES public.pages(id) ON DELETE SET NULL,
-  name          TEXT NOT NULL,
-  description   TEXT,
-  price         DECIMAL(10,2) NOT NULL DEFAULT 0,
-  currency      TEXT DEFAULT 'INR',
-  tax_rate      DECIMAL(5,2) DEFAULT 18,
-  hsn_sac_code  TEXT,
-  type          TEXT DEFAULT 'one_time'
-                  CHECK (type IN ('one_time','subscription','free')),
-  active        BOOLEAN DEFAULT TRUE,
-  created_at    TIMESTAMPTZ DEFAULT NOW()
+-- ===========================================================================
+-- 4. orders   (self-FK; coupon_id FK attached after coupons exists)
+-- ===========================================================================
+create table public.orders (
+  id                   uuid primary key default gen_random_uuid(),
+  page_id              uuid references public.pages(id) on delete set null,
+  seller_user_id       uuid not null references public.user_profiles(id),
+  product_id           uuid references public.products(id) on delete set null,
+  buyer_email          text not null,
+  buyer_name           text,
+  buyer_phone          text,
+  buyer_address        jsonb,
+  amount               decimal(10, 2) not null,
+  platform_commission  decimal(10, 2) not null default 0,
+  seller_amount        decimal(10, 2) not null,
+  currency             text default 'INR',
+  status               text default 'pending'
+    check (status in ('pending', 'paid', 'failed', 'refunded', 'cancelled')),
+  payment_gateway      text default 'razorpay',
+  gateway_order_id     text,
+  gateway_payment_id   text,
+  gateway_signature    text,
+  source               text default 'direct'
+    check (source in ('direct', 'bump', 'oto', 'affiliate')),
+  parent_order_id      uuid references public.orders(id),
+  coupon_id            uuid,
+  discount_amount      decimal(10, 2) default 0,
+  utm_source           text,
+  utm_medium           text,
+  utm_campaign         text,
+  ip_address           inet,
+  created_at           timestamptz default now(),
+  updated_at           timestamptz default now()
 );
 
--- -- orders --------------------------------------------------------------------
-CREATE TABLE public.orders (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  page_id             UUID REFERENCES public.pages(id) ON DELETE SET NULL,
-  seller_user_id      UUID NOT NULL REFERENCES public.user_profiles(id),
-  product_id          UUID REFERENCES public.products(id) ON DELETE SET NULL,
-  buyer_email         TEXT NOT NULL,
-  buyer_name          TEXT,
-  buyer_phone         TEXT,
-  buyer_address       JSONB,
-  amount              DECIMAL(10,2) NOT NULL,
-  platform_commission DECIMAL(10,2) NOT NULL DEFAULT 0,
-  seller_amount       DECIMAL(10,2) NOT NULL,
-  currency            TEXT DEFAULT 'INR',
-  status              TEXT DEFAULT 'pending'
-                        CHECK (status IN ('pending','paid','failed','refunded','cancelled')),
-  payment_gateway     TEXT DEFAULT 'razorpay',
-  gateway_order_id    TEXT,
-  gateway_payment_id  TEXT,
-  gateway_signature   TEXT,
-  source              TEXT DEFAULT 'direct'
-                        CHECK (source IN ('direct','bump','oto','affiliate')),
-  parent_order_id     UUID REFERENCES public.orders(id),
-  coupon_id           UUID,                    -- soft ref; coupons created later
-  discount_amount     DECIMAL(10,2) DEFAULT 0,
-  utm_source          TEXT,
-  utm_medium          TEXT,
-  utm_campaign        TEXT,
-  ip_address          INET,
-  created_at          TIMESTAMPTZ DEFAULT NOW(),
-  updated_at          TIMESTAMPTZ DEFAULT NOW()
+create index orders_seller_user_id_idx   on public.orders(seller_user_id);
+create index orders_buyer_email_idx      on public.orders(buyer_email);
+create index orders_status_idx           on public.orders(status);
+create index orders_created_at_idx       on public.orders(created_at);
+create index orders_gateway_order_id_idx on public.orders(gateway_order_id);
+
+-- ===========================================================================
+-- 5. transactions
+-- ===========================================================================
+create table public.transactions (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references public.user_profiles(id),
+  order_id     uuid references public.orders(id),
+  type         text not null
+    check (type in ('sale', 'commission', 'payout', 'refund', 'subscription_payment')),
+  amount       decimal(10, 2) not null,
+  status       text default 'completed',
+  reference_id text,
+  notes        text,
+  created_at   timestamptz default now()
 );
 
--- -- transactions --------------------------------------------------------------
-CREATE TABLE public.transactions (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id       UUID NOT NULL REFERENCES public.user_profiles(id),
-  order_id      UUID REFERENCES public.orders(id),
-  type          TEXT NOT NULL
-                  CHECK (type IN ('sale','commission','payout','refund','subscription_payment')),
-  amount        DECIMAL(10,2) NOT NULL,
-  status        TEXT DEFAULT 'completed',
-  reference_id  TEXT,
-  notes         TEXT,
-  created_at    TIMESTAMPTZ DEFAULT NOW()
+create index transactions_user_id_idx    on public.transactions(user_id);
+create index transactions_created_at_idx on public.transactions(created_at);
+
+-- ===========================================================================
+-- 6. payouts
+-- ===========================================================================
+create table public.payouts (
+  id                uuid primary key default gen_random_uuid(),
+  user_id           uuid not null references public.user_profiles(id),
+  amount            decimal(10, 2) not null,
+  status            text default 'pending'
+    check (status in ('pending', 'processing', 'completed', 'failed')),
+  gateway           text default 'razorpay',
+  gateway_payout_id text,
+  bank_account      text,
+  bank_ifsc         text,
+  failure_reason    text,
+  initiated_at      timestamptz default now(),
+  completed_at      timestamptz
 );
 
--- -- payouts ------------------------------------------------------------------
-CREATE TABLE public.payouts (
-  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id            UUID NOT NULL REFERENCES public.user_profiles(id),
-  amount             DECIMAL(10,2) NOT NULL,
-  status             TEXT DEFAULT 'pending'
-                       CHECK (status IN ('pending','processing','completed','failed')),
-  gateway            TEXT DEFAULT 'razorpay',
-  gateway_payout_id  TEXT,
-  bank_account       TEXT,
-  bank_ifsc          TEXT,
-  failure_reason     TEXT,
-  initiated_at       TIMESTAMPTZ DEFAULT NOW(),
-  completed_at       TIMESTAMPTZ
+-- ===========================================================================
+-- 7. user_subscriptions
+-- ===========================================================================
+create table public.user_subscriptions (
+  id                       uuid primary key default gen_random_uuid(),
+  user_id                  uuid not null references public.user_profiles(id),
+  plan                     text not null,
+  status                   text default 'active',
+  razorpay_subscription_id text,
+  razorpay_plan_id         text,
+  amount                   decimal(10, 2),
+  starts_at                timestamptz default now(),
+  ends_at                  timestamptz,
+  cancelled_at             timestamptz,
+  created_at               timestamptz default now()
 );
 
--- -- user_subscriptions --------------------------------------------------------
-CREATE TABLE public.user_subscriptions (
-  id                        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id                   UUID NOT NULL REFERENCES public.user_profiles(id),
-  plan                      TEXT NOT NULL,
-  status                    TEXT DEFAULT 'active',
-  razorpay_subscription_id  TEXT,
-  razorpay_plan_id          TEXT,
-  amount                    DECIMAL(10,2),
-  starts_at                 TIMESTAMPTZ DEFAULT NOW(),
-  ends_at                   TIMESTAMPTZ,
-  cancelled_at              TIMESTAMPTZ,
-  created_at                TIMESTAMPTZ DEFAULT NOW()
+-- ===========================================================================
+-- 8. telegram_vip_groups
+-- ===========================================================================
+create table public.telegram_vip_groups (
+  id                   uuid primary key default gen_random_uuid(),
+  user_id              uuid not null references public.user_profiles(id),
+  page_id              uuid references public.pages(id) on delete cascade,
+  bot_token            text not null,
+  group_id             text not null,
+  group_name           text,
+  invite_link          text,
+  access_duration_days int default 30,
+  auto_remove          boolean default true,
+  active_members       int default 0,
+  created_at           timestamptz default now()
 );
 
--- -- telegram_vip_groups ------------------------------------------------------
-CREATE TABLE public.telegram_vip_groups (
-  id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id                UUID NOT NULL REFERENCES public.user_profiles(id),
-  page_id                UUID REFERENCES public.pages(id) ON DELETE CASCADE,
-  bot_token              TEXT NOT NULL,
-  group_id               TEXT NOT NULL,
-  group_name             TEXT,
-  invite_link            TEXT,
-  access_duration_days   INT DEFAULT 30,
-  auto_remove            BOOLEAN DEFAULT TRUE,
-  active_members         INT DEFAULT 0,
-  created_at             TIMESTAMPTZ DEFAULT NOW()
+-- ===========================================================================
+-- 9. telegram_memberships
+-- ===========================================================================
+create table public.telegram_memberships (
+  id               uuid primary key default gen_random_uuid(),
+  group_id         uuid references public.telegram_vip_groups(id),
+  order_id         uuid references public.orders(id),
+  telegram_user_id text,
+  buyer_email      text,
+  joined_at        timestamptz default now(),
+  expires_at       timestamptz,
+  removed_at       timestamptz,
+  status           text default 'active'
+    check (status in ('active', 'expired', 'removed'))
 );
 
--- -- telegram_memberships -----------------------------------------------------
-CREATE TABLE public.telegram_memberships (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  group_id          UUID REFERENCES public.telegram_vip_groups(id),
-  order_id          UUID REFERENCES public.orders(id),
-  telegram_user_id  TEXT,
-  buyer_email       TEXT,
-  joined_at         TIMESTAMPTZ DEFAULT NOW(),
-  expires_at        TIMESTAMPTZ,
-  removed_at        TIMESTAMPTZ,
-  status            TEXT DEFAULT 'active'
-                      CHECK (status IN ('active','expired','removed'))
+-- ===========================================================================
+-- 10. lead_captures
+-- ===========================================================================
+create table public.lead_captures (
+  id              uuid primary key default gen_random_uuid(),
+  page_id         uuid not null references public.pages(id) on delete cascade,
+  seller_user_id  uuid not null references public.user_profiles(id),
+  name            text,
+  email           text not null,
+  phone           text,
+  custom_fields   jsonb default '{}'::jsonb,
+  utm_source      text,
+  ip_address      inet,
+  created_at      timestamptz default now()
 );
 
--- -- lead_captures ------------------------------------------------------------
-CREATE TABLE public.lead_captures (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  page_id         UUID NOT NULL REFERENCES public.pages(id) ON DELETE CASCADE,
-  seller_user_id  UUID NOT NULL REFERENCES public.user_profiles(id),
-  name            TEXT,
-  email           TEXT NOT NULL,
-  phone           TEXT,
-  custom_fields   JSONB DEFAULT '{}'::jsonb,
-  utm_source      TEXT,
-  ip_address      INET,
-  created_at      TIMESTAMPTZ DEFAULT NOW()
+create index lead_captures_page_id_idx        on public.lead_captures(page_id);
+create index lead_captures_seller_user_id_idx on public.lead_captures(seller_user_id);
+
+-- ===========================================================================
+-- 11. coupons
+-- ===========================================================================
+create table public.coupons (
+  id                  uuid primary key default gen_random_uuid(),
+  user_id             uuid not null references public.user_profiles(id),
+  code                text not null,
+  discount_type       text not null check (discount_type in ('percentage', 'fixed')),
+  discount_value      decimal(10, 2) not null,
+  min_order           decimal(10, 2) default 0,
+  max_discount        decimal(10, 2),
+  total_limit         int,
+  per_customer_limit  int default 1,
+  usage_count         int default 0,
+  starts_at           timestamptz default now(),
+  expires_at          timestamptz,
+  page_ids            uuid[],
+  active              boolean default true,
+  created_at          timestamptz default now(),
+  unique (user_id, code)
 );
 
--- -- coupons -----------------------------------------------------------------
-CREATE TABLE public.coupons (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id             UUID NOT NULL REFERENCES public.user_profiles(id),
-  code                TEXT NOT NULL,
-  discount_type       TEXT NOT NULL CHECK (discount_type IN ('percentage','fixed')),
-  discount_value      DECIMAL(10,2) NOT NULL,
-  min_order           DECIMAL(10,2) DEFAULT 0,
-  max_discount        DECIMAL(10,2),
-  total_limit         INT,
-  per_customer_limit  INT DEFAULT 1,
-  usage_count         INT DEFAULT 0,
-  starts_at           TIMESTAMPTZ DEFAULT NOW(),
-  expires_at          TIMESTAMPTZ,
-  page_ids            UUID[],
-  active              BOOLEAN DEFAULT TRUE,
-  created_at          TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE (user_id, code)
+-- Now attach the orders.coupon_id FK
+alter table public.orders
+  add constraint orders_coupon_id_fkey
+  foreign key (coupon_id) references public.coupons(id) on delete set null;
+
+-- ===========================================================================
+-- 12. upsells
+-- ===========================================================================
+create table public.upsells (
+  id                uuid primary key default gen_random_uuid(),
+  user_id           uuid not null references public.user_profiles(id),
+  trigger_page_id   uuid references public.pages(id) on delete cascade,
+  offer_product_id  uuid references public.products(id),
+  price             decimal(10, 2) not null,
+  type              text not null check (type in ('bump', 'oto')),
+  title             text not null,
+  description       text,
+  image_url         text,
+  active            boolean default true,
+  created_at        timestamptz default now()
 );
 
--- -- upsells -----------------------------------------------------------------
-CREATE TABLE public.upsells (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id             UUID NOT NULL REFERENCES public.user_profiles(id),
-  trigger_page_id     UUID REFERENCES public.pages(id) ON DELETE CASCADE,
-  offer_product_id    UUID REFERENCES public.products(id),
-  price               DECIMAL(10,2) NOT NULL,
-  type                TEXT NOT NULL CHECK (type IN ('bump','oto')),
-  title               TEXT NOT NULL,
-  description         TEXT,
-  image_url           TEXT,
-  active              BOOLEAN DEFAULT TRUE,
-  created_at          TIMESTAMPTZ DEFAULT NOW()
+-- ===========================================================================
+-- 13. abandoned_checkouts
+-- ===========================================================================
+create table public.abandoned_checkouts (
+  id                uuid primary key default gen_random_uuid(),
+  page_id           uuid references public.pages(id) on delete set null,
+  seller_user_id    uuid references public.user_profiles(id),
+  buyer_email       text not null,
+  buyer_phone       text,
+  buyer_name        text,
+  amount            decimal(10, 2),
+  status            text default 'active'
+    check (status in ('active', 'recovered', 'expired')),
+  recovery_step     int default 0,
+  recovery_token    text unique,
+  token_expires_at  timestamptz,
+  created_at        timestamptz default now(),
+  recovered_at      timestamptz
 );
 
--- -- abandoned_checkouts -----------------------------------------------------
-CREATE TABLE public.abandoned_checkouts (
-  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  page_id            UUID REFERENCES public.pages(id) ON DELETE SET NULL,
-  seller_user_id     UUID REFERENCES public.user_profiles(id),
-  buyer_email        TEXT NOT NULL,
-  buyer_phone        TEXT,
-  buyer_name         TEXT,
-  amount             DECIMAL(10,2),
-  status             TEXT DEFAULT 'active'
-                       CHECK (status IN ('active','recovered','expired')),
-  recovery_step      INT DEFAULT 0,
-  recovery_token     TEXT UNIQUE,
-  token_expires_at   TIMESTAMPTZ,
-  created_at         TIMESTAMPTZ DEFAULT NOW(),
-  recovered_at       TIMESTAMPTZ
+create index abandoned_checkouts_buyer_email_idx    on public.abandoned_checkouts(buyer_email);
+create index abandoned_checkouts_recovery_token_idx on public.abandoned_checkouts(recovery_token);
+
+-- ===========================================================================
+-- 14. kyc_submissions
+-- ===========================================================================
+create table public.kyc_submissions (
+  id                 uuid primary key default gen_random_uuid(),
+  user_id            uuid not null unique references public.user_profiles(id),
+  level              smallint,
+  status             text default 'pending'
+    check (status in ('pending', 'approved', 'rejected', 'under_review')),
+  pan_number         text,
+  pan_name           text,
+  pan_verified_at    timestamptz,
+  bank_verified_at   timestamptz,
+  selfie_url         text,
+  id_document_url    text,
+  rejection_reason   text,
+  reviewer_id        uuid references public.user_profiles(id),
+  reviewed_at        timestamptz,
+  risk_flags         jsonb default '[]'::jsonb,
+  created_at         timestamptz default now(),
+  updated_at         timestamptz default now()
 );
 
--- -- kyc_submissions ---------------------------------------------------------
-CREATE TABLE public.kyc_submissions (
-  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id            UUID NOT NULL UNIQUE REFERENCES public.user_profiles(id),
-  level              SMALLINT,
-  status             TEXT DEFAULT 'pending'
-                       CHECK (status IN ('pending','approved','rejected','under_review')),
-  pan_number         TEXT,
-  pan_name           TEXT,
-  pan_verified_at    TIMESTAMPTZ,
-  bank_verified_at   TIMESTAMPTZ,
-  selfie_url         TEXT,
-  id_document_url    TEXT,
-  rejection_reason   TEXT,
-  reviewer_id        UUID REFERENCES public.user_profiles(id),
-  reviewed_at        TIMESTAMPTZ,
-  risk_flags         JSONB DEFAULT '[]'::jsonb,
-  created_at         TIMESTAMPTZ DEFAULT NOW(),
-  updated_at         TIMESTAMPTZ DEFAULT NOW()
+create index kyc_submissions_user_id_idx on public.kyc_submissions(user_id);
+
+-- ===========================================================================
+-- 15. invoices
+-- ===========================================================================
+create table public.invoices (
+  id               uuid primary key default gen_random_uuid(),
+  order_id         uuid unique references public.orders(id),
+  seller_user_id   uuid references public.user_profiles(id),
+  invoice_number   text unique not null,
+  buyer_name       text,
+  buyer_email      text,
+  buyer_gstin      text,
+  seller_gstin     text,
+  taxable_amount   decimal(10, 2),
+  tax_rate         decimal(5, 2),
+  cgst             decimal(10, 2),
+  sgst             decimal(10, 2),
+  igst             decimal(10, 2),
+  total_amount     decimal(10, 2),
+  pdf_url          text,
+  created_at       timestamptz default now()
 );
 
--- -- invoices ----------------------------------------------------------------
-CREATE TABLE public.invoices (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id        UUID UNIQUE REFERENCES public.orders(id),
-  seller_user_id  UUID REFERENCES public.user_profiles(id),
-  invoice_number  TEXT UNIQUE NOT NULL,
-  buyer_name      TEXT,
-  buyer_email     TEXT,
-  buyer_gstin     TEXT,
-  seller_gstin    TEXT,
-  taxable_amount  DECIMAL(10,2),
-  tax_rate        DECIMAL(5,2),
-  cgst            DECIMAL(10,2),
-  sgst            DECIMAL(10,2),
-  igst            DECIMAL(10,2),
-  total_amount    DECIMAL(10,2),
-  pdf_url         TEXT,
-  created_at      TIMESTAMPTZ DEFAULT NOW()
+-- ===========================================================================
+-- 16. pixel_configs
+-- ===========================================================================
+create table public.pixel_configs (
+  id                 uuid primary key default gen_random_uuid(),
+  page_id            uuid not null references public.pages(id) on delete cascade,
+  meta_pixel_id      text,
+  meta_access_token  text,
+  google_ads_id      text,
+  google_ads_label   text,
+  tiktok_pixel_id    text,
+  hotjar_id          text,
+  created_at         timestamptz default now(),
+  updated_at         timestamptz default now()
 );
 
--- -- pixel_configs -----------------------------------------------------------
-CREATE TABLE public.pixel_configs (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  page_id             UUID NOT NULL REFERENCES public.pages(id) ON DELETE CASCADE,
-  meta_pixel_id       TEXT,
-  meta_access_token   TEXT,
-  google_ads_id       TEXT,
-  google_ads_label    TEXT,
-  tiktok_pixel_id     TEXT,
-  hotjar_id           TEXT,
-  created_at          TIMESTAMPTZ DEFAULT NOW(),
-  updated_at          TIMESTAMPTZ DEFAULT NOW()
+-- ===========================================================================
+-- 17. social_proof_events
+-- ===========================================================================
+create table public.social_proof_events (
+  id            uuid primary key default gen_random_uuid(),
+  page_id       uuid not null references public.pages(id) on delete cascade,
+  buyer_name    text,
+  buyer_city    text,
+  product_name  text,
+  amount        decimal(10, 2),
+  is_seed       boolean default false,
+  created_at    timestamptz default now()
 );
 
--- -- social_proof_events -----------------------------------------------------
-CREATE TABLE public.social_proof_events (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  page_id       UUID NOT NULL REFERENCES public.pages(id) ON DELETE CASCADE,
-  buyer_name    TEXT,
-  buyer_city    TEXT,
-  product_name  TEXT,
-  amount        DECIMAL(10,2),
-  is_seed       BOOLEAN DEFAULT FALSE,
-  created_at    TIMESTAMPTZ DEFAULT NOW()
+create index social_proof_events_page_id_idx    on public.social_proof_events(page_id);
+create index social_proof_events_created_at_idx on public.social_proof_events(created_at);
+
+-- ===========================================================================
+-- 18. admin_audit_logs
+-- ===========================================================================
+create table public.admin_audit_logs (
+  id          uuid primary key default gen_random_uuid(),
+  admin_id    uuid references public.user_profiles(id),
+  action      text not null,
+  target_type text,
+  target_id   uuid,
+  details     jsonb,
+  ip_address  inet,
+  created_at  timestamptz default now()
 );
 
--- -- admin_audit_logs --------------------------------------------------------
-CREATE TABLE public.admin_audit_logs (
-  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  admin_id     UUID REFERENCES public.user_profiles(id),
-  action       TEXT NOT NULL,
-  target_type  TEXT,
-  target_id    UUID,
-  details      JSONB,
-  ip_address   INET,
-  created_at   TIMESTAMPTZ DEFAULT NOW()
-);
-
--- =============================================================================
--- 3. Indexes
--- =============================================================================
-
-CREATE INDEX idx_pages_slug                        ON public.pages (slug);
-CREATE INDEX idx_pages_user_id                     ON public.pages (user_id);
-CREATE INDEX idx_pages_status                      ON public.pages (status);
-
-CREATE INDEX idx_orders_seller_user_id             ON public.orders (seller_user_id);
-CREATE INDEX idx_orders_buyer_email                ON public.orders (buyer_email);
-CREATE INDEX idx_orders_status                     ON public.orders (status);
-CREATE INDEX idx_orders_created_at                 ON public.orders (created_at);
-CREATE INDEX idx_orders_gateway_order_id           ON public.orders (gateway_order_id);
-
-CREATE INDEX idx_transactions_user_id              ON public.transactions (user_id);
-CREATE INDEX idx_transactions_created_at           ON public.transactions (created_at);
-
-CREATE INDEX idx_abandoned_checkouts_buyer_email   ON public.abandoned_checkouts (buyer_email);
-CREATE INDEX idx_abandoned_checkouts_recovery_tok  ON public.abandoned_checkouts (recovery_token);
-
-CREATE INDEX idx_kyc_submissions_user_id           ON public.kyc_submissions (user_id);
-
-CREATE INDEX idx_lead_captures_page_id             ON public.lead_captures (page_id);
-CREATE INDEX idx_lead_captures_seller_user_id      ON public.lead_captures (seller_user_id);
-
-CREATE INDEX idx_social_proof_events_page_id       ON public.social_proof_events (page_id);
-CREATE INDEX idx_social_proof_events_created_at    ON public.social_proof_events (created_at);
-
--- =============================================================================
--- 4. Triggers
--- =============================================================================
-
--- updated_at maintenance
-CREATE TRIGGER user_profiles_set_updated_at
-  BEFORE UPDATE ON public.user_profiles
-  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-
-CREATE TRIGGER pages_set_updated_at
-  BEFORE UPDATE ON public.pages
-  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-
--- Auth signup → user_profiles row
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-
--- =============================================================================
--- 5. Row Level Security
---    Strategy:
---      • Enable RLS on every public table.
---      • Define explicit policies per requirement; no policy = no access for
---        the authenticated role (service_role always bypasses RLS).
--- =============================================================================
-
-ALTER TABLE public.user_profiles         ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.pages                 ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.products              ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.orders                ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.transactions          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.payouts               ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_subscriptions    ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.telegram_vip_groups   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.telegram_memberships  ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.lead_captures         ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.coupons               ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.upsells               ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.abandoned_checkouts   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.kyc_submissions       ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.invoices              ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.pixel_configs         ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.social_proof_events   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.admin_audit_logs      ENABLE ROW LEVEL SECURITY;
-
--- -- user_profiles -----------------------------------------------------------
-CREATE POLICY "user_profiles: read own or admin reads any"
-  ON public.user_profiles
-  FOR SELECT
-  TO authenticated
-  USING (id = auth.uid() OR public.is_admin(auth.uid()));
-
-CREATE POLICY "user_profiles: update own"
-  ON public.user_profiles
-  FOR UPDATE
-  TO authenticated
-  USING (id = auth.uid())
-  WITH CHECK (id = auth.uid());
-
-CREATE POLICY "user_profiles: insert own"
-  ON public.user_profiles
-  FOR INSERT
-  TO authenticated
-  WITH CHECK (id = auth.uid());
-
--- -- pages -----------------------------------------------------------------
-CREATE POLICY "pages: public read published"
-  ON public.pages
-  FOR SELECT
-  TO anon, authenticated
-  USING (status = 'published');
-
-CREATE POLICY "pages: owner full read"
-  ON public.pages
-  FOR SELECT
-  TO authenticated
-  USING (user_id = auth.uid());
-
-CREATE POLICY "pages: owner insert"
-  ON public.pages
-  FOR INSERT
-  TO authenticated
-  WITH CHECK (user_id = auth.uid());
-
-CREATE POLICY "pages: owner update"
-  ON public.pages
-  FOR UPDATE
-  TO authenticated
-  USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
-
-CREATE POLICY "pages: owner delete"
-  ON public.pages
-  FOR DELETE
-  TO authenticated
-  USING (user_id = auth.uid());
-
--- -- products ----------------------------------------------------------------
-CREATE POLICY "products: owner all"
-  ON public.products
-  FOR ALL
-  TO authenticated
-  USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
-
--- -- orders ------------------------------------------------------------------
--- Sellers read only their own. INSERT/UPDATE/DELETE are intentionally
--- service_role-only (no policy → blocked for authenticated).
-CREATE POLICY "orders: seller read own"
-  ON public.orders
-  FOR SELECT
-  TO authenticated
-  USING (seller_user_id = auth.uid() OR public.is_admin(auth.uid()));
-
--- -- transactions ------------------------------------------------------------
-CREATE POLICY "transactions: owner read"
-  ON public.transactions
-  FOR SELECT
-  TO authenticated
-  USING (user_id = auth.uid() OR public.is_admin(auth.uid()));
-
--- -- payouts -----------------------------------------------------------------
-CREATE POLICY "payouts: owner read"
-  ON public.payouts
-  FOR SELECT
-  TO authenticated
-  USING (user_id = auth.uid() OR public.is_admin(auth.uid()));
-
--- -- user_subscriptions ------------------------------------------------------
-CREATE POLICY "user_subscriptions: owner read"
-  ON public.user_subscriptions
-  FOR SELECT
-  TO authenticated
-  USING (user_id = auth.uid() OR public.is_admin(auth.uid()));
-
--- -- telegram_vip_groups -----------------------------------------------------
-CREATE POLICY "telegram_vip_groups: owner all"
-  ON public.telegram_vip_groups
-  FOR ALL
-  TO authenticated
-  USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
-
--- -- telegram_memberships ----------------------------------------------------
--- Owner = the seller who owns the telegram_vip_group this membership belongs
--- to. Reached via a join.
-CREATE POLICY "telegram_memberships: group owner read"
-  ON public.telegram_memberships
-  FOR SELECT
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.telegram_vip_groups g
-      WHERE g.id = telegram_memberships.group_id
-        AND g.user_id = auth.uid()
-    )
-    OR public.is_admin(auth.uid())
-  );
-
--- -- lead_captures -----------------------------------------------------------
-CREATE POLICY "lead_captures: seller read"
-  ON public.lead_captures
-  FOR SELECT
-  TO authenticated
-  USING (seller_user_id = auth.uid() OR public.is_admin(auth.uid()));
-
--- Public form submissions (the lead-capture form on a published page).
--- Anyone can INSERT a lead row — server enforces page validity.
-CREATE POLICY "lead_captures: public insert"
-  ON public.lead_captures
-  FOR INSERT
-  TO anon, authenticated
-  WITH CHECK (true);
-
--- -- coupons ----------------------------------------------------------------
-CREATE POLICY "coupons: owner all"
-  ON public.coupons
-  FOR ALL
-  TO authenticated
-  USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
-
--- -- upsells ---------------------------------------------------------------
-CREATE POLICY "upsells: owner all"
-  ON public.upsells
-  FOR ALL
-  TO authenticated
-  USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
-
--- -- abandoned_checkouts ---------------------------------------------------
-CREATE POLICY "abandoned_checkouts: seller read"
-  ON public.abandoned_checkouts
-  FOR SELECT
-  TO authenticated
-  USING (seller_user_id = auth.uid() OR public.is_admin(auth.uid()));
-
--- -- kyc_submissions -------------------------------------------------------
-CREATE POLICY "kyc_submissions: owner read"
-  ON public.kyc_submissions
-  FOR SELECT
-  TO authenticated
-  USING (user_id = auth.uid() OR public.is_admin(auth.uid()));
-
-CREATE POLICY "kyc_submissions: owner write"
-  ON public.kyc_submissions
-  FOR INSERT
-  TO authenticated
-  WITH CHECK (user_id = auth.uid());
-
-CREATE POLICY "kyc_submissions: owner update"
-  ON public.kyc_submissions
-  FOR UPDATE
-  TO authenticated
-  USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
-
--- -- invoices --------------------------------------------------------------
-CREATE POLICY "invoices: seller read"
-  ON public.invoices
-  FOR SELECT
-  TO authenticated
-  USING (seller_user_id = auth.uid() OR public.is_admin(auth.uid()));
-
--- -- pixel_configs --------------------------------------------------------
--- Owner = the user who owns the page this pixel config belongs to.
-CREATE POLICY "pixel_configs: page owner all"
-  ON public.pixel_configs
-  FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.pages p
-      WHERE p.id = pixel_configs.page_id AND p.user_id = auth.uid()
+-- ---------------------------------------------------------------------------
+-- handle_new_user(): auto-create user_profiles row on auth signup
+-- ---------------------------------------------------------------------------
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.user_profiles (id, email, full_name)
+  values (
+    new.id,
+    new.email,
+    coalesce(
+      new.raw_user_meta_data->>'full_name',
+      new.raw_user_meta_data->>'name'
     )
   )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.pages p
-      WHERE p.id = pixel_configs.page_id AND p.user_id = auth.uid()
-    )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- ===========================================================================
+-- Row Level Security
+-- ===========================================================================
+alter table public.user_profiles        enable row level security;
+alter table public.pages                enable row level security;
+alter table public.products             enable row level security;
+alter table public.orders               enable row level security;
+alter table public.transactions         enable row level security;
+alter table public.payouts              enable row level security;
+alter table public.user_subscriptions   enable row level security;
+alter table public.telegram_vip_groups  enable row level security;
+alter table public.telegram_memberships enable row level security;
+alter table public.lead_captures        enable row level security;
+alter table public.coupons              enable row level security;
+alter table public.upsells              enable row level security;
+alter table public.abandoned_checkouts  enable row level security;
+alter table public.kyc_submissions      enable row level security;
+alter table public.invoices             enable row level security;
+alter table public.pixel_configs        enable row level security;
+alter table public.social_proof_events  enable row level security;
+alter table public.admin_audit_logs     enable row level security;
+
+-- ---- user_profiles --------------------------------------------------------
+create policy "user_profiles_select_self_or_admin"
+  on public.user_profiles for select
+  using (auth.uid() = id or public.is_admin());
+
+create policy "user_profiles_update_self"
+  on public.user_profiles for update
+  using (auth.uid() = id)
+  with check (auth.uid() = id);
+
+-- ---- pages ----------------------------------------------------------------
+create policy "pages_owner_all"
+  on public.pages for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- Anyone can read a published page (used to render the public /p/[slug] route)
+create policy "pages_public_published_select"
+  on public.pages for select
+  using (status = 'published');
+
+-- ---- products -------------------------------------------------------------
+create policy "products_owner_all"
+  on public.products for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- ---- orders ---------------------------------------------------------------
+-- Sellers can READ their own orders; writes happen via service role only.
+create policy "orders_seller_select"
+  on public.orders for select
+  using (auth.uid() = seller_user_id);
+
+-- ---- transactions ---------------------------------------------------------
+create policy "transactions_owner_select"
+  on public.transactions for select
+  using (auth.uid() = user_id);
+
+-- ---- payouts --------------------------------------------------------------
+create policy "payouts_owner_select"
+  on public.payouts for select
+  using (auth.uid() = user_id);
+
+-- ---- user_subscriptions ---------------------------------------------------
+create policy "user_subscriptions_owner_select"
+  on public.user_subscriptions for select
+  using (auth.uid() = user_id);
+
+-- ---- telegram_vip_groups --------------------------------------------------
+create policy "telegram_vip_groups_owner_all"
+  on public.telegram_vip_groups for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- ---- telegram_memberships -------------------------------------------------
+create policy "telegram_memberships_owner_select"
+  on public.telegram_memberships for select
+  using (
+    group_id in (select id from public.telegram_vip_groups where user_id = auth.uid())
   );
 
--- -- social_proof_events --------------------------------------------------
-CREATE POLICY "social_proof_events: public read"
-  ON public.social_proof_events
-  FOR SELECT
-  TO anon, authenticated
-  USING (true);
+-- ---- lead_captures --------------------------------------------------------
+create policy "lead_captures_owner_select"
+  on public.lead_captures for select
+  using (auth.uid() = seller_user_id);
 
-CREATE POLICY "social_proof_events: page owner write"
-  ON public.social_proof_events
-  FOR INSERT
-  TO authenticated
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.pages p
-      WHERE p.id = social_proof_events.page_id AND p.user_id = auth.uid()
-    )
-  );
+-- ---- coupons --------------------------------------------------------------
+create policy "coupons_owner_all"
+  on public.coupons for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
--- -- admin_audit_logs -----------------------------------------------------
--- Writes are service_role only (no INSERT policy). Admins can SELECT.
-CREATE POLICY "admin_audit_logs: admin read"
-  ON public.admin_audit_logs
-  FOR SELECT
-  TO authenticated
-  USING (public.is_admin(auth.uid()));
+-- ---- upsells --------------------------------------------------------------
+create policy "upsells_owner_all"
+  on public.upsells for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
--- =============================================================================
--- 6. Grants
---    Supabase's authenticated/anon roles need usage on the schema and
---    table-level grants so RLS policies actually have something to filter.
--- =============================================================================
+-- ---- abandoned_checkouts --------------------------------------------------
+create policy "abandoned_checkouts_owner_select"
+  on public.abandoned_checkouts for select
+  using (auth.uid() = seller_user_id);
 
-GRANT USAGE ON SCHEMA public TO anon, authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
-GRANT SELECT, INSERT                ON ALL TABLES IN SCHEMA public TO anon;
-GRANT USAGE, SELECT                 ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+-- ---- kyc_submissions ------------------------------------------------------
+create policy "kyc_submissions_owner_or_admin_select"
+  on public.kyc_submissions for select
+  using (auth.uid() = user_id or public.is_admin());
 
--- Apply the same grants to anything created after this migration runs.
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  GRANT SELECT, INSERT                ON TABLES TO anon;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  GRANT USAGE, SELECT                 ON SEQUENCES TO authenticated;
+create policy "kyc_submissions_owner_insert"
+  on public.kyc_submissions for insert
+  with check (auth.uid() = user_id);
 
--- =============================================================================
--- Done.
--- =============================================================================
+create policy "kyc_submissions_owner_update"
+  on public.kyc_submissions for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- ---- invoices -------------------------------------------------------------
+create policy "invoices_owner_select"
+  on public.invoices for select
+  using (auth.uid() = seller_user_id);
+
+-- ---- pixel_configs --------------------------------------------------------
+create policy "pixel_configs_owner_all"
+  on public.pixel_configs for all
+  using (page_id in (select id from public.pages where user_id = auth.uid()))
+  with check (page_id in (select id from public.pages where user_id = auth.uid()));
+
+-- ---- social_proof_events --------------------------------------------------
+create policy "social_proof_events_owner_select"
+  on public.social_proof_events for select
+  using (page_id in (select id from public.pages where user_id = auth.uid()));
+
+-- Public read so the live widget can render on a published page
+create policy "social_proof_events_public_select"
+  on public.social_proof_events for select
+  using (page_id in (select id from public.pages where status = 'published'));
+
+-- ---- admin_audit_logs -----------------------------------------------------
+-- Inserts/updates/deletes happen via service role only — NO write policy.
+create policy "admin_audit_logs_admin_select"
+  on public.admin_audit_logs for select
+  using (public.is_admin());
+
+commit;

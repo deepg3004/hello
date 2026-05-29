@@ -63,4 +63,4 @@ supabase db push
 - Storage buckets (create `avatars`, `kyc`, `page-assets` in Supabase Studio
   → Storage)
 - Edge functions
-- Postgres extensions beyond `pgcrypto` and `uuid-ossp`
+- Postgres extensions beyond `pgcrypto`
