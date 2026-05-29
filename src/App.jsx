@@ -49,6 +49,7 @@ import PaymentPage from './PaymentPage.jsx'
 import PublicPage from './pages/PublicPage.jsx'
 import Overview from './pages/dashboard/Overview.jsx'
 import InstagramPage from './pages/dashboard/Instagram.jsx'
+import AutomationsPageNew from './pages/dashboard/Automations.jsx'
 import './App.css'
 
 function App() {
@@ -462,6 +463,7 @@ function Dashboard() {
   const renderPage = () => {
     if (activePage === 'overview') return <Overview />
     if (activePage === 'instagram') return <InstagramPage />
+    if (activePage === 'automations') return <AutomationsPageNew />
     if (activePage === 'home') {
       return (
         <HomePage

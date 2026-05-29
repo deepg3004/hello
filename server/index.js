@@ -21,7 +21,12 @@ import {
   publicKeyId as razorpayPublicKeyId,
   verifySignature as verifyRazorpaySignature,
 } from './payments.js'
-import { emailProviderName, isEmailConfigured, sendOrderConfirmation } from './email.js'
+import {
+  emailProviderName,
+  isEmailConfigured,
+  sendOrderConfirmation,
+  sendWelcomeEmail,
+} from './services/email.js'
 
 dotenv.config()
 
@@ -83,14 +88,19 @@ app.post('/api/automations', async (request, response) => {
     ctaLabel = '',
     ctaUrl = '',
     status = 'inactive',
+    triggerKeyword = '',
+    matchType = 'contains',
   } = request.body || {}
 
   try {
     const result = await pool.query(
-      `INSERT INTO automations (name, trigger, opening_message, cta_label, cta_url, status, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+      `INSERT INTO automations (
+         name, trigger, opening_message, cta_label, cta_url, status,
+         trigger_keyword, match_type, created_at, updated_at
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
        RETURNING *`,
-      [name, trigger, openingMessage, ctaLabel, ctaUrl, status, timestamp],
+      [name, trigger, openingMessage, ctaLabel, ctaUrl, status, triggerKeyword, matchType, timestamp],
     )
     response.status(201).json({ ok: true, automation: result.rows[0] })
   } catch (error) {
@@ -106,6 +116,22 @@ app.patch('/api/automations/:id/status', async (request, response) => {
       [status, nowIso(), request.params.id],
     )
     response.json({ ok: true, automation: result.rows[0] || null })
+  } catch (error) {
+    response.status(500).json({ ok: false, message: error.message })
+  }
+})
+
+app.delete('/api/automations/:id', async (request, response) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM automations WHERE id = $1 RETURNING id',
+      [request.params.id],
+    )
+    if (!result.rowCount) {
+      response.status(404).json({ ok: false, message: 'Automation not found.' })
+      return
+    }
+    response.json({ ok: true })
   } catch (error) {
     response.status(500).json({ ok: false, message: error.message })
   }

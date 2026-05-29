@@ -175,3 +175,7 @@ CREATE TABLE IF NOT EXISTS link_clicks (
 );
 CREATE INDEX IF NOT EXISTS idx_link_clicks_link ON link_clicks(link_id, clicked_at DESC);
 CREATE INDEX IF NOT EXISTS idx_link_clicks_profile ON link_clicks(profile_id, clicked_at DESC);
+
+-- ===== Automation rule builder additions =====
+ALTER TABLE automations ADD COLUMN IF NOT EXISTS trigger_keyword TEXT;
+ALTER TABLE automations ADD COLUMN IF NOT EXISTS match_type TEXT NOT NULL DEFAULT 'contains';
