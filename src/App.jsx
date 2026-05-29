@@ -50,6 +50,7 @@ import PublicPage from './pages/PublicPage.jsx'
 import Overview from './pages/dashboard/Overview.jsx'
 import InstagramPage from './pages/dashboard/Instagram.jsx'
 import AutomationsPageNew from './pages/dashboard/Automations.jsx'
+import ProfilePage from './pages/dashboard/Profile.jsx'
 import './App.css'
 
 function App() {
@@ -66,6 +67,7 @@ function App() {
 
 const navigation = [
   { id: 'overview', label: 'Overview', icon: BarChart3 },
+  { id: 'profile', label: 'My Page', icon: Sparkles },
   { id: 'home', label: 'Home', icon: Home },
   { id: 'admin', label: 'Admin Dashboard', icon: ShieldCheck },
   { id: 'learn', label: 'Learn', icon: BookOpen, badge: 'NEW' },
@@ -464,6 +466,7 @@ function Dashboard() {
     if (activePage === 'overview') return <Overview />
     if (activePage === 'instagram') return <InstagramPage />
     if (activePage === 'automations') return <AutomationsPageNew />
+    if (activePage === 'profile') return <ProfilePage />
     if (activePage === 'home') {
       return (
         <HomePage
