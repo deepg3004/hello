@@ -169,11 +169,11 @@ export async function updatePageAction(
     const planAllowed = plan === "pro" || plan === "business";
 
     const { data: sys } = await admin
-      .from("system_settings")
+      .from("platform_settings")
       .select("value")
       .eq("key", "allow_custom_scripts")
       .maybeSingle();
-    const platformAllowed = sys?.value === true || sys?.value === "true";
+    const platformAllowed = sys?.value === "true";
 
     if (!planAllowed || !platformAllowed) {
       pixelFields.custom_script = "";

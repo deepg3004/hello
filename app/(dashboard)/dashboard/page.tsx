@@ -13,7 +13,14 @@ import {
   getTopPages,
 } from "@/lib/dashboard/queries";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { formatINR } from "@/lib/utils";
+import {
+  buildOnboardingSteps,
+  computeOnboardingProgress,
+  shouldShowWelcomeBanner,
+} from "@/lib/onboarding";
+import { WelcomeBanner } from "@/components/dashboard/WelcomeBanner";
 
 export const metadata = {
   title: "Overview",
@@ -30,14 +37,59 @@ export default async function DashboardOverview() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [metrics, recent, topPages] = await Promise.all([
+  const admin = createAdminClient();
+  const [
+    metrics,
+    recent,
+    topPages,
+    { data: profile },
+    { count: pagesCount },
+  ] = await Promise.all([
     getDashboardMetrics(user.id),
     getRecentTransactions(user.id, 10),
     getTopPages(user.id, 5),
+    admin
+      .from("user_profiles")
+      .select(
+        "full_name, phone, avatar_url, kyc_level, bank_verified, razorpay_linked_account_id, onboarded_at, welcome_dismissed_at",
+      )
+      .eq("id", user.id)
+      .single(),
+    admin
+      .from("pages")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id),
   ]);
+
+  const onboardingProfile = {
+    full_name: profile?.full_name ?? null,
+    phone: profile?.phone ?? null,
+    avatar_url: profile?.avatar_url ?? null,
+    kyc_level: profile?.kyc_level ?? null,
+    bank_verified: profile?.bank_verified ?? null,
+    razorpay_linked_account_id: profile?.razorpay_linked_account_id ?? null,
+    onboarded_at: profile?.onboarded_at ?? null,
+    welcome_dismissed_at: profile?.welcome_dismissed_at ?? null,
+    pages_count: pagesCount ?? 0,
+  };
+  const onboardingSteps = buildOnboardingSteps(onboardingProfile);
+  const onboardingProgress = computeOnboardingProgress(onboardingSteps);
+  const showWelcome = shouldShowWelcomeBanner(onboardingProfile);
+  const nextStep = onboardingSteps.find((s) => !s.done);
 
   return (
     <div className="space-y-6">
+      {showWelcome && (
+        <WelcomeBanner
+          progress={onboardingProgress}
+          next={
+            nextStep
+              ? { label: nextStep.cta_label, href: nextStep.cta_href }
+              : null
+          }
+        />
+      )}
+
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
         <p className="text-sm text-muted-foreground">

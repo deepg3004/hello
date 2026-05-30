@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/AdminShell";
@@ -26,6 +27,22 @@ export default async function AdminLayout({
   if (!profile?.is_admin) {
     // Not an admin — bounce to the seller dashboard.
     redirect("/dashboard");
+  }
+
+  // Mark this session as an admin so middleware can let them bypass the
+  // maintenance gate. Short-lived (1 hour) and refreshed on every admin
+  // page render.
+  try {
+    cookies().set({
+      name: "invoxai_is_admin",
+      value: "1",
+      maxAge: 60 * 60,
+      path: "/",
+      sameSite: "lax",
+      httpOnly: false,
+    });
+  } catch {
+    /* read-only rendering path — fine, we'll set on the next request */
   }
 
   const topbarProfile: AdminTopbarProfile = {

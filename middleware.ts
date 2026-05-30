@@ -136,6 +136,31 @@ function maybeRouteAB(
   })();
 }
 
+// ── Maintenance flag — 60-second module-level cache ──────────────────────────
+let maintenanceCache: { on: boolean; fetchedAt: number } | null = null;
+const MAINTENANCE_TTL_MS = 60_000;
+
+async function isMaintenanceOn(request: NextRequest): Promise<boolean> {
+  if (maintenanceCache && Date.now() - maintenanceCache.fetchedAt < MAINTENANCE_TTL_MS) {
+    return maintenanceCache.on;
+  }
+  try {
+    const u = request.nextUrl.clone();
+    u.pathname = "/api/platform/maintenance";
+    u.search = "";
+    const res = await fetch(u.toString(), {
+      headers: { accept: "application/json" },
+    });
+    if (!res.ok) return false;
+    const body = (await res.json()) as { on?: boolean };
+    const on = !!body.on;
+    maintenanceCache = { on, fetchedAt: Date.now() };
+    return on;
+  } catch {
+    return false;
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -146,6 +171,23 @@ export async function middleware(request: NextRequest) {
     pathname === "/favicon.ico"
   ) {
     return NextResponse.next();
+  }
+
+  // Maintenance mode — admins always pass through.
+  if (
+    pathname !== "/maintenance" &&
+    !pathname.startsWith("/login") &&
+    !pathname.startsWith("/admin")
+  ) {
+    if (await isMaintenanceOn(request)) {
+      const isAdmin = request.cookies.get("invoxai_is_admin")?.value === "1";
+      if (!isAdmin) {
+        const redirect = request.nextUrl.clone();
+        redirect.pathname = "/maintenance";
+        redirect.search = "";
+        return NextResponse.rewrite(redirect, { status: 503 });
+      }
+    }
   }
 
   // Public payment / landing page — possibly route through A/B.

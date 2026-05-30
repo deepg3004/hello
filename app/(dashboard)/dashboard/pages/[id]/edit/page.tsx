@@ -62,14 +62,13 @@ export default async function EditPageRoute({
       .eq("id", user.id)
       .single(),
     admin
-      .from("system_settings")
+      .from("platform_settings")
       .select("value")
       .eq("key", "allow_custom_scripts")
       .maybeSingle(),
   ]);
 
-  const customScriptsAllowed =
-    sys?.value === true || sys?.value === "true";
+  const customScriptsAllowed = sys?.value === "true";
 
   const existing: ExistingPage = {
     id: page.id,
