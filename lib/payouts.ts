@@ -195,17 +195,21 @@ export async function requestPayout(
   }
 
   // Best-effort confirmation email + WhatsApp.
-  void notifyPayoutInitiated(input.userId, input.amountRupees);
+  void notifyPayoutInitiatedLocal(input.userId, input.amountRupees, inserted.id);
 
   return { ok: true, payout_id: inserted.id, scheduled_at: scheduledAt };
 }
 
-async function notifyPayoutInitiated(userId: string, amount: number): Promise<void> {
+async function notifyPayoutInitiatedLocal(
+  userId: string,
+  amount: number,
+  payoutId: string,
+): Promise<void> {
   try {
     const admin = createAdminClient();
     const { data: profile } = await admin
       .from("user_profiles")
-      .select("email, phone, full_name")
+      .select("email, full_name, bank_account_number")
       .eq("id", userId)
       .single();
     if (!profile) return;
@@ -221,13 +225,15 @@ async function notifyPayoutInitiated(userId: string, amount: number): Promise<vo
         .replace(/&/g, "&amp;")}</div>`,
     });
 
-    if (profile.phone) {
-      const { sendWhatsApp } = await import("@/lib/whatsapp");
-      await sendWhatsApp({
-        to: profile.phone,
-        body: `InvoxAI: ₹${amount.toLocaleString("en-IN")} payout initiated. Expected in 2–4 hours.`,
-      });
-    }
+    // WhatsApp via the preference-aware trigger (respects toggles + verified
+    // number on user_profiles).
+    const { notifyPayoutInitiated } = await import("@/lib/notification-triggers");
+    void notifyPayoutInitiated({
+      user_id: userId,
+      amount,
+      bank_last4: (profile.bank_account_number ?? "").slice(-4) || null,
+      payout_id: payoutId,
+    });
   } catch (e) {
     console.error("[payouts] notifyPayoutInitiated failed", e);
   }

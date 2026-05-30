@@ -86,6 +86,20 @@ export async function POST(request: Request) {
         });
 
         void notifyCompleted(row.user_id, Number(row.amount ?? 0), payout.utr);
+        // WhatsApp ping to the seller — best-effort, never throws.
+        try {
+          const { notifyPayoutComplete } = await import(
+            "@/lib/notification-triggers"
+          );
+          void notifyPayoutComplete({
+            user_id: row.user_id,
+            amount: Number(row.amount ?? 0),
+            payout_id: payout.id,
+            utr: payout.utr ?? null,
+          });
+        } catch (e) {
+          console.error("[payout-webhook] notifyPayoutComplete dispatch", e);
+        }
       }
       break;
     }

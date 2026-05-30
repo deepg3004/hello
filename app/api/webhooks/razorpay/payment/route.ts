@@ -116,11 +116,42 @@ export async function POST(request: Request) {
 
     case "payment.failed": {
       if (!payment?.order_id) break;
+      // Look up the order before flipping status so we can notify the seller.
+      const { data: failed } = await admin
+        .from("orders")
+        .select(
+          "id, seller_user_id, page_id, buyer_email, buyer_name, amount",
+        )
+        .eq("gateway_order_id", payment.order_id)
+        .single();
       await admin
         .from("orders")
         .update({ status: "failed" })
         .eq("gateway_order_id", payment.order_id);
-      // TODO: send failure email to buyer + WhatsApp alert to seller
+      if (failed) {
+        try {
+          const { notifyPaymentFailed } = await import(
+            "@/lib/notification-triggers"
+          );
+          // Razorpay's error reason isn't always on the payment entity at this
+          // event; pull what we have.
+          const reason =
+            (payment as unknown as { error_description?: string })
+              .error_description ??
+            (payment as unknown as { error_reason?: string }).error_reason ??
+            "Payment declined";
+          void notifyPaymentFailed({
+            seller_user_id: failed.seller_user_id,
+            buyer_name: failed.buyer_name,
+            buyer_email: failed.buyer_email,
+            page_id: failed.page_id,
+            amount: failed.amount,
+            reason,
+          });
+        } catch (e) {
+          console.error("[razorpay-webhook] notifyPaymentFailed failed", e);
+        }
+      }
       break;
     }
 

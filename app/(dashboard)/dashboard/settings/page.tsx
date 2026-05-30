@@ -71,6 +71,23 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">Notifications</CardTitle>
+          <CardDescription>
+            WhatsApp + email alerts for sales, leads, payouts, and KYC updates.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-sm">
+          <Link
+            href="/dashboard/settings/notifications"
+            className="text-primary underline"
+          >
+            Configure notifications →
+          </Link>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">More settings</CardTitle>
           <CardDescription>Editor + KYC form ships next prompt.</CardDescription>
         </CardHeader>

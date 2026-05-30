@@ -223,6 +223,23 @@ export async function POST(request: Request) {
     );
   }
 
+  // 5e. WhatsApp ping to the seller — best-effort, never throws.
+  try {
+    const { notifyNewLead } = await import("@/lib/notification-triggers");
+    sideEffects.push(
+      notifyNewLead({
+        seller_user_id: page.user_id,
+        name,
+        email,
+        phone: phone ?? null,
+        page_id,
+        page_title: page.title,
+      }),
+    );
+  } catch (e) {
+    console.error("[lead-captures] notifyNewLead dispatch failed", e);
+  }
+
   await Promise.allSettled(sideEffects);
 
   // 6. Response — based on post_action.

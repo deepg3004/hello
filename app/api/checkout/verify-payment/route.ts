@@ -164,6 +164,23 @@ export async function POST(request: Request) {
     }
   }
 
+  // 5e. Notify the seller of the new sale (WhatsApp + email — best-effort).
+  try {
+    const { notifyNewSale } = await import("@/lib/notification-triggers");
+    void notifyNewSale({
+      id: order.id,
+      seller_user_id: order.seller_user_id,
+      buyer_name: order.buyer_name,
+      buyer_email: order.buyer_email,
+      amount: order.amount,
+      seller_amount: order.seller_amount,
+      product_id: order.product_id,
+      page_id: order.page_id,
+    });
+  } catch (e) {
+    console.error("[verify-payment] notifyNewSale dispatch failed", e);
+  }
+
   // 6. Post-purchase: if the page has a Telegram VIP group attached, mint a
   //    one-time invite + membership row. Best-effort — bot/group failures
   //    surface on the thank-you page but don't block checkout.
