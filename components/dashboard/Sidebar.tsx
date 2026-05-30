@@ -8,6 +8,7 @@ import {
   Magnet,
   Send,
   Settings,
+  ShieldCheck,
   Sparkles,
   Users,
   Wallet,
@@ -29,6 +30,7 @@ const NAV: NavItem[] = [
   { href: "/dashboard/customers", label: "Customers", Icon: Users },
   { href: "/dashboard/leads", label: "Leads", Icon: Magnet },
   { href: "/dashboard/telegram", label: "Telegram", Icon: Send },
+  { href: "/dashboard/kyc", label: "KYC", Icon: ShieldCheck },
   { href: "/dashboard/payouts", label: "Payouts", Icon: Wallet },
   { href: "/dashboard/settings", label: "Settings", Icon: Settings },
 ];

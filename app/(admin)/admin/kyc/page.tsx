@@ -26,6 +26,16 @@ interface KycRow {
     { full_name: string | null; email: string; phone: string | null; bank_account_number: string | null; bank_ifsc: string | null; bank_holder_name: string | null }[] | null;
 }
 
+async function signedUrl(
+  admin: ReturnType<typeof createAdminClient>,
+  path: string | null,
+): Promise<string | null> {
+  if (!path) return null;
+  if (path.startsWith("http")) return path; // legacy already-public URL
+  const { data } = await admin.storage.from("kyc-documents").createSignedUrl(path, 15 * 60);
+  return data?.signedUrl ?? null;
+}
+
 export default async function AdminKycQueuePage() {
   const admin = createAdminClient();
   const { data } = await admin
@@ -36,7 +46,14 @@ export default async function AdminKycQueuePage() {
     .in("status", ["pending", "under_review"])
     .order("created_at", { ascending: true });
 
-  const rows = (data ?? []) as unknown as KycRow[];
+  const rowsRaw = (data ?? []) as unknown as KycRow[];
+  const rows = await Promise.all(
+    rowsRaw.map(async (r) => ({
+      ...r,
+      selfie_url: await signedUrl(admin, r.selfie_url),
+      id_document_url: await signedUrl(admin, r.id_document_url),
+    })),
+  );
 
   return (
     <div className="space-y-6">

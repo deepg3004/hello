@@ -24,6 +24,7 @@ const CREDENTIALS: CredentialDef[] = [
   { key: "RESEND_API_KEY", label: "Resend API Key", encrypted: true },
   { key: "MSG91_AUTH_KEY", label: "MSG91 Auth Key", encrypted: true },
   { key: "TELEGRAM_BOT_TOKEN", label: "Telegram Bot Token", encrypted: true, description: "For platform notifications." },
+  { key: "SUREPASS_TOKEN", label: "Surepass KYC Token", encrypted: true, description: "Bearer token for PAN / bank / Aadhaar verification." },
   { key: "STARTER_PLAN_ID", label: "Razorpay Plan: Starter", encrypted: false },
   { key: "PRO_PLAN_ID", label: "Razorpay Plan: Pro", encrypted: false },
   { key: "BUSINESS_PLAN_ID", label: "Razorpay Plan: Business", encrypted: false },
