@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
+import { PayoutActionsMenu } from "@/components/admin/PayoutActionsMenu";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatINR } from "@/lib/utils";
 
@@ -66,12 +67,13 @@ export default async function AdminPayoutsPage() {
                 <TableHead>Requested</TableHead>
                 <TableHead>Settled</TableHead>
                 <TableHead>Notes</TableHead>
+                <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
                     No payout requests yet.
                   </TableCell>
                 </TableRow>
@@ -100,6 +102,11 @@ export default async function AdminPayoutsPage() {
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {r.failure_reason ?? "—"}
+                      </TableCell>
+                      <TableCell>
+                        {(r.status === "pending" || r.status === "processing") && (
+                          <PayoutActionsMenu payoutId={r.id} status={r.status} />
+                        )}
                       </TableCell>
                     </TableRow>
                   );

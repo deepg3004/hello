@@ -4,93 +4,224 @@ import { revalidatePath } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { MIN_PAYOUT_AMOUNT } from "@/lib/payouts";
+import { writeAuditLog } from "@/lib/admin/audit";
+import { requestPayout, processPayoutJob } from "@/lib/payouts";
 
 export interface RequestPayoutResult {
   ok: boolean;
   message?: string;
   payout_id?: string;
+  scheduled_at?: string;
 }
 
 /**
- * Queue a payout request. We do NOT actually call the Razorpay payout API
- * here — production payouts are dispatched by a separate worker after admin
- * review. This action just persists the request.
+ * Seller-facing — requests a payout. All gating, balance math + scheduling
+ * happens in lib/payouts.ts.requestPayout().
  */
 export async function requestPayoutAction(
   amountRupees: number,
 ): Promise<RequestPayoutResult> {
-  if (!Number.isFinite(amountRupees) || amountRupees < MIN_PAYOUT_AMOUNT) {
-    return { ok: false, message: `Minimum payout is ₹${MIN_PAYOUT_AMOUNT}` };
-  }
-
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, message: "Not signed in" };
 
-  const admin = createAdminClient();
+  const result = await requestPayout({ userId: user.id, amountRupees });
+  if (result.ok) revalidatePath("/dashboard/payouts");
+  return result;
+}
 
-  // Eligibility — bank verified + KYC level 2
+// ----------------------------------------------------------------------------
+// Settings (seller)
+// ----------------------------------------------------------------------------
+
+export interface UpdatePayoutSettingsInput {
+  schedule?: "manual" | "weekly" | "monthly";
+  min_threshold?: number;
+  gateway?: "razorpay" | "cashfree";
+}
+
+export interface SettingsResult {
+  ok: boolean;
+  message?: string;
+}
+
+export async function updatePayoutSettingsAction(
+  input: UpdatePayoutSettingsInput,
+): Promise<SettingsResult> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+
+  const update: Record<string, unknown> = {};
+  if (input.schedule) update.payout_schedule = input.schedule;
+  if (typeof input.min_threshold === "number") {
+    if (input.min_threshold < 500) {
+      return { ok: false, message: "Minimum threshold can't be below ₹500." };
+    }
+    update.payout_min_threshold = Math.floor(input.min_threshold);
+  }
+  if (input.gateway) update.payout_gateway = input.gateway;
+  if (Object.keys(update).length === 0) return { ok: true };
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("user_profiles")
+    .update(update)
+    .eq("id", user.id);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/dashboard/settings/payouts");
+  return { ok: true };
+}
+
+// ----------------------------------------------------------------------------
+// Admin actions
+// ----------------------------------------------------------------------------
+
+export interface AdminPayoutResult {
+  ok: boolean;
+  message?: string;
+}
+
+async function requireAdminUser(): Promise<{ ok: true; userId: string } | { ok: false; message: string }> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+  const admin = createAdminClient();
   const { data: profile } = await admin
     .from("user_profiles")
-    .select(
-      "id, kyc_level, bank_verified, bank_account_number, bank_ifsc, payouts_enabled",
-    )
+    .select("is_admin")
     .eq("id", user.id)
     .single();
+  if (!profile?.is_admin) return { ok: false, message: "Admin only" };
+  return { ok: true, userId: user.id };
+}
 
-  if (!profile) return { ok: false, message: "Profile not found" };
-  if (!profile.bank_verified || (profile.kyc_level ?? 0) < 2) {
-    return {
-      ok: false,
-      message: "Complete KYC level 2 (bank verification) to request payouts",
-    };
-  }
+/**
+ * Approve a pending payout immediately — skips the admin-review delay.
+ */
+export async function approvePayoutAction(
+  payoutId: string,
+): Promise<AdminPayoutResult> {
+  const auth = await requireAdminUser();
+  if (!auth.ok) return auth;
 
-  // Available balance check — same calc as the page.
-  const [{ data: paid }, { data: completed }] = await Promise.all([
-    admin
-      .from("orders")
-      .select("seller_amount")
-      .eq("seller_user_id", user.id)
-      .eq("status", "paid"),
-    admin
-      .from("payouts")
-      .select("amount, status")
-      .eq("user_id", user.id)
-      .in("status", ["queued", "processing", "completed"]),
-  ]);
-  const gross = (paid ?? []).reduce((acc, r) => acc + Number(r.seller_amount ?? 0), 0);
-  const reserved = (completed ?? []).reduce((acc, r) => acc + Number(r.amount ?? 0), 0);
-  const available = Math.max(0, gross - reserved);
-
-  if (amountRupees > available) {
-    return {
-      ok: false,
-      message: `You only have ₹${available.toLocaleString("en-IN")} available.`,
-    };
-  }
-
-  const last4 = (profile.bank_account_number ?? "").slice(-4);
-  const { data: inserted, error } = await admin
+  const admin = createAdminClient();
+  await admin
     .from("payouts")
-    .insert({
-      user_id: user.id,
-      amount: amountRupees,
-      status: "queued",
-      gateway: "razorpay",
-      bank_account: last4,
-      bank_ifsc: profile.bank_ifsc,
+    .update({
+      scheduled_at: new Date(Date.now() - 1_000).toISOString(),
+      approved_at: new Date().toISOString(),
+      approved_by_admin_id: auth.userId,
     })
-    .select("id")
+    .eq("id", payoutId)
+    .eq("status", "pending");
+
+  const result = await processPayoutJob(payoutId);
+
+  await writeAuditLog({
+    admin_id: auth.userId,
+    action: "payout.approved",
+    target_type: "payout",
+    target_id: payoutId,
+    details: { gateway: result.gateway, message: result.message },
+  });
+
+  revalidatePath("/admin/payouts");
+  return result.ok
+    ? { ok: true }
+    : { ok: false, message: result.message ?? "Dispatch failed" };
+}
+
+/**
+ * Cancel a pending payout — restores the seller's available balance by
+ * flipping status to 'cancelled' (the balance calc only subtracts pending /
+ * processing / completed).
+ */
+export async function rejectPayoutAction(
+  payoutId: string,
+  reason: string,
+): Promise<AdminPayoutResult> {
+  const auth = await requireAdminUser();
+  if (!auth.ok) return auth;
+
+  const admin = createAdminClient();
+  await admin
+    .from("payouts")
+    .update({
+      status: "failed",
+      failure_reason: reason || "Rejected by admin",
+      cancelled_at: new Date().toISOString(),
+      cancelled_by_admin_id: auth.userId,
+      completed_at: new Date().toISOString(),
+    })
+    .eq("id", payoutId)
+    .in("status", ["pending", "processing"]);
+
+  await writeAuditLog({
+    admin_id: auth.userId,
+    action: "payout.rejected",
+    target_type: "payout",
+    target_id: payoutId,
+    details: { reason },
+  });
+
+  revalidatePath("/admin/payouts");
+  return { ok: true };
+}
+
+/**
+ * For sellers without Razorpay Route — admin marks the payout as completed
+ * after settling via NEFT or similar.
+ */
+export async function markPayoutCompletedAction(
+  payoutId: string,
+  utr: string,
+): Promise<AdminPayoutResult> {
+  const auth = await requireAdminUser();
+  if (!auth.ok) return auth;
+
+  const admin = createAdminClient();
+  const { data: payout } = await admin
+    .from("payouts")
+    .select("user_id, amount, status")
+    .eq("id", payoutId)
     .single();
+  if (!payout) return { ok: false, message: "Not found" };
 
-  if (error || !inserted) {
-    return { ok: false, message: error?.message ?? "Couldn't queue payout" };
-  }
+  await admin
+    .from("payouts")
+    .update({
+      status: "completed",
+      completed_at: new Date().toISOString(),
+      gateway_payout_id: utr || null,
+      notes: utr ? `Manual settlement, UTR ${utr}` : "Manual settlement",
+    })
+    .eq("id", payoutId);
 
-  revalidatePath("/dashboard/payouts");
-  return { ok: true, payout_id: inserted.id };
+  await admin.from("transactions").insert({
+    user_id: payout.user_id,
+    type: "payout",
+    amount: -Number(payout.amount ?? 0),
+    status: "completed",
+    reference_id: utr || null,
+    notes: "Manual payout settled by admin",
+  });
+
+  await writeAuditLog({
+    admin_id: auth.userId,
+    action: "payout.marked_completed",
+    target_type: "payout",
+    target_id: payoutId,
+    details: { utr },
+  });
+
+  revalidatePath("/admin/payouts");
+  return { ok: true };
 }

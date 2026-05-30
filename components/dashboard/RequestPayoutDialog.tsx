@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { requestPayoutAction } from "@/actions/payouts";
-import { MIN_PAYOUT_AMOUNT } from "@/lib/payouts";
+import { MIN_PAYOUT_AMOUNT } from "@/lib/payouts/constants";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
