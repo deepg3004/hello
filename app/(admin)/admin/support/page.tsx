@@ -24,10 +24,12 @@ interface TicketRow {
 
 export default async function AdminSupportPage() {
   const admin = createAdminClient();
+  // support_tickets has 2 FKs to user_profiles (user_id + assigned_admin_id) —
+  // disambiguate so PostgREST follows the buyer/seller, not the assigned admin.
   const { data } = await admin
     .from("support_tickets")
     .select(
-      "id, subject, from_email, from_name, status, last_message_at, created_at, user_id, user_profiles(full_name, email)",
+      "id, subject, from_email, from_name, status, last_message_at, created_at, user_id, user_profiles!support_tickets_user_id_fkey(full_name, email)",
     )
     .order("last_message_at", { ascending: false })
     .limit(200);

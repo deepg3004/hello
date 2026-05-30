@@ -16,10 +16,13 @@ const rupees = (n: number) => formatINR(n * 100);
 
 export default async function AdminPagesPage() {
   const admin = createAdminClient();
+  // pages has TWO FKs to user_profiles (user_id + flagged_by_admin_id).
+  // PostgREST throws PGRST201 unless we disambiguate which FK to follow —
+  // here we want the page owner, not the admin who flagged it.
   const { data: rowsRaw } = await admin
     .from("pages")
     .select(
-      "id, title, slug, type, status, view_count, conversion_count, total_revenue, flagged_at, flag_reason, created_at, user_id, user_profiles(full_name, email)",
+      "id, title, slug, type, status, view_count, conversion_count, total_revenue, flagged_at, flag_reason, created_at, user_id, user_profiles!pages_user_id_fkey(full_name, email)",
     )
     .order("created_at", { ascending: false })
     .limit(500);

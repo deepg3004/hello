@@ -15,10 +15,13 @@ const rupees = (n: number) => formatINR(n * 100);
 
 export default async function AdminPayoutsPage() {
   const admin = createAdminClient();
+  // payouts has 3 FKs to user_profiles (user_id + cancelled_by_admin_id +
+  // approved_by_admin_id) — disambiguate so PostgREST returns the seller,
+  // not the admin who approved/cancelled the payout.
   const { data: rowsRaw } = await admin
     .from("payouts")
     .select(
-      "id, user_id, amount, status, gateway, bank_account, initiated_at, completed_at, failure_reason, user_profiles(full_name, email)",
+      "id, user_id, amount, status, gateway, bank_account, initiated_at, completed_at, failure_reason, user_profiles!payouts_user_id_fkey(full_name, email)",
     )
     .order("initiated_at", { ascending: false })
     .limit(500);

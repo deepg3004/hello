@@ -25,10 +25,13 @@ interface MemRow {
 
 export default async function AdminTelegramPage() {
   const admin = createAdminClient();
+  // telegram_memberships has 2 FKs to telegram_vip_groups (the legacy group_id
+  // from migration 001 and the new telegram_group_id from migration 021).
+  // Disambiguate so PostgREST follows the new FK that the code actually uses.
   const { data: memsRaw } = await admin
     .from("telegram_memberships")
     .select(
-      "id, telegram_user_id, buyer_email, status, invited_at, joined_at, expires_at, telegram_group_id, telegram_vip_groups(group_name, group_id, user_id)",
+      "id, telegram_user_id, buyer_email, status, invited_at, joined_at, expires_at, telegram_group_id, telegram_vip_groups!telegram_memberships_telegram_group_id_fkey(group_name, group_id, user_id)",
     )
     .order("invited_at", { ascending: false })
     .limit(500);
