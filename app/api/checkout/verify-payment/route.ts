@@ -201,25 +201,21 @@ export async function POST(request: Request) {
       .eq("status", "active");
   }
 
-  // 4. Roll up totals — read, increment, write (no SQL fn here)
+  // 4. Roll up totals — single atomic SQL function (migration 018) so
+  //    two concurrent payments on the same page can't both read the same
+  //    total_revenue and clobber each other.
   if (order.page_id) {
-    const { data: page } = await admin
-      .from("pages")
-      .select("total_revenue, conversion_count")
-      .eq("id", order.page_id)
-      .single();
-    if (page) {
-      await admin
-        .from("pages")
-        .update({
-          total_revenue:
-            Number(page.total_revenue ?? 0) + Number(order.amount ?? 0),
-          conversion_count: Number(page.conversion_count ?? 0) + 1,
-        })
-        .eq("id", order.page_id);
+    const { error: rollupErr } = await admin.rpc("increment_page_revenue", {
+      p_page_id: order.page_id,
+      p_seller_id: order.seller_user_id,
+      p_amount: Number(order.amount ?? 0),
+    });
+    if (rollupErr) {
+      // Don't fail the payment over a rollup hiccup — log + carry on.
+      console.error("[verify-payment] increment_page_revenue failed", rollupErr);
     }
-  }
-  {
+  } else {
+    // Subscription / order without a page — bump the seller's total directly.
     const { data: profile } = await admin
       .from("user_profiles")
       .select("total_revenue")
