@@ -86,15 +86,28 @@ export function platformRootDomain(): string {
   return process.env.INVOXAI_PLATFORM_ROOT ?? "invoxai.io";
 }
 
-/** True when the host is one of OUR canonical hostnames — never rewrite. */
+/** True when the host is one of OUR canonical hostnames — never rewrite
+ *  to /seller-host. */
 export function isPlatformOwnHost(host: string): boolean {
   const h = host.toLowerCase().split(":")[0]!;
   const apex = platformRootDomain().toLowerCase();
   if (h === apex || h === `www.${apex}`) return true;
   if (h === appRootHost().toLowerCase()) return true;
+  // Reserved app subdomains — these get path rewrites instead of seller lookup.
+  if (h === `app.${apex}` || h === `admin.${apex}`) return true;
   // Common local dev hosts — never treated as a custom domain
   if (h === "localhost" || h === "127.0.0.1" || h.endsWith(".local")) return true;
   return false;
+}
+
+/** What URL prefix a request on `app.invoxai.io` or `admin.invoxai.io`
+ *  should map to internally. Returns null for other hosts. */
+export function appHostPrefix(host: string): "/dashboard" | "/admin" | null {
+  const h = host.toLowerCase().split(":")[0]!;
+  const apex = platformRootDomain().toLowerCase();
+  if (h === `app.${apex}`) return "/dashboard";
+  if (h === `admin.${apex}`) return "/admin";
+  return null;
 }
 
 /**

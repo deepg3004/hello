@@ -9,7 +9,7 @@ import {
   newVisitorId,
   variantCookieName,
 } from "@/lib/ab";
-import { isPlatformOwnHost } from "@/lib/domains";
+import { appHostPrefix, isPlatformOwnHost } from "@/lib/domains";
 
 const AUTH_ROUTES = ["/login", "/signup", "/forgot-password"];
 const PROTECTED_PREFIXES = ["/dashboard", "/admin"];
@@ -199,6 +199,36 @@ export async function middleware(request: NextRequest) {
     pathname === "/favicon.ico"
   ) {
     return NextResponse.next();
+  }
+
+  // ── App-host path rewrites: app.invoxai.io → /dashboard/...,
+  //    admin.invoxai.io → /admin/... so URLs stay clean.
+  try {
+    const rawHost = request.headers.get("host") ?? "";
+    const prefix = appHostPrefix(rawHost);
+    if (prefix) {
+      const isAlready = pathname === prefix || pathname.startsWith(`${prefix}/`);
+      const isAuth =
+        pathname.startsWith("/login") ||
+        pathname.startsWith("/signup") ||
+        pathname.startsWith("/forgot-password") ||
+        pathname.startsWith("/reset-password") ||
+        pathname.startsWith("/auth/");
+      const isPublic =
+        pathname.startsWith("/p/") ||
+        pathname.startsWith("/order/") ||
+        pathname.startsWith("/affiliate/") ||
+        pathname === "/maintenance" ||
+        pathname.startsWith("/seller-host/") ||
+        pathname.startsWith("/preview/");
+      if (!isAlready && !isAuth && !isPublic) {
+        const url = request.nextUrl.clone();
+        url.pathname = pathname === "/" ? prefix : `${prefix}${pathname}`;
+        return NextResponse.rewrite(url);
+      }
+    }
+  } catch {
+    /* non-fatal — fall through */
   }
 
   // ── Host routing: rewrite *.invoxai.io subdomains + custom domains
