@@ -19,6 +19,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { resolvedFormConfig, type FormConfig } from "@/lib/leads";
+import { getRuntimePixelConfig } from "@/components/pages/PixelScripts";
+import {
+  fireGoogleLeadConversion,
+  fireMetaLeadEvent,
+} from "@/lib/pixel-events";
 
 interface LeadCaptureFormProps {
   pageId: string;
@@ -94,6 +99,23 @@ export function LeadCaptureForm({
         download_url?: string;
       };
       if (!res.ok || !body.ok) throw new Error(body.error ?? "Submit failed");
+
+      // Pixel fires — best-effort.
+      try {
+        const pixelCfg = getRuntimePixelConfig();
+        if (pixelCfg) {
+          fireMetaLeadEvent(pixelCfg.meta_pixel_id, {
+            content_name: cfg.thanks_text,
+          });
+          fireGoogleLeadConversion(
+            pixelCfg.google_ads_id,
+            pixelCfg.google_ads_label,
+            { value: 0 },
+          );
+        }
+      } catch (pixelErr) {
+        console.warn("[lead-form] pixel fire failed", pixelErr);
+      }
 
       const redirectTarget = effectiveRedirect ?? body.redirect_url;
       if (redirectTarget) {

@@ -6,7 +6,7 @@
 
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import Script from "next/script";
+import { PixelScripts } from "@/components/pages/PixelScripts";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTemplate } from "@/lib/templates/registry";
@@ -56,6 +56,8 @@ interface PixelRow {
   google_ads_label: string | null;
   tiktok_pixel_id: string | null;
   hotjar_id: string | null;
+  clarity_id?: string | null;
+  custom_script?: string | null;
 }
 
 async function loadPage(slug: string) {
@@ -86,7 +88,9 @@ async function loadPage(slug: string) {
 
   const { data: pixel } = await admin
     .from("pixel_configs")
-    .select("meta_pixel_id, google_ads_id, google_ads_label, tiktok_pixel_id, hotjar_id")
+    .select(
+      "meta_pixel_id, google_ads_id, google_ads_label, tiktok_pixel_id, hotjar_id, clarity_id, custom_script",
+    )
     .eq("page_id", page.id)
     .maybeSingle<PixelRow>();
 
@@ -238,29 +242,4 @@ export default async function VariantBPage({
   );
 }
 
-function PixelScripts({ pixel }: { pixel: PixelRow | null | undefined }) {
-  if (!pixel) return null;
-  return (
-    <>
-      {pixel.meta_pixel_id && (
-        <>
-          <Script id="meta-pixel-b" strategy="afterInteractive">
-            {`!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${pixel.meta_pixel_id}');fbq('track','PageView');`}
-          </Script>
-        </>
-      )}
-      {pixel.google_ads_id && (
-        <>
-          <Script
-            id="gads-loader-b"
-            strategy="afterInteractive"
-            src={`https://www.googletagmanager.com/gtag/js?id=${pixel.google_ads_id}`}
-          />
-          <Script id="gads-init-b" strategy="afterInteractive">
-            {`window.dataLayer = window.dataLayer || [];function gtag(){dataLayer.push(arguments);}gtag('js', new Date());gtag('config', '${pixel.google_ads_id}');`}
-          </Script>
-        </>
-      )}
-    </>
-  );
-}
+// Pixel injection comes from components/pages/PixelScripts.tsx.

@@ -31,11 +31,17 @@ export default async function EditPageRoute({
   if (!page) notFound();
   if (page.user_id !== user.id) redirect("/dashboard");
 
-  const [{ data: pixel }, { data: products }, { data: coupons }] = await Promise.all([
+  const [
+    { data: pixel },
+    { data: products },
+    { data: coupons },
+    { data: profile },
+    { data: sys },
+  ] = await Promise.all([
     admin
       .from("pixel_configs")
       .select(
-        "meta_pixel_id, google_ads_id, google_ads_label, tiktok_pixel_id, hotjar_id",
+        "meta_pixel_id, meta_capi_access_token, meta_fire_purchase, meta_fire_lead, google_ads_id, google_ads_label, google_fire_conversion, tiktok_pixel_id, hotjar_id, clarity_id, custom_script",
       )
       .eq("page_id", params.id)
       .maybeSingle(),
@@ -50,7 +56,20 @@ export default async function EditPageRoute({
       .select("code")
       .eq("user_id", user.id)
       .eq("active", true),
+    admin
+      .from("user_profiles")
+      .select("subscription_plan")
+      .eq("id", user.id)
+      .single(),
+    admin
+      .from("system_settings")
+      .select("value")
+      .eq("key", "allow_custom_scripts")
+      .maybeSingle(),
   ]);
+
+  const customScriptsAllowed =
+    sys?.value === true || sys?.value === "true";
 
   const existing: ExistingPage = {
     id: page.id,
@@ -70,6 +89,8 @@ export default async function EditPageRoute({
       price: Number(p.price ?? 0),
     })),
     coupons: (coupons ?? []).map((c) => ({ code: c.code as string })),
+    customScriptsAllowed,
+    sellerPlan: (profile?.subscription_plan as string) ?? "free",
   };
 
   return <PageEditorTabs initial={existing} />;

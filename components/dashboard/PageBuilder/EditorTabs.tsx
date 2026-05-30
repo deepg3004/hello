@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Customizer } from "./Customizer";
@@ -38,14 +39,24 @@ export interface ExistingPage {
   custom_domain: string | null;
   pixel?: {
     meta_pixel_id: string | null;
+    meta_capi_access_token?: string | null;
+    meta_fire_purchase?: boolean | null;
+    meta_fire_lead?: boolean | null;
     google_ads_id: string | null;
     google_ads_label: string | null;
+    google_fire_conversion?: boolean | null;
     tiktok_pixel_id: string | null;
     hotjar_id: string | null;
+    clarity_id?: string | null;
+    custom_script?: string | null;
   } | null;
   /** Seller's products + coupons for picker UIs in the Conversion tab. */
   products?: Array<{ id: string; name: string; price: number }>;
   coupons?: Array<{ code: string }>;
+  /** Drives whether the custom-script textarea is enabled. */
+  customScriptsAllowed?: boolean;
+  /** Seller's plan key — drives the Pro+ gate on custom scripts. */
+  sellerPlan?: string;
 }
 
 export function PageEditorTabs({ initial }: { initial: ExistingPage }) {
@@ -60,11 +71,22 @@ export function PageEditorTabs({ initial }: { initial: ExistingPage }) {
   const [customDomain, setCustomDomain] = useState(initial.custom_domain ?? "");
   const [pixel, setPixel] = useState({
     meta_pixel_id: initial.pixel?.meta_pixel_id ?? "",
+    meta_capi_access_token: initial.pixel?.meta_capi_access_token ?? "",
+    meta_fire_purchase: initial.pixel?.meta_fire_purchase ?? true,
+    meta_fire_lead: initial.pixel?.meta_fire_lead ?? true,
     google_ads_id: initial.pixel?.google_ads_id ?? "",
     google_ads_label: initial.pixel?.google_ads_label ?? "",
+    google_fire_conversion: initial.pixel?.google_fire_conversion ?? true,
     tiktok_pixel_id: initial.pixel?.tiktok_pixel_id ?? "",
     hotjar_id: initial.pixel?.hotjar_id ?? "",
+    clarity_id: initial.pixel?.clarity_id ?? "",
+    custom_script: initial.pixel?.custom_script ?? "",
   });
+
+  const customScriptsAllowed = initial.customScriptsAllowed ?? false;
+  const sellerPlan = initial.sellerPlan ?? "free";
+  const customScriptsPlanOk =
+    sellerPlan === "pro" || sellerPlan === "business";
 
   const [saving, setSaving] = useState(false);
 
@@ -225,17 +247,20 @@ export function PageEditorTabs({ initial }: { initial: ExistingPage }) {
           </Card>
         </TabsContent>
 
-        <TabsContent value="pixels" className="mt-6">
+        <TabsContent value="pixels" className="mt-6 space-y-4">
+          {/* Meta */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Ads tracking</CardTitle>
+              <CardTitle className="text-base">Meta Pixel</CardTitle>
               <CardDescription>
-                Add pixel IDs and they&apos;ll be injected on the live page.
+                Inject the Meta pixel on the public page + fire Purchase and
+                Lead events. Add a Conversions API access token to also fire
+                server-side (more accurate on iOS + ad-blockers).
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
-                <Label>Meta Pixel ID</Label>
+                <Label>Pixel ID</Label>
                 <Input
                   value={pixel.meta_pixel_id}
                   onChange={(e) =>
@@ -244,9 +269,58 @@ export function PageEditorTabs({ initial }: { initial: ExistingPage }) {
                   placeholder="123456789012345"
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label>CAPI access token (optional)</Label>
+                <Input
+                  type="password"
+                  value={pixel.meta_capi_access_token}
+                  onChange={(e) =>
+                    setPixel((p) => ({
+                      ...p,
+                      meta_capi_access_token: e.target.value,
+                    }))
+                  }
+                  placeholder="EAAxxxxx…"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Generated in Meta Events Manager → Settings → Conversions
+                  API. We store it server-side and never expose it to the
+                  page bundle.
+                </p>
+              </div>
+              <Row label="Fire Purchase event on payment success">
+                <Switch
+                  checked={pixel.meta_fire_purchase}
+                  onCheckedChange={(v) =>
+                    setPixel((p) => ({ ...p, meta_fire_purchase: v }))
+                  }
+                />
+              </Row>
+              <Row label="Fire Lead event on form submission">
+                <Switch
+                  checked={pixel.meta_fire_lead}
+                  onCheckedChange={(v) =>
+                    setPixel((p) => ({ ...p, meta_fire_lead: v }))
+                  }
+                />
+              </Row>
+            </CardContent>
+          </Card>
+
+          {/* Google */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Google Ads</CardTitle>
+              <CardDescription>
+                Tag ID looks like AW-XXXXXXXXXX. Conversion label is the
+                second half after the slash in your Google Ads conversion
+                action.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label>Google Ads ID</Label>
+                  <Label>Google Tag ID</Label>
                   <Input
                     value={pixel.google_ads_id}
                     onChange={(e) =>
@@ -256,18 +330,42 @@ export function PageEditorTabs({ initial }: { initial: ExistingPage }) {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Google Ads conversion label</Label>
+                  <Label>Conversion label</Label>
                   <Input
                     value={pixel.google_ads_label}
                     onChange={(e) =>
-                      setPixel((p) => ({ ...p, google_ads_label: e.target.value }))
+                      setPixel((p) => ({
+                        ...p,
+                        google_ads_label: e.target.value,
+                      }))
                     }
                     placeholder="abcDEFghij1234"
                   />
                 </div>
               </div>
+              <Row label="Fire conversion on payment success">
+                <Switch
+                  checked={pixel.google_fire_conversion}
+                  onCheckedChange={(v) =>
+                    setPixel((p) => ({ ...p, google_fire_conversion: v }))
+                  }
+                />
+              </Row>
+            </CardContent>
+          </Card>
+
+          {/* TikTok */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">TikTok Pixel</CardTitle>
+              <CardDescription>
+                Fires PageView automatically and CompletePayment on payment
+                success.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-1.5">
-                <Label>TikTok Pixel ID</Label>
+                <Label>Pixel ID</Label>
                 <Input
                   value={pixel.tiktok_pixel_id}
                   onChange={(e) =>
@@ -276,6 +374,18 @@ export function PageEditorTabs({ initial }: { initial: ExistingPage }) {
                   placeholder="C4XXXXXXXXXXXXXXX"
                 />
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Heatmaps */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Heatmaps</CardTitle>
+              <CardDescription>
+                Hotjar and Microsoft Clarity for session recording + heatmaps.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Hotjar Site ID</Label>
                 <Input
@@ -286,6 +396,54 @@ export function PageEditorTabs({ initial }: { initial: ExistingPage }) {
                   placeholder="3123456"
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label>Microsoft Clarity ID</Label>
+                <Input
+                  value={pixel.clarity_id}
+                  onChange={(e) =>
+                    setPixel((p) => ({ ...p, clarity_id: e.target.value }))
+                  }
+                  placeholder="abcdefghi"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Custom script — Pro+ */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                Custom script
+                {!customScriptsPlanOk && (
+                  <Badge variant="outline" className="ml-2 align-middle">
+                    Pro+ only
+                  </Badge>
+                )}
+              </CardTitle>
+              <CardDescription>
+                Paste a raw &lt;script&gt; block — runs on every visit to
+                this page. Use this only for trusted code (your own pixel /
+                A/B tool). Anything pasted here runs with the same privileges
+                as your site.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {!customScriptsAllowed && (
+                <p className="text-xs text-amber-700">
+                  Custom scripts are currently disabled platform-wide by
+                  InvoxAI admins.
+                </p>
+              )}
+              <Textarea
+                rows={8}
+                disabled={!customScriptsAllowed || !customScriptsPlanOk}
+                value={pixel.custom_script}
+                onChange={(e) =>
+                  setPixel((p) => ({ ...p, custom_script: e.target.value }))
+                }
+                className="font-mono text-xs"
+                placeholder="<script>console.log('hello from my page')</script>"
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -318,6 +476,21 @@ export function PageEditorTabs({ initial }: { initial: ExistingPage }) {
           />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function Row({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <p className="text-sm font-medium">{label}</p>
+      {children}
     </div>
   );
 }

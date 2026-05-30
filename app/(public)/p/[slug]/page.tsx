@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import Script from "next/script";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { PixelScripts } from "@/components/pages/PixelScripts";
 import { getTemplate } from "@/lib/templates/registry";
 import { PageCountdown } from "@/components/templates/shared/PageCountdown";
 import { ExitIntentPopup } from "@/components/templates/shared/ExitIntentPopup";
@@ -50,6 +50,8 @@ interface PixelRow {
   google_ads_label: string | null;
   tiktok_pixel_id: string | null;
   hotjar_id: string | null;
+  clarity_id?: string | null;
+  custom_script?: string | null;
 }
 
 async function loadPage(slug: string) {
@@ -75,7 +77,9 @@ async function loadPage(slug: string) {
 
   const { data: pixel } = await admin
     .from("pixel_configs")
-    .select("meta_pixel_id, google_ads_id, google_ads_label, tiktok_pixel_id, hotjar_id")
+    .select(
+      "meta_pixel_id, google_ads_id, google_ads_label, tiktok_pixel_id, hotjar_id, clarity_id, custom_script",
+    )
     .eq("page_id", page.id)
     .maybeSingle<PixelRow>();
 
@@ -235,52 +239,6 @@ export default async function PublicPage({
   );
 }
 
-function PixelScripts({ pixel }: { pixel: PixelRow | null | undefined }) {
-  if (!pixel) return null;
-  return (
-    <>
-      {pixel.meta_pixel_id && (
-        <>
-          <Script id="meta-pixel" strategy="afterInteractive">
-            {`!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${pixel.meta_pixel_id}');fbq('track','PageView');`}
-          </Script>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <noscript>
-            <img
-              height="1"
-              width="1"
-              style={{ display: "none" }}
-              alt=""
-              src={`https://www.facebook.com/tr?id=${pixel.meta_pixel_id}&ev=PageView&noscript=1`}
-            />
-          </noscript>
-        </>
-      )}
-
-      {pixel.google_ads_id && (
-        <>
-          <Script
-            id="gads-loader"
-            strategy="afterInteractive"
-            src={`https://www.googletagmanager.com/gtag/js?id=${pixel.google_ads_id}`}
-          />
-          <Script id="gads-init" strategy="afterInteractive">
-            {`window.dataLayer = window.dataLayer || [];function gtag(){dataLayer.push(arguments);}gtag('js', new Date());gtag('config', '${pixel.google_ads_id}');`}
-          </Script>
-        </>
-      )}
-
-      {pixel.tiktok_pixel_id && (
-        <Script id="tiktok-pixel" strategy="afterInteractive">
-          {`!function (w, d, t) { w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};ttq.load=function(e,n){var i="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{};ttq._i[e]=[];ttq._i[e]._u=i;ttq._t=ttq._t||{};ttq._t[e]=+new Date;ttq._o=ttq._o||{};ttq._o[e]=n||{};var o=d.createElement("script");o.type="text/javascript",o.async=!0,o.src=i+"?sdkid="+e+"&lib="+t;var a=d.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};ttq.load('${pixel.tiktok_pixel_id}');ttq.page();}(window, document, 'ttq');`}
-        </Script>
-      )}
-
-      {pixel.hotjar_id && (
-        <Script id="hotjar" strategy="afterInteractive">
-          {`(function(h,o,t,j,a,r){h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};h._hjSettings={hjid:${pixel.hotjar_id},hjsv:6};a=o.getElementsByTagName('head')[0];r=o.createElement('script');r.async=1;r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv;a.appendChild(r);})(window,document,'https://static.hotjar.com/c/hotjar-','.js?sv=');`}
-        </Script>
-      )}
-    </>
-  );
-}
+// Pixel injection now lives in components/pages/PixelScripts.tsx — the
+// imported PixelScripts component handles every platform via
+// document.head.appendChild on the client.

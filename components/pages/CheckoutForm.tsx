@@ -9,6 +9,12 @@ import { Check, Loader2, Tag, X } from "lucide-react";
 import { OrderBump } from "@/components/pages/OrderBump";
 import type { OrderBumpConfig } from "@/lib/upsells";
 import { GSTIN_REGEX, stateCodeFromGstin } from "@/lib/gst";
+import { getRuntimePixelConfig } from "@/components/pages/PixelScripts";
+import {
+  fireGoogleConversion,
+  fireMetaPurchaseEvent,
+  fireTikTokPurchase,
+} from "@/lib/pixel-events";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -430,6 +436,30 @@ export function CheckoutForm(props: CheckoutFormProps) {
           };
           if (!verifyRes.ok || !verifyBody.ok) {
             throw new Error(verifyBody.error ?? "Verification failed");
+          }
+          // Client-side pixel fires — best-effort, never throws.
+          try {
+            const pixelCfg = getRuntimePixelConfig();
+            if (pixelCfg) {
+              const purchaseArgs = {
+                value: total,
+                currency: currency ?? "INR",
+                order_id: createBody.order_id ?? "",
+              };
+              fireMetaPurchaseEvent(pixelCfg.meta_pixel_id, purchaseArgs);
+              fireGoogleConversion(
+                pixelCfg.google_ads_id,
+                pixelCfg.google_ads_label,
+                {
+                  value: total,
+                  currency: currency ?? "INR",
+                  transaction_id: createBody.order_id,
+                },
+              );
+              fireTikTokPurchase(pixelCfg.tiktok_pixel_id, purchaseArgs);
+            }
+          } catch (pixelErr) {
+            console.warn("[checkout] pixel fire failed", pixelErr);
           }
           window.location.href = verifyBody.redirect_url ?? "/";
         } catch (e) {

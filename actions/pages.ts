@@ -29,10 +29,16 @@ export interface UpdatePageInput {
   custom_domain: string | null;
   pixel: {
     meta_pixel_id: string;
+    meta_capi_access_token: string;
+    meta_fire_purchase: boolean;
+    meta_fire_lead: boolean;
     google_ads_id: string;
     google_ads_label: string;
+    google_fire_conversion: boolean;
     tiktok_pixel_id: string;
     hotjar_id: string;
+    clarity_id: string;
+    custom_script: string;
   };
 }
 
@@ -149,8 +155,35 @@ export async function updatePageAction(
   if (pageErr) return { ok: false, message: pageErr.message };
 
   // Pixel configs — upsert (one row per page).
-  const pixelHasAny = Object.values(input.pixel).some((v) => v && v.length > 0);
-  if (pixelHasAny) {
+  //   - Booleans always count as "set" so they save even on an otherwise-empty form
+  //   - custom_script is gated server-side on (plan ≥ pro) AND (platform allows it)
+  const pixelFields = { ...input.pixel };
+
+  if (pixelFields.custom_script && pixelFields.custom_script.trim()) {
+    const { data: profile } = await admin
+      .from("user_profiles")
+      .select("subscription_plan")
+      .eq("id", user.id)
+      .single();
+    const plan = (profile?.subscription_plan ?? "free") as string;
+    const planAllowed = plan === "pro" || plan === "business";
+
+    const { data: sys } = await admin
+      .from("system_settings")
+      .select("value")
+      .eq("key", "allow_custom_scripts")
+      .maybeSingle();
+    const platformAllowed = sys?.value === true || sys?.value === "true";
+
+    if (!planAllowed || !platformAllowed) {
+      pixelFields.custom_script = "";
+    }
+  }
+
+  const anyStringSet = Object.entries(pixelFields).some(
+    ([, v]) => typeof v === "string" && v.trim().length > 0,
+  );
+  if (anyStringSet) {
     const { data: existingPixel } = await admin
       .from("pixel_configs")
       .select("id")
@@ -159,12 +192,12 @@ export async function updatePageAction(
     if (existingPixel) {
       await admin
         .from("pixel_configs")
-        .update(input.pixel)
+        .update(pixelFields)
         .eq("id", existingPixel.id);
     } else {
       await admin
         .from("pixel_configs")
-        .insert({ page_id: input.id, ...input.pixel });
+        .insert({ page_id: input.id, ...pixelFields });
     }
   }
 

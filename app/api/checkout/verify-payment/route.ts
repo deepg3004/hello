@@ -291,6 +291,29 @@ export async function POST(request: Request) {
     console.error("[verify-payment] invoice enqueue failed", e);
   }
 
+  // 5h*. Meta Conversions API — best-effort server-side Purchase fire.
+  //      Runs in parallel with the buyer receipt below.
+  try {
+    if (order.page_id) {
+      const baseUrl =
+        process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io";
+      const secret = process.env.CRON_SECRET ?? "";
+      void fetch(`${baseUrl}/api/pixels/meta-capi`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-cron-secret": secret,
+        },
+        body: JSON.stringify({
+          order_id: order.id,
+          event_name: "Purchase",
+        }),
+      }).catch((e) => console.error("[verify-payment] CAPI dispatch", e));
+    }
+  } catch (e) {
+    console.error("[verify-payment] CAPI dispatch failed", e);
+  }
+
   // 5g. Sale-confirmation receipt to the buyer. The PDF link points at our
   //     public /api/orders/:id/invoice redirect — it generates inline if the
   //     worker hasn't caught up. The email itself goes out immediately.

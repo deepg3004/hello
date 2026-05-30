@@ -265,6 +265,31 @@ export async function POST(request: Request) {
     console.error("[lead-captures] notifyNewLead dispatch failed", e);
   }
 
+  // 5f. Meta CAPI — server-side Lead event for this page.
+  try {
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io";
+    const secret = process.env.CRON_SECRET ?? "";
+    sideEffects.push(
+      fetch(`${baseUrl}/api/pixels/meta-capi`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-cron-secret": secret,
+        },
+        body: JSON.stringify({
+          page_id,
+          lead_id: leadId,
+          event_name: "Lead",
+          email,
+          phone,
+        }),
+      }).catch(() => null),
+    );
+  } catch (e) {
+    console.error("[lead-captures] CAPI dispatch failed", e);
+  }
+
   await Promise.allSettled(sideEffects);
 
   // 6. Response — based on post_action.
