@@ -12,6 +12,7 @@ import { getRedis } from "@/lib/redis";
 import { visitorsKey } from "@/lib/ab";
 import { SocialProofPopup } from "@/components/templates/shared/SocialProofPopup";
 import { BuyerCountBadge } from "@/components/templates/shared/BuyerCountBadge";
+import { ReferralTracker } from "@/components/pages/ReferralTracker";
 import {
   resolveSocialProofConfig,
   type SocialProofConfig,
@@ -235,6 +236,7 @@ export default async function PublicPage({
         />
       )}
       <PixelScripts pixel={pixel} />
+      <ReferralTracker slug={page.slug} />
     </>
   );
 }

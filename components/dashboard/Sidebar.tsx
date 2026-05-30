@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   CreditCard,
   FileText,
+  Handshake,
   LayoutDashboard,
   LineChart,
   Magnet,
@@ -32,6 +33,7 @@ const NAV: NavItem[] = [
   { href: "/dashboard/customers", label: "Customers", Icon: Users },
   { href: "/dashboard/leads", label: "Leads", Icon: Magnet },
   { href: "/dashboard/coupons", label: "Coupons", Icon: Tag },
+  { href: "/dashboard/affiliates", label: "Affiliates", Icon: Handshake },
   { href: "/dashboard/analytics", label: "Recovery", Icon: LineChart },
   { href: "/dashboard/telegram", label: "Telegram", Icon: Send },
   { href: "/dashboard/kyc", label: "KYC", Icon: ShieldCheck },

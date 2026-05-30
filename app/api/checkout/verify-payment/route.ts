@@ -23,6 +23,7 @@ import {
   spCountKey,
   SP_MAX_EVENTS_KEPT,
 } from "@/lib/social-proof";
+import { computeCommission, refCookieName } from "@/lib/affiliate";
 
 export async function POST(request: Request) {
   let body: {
@@ -252,6 +253,83 @@ export async function POST(request: Request) {
     } catch (e) {
       console.error("settleCoupon failed", e);
     }
+  }
+
+  // 5d*. Affiliate attribution — read the ref_<slug> cookie set by
+  //      /api/affiliate/track-click and, if it matches the page's active
+  //      program, mint an affiliate_payouts row in 'pending' state.
+  try {
+    if (order.page_id) {
+      const { data: pageRow } = await admin
+        .from("pages")
+        .select("slug")
+        .eq("id", order.page_id)
+        .single();
+      if (pageRow?.slug) {
+        const cookieHeader = request.headers.get("cookie") ?? "";
+        const want = refCookieName(pageRow.slug);
+        const match = cookieHeader
+          .split(/;\s*/)
+          .find((p) => p.startsWith(`${want}=`));
+        const refCode = match?.split("=")[1];
+        if (refCode) {
+          const { data: link } = await admin
+            .from("affiliate_links")
+            .select(
+              "id, affiliate_id, status, conversions, earnings, affiliates(commission_type, commission_value, status, page_id)",
+            )
+            .eq("referral_code", refCode)
+            .maybeSingle();
+          type Joined = {
+            commission_type: string;
+            commission_value: number;
+            status: string;
+            page_id: string;
+          };
+          const programRel = (link as unknown as { affiliates: Joined | Joined[] | null })
+            ?.affiliates;
+          const program = Array.isArray(programRel) ? programRel[0] : programRel;
+          if (
+            link &&
+            link.status === "active" &&
+            program?.status === "active" &&
+            program.page_id === order.page_id
+          ) {
+            const commission = computeCommission(
+              {
+                commission_type:
+                  program.commission_type as "percentage" | "fixed",
+                commission_value: Number(program.commission_value),
+                status: "active",
+              },
+              Number(order.amount ?? 0),
+            );
+            if (commission > 0) {
+              const { error: insErr } = await admin
+                .from("affiliate_payouts")
+                .insert({
+                  affiliate_link_id: link.id,
+                  affiliate_id: link.affiliate_id,
+                  seller_user_id: order.seller_user_id,
+                  order_id: order.id,
+                  commission_amount: commission,
+                });
+              if (!insErr) {
+                await admin
+                  .from("affiliate_links")
+                  .update({
+                    conversions: Number(link.conversions ?? 0) + 1,
+                    earnings: Number(link.earnings ?? 0) + commission,
+                  })
+                  .eq("id", link.id);
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error("[verify-payment] affiliate attribution failed", e);
   }
 
   // 5e. Notify the seller of the new sale (WhatsApp + email — best-effort).
