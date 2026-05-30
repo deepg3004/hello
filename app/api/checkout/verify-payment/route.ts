@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   const { data: order } = await admin
     .from("orders")
     .select(
-      "id, page_id, seller_user_id, product_id, amount, platform_commission, seller_amount, currency, coupon_id, status, buyer_email, buyer_name",
+      "id, page_id, seller_user_id, product_id, amount, platform_commission, seller_amount, currency, coupon_id, status, buyer_email, buyer_name, source",
     )
     .eq("id", order_id)
     .single();
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     });
   }
 
-  // 1. Mark order paid
+  // 1. Mark order paid (and any bump child row riding on the same payment)
   const paidAt = new Date().toISOString();
   await admin
     .from("orders")
@@ -70,6 +70,15 @@ export async function POST(request: Request) {
       paid_at: paidAt,
     })
     .eq("id", order_id);
+  await admin
+    .from("orders")
+    .update({
+      status: "paid",
+      gateway_payment_id: razorpay_payment_id,
+      paid_at: paidAt,
+    })
+    .eq("parent_order_id", order_id)
+    .eq("source", "bump");
 
   // 2. Ledger: sale (seller credit) + commission (platform credit)
   await admin.from("transactions").insert([
@@ -186,15 +195,52 @@ export async function POST(request: Request) {
     console.error("[verify-payment] telegram invite failed", e);
   }
 
-  return NextResponse.json({
+  // 7. OTO — if the page has an OTO configured AND this is the original
+  // (non-OTO) order, mint a 15-min signed cookie and redirect to /p/<slug>/oto.
+  let redirectTarget = redirectUrl(order_id, order.page_id);
+  let setCookie: string | null = null;
+  try {
+    const isOtoFollowOn = order.source === "oto";
+    if (!isOtoFollowOn && order.page_id) {
+      const { data: page } = await admin
+        .from("pages")
+        .select("slug, page_config")
+        .eq("id", order.page_id)
+        .single();
+      const cfg = (page?.page_config as { oto_config?: { enabled?: boolean; product_id?: string } } | null)?.oto_config;
+      if (cfg?.enabled && cfg.product_id && page?.slug) {
+        const { signOtoToken, OTO_COOKIE_NAME, OTO_TTL_SECONDS } = await import("@/lib/oto-token");
+        try {
+          const token = signOtoToken({
+            order_id,
+            page_id: order.page_id,
+            slug: page.slug,
+          });
+          setCookie = `${OTO_COOKIE_NAME}=${token}; Max-Age=${OTO_TTL_SECONDS}; Path=/; HttpOnly; SameSite=Lax`;
+          redirectTarget = `/p/${page.slug}/oto`;
+          await admin
+            .from("orders")
+            .update({ oto_offered: true })
+            .eq("id", order_id);
+        } catch (e) {
+          console.error("[verify-payment] OTO token sign failed", e);
+        }
+      }
+    }
+  } catch (e) {
+    console.error("[verify-payment] OTO check failed", e);
+  }
+
+  const response = NextResponse.json({
     ok: true,
     success: true,
     order_id,
-    redirect_url: redirectUrl(order_id, order.page_id),
+    redirect_url: redirectTarget,
   });
+  if (setCookie) response.headers.set("Set-Cookie", setCookie);
+  return response;
 }
 
 function redirectUrl(orderId: string, _pageId: string | null): string {
-  // Lands on the public order confirmation page.
   return `/order/${orderId}?status=success`;
 }

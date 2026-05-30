@@ -1,6 +1,7 @@
 // Shared prop types for the polished buyer-facing template components.
 
 import type { FormConfig } from "@/lib/leads";
+import type { OrderBumpConfig as PageBumpConfig } from "@/lib/upsells";
 
 export interface TemplateProduct {
   id: string;
@@ -12,31 +13,33 @@ export interface TemplateProduct {
 }
 
 export interface ThemeConfig {
-  /** Hex colour for buttons / accents. */
   primary?: string;
-  /** Hex colour for the hero background gradient start. */
   bgFrom?: string;
-  /** Hex colour for the hero background gradient end. */
   bgTo?: string;
-  /** Text colour for the hero section. */
   heroText?: string;
-  /** Light or dark — affects body text + card surfaces. */
   mode?: "light" | "dark";
 }
 
 export interface TimerConfig {
   enabled?: boolean;
-  /** ISO 8601 — clock counts down to this instant. */
   target?: string;
   label?: string;
 }
 
+/**
+ * Legacy per-template bump (course "bump_*" fields). Templates that read these
+ * directly from page_config values still work; the new page-level bump under
+ * page_config.order_bump takes precedence via `bumpRuntime` below.
+ */
 export interface OrderBumpConfig {
   enabled?: boolean;
   title?: string;
   description?: string;
   price?: number;
 }
+
+/** Page-level order bump resolved at request time and ready for CheckoutForm. */
+export type BumpRuntime = (PageBumpConfig & { ready: true }) | null;
 
 export interface BaseTemplateProps {
   pageId?: string;
@@ -45,8 +48,9 @@ export interface BaseTemplateProps {
   theme?: ThemeConfig;
   timer?: TimerConfig;
   orderBump?: OrderBumpConfig;
+  /** Page-level bump from /dashboard/pages/[id]/edit → Conversion tab. */
+  bumpRuntime?: BumpRuntime;
   socialProofEnabled?: boolean;
-  /** Form Builder config from page_config.form_config. */
   formConfig?: FormConfig;
 }
 

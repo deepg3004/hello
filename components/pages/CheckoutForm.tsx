@@ -6,6 +6,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Check, Loader2, Tag, X } from "lucide-react";
 
+import { OrderBump } from "@/components/pages/OrderBump";
+import type { OrderBumpConfig } from "@/lib/upsells";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -106,6 +108,8 @@ export interface CheckoutFormProps {
   price: number; // rupees
   currency?: string;
   initialBuyer?: { name?: string; email?: string; phone?: string };
+  /** When present + enabled, render the bump checkbox and add it to the total. */
+  orderBump?: OrderBumpConfig & { ready: boolean };
 }
 
 interface AppliedCoupon {
@@ -132,10 +136,14 @@ export function CheckoutForm(props: CheckoutFormProps) {
   const [applyingCoupon, setApplyingCoupon] = useState(false);
   const [coupon, setCoupon] = useState<AppliedCoupon | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [bumpAccepted, setBumpAccepted] = useState(false);
   const dismissCapturedEmailRef = useRef<string | null>(null);
 
   const discount = coupon?.discount_amount ?? 0;
-  const total = Math.max(0, props.price - discount);
+  const bumpReady = !!props.orderBump?.ready;
+  const bumpPrice = Number(props.orderBump?.price ?? 0);
+  const bumpExtra = bumpReady && bumpAccepted ? bumpPrice : 0;
+  const total = Math.max(0, props.price - discount) + bumpExtra;
 
   // Pre-fill coupon code stashed by an exit-intent popup.
   useEffect(() => {
@@ -237,6 +245,11 @@ export function CheckoutForm(props: CheckoutFormProps) {
           buyer_name: values.buyer_name,
           buyer_phone: values.buyer_phone,
           coupon_code: coupon?.code,
+          bump_offered: bumpReady,
+          bump_accepted: bumpReady && bumpAccepted,
+          bump_product_id:
+            bumpReady && bumpAccepted ? props.orderBump?.product_id : undefined,
+          bump_amount: bumpReady && bumpAccepted ? bumpPrice : undefined,
         }),
       });
       createBody = (await res.json()) as typeof createBody;
@@ -466,6 +479,17 @@ export function CheckoutForm(props: CheckoutFormProps) {
             </div>
           )}
 
+          {bumpReady && props.orderBump && (
+            <>
+              <Separator />
+              <OrderBump
+                config={props.orderBump}
+                checked={bumpAccepted}
+                onChange={setBumpAccepted}
+              />
+            </>
+          )}
+
           <Separator />
 
           <div className="space-y-1 text-sm">
@@ -475,6 +499,12 @@ export function CheckoutForm(props: CheckoutFormProps) {
                 label="Discount"
                 value={`-₹${discount.toLocaleString("en-IN")}`}
                 muted
+              />
+            )}
+            {bumpExtra > 0 && (
+              <Row
+                label={`+ ${props.orderBump?.title ?? "Bump"}`}
+                value={`+₹${bumpExtra.toLocaleString("en-IN")}`}
               />
             )}
             <Row

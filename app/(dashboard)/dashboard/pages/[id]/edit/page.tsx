@@ -31,13 +31,26 @@ export default async function EditPageRoute({
   if (!page) notFound();
   if (page.user_id !== user.id) redirect("/dashboard");
 
-  const { data: pixel } = await admin
-    .from("pixel_configs")
-    .select(
-      "meta_pixel_id, google_ads_id, google_ads_label, tiktok_pixel_id, hotjar_id",
-    )
-    .eq("page_id", params.id)
-    .maybeSingle();
+  const [{ data: pixel }, { data: products }, { data: coupons }] = await Promise.all([
+    admin
+      .from("pixel_configs")
+      .select(
+        "meta_pixel_id, google_ads_id, google_ads_label, tiktok_pixel_id, hotjar_id",
+      )
+      .eq("page_id", params.id)
+      .maybeSingle(),
+    admin
+      .from("products")
+      .select("id, name, price")
+      .eq("user_id", user.id)
+      .eq("active", true)
+      .order("created_at", { ascending: false }),
+    admin
+      .from("coupons")
+      .select("code")
+      .eq("user_id", user.id)
+      .eq("active", true),
+  ]);
 
   const existing: ExistingPage = {
     id: page.id,
@@ -51,6 +64,12 @@ export default async function EditPageRoute({
     meta_description: page.meta_description,
     custom_domain: page.custom_domain,
     pixel: pixel ?? null,
+    products: (products ?? []).map((p) => ({
+      id: p.id,
+      name: p.name,
+      price: Number(p.price ?? 0),
+    })),
+    coupons: (coupons ?? []).map((c) => ({ code: c.code as string })),
   };
 
   return <PageEditorTabs initial={existing} />;

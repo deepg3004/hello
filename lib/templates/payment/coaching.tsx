@@ -122,7 +122,7 @@ const definition: TemplateDefinition = {
   ],
 };
 
-const Render: TemplateRender = ({ values, pageId, product, isPreview }) => {
+const Render: TemplateRender = ({ values, pageId, product, isPreview, bumpRuntime }) => {
   const timer: TimerConfig = {
     enabled: !!readField(values, "timer_enabled", false),
     target: readField(values, "timer_target", "") || undefined,
@@ -133,6 +133,7 @@ const Render: TemplateRender = ({ values, pageId, product, isPreview }) => {
       pageId={pageId}
       product={product}
       isPreview={isPreview}
+      bumpRuntime={bumpRuntime}
       timer={timer}
       socialProofEnabled={!!readField(values, "social_proof_enabled", false)}
       urgency_enabled={!!readField(values, "urgency_enabled", false)}

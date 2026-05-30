@@ -102,6 +102,7 @@ export function PaymentDigitalProductPage(props: PaymentDigitalProductPageProps)
                 productImage={props.product.image_url}
                 price={Number(props.product.price)}
                 currency={props.product.currency}
+                orderBump={props.bumpRuntime ? { ...props.bumpRuntime, ready: true } : undefined}
               />
             ) : (
               <p className="text-center text-sm text-zinc-500">

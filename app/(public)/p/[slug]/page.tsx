@@ -6,6 +6,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getTemplate } from "@/lib/templates/registry";
 import { PageCountdown } from "@/components/templates/shared/PageCountdown";
 import { ExitIntentPopup } from "@/components/templates/shared/ExitIntentPopup";
+import { isBumpReady, type OrderBumpConfig } from "@/lib/upsells";
+import type { BumpRuntime } from "@/components/templates/shared/types";
 
 interface PageRow {
   id: string;
@@ -149,12 +151,42 @@ export default async function PublicPage({
     | import("@/lib/conversion").ExitIntentConfig
     | undefined;
 
+  // Resolve page-level order bump into runtime form.
+  let bumpRuntime: BumpRuntime = null;
+  const bumpCfgRaw = (values as Record<string, unknown>).order_bump as
+    | OrderBumpConfig
+    | undefined;
+  if (isBumpReady(bumpCfgRaw)) {
+    const admin = createAdminClient();
+    const { data: bumpProd } = await admin
+      .from("products")
+      .select("id, name, price, active")
+      .eq("id", bumpCfgRaw.product_id!)
+      .single();
+    if (bumpProd?.active) {
+      bumpRuntime = {
+        enabled: true,
+        product_id: bumpProd.id,
+        price: Number(bumpCfgRaw.price ?? bumpProd.price),
+        title: bumpCfgRaw.title ?? bumpProd.name,
+        description: bumpCfgRaw.description,
+        image_url: bumpCfgRaw.image_url,
+        ready: true,
+      };
+    }
+  }
+
   return (
     <>
       {countdownCfg?.enabled && countdownCfg.position !== "hidden" && (
         <PageCountdown pageSlug={page.slug} config={countdownCfg} />
       )}
-      <template.Render values={values} pageId={page.id} product={product} />
+      <template.Render
+        values={values}
+        pageId={page.id}
+        product={product}
+        bumpRuntime={bumpRuntime}
+      />
       {exitCfg?.enabled && (
         <ExitIntentPopup pageSlug={page.slug} config={exitCfg} />
       )}

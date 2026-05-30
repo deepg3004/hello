@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { updatePageAction, type UpdatePageInput } from "@/actions/pages";
 import type { FormConfig, LeadMagnetMeta } from "@/lib/leads";
 import type { CountdownConfig, ExitIntentConfig } from "@/lib/conversion";
+import type { OrderBumpConfig, OtoConfig } from "@/lib/upsells";
 
 export interface ExistingPage {
   id: string;
@@ -42,6 +43,9 @@ export interface ExistingPage {
     tiktok_pixel_id: string | null;
     hotjar_id: string | null;
   } | null;
+  /** Seller's products + coupons for picker UIs in the Conversion tab. */
+  products?: Array<{ id: string; name: string; price: number }>;
+  coupons?: Array<{ code: string }>;
 }
 
 export function PageEditorTabs({ initial }: { initial: ExistingPage }) {
@@ -296,7 +300,12 @@ export function PageEditorTabs({ initial }: { initial: ExistingPage }) {
             onExitIntentChange={(next) =>
               setValues({ ...values, exit_intent_config: next })
             }
-            coupons={[]}
+            bump={(values.order_bump as OrderBumpConfig) ?? {}}
+            onBumpChange={(next) => setValues({ ...values, order_bump: next })}
+            oto={(values.oto_config as OtoConfig) ?? {}}
+            onOtoChange={(next) => setValues({ ...values, oto_config: next })}
+            coupons={initial.coupons ?? []}
+            products={initial.products ?? []}
           />
         </TabsContent>
       </Tabs>

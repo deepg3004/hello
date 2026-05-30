@@ -86,6 +86,8 @@ export interface TemplateRenderProps {
   } | null;
   /** Set to true inside the preview iframe — disables analytics + view bump. */
   isPreview?: boolean;
+  /** Page-level order-bump runtime resolved at request time. */
+  bumpRuntime?: import("@/components/templates/shared/types").BumpRuntime;
 }
 
 export type TemplateRender = (props: TemplateRenderProps) => ReactNode;

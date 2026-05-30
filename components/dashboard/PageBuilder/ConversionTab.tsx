@@ -20,13 +20,27 @@ import type {
   ExitIntentConfig,
 } from "@/lib/conversion";
 import { COUNTDOWN_DEFAULTS, EXIT_INTENT_DEFAULTS } from "@/lib/conversion";
+import type { OrderBumpConfig, OtoConfig } from "@/lib/upsells";
+import { ORDER_BUMP_DEFAULTS, OTO_DEFAULTS } from "@/lib/upsells";
+import { Textarea as TA } from "@/components/ui/textarea";
+
+interface ProductOption {
+  id: string;
+  name: string;
+  price: number;
+}
 
 interface ConversionTabProps {
   countdown: CountdownConfig;
   onCountdownChange: (next: CountdownConfig) => void;
   exitIntent: ExitIntentConfig;
   onExitIntentChange: (next: ExitIntentConfig) => void;
+  bump: OrderBumpConfig;
+  onBumpChange: (next: OrderBumpConfig) => void;
+  oto: OtoConfig;
+  onOtoChange: (next: OtoConfig) => void;
   coupons: Array<{ code: string }>;
+  products: ProductOption[];
 }
 
 export function ConversionTab({
@@ -34,12 +48,21 @@ export function ConversionTab({
   onCountdownChange,
   exitIntent,
   onExitIntentChange,
+  bump,
+  onBumpChange,
+  oto,
+  onOtoChange,
   coupons,
+  products,
 }: ConversionTabProps) {
   const setC = <K extends keyof CountdownConfig>(k: K, v: CountdownConfig[K]) =>
     onCountdownChange({ ...countdown, [k]: v });
   const setE = <K extends keyof ExitIntentConfig>(k: K, v: ExitIntentConfig[K]) =>
     onExitIntentChange({ ...exitIntent, [k]: v });
+  const setB = <K extends keyof OrderBumpConfig>(k: K, v: OrderBumpConfig[K]) =>
+    onBumpChange({ ...bump, [k]: v });
+  const setO = <K extends keyof OtoConfig>(k: K, v: OtoConfig[K]) =>
+    onOtoChange({ ...oto, [k]: v });
 
   return (
     <div className="space-y-6">
@@ -191,6 +214,193 @@ export function ConversionTab({
                   />
                 </div>
               )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ===== Order bump ===== */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Order bump</CardTitle>
+          <CardDescription>
+            A second product offered as a checkbox on the checkout page. Buyer
+            ticks it and the total updates instantly — single Razorpay charge.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Row label="Enable order bump">
+            <Switch checked={!!bump.enabled} onCheckedChange={(v) => setB("enabled", v)} />
+          </Row>
+
+          {bump.enabled && (
+            <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+              <div>
+                <Label className="text-xs">Bump product</Label>
+                <Select
+                  value={bump.product_id ?? ""}
+                  onValueChange={(v) => {
+                    const p = products.find((x) => x.id === v);
+                    setB("product_id", v || undefined);
+                    if (p && bump.price == null) setB("price", p.price);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pick a product" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {products.length === 0 ? (
+                      <SelectItem value="__none" disabled>
+                        Create products under /dashboard/pages first.
+                      </SelectItem>
+                    ) : (
+                      products.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name} · ₹{p.price.toLocaleString("en-IN")}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Bump price (INR)</Label>
+                  <Input
+                    type="number"
+                    value={bump.price ?? ""}
+                    onChange={(e) => setB("price", e.target.value === "" ? undefined : Number(e.target.value))}
+                    placeholder="Defaults to product price"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Image URL</Label>
+                  <Input
+                    value={bump.image_url ?? ""}
+                    onChange={(e) => setB("image_url", e.target.value)}
+                    placeholder="https://…"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-xs">Title (rendered as the checkbox label)</Label>
+                <Input
+                  value={bump.title ?? ORDER_BUMP_DEFAULTS.title}
+                  onChange={(e) => setB("title", e.target.value)}
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs">Description</Label>
+                <TA
+                  rows={2}
+                  value={bump.description ?? ORDER_BUMP_DEFAULTS.description}
+                  onChange={(e) => setB("description", e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ===== OTO ===== */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">One-time offer (OTO)</CardTitle>
+          <CardDescription>
+            Shown after a successful purchase, on a dedicated page. The buyer
+            sees it once — accept charges a second Razorpay transaction.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Row label="Enable OTO">
+            <Switch checked={!!oto.enabled} onCheckedChange={(v) => setO("enabled", v)} />
+          </Row>
+
+          {oto.enabled && (
+            <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+              <div>
+                <Label className="text-xs">OTO product</Label>
+                <Select
+                  value={oto.product_id ?? ""}
+                  onValueChange={(v) => {
+                    const p = products.find((x) => x.id === v);
+                    setO("product_id", v || undefined);
+                    if (p && oto.price == null) setO("price", p.price);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pick a product" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {products.length === 0 ? (
+                      <SelectItem value="__none" disabled>
+                        No products yet.
+                      </SelectItem>
+                    ) : (
+                      products.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name} · ₹{p.price.toLocaleString("en-IN")}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">OTO price (INR)</Label>
+                  <Input
+                    type="number"
+                    value={oto.price ?? ""}
+                    onChange={(e) => setO("price", e.target.value === "" ? undefined : Number(e.target.value))}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Image URL</Label>
+                  <Input
+                    value={oto.image_url ?? ""}
+                    onChange={(e) => setO("image_url", e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-xs">Headline</Label>
+                <Input
+                  value={oto.headline ?? OTO_DEFAULTS.headline}
+                  onChange={(e) => setO("headline", e.target.value)}
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs">Description</Label>
+                <TA
+                  rows={3}
+                  value={oto.description ?? OTO_DEFAULTS.description}
+                  onChange={(e) => setO("description", e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">CTA text (accept)</Label>
+                  <Input
+                    value={oto.cta_text ?? OTO_DEFAULTS.cta_text}
+                    onChange={(e) => setO("cta_text", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Decline link text</Label>
+                  <Input
+                    value={oto.decline_text ?? OTO_DEFAULTS.decline_text}
+                    onChange={(e) => setO("decline_text", e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
           )}
         </CardContent>

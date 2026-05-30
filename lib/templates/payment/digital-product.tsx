@@ -67,11 +67,12 @@ const definition: TemplateDefinition = {
   ],
 };
 
-const Render: TemplateRender = ({ values, pageId, product, isPreview }) => (
+const Render: TemplateRender = ({ values, pageId, product, isPreview, bumpRuntime }) => (
   <PaymentDigitalProductPage
     pageId={pageId}
     product={product}
     isPreview={isPreview}
+    bumpRuntime={bumpRuntime}
     mockup_url={readField(values, "mockup_url", "")}
     hero_headline={readField(values, "hero_headline", "")}
     hero_subheadline={readField(values, "hero_subheadline", "")}

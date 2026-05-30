@@ -35,6 +35,11 @@ export async function POST(request: Request) {
     utm_source?: string;
     utm_medium?: string;
     utm_campaign?: string;
+    // Order bump (added by CheckoutForm when seller enabled it)
+    bump_offered?: boolean;
+    bump_accepted?: boolean;
+    bump_product_id?: string;
+    bump_amount?: number;
   };
   try {
     body = await request.json();
@@ -52,6 +57,10 @@ export async function POST(request: Request) {
     utm_source,
     utm_medium,
     utm_campaign,
+    bump_offered = false,
+    bump_accepted = false,
+    bump_product_id,
+    bump_amount: bump_amount_in,
   } = body;
 
   if (!page_id || !product_id || !buyer_email) {
@@ -132,7 +141,37 @@ export async function POST(request: Request) {
     }
   }
 
-  const netAmount = Math.max(0, grossAmount - discountAmount);
+  const baseNet = Math.max(0, grossAmount - discountAmount);
+
+  // 3b. Bump — server-validate the price against the seller's product. We
+  // never trust the client-supplied bump_amount; instead we read the product
+  // and use its price (allowing optional client override only when it's
+  // strictly less, never more — i.e. seller's discount).
+  let bumpProduct: { id: string; user_id: string; name: string; price: number } | null = null;
+  let bumpAmount = 0;
+  if (bump_accepted && bump_product_id) {
+    const { data: bp } = await admin
+      .from("products")
+      .select("id, user_id, name, price, active")
+      .eq("id", bump_product_id)
+      .single();
+    if (!bp || bp.user_id !== page.user_id || !bp.active) {
+      if (couponId) await releaseCoupon(couponId, buyer_email);
+      return NextResponse.json({ error: "Bump product unavailable" }, { status: 400 });
+    }
+    bumpProduct = {
+      id: bp.id,
+      user_id: bp.user_id,
+      name: bp.name,
+      price: Number(bp.price ?? 0),
+    };
+    const clientBump = Number(bump_amount_in ?? bumpProduct.price);
+    bumpAmount = Math.min(clientBump, bumpProduct.price);
+    if (!Number.isFinite(bumpAmount) || bumpAmount <= 0) {
+      bumpAmount = bumpProduct.price;
+    }
+  }
+  const netAmount = baseNet + bumpAmount;
 
   // 4. Seller — lookup plan to determine effective commission
   const { data: seller } = await admin
@@ -173,6 +212,7 @@ export async function POST(request: Request) {
         invoxai_page_id: page_id,
         invoxai_product_id: product_id,
         invoxai_seller_id: seller.id,
+        invoxai_bump_amount: String(bumpAmount),
         buyer_email,
       },
       transfers:
@@ -217,11 +257,40 @@ export async function POST(request: Request) {
     utm_medium: utm_medium ?? null,
     utm_campaign: utm_campaign ?? null,
     ip_address: ip,
+    bump_offered,
+    bump_accepted,
+    bump_product_id: bumpProduct?.id ?? null,
+    bump_amount: bumpAmount > 0 ? bumpAmount : null,
+    bump_title: bumpProduct?.name ?? null,
   });
   if (insertErr) {
-    // Order is live in Razorpay but not in our DB — log and continue. The
-    // webhook will reconcile via notes.invoxai_order_id.
     console.error("orders insert failed", insertErr);
+  }
+
+  // 7b. If bump accepted, insert the bump as a separate child order row
+  // (source='bump', parent_order_id=main). Shares the same Razorpay order id
+  // so the buyer makes a single payment.
+  if (bumpAmount > 0 && bumpProduct) {
+    const bumpCommission =
+      Math.round(((bumpAmount * commissionPct) / 100) * 100) / 100;
+    await admin.from("orders").insert({
+      page_id,
+      seller_user_id: page.user_id,
+      product_id: bumpProduct.id,
+      parent_order_id: orderId,
+      source: "bump",
+      buyer_email,
+      buyer_name: buyer_name ?? null,
+      buyer_phone: buyer_phone ?? null,
+      amount: bumpAmount,
+      platform_commission: bumpCommission,
+      seller_amount: bumpAmount - bumpCommission,
+      currency,
+      status: "pending",
+      payment_gateway: "razorpay",
+      gateway_order_id: razorpayOrder.id,
+      ip_address: ip,
+    });
   }
 
   // 8. Record an abandoned_checkout immediately (marked recovered on success)
