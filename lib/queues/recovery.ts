@@ -104,7 +104,9 @@ export async function scheduleRecovery(
   const jobOpts = (delay: number, jobName: string): JobsOptions => ({
     delay,
     // jobId keeps the schedule idempotent for the same abandoned cart.
-    jobId: `${jobName}:${abandonedId}`,
+    // BullMQ rejects colons in jobIds (reserved for internal key structure),
+    // so we use a double underscore as the separator.
+    jobId: `${jobName}__${abandonedId}`,
   });
 
   const e1 = await queue.add(
