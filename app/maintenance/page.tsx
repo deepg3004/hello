@@ -1,4 +1,7 @@
+import { redirect } from "next/navigation";
+
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isMaintenanceOn } from "@/lib/maintenance";
 
 export const metadata = { title: "We'll be back shortly" };
 export const dynamic = "force-dynamic";
@@ -18,6 +21,10 @@ async function readSetting(key: string, fallback: string): Promise<string> {
 }
 
 export default async function MaintenancePage() {
+  // If the seller turned maintenance back off, don't leave anyone stranded
+  // on this page — bounce them home.
+  if (!(await isMaintenanceOn())) redirect("/");
+
   const [platformName, message, logoUrl, supportEmail] = await Promise.all([
     readSetting("platform_name", "InvoxAI"),
     readSetting("maintenance_message", "We'll be back shortly."),

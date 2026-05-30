@@ -4,6 +4,7 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import type { TopbarProfile } from "@/components/dashboard/Topbar";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { isMaintenanceOn } from "@/lib/maintenance";
 
 export default async function DashboardLayout({
   children,
@@ -20,10 +21,15 @@ export default async function DashboardLayout({
   const { data: profileRow } = await admin
     .from("user_profiles")
     .select(
-      "id, full_name, email, avatar_url, subscription_plan, subscription_status",
+      "id, full_name, email, avatar_url, subscription_plan, subscription_status, is_admin",
     )
     .eq("id", user.id)
     .single();
+
+  // Maintenance gate — admins bypass so they can flip the flag back off.
+  if (!profileRow?.is_admin && (await isMaintenanceOn())) {
+    redirect("/maintenance");
+  }
 
   const profile: TopbarProfile = {
     full_name: profileRow?.full_name ?? null,

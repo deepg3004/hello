@@ -182,30 +182,12 @@ async function lookupHost(
   }
 }
 
-// ── Maintenance flag — 60-second module-level cache ──────────────────────────
-let maintenanceCache: { on: boolean; fetchedAt: number } | null = null;
-const MAINTENANCE_TTL_MS = 60_000;
-
-async function isMaintenanceOn(request: NextRequest): Promise<boolean> {
-  if (maintenanceCache && Date.now() - maintenanceCache.fetchedAt < MAINTENANCE_TTL_MS) {
-    return maintenanceCache.on;
-  }
-  try {
-    const u = request.nextUrl.clone();
-    u.pathname = "/api/platform/maintenance";
-    u.search = "";
-    const res = await fetch(u.toString(), {
-      headers: { accept: "application/json" },
-    });
-    if (!res.ok) return false;
-    const body = (await res.json()) as { on?: boolean };
-    const on = !!body.on;
-    maintenanceCache = { on, fetchedAt: Date.now() };
-    return on;
-  } catch {
-    return false;
-  }
-}
+// Maintenance mode used to live here (HTTP fetch from middleware to
+// /api/platform/maintenance) but the round-trip caused 502s under load
+// and Next 14 doesn't honour `status` on NextResponse.rewrite. The gate
+// now lives directly in the (public) + (dashboard) layouts, which read
+// platform_settings via the admin client — no HTTP loop, admins bypass
+// via a Supabase-session lookup.
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -256,22 +238,8 @@ export async function middleware(request: NextRequest) {
     /* non-fatal — fall through */
   }
 
-  // Maintenance mode — admins always pass through.
-  if (
-    pathname !== "/maintenance" &&
-    !pathname.startsWith("/login") &&
-    !pathname.startsWith("/admin")
-  ) {
-    if (await isMaintenanceOn(request)) {
-      const isAdmin = request.cookies.get("invoxai_is_admin")?.value === "1";
-      if (!isAdmin) {
-        const redirect = request.nextUrl.clone();
-        redirect.pathname = "/maintenance";
-        redirect.search = "";
-        return NextResponse.rewrite(redirect, { status: 503 });
-      }
-    }
-  }
+  // Maintenance mode handled in layouts; see app/(public)/layout.tsx and
+  // app/(dashboard)/layout.tsx.
 
   // Public payment / landing page — possibly route through A/B.
   if (pathname.startsWith("/p/")) {

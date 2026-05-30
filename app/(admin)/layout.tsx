@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/AdminShell";
@@ -29,21 +28,9 @@ export default async function AdminLayout({
     redirect("/dashboard");
   }
 
-  // Mark this session as an admin so middleware can let them bypass the
-  // maintenance gate. Short-lived (1 hour) and refreshed on every admin
-  // page render.
-  try {
-    cookies().set({
-      name: "invoxai_is_admin",
-      value: "1",
-      maxAge: 60 * 60,
-      path: "/",
-      sameSite: "lax",
-      httpOnly: false,
-    });
-  } catch {
-    /* read-only rendering path — fine, we'll set on the next request */
-  }
+  // The admin layout intentionally does NOT short-circuit on
+  // maintenance — admins always pass through so they can flip
+  // the flag back off.
 
   const topbarProfile: AdminTopbarProfile = {
     full_name: profile.full_name ?? null,
