@@ -1,8 +1,140 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import {
+  VISITOR_COOKIE,
+  VISITOR_COOKIE_TTL_DAYS,
+  VARIANT_COOKIE_TTL_DAYS,
+  allocateVariant,
+  newVisitorId,
+  variantCookieName,
+} from "@/lib/ab";
+
 const AUTH_ROUTES = ["/login", "/signup", "/forgot-password"];
 const PROTECTED_PREFIXES = ["/dashboard", "/admin"];
+
+// ── A/B variant routing for public /p/[slug] ───────────────────────────────
+// 60-second module-level cache so a hot page doesn't fetch from /api/ab/config
+// on every request. Each Edge worker keeps its own copy.
+interface CachedConfig {
+  running: boolean;
+  traffic_split: number | null;
+  has_variant_b: boolean;
+  fetchedAt: number;
+}
+const EXP_CACHE_TTL_MS = 60_000;
+const expCache = new Map<string, CachedConfig>();
+
+async function loadExpConfig(
+  request: NextRequest,
+  slug: string,
+): Promise<CachedConfig | null> {
+  const cached = expCache.get(slug);
+  if (cached && Date.now() - cached.fetchedAt < EXP_CACHE_TTL_MS) {
+    return cached;
+  }
+  try {
+    const u = request.nextUrl.clone();
+    u.pathname = "/api/ab/config";
+    u.search = `?slug=${encodeURIComponent(slug)}`;
+    const res = await fetch(u.toString(), {
+      // Edge fetch — keep it minimal and cache-friendly.
+      headers: { accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as {
+      running?: boolean;
+      traffic_split?: number | null;
+      has_variant_b?: boolean;
+    };
+    const fresh: CachedConfig = {
+      running: !!body.running,
+      traffic_split: body.traffic_split ?? null,
+      has_variant_b: !!body.has_variant_b,
+      fetchedAt: Date.now(),
+    };
+    expCache.set(slug, fresh);
+    return fresh;
+  } catch {
+    return null;
+  }
+}
+
+function maybeRouteAB(
+  request: NextRequest,
+  pathname: string,
+): Promise<NextResponse | null> {
+  // Only act on /p/[slug] and only on the bare slug (not /p/[slug]/oto etc.).
+  const match = pathname.match(/^\/p\/([^\/]+)\/?$/);
+  if (!match) return Promise.resolve(null);
+  const slug = match[1]!;
+  return (async () => {
+    const config = await loadExpConfig(request, slug);
+    if (
+      !config ||
+      !config.running ||
+      !config.has_variant_b ||
+      config.traffic_split == null
+    ) {
+      return null;
+    }
+
+    // 1. visitor id cookie
+    let visitorId = request.cookies.get(VISITOR_COOKIE)?.value;
+    let mintedVisitor = false;
+    if (!visitorId) {
+      visitorId = newVisitorId();
+      mintedVisitor = true;
+    }
+
+    // 2. variant cookie (sticky for the duration)
+    const varCookie = variantCookieName(slug);
+    let variant = request.cookies.get(varCookie)?.value as
+      | "A"
+      | "B"
+      | undefined;
+    let mintedVariant = false;
+    if (variant !== "A" && variant !== "B") {
+      variant = allocateVariant({
+        visitorId,
+        slug,
+        trafficSplit: config.traffic_split,
+      });
+      mintedVariant = true;
+    }
+
+    // 3. rewrite for B, pass through for A
+    const url = request.nextUrl.clone();
+    let response: NextResponse;
+    if (variant === "B") {
+      url.pathname = `/p-variant/${slug}`;
+      response = NextResponse.rewrite(url);
+    } else {
+      response = NextResponse.next();
+    }
+
+    // 4. set cookies so the assignment + visitor id stick for next time
+    if (mintedVisitor) {
+      response.cookies.set({
+        name: VISITOR_COOKIE,
+        value: visitorId,
+        maxAge: VISITOR_COOKIE_TTL_DAYS * 86_400,
+        path: "/",
+        sameSite: "lax",
+      });
+    }
+    if (mintedVariant) {
+      response.cookies.set({
+        name: varCookie,
+        value: variant,
+        maxAge: VARIANT_COOKIE_TTL_DAYS * 86_400,
+        path: "/",
+        sameSite: "lax",
+      });
+    }
+    return response;
+  })();
+}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -11,9 +143,15 @@ export async function middleware(request: NextRequest) {
   if (
     pathname.startsWith("/api") ||
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/p/") ||
     pathname === "/favicon.ico"
   ) {
+    return NextResponse.next();
+  }
+
+  // Public payment / landing page — possibly route through A/B.
+  if (pathname.startsWith("/p/")) {
+    const abResponse = await maybeRouteAB(request, pathname);
+    if (abResponse) return abResponse;
     return NextResponse.next();
   }
 

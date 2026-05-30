@@ -31,6 +31,8 @@ import {
   type FormConfig,
   type LeadMagnetMeta,
 } from "@/lib/leads";
+import { getRedis } from "@/lib/redis";
+import { conversionsKey, variantCookieName } from "@/lib/ab";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SIGNED_URL_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
@@ -69,7 +71,7 @@ export async function POST(request: Request) {
   const { data: page } = await admin
     .from("pages")
     .select(
-      "id, user_id, slug, title, status, page_config, user_profiles!pages_user_id_fkey(full_name, email)",
+      "id, user_id, slug, title, status, page_config, experiment_status, user_profiles!pages_user_id_fkey(full_name, email)",
     )
     .eq("id", page_id)
     .single();
@@ -102,6 +104,18 @@ export async function POST(request: Request) {
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
   const tags = normalizeTags(cfg.auto_tags ?? []);
 
+  // A/B — sniff variant cookie for the page (if experiment is running).
+  let expVariant: "A" | "B" | null = null;
+  if (page.experiment_status === "running" && page.slug) {
+    const cookieHeader = request.headers.get("cookie") ?? "";
+    const want = variantCookieName(page.slug);
+    const match = cookieHeader
+      .split(/;\s*/)
+      .find((p) => p.startsWith(`${want}=`));
+    const val = match?.split("=")[1];
+    if (val === "A" || val === "B") expVariant = val;
+  }
+
   const { data: insertedRaw, error: insertErr } = await admin
     .from("lead_captures")
     .insert({
@@ -115,9 +129,20 @@ export async function POST(request: Request) {
       ip_address: ip,
       custom_fields: custom_fields ?? {},
       tags,
+      exp_variant: expVariant,
     })
     .select("id")
     .single();
+
+  // A/B — fire the conversion counter once we know the lead landed.
+  if (expVariant && page.slug) {
+    try {
+      const redis = getRedis();
+      if (redis) await redis.incr(conversionsKey(page.slug, expVariant));
+    } catch (e) {
+      console.error("[lead-captures] AB INCR failed", e);
+    }
+  }
   if (insertErr || !insertedRaw) {
     return NextResponse.json(
       { error: insertErr?.message ?? "Insert failed" },

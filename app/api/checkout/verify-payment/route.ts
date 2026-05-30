@@ -11,6 +11,12 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyPayment } from "@/lib/razorpay";
 import { settleCoupon } from "@/lib/coupons";
+import { getRedis } from "@/lib/redis";
+import {
+  conversionsKey,
+  revenueKey,
+  variantCookieName,
+} from "@/lib/ab";
 
 export async function POST(request: Request) {
   let body: {
@@ -59,6 +65,31 @@ export async function POST(request: Request) {
     });
   }
 
+  // 0. A/B — sniff the variant cookie for this page (if any).
+  let expVariant: "A" | "B" | null = null;
+  let expSlug: string | null = null;
+  try {
+    if (order.page_id) {
+      const { data: pageRow } = await admin
+        .from("pages")
+        .select("slug, experiment_status")
+        .eq("id", order.page_id)
+        .single();
+      if (pageRow?.experiment_status === "running" && pageRow.slug) {
+        expSlug = pageRow.slug;
+        const cookieHeader = request.headers.get("cookie") ?? "";
+        const want = variantCookieName(pageRow.slug);
+        const match = cookieHeader
+          .split(/;\s*/)
+          .find((p) => p.startsWith(`${want}=`));
+        const val = match?.split("=")[1];
+        if (val === "A" || val === "B") expVariant = val;
+      }
+    }
+  } catch (e) {
+    console.error("[verify-payment] AB cookie read failed", e);
+  }
+
   // 1. Mark order paid (and any bump child row riding on the same payment)
   const paidAt = new Date().toISOString();
   await admin
@@ -68,8 +99,26 @@ export async function POST(request: Request) {
       gateway_payment_id: razorpay_payment_id,
       gateway_signature: razorpay_signature,
       paid_at: paidAt,
+      exp_variant: expVariant,
     })
     .eq("id", order_id);
+
+  // 1b. AB conversion counters — best-effort. Revenue tracked in paise so we
+  //     don't lose paisa-level precision when summing.
+  if (expSlug && expVariant) {
+    try {
+      const redis = getRedis();
+      if (redis) {
+        await redis.incr(conversionsKey(expSlug, expVariant));
+        const paise = Math.round(Number(order.amount ?? 0) * 100);
+        if (paise > 0) {
+          await redis.incrby(revenueKey(expSlug, expVariant), paise);
+        }
+      }
+    } catch (e) {
+      console.error("[verify-payment] AB INCR failed", e);
+    }
+  }
   await admin
     .from("orders")
     .update({

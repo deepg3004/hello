@@ -1,3 +1,9 @@
+// /p-variant/[slug] — internal route the middleware rewrites to when a
+// visitor is bucketed into Variant B. Identical to /p/[slug] except it
+// reads pages.variant_b_config and increments the B-side visitor counter.
+//
+// Buyers never see this path in their URL bar (the rewrite is server-side).
+
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Script from "next/script";
@@ -20,11 +26,12 @@ interface PageRow {
   status: string;
   template_id: string;
   page_config: Record<string, unknown> | null;
+  variant_b_config: Record<string, unknown> | null;
+  experiment_status: string | null;
   meta_title: string | null;
   meta_description: string | null;
   meta_image_url: string | null;
   view_count: number;
-  experiment_status: string | null;
 }
 
 interface ProductRow {
@@ -35,7 +42,6 @@ interface ProductRow {
   image_url: string | null;
   price: number;
   currency: string;
-  active: boolean;
 }
 
 interface PixelRow {
@@ -51,11 +57,16 @@ async function loadPage(slug: string) {
   const { data: page } = await admin
     .from("pages")
     .select(
-      "id, user_id, title, slug, type, status, template_id, page_config, meta_title, meta_description, meta_image_url, view_count, experiment_status",
+      "id, user_id, title, slug, type, status, template_id, page_config, variant_b_config, experiment_status, meta_title, meta_description, meta_image_url, view_count",
     )
     .eq("slug", slug)
     .single<PageRow>();
   if (!page || page.status !== "published") return null;
+  // If the experiment has been stopped / promoted, fall back to the main
+  // config (the seller may have removed variant_b_config).
+  if (page.experiment_status !== "running" || !page.variant_b_config) {
+    return null;
+  }
 
   const { data: products } = await admin
     .from("products")
@@ -97,7 +108,7 @@ export async function generateMetadata({
   };
 }
 
-export default async function PublicPage({
+export default async function VariantBPage({
   params,
 }: {
   params: { slug: string };
@@ -108,14 +119,9 @@ export default async function PublicPage({
   if (!result) {
     return (
       <main className="mx-auto max-w-2xl px-6 py-16 text-center">
-        <p className="text-xs uppercase tracking-widest text-muted-foreground">
-          invoxai.io / p
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-          {params.slug}
-        </h1>
+        <h1 className="text-3xl font-semibold tracking-tight">{params.slug}</h1>
         <p className="mt-4 text-muted-foreground">
-          This page isn&apos;t live yet. Check back soon.
+          This page isn&apos;t running an A/B experiment right now.
         </p>
       </main>
     );
@@ -146,29 +152,28 @@ export default async function PublicPage({
     /* non-fatal */
   }
 
-  // A-side visitor counter when an experiment is live. Best-effort.
+  // B-side visitor counter — best-effort, no-ops without Redis.
   try {
-    if ((page as { experiment_status?: string }).experiment_status === "running") {
-      const redis = getRedis();
-      if (redis) await redis.incr(visitorsKey(page.slug, "A"));
-    }
+    const redis = getRedis();
+    if (redis) await redis.incr(visitorsKey(page.slug, "B"));
   } catch {
     /* non-fatal */
   }
 
-  const values = page.page_config ?? template.defaultValues;
-  const countdownCfg = (values as Record<string, unknown>).countdown_config as
+  // The whole point of this route — use variant_b_config.
+  const values = (page.variant_b_config ??
+    page.page_config ??
+    template.defaultValues) as Record<string, unknown>;
+
+  const countdownCfg = values.countdown_config as
     | import("@/lib/conversion").CountdownConfig
     | undefined;
-  const exitCfg = (values as Record<string, unknown>).exit_intent_config as
+  const exitCfg = values.exit_intent_config as
     | import("@/lib/conversion").ExitIntentConfig
     | undefined;
 
-  // Resolve page-level order bump into runtime form.
   let bumpRuntime: BumpRuntime = null;
-  const bumpCfgRaw = (values as Record<string, unknown>).order_bump as
-    | OrderBumpConfig
-    | undefined;
+  const bumpCfgRaw = values.order_bump as OrderBumpConfig | undefined;
   if (isBumpReady(bumpCfgRaw)) {
     const admin = createAdminClient();
     const { data: bumpProd } = await admin
@@ -214,45 +219,22 @@ function PixelScripts({ pixel }: { pixel: PixelRow | null | undefined }) {
     <>
       {pixel.meta_pixel_id && (
         <>
-          <Script id="meta-pixel" strategy="afterInteractive">
+          <Script id="meta-pixel-b" strategy="afterInteractive">
             {`!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${pixel.meta_pixel_id}');fbq('track','PageView');`}
           </Script>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <noscript>
-            <img
-              height="1"
-              width="1"
-              style={{ display: "none" }}
-              alt=""
-              src={`https://www.facebook.com/tr?id=${pixel.meta_pixel_id}&ev=PageView&noscript=1`}
-            />
-          </noscript>
         </>
       )}
-
       {pixel.google_ads_id && (
         <>
           <Script
-            id="gads-loader"
+            id="gads-loader-b"
             strategy="afterInteractive"
             src={`https://www.googletagmanager.com/gtag/js?id=${pixel.google_ads_id}`}
           />
-          <Script id="gads-init" strategy="afterInteractive">
+          <Script id="gads-init-b" strategy="afterInteractive">
             {`window.dataLayer = window.dataLayer || [];function gtag(){dataLayer.push(arguments);}gtag('js', new Date());gtag('config', '${pixel.google_ads_id}');`}
           </Script>
         </>
-      )}
-
-      {pixel.tiktok_pixel_id && (
-        <Script id="tiktok-pixel" strategy="afterInteractive">
-          {`!function (w, d, t) { w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};ttq.load=function(e,n){var i="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{};ttq._i[e]=[];ttq._i[e]._u=i;ttq._t=ttq._t||{};ttq._t[e]=+new Date;ttq._o=ttq._o||{};ttq._o[e]=n||{};var o=d.createElement("script");o.type="text/javascript",o.async=!0,o.src=i+"?sdkid="+e+"&lib="+t;var a=d.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};ttq.load('${pixel.tiktok_pixel_id}');ttq.page();}(window, document, 'ttq');`}
-        </Script>
-      )}
-
-      {pixel.hotjar_id && (
-        <Script id="hotjar" strategy="afterInteractive">
-          {`(function(h,o,t,j,a,r){h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};h._hjSettings={hjid:${pixel.hotjar_id},hjsv:6};a=o.getElementsByTagName('head')[0];r=o.createElement('script');r.async=1;r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv;a.appendChild(r);})(window,document,'https://static.hotjar.com/c/hotjar-','.js?sv=');`}
-        </Script>
       )}
     </>
   );

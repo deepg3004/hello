@@ -147,6 +147,11 @@ export function PageCard({ page }: { page: PageCardData }) {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
+                <Link href={`/dashboard/pages/${page.id}/ab-test`}>
+                  <Pencil className="mr-2 h-3.5 w-3.5" /> A/B test
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
                 <a href={`/p/${page.slug}`} target="_blank" rel="noreferrer">
                   <ExternalLink className="mr-2 h-3.5 w-3.5" /> View live
                 </a>
