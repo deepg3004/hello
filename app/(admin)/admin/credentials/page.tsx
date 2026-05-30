@@ -22,7 +22,13 @@ const CREDENTIALS: CredentialDef[] = [
   { key: "SUPABASE_ANON_KEY", label: "Supabase Anon Key", encrypted: false },
   { key: "SUPABASE_SERVICE_ROLE_KEY", label: "Supabase Service-Role Key", encrypted: true },
   { key: "RESEND_API_KEY", label: "Resend API Key", encrypted: true },
-  { key: "MSG91_AUTH_KEY", label: "MSG91 Auth Key", encrypted: true },
+  // Twilio (primary SMS / WhatsApp provider)
+  { key: "TWILIO_ACCOUNT_SID", label: "Twilio Account SID", encrypted: false, description: "From console.twilio.com — starts with AC..." },
+  { key: "TWILIO_AUTH_TOKEN", label: "Twilio Auth Token", encrypted: true },
+  { key: "TWILIO_PHONE_NUMBER", label: "Twilio SMS From (E.164)", encrypted: false, description: "e.g. +13393303027" },
+  { key: "TWILIO_WHATSAPP_FROM", label: "Twilio WhatsApp From", encrypted: false, description: "e.g. whatsapp:+14155238886 (sandbox) or your approved sender" },
+  // MSG91 (deprecated — kept so reverting is easy)
+  { key: "MSG91_AUTH_KEY", label: "MSG91 Auth Key (deprecated, replaced by Twilio)", encrypted: true },
   { key: "TELEGRAM_BOT_TOKEN", label: "Telegram Bot Token", encrypted: true, description: "For platform notifications." },
   { key: "SUREPASS_TOKEN", label: "Surepass KYC Token", encrypted: true, description: "Bearer token for PAN / bank / Aadhaar verification." },
   { key: "STARTER_PLAN_ID", label: "Razorpay Plan: Starter", encrypted: false },

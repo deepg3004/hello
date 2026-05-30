@@ -10,7 +10,7 @@ import { NextResponse } from "next/server";
 
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { generateOtp, hashOtp, sendSms } from "@/lib/msg91";
+import { generateOtp, hashOtp, sendSms } from "@/lib/twilio";
 
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const RESEND_COOLDOWN_MS = 60 * 1000; // 1 minute

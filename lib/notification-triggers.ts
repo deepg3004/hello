@@ -3,7 +3,7 @@
 // in try/catch so notification failures never affect the core flow.
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendWhatsApp, WA_TEMPLATES } from "@/lib/msg91";
+import { sendWhatsApp, WA_TEMPLATES } from "@/lib/twilio";
 import {
   isEmailEventEnabled,
   isEventEnabled,

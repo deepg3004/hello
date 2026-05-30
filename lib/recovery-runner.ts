@@ -14,7 +14,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail, recoveryEmail1, recoveryEmail2 } from "@/lib/email";
-import { sendWhatsApp, WA_TEMPLATES } from "@/lib/msg91";
+import { sendWhatsApp, WA_TEMPLATES } from "@/lib/twilio";
 
 interface AbandonedRow {
   id: string;

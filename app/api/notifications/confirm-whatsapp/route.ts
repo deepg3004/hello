@@ -15,7 +15,7 @@ import { NextResponse } from "next/server";
 
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { hashOtp } from "@/lib/msg91";
+import { hashOtp } from "@/lib/twilio";
 import type { NotificationsConfig } from "@/lib/notifications-config";
 
 const MAX_ATTEMPTS = 5;

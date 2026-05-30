@@ -1,82 +1,30 @@
-// MSG91 WhatsApp send wrapper. Fail-soft when keys aren't set so callers can
-// always treat WhatsApp delivery as best-effort.
+// Thin compatibility wrapper around lib/twilio. The richer API lives there.
 //
-// MSG91 docs: https://docs.msg91.com/whatsapp/send-message
-// Endpoint used: https://control.msg91.com/api/v5/whatsapp/whatsapp-outbound-message
+// This file used to talk to MSG91 directly and is no longer imported anywhere
+// in the codebase, but we keep it as a thin Twilio passthrough so any future
+// import doesn't accidentally bring back the old MSG91 dependency.
+
+import {
+  sendWhatsApp as twilioSendWhatsApp,
+  type WaResult as TwilioWaResult,
+} from "@/lib/twilio";
 
 export interface WaSendArgs {
-  to: string;                          // E.164 phone (with country code, no +)
+  to: string;                          // E.164 phone (with country code, +91...)
   template_name?: string;              // when sending an approved template
-  body?: string;                       // for session messages
+  body?: string;                       // for session messages (sandbox / 24h window)
   /** Variables to substitute into the template, in order. */
   variables?: string[];
 }
 
-export interface WaResult {
-  ok: boolean;
-  id?: string;
-  message?: string;
-  skipped?: boolean;
-}
+export type WaResult = TwilioWaResult;
 
 export async function sendWhatsApp(args: WaSendArgs): Promise<WaResult> {
-  const key = process.env.MSG91_AUTH_KEY;
-  if (!key) {
-    console.warn("[whatsapp] MSG91_AUTH_KEY not set — skipping send", {
-      to: args.to,
-      template: args.template_name,
-    });
-    return { ok: true, skipped: true };
+  if (args.template_name) {
+    return twilioSendWhatsApp(args.to, args.template_name, args.variables ?? []);
   }
-  try {
-    const payload = args.template_name
-      ? {
-          integrated_number: process.env.MSG91_WA_FROM ?? "",
-          content_type: "template",
-          payload: {
-            messaging_product: "whatsapp",
-            type: "template",
-            template: {
-              name: args.template_name,
-              language: { code: "en", policy: "deterministic" },
-              namespace: process.env.MSG91_WA_NAMESPACE ?? "",
-              to_and_components: [
-                {
-                  to: [args.to.replace(/^\+/, "")],
-                  components: {
-                    body_1: { type: "text", value: args.variables?.[0] ?? "" },
-                    body_2: { type: "text", value: args.variables?.[1] ?? "" },
-                    body_3: { type: "text", value: args.variables?.[2] ?? "" },
-                  },
-                },
-              ],
-            },
-          },
-        }
-      : {
-          integrated_number: process.env.MSG91_WA_FROM ?? "",
-          content_type: "text",
-          payload: {
-            messaging_product: "whatsapp",
-            type: "text",
-            text: { body: args.body ?? "" },
-            to: args.to.replace(/^\+/, ""),
-          },
-        };
-    const res = await fetch(
-      "https://control.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/",
-      {
-        method: "POST",
-        headers: { "content-type": "application/json", authkey: key },
-        body: JSON.stringify(payload),
-      },
-    );
-    if (!res.ok) {
-      return { ok: false, message: `HTTP ${res.status}` };
-    }
-    const json = (await res.json()) as { request_id?: string };
-    return { ok: true, id: json.request_id };
-  } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : String(e) };
-  }
+  // Freeform body — Twilio backend uses the template_id fallback formatter
+  // for unknown names. We pass a synthetic name + the body as variable 0,
+  // and the fallback default just concatenates vars.
+  return twilioSendWhatsApp(args.to, "__FREEFORM__", [args.body ?? ""]);
 }

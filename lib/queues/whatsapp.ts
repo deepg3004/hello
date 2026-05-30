@@ -1,8 +1,8 @@
-// whatsappQueue — MSG91 template sends with retry backoff.
+// whatsappQueue — Twilio WhatsApp sends with retry backoff.
 
 import type { Queue, Worker } from "bullmq";
 
-import type { WaTemplateName } from "@/lib/msg91";
+import type { WaTemplateName } from "@/lib/twilio";
 
 export const WA_QUEUE_NAME = "whatsapp";
 
@@ -30,7 +30,7 @@ export async function enqueueWhatsApp(job: WhatsAppJobData): Promise<boolean> {
   if (!c) {
     void (async () => {
       try {
-        const { sendWhatsApp } = await import("@/lib/msg91");
+        const { sendWhatsApp } = await import("@/lib/twilio");
         await sendWhatsApp(job.to, job.template, job.variables);
       } catch (e) {
         console.error("[wa-queue] inline send failed", e);
@@ -72,7 +72,7 @@ export async function bootWhatsAppWorker(): Promise<void> {
     const w = new Worker<WhatsAppJobData>(
       WA_QUEUE_NAME,
       async (job) => {
-        const { sendWhatsApp } = await import("@/lib/msg91");
+        const { sendWhatsApp } = await import("@/lib/twilio");
         const res = await sendWhatsApp(
           job.data.to,
           job.data.template,
