@@ -43,6 +43,11 @@ interface ProductRow {
   price: number;
   currency: string;
   active: boolean;
+  /** Days of access granted after purchase. NULL = no expiry (lifetime). */
+  subscription_days: number | null;
+  /** "Monthly", "Yearly", "Lifetime" — short label rendered on the tier card. */
+  display_label: string | null;
+  sort_order: number;
 }
 
 interface PixelRow {
@@ -66,15 +71,22 @@ async function loadPage(slug: string) {
     .single<PageRow>();
   if (!page || page.status !== "published") return null;
 
+  // Load all active products for the page, ordered as the seller arranged.
+  // Single-product pages just see one row; tiered pages (Telegram VIP with
+  // Weekly/Monthly/Yearly/Lifetime) see multiple. Template decides how to
+  // render — `product` is the default (lowest sort_order) for backward compat.
   const { data: products } = await admin
     .from("products")
-    .select("id, user_id, name, description, image_url, price, currency, active")
+    .select(
+      "id, user_id, name, description, image_url, price, currency, active, subscription_days, display_label, sort_order",
+    )
     .eq("user_id", page.user_id)
     .eq("page_id", page.id)
     .eq("active", true)
-    .order("created_at", { ascending: true })
-    .limit(1);
-  const product = (products?.[0] as ProductRow | undefined) ?? null;
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+  const productList = (products ?? []) as ProductRow[];
+  const product = productList[0] ?? null;
 
   const { data: pixel } = await admin
     .from("pixel_configs")
@@ -84,7 +96,7 @@ async function loadPage(slug: string) {
     .eq("page_id", page.id)
     .maybeSingle<PixelRow>();
 
-  return { page, product, pixel };
+  return { page, product, products: productList, pixel };
 }
 
 export async function generateMetadata({
@@ -132,7 +144,7 @@ export default async function PublicPage({
     );
   }
 
-  const { page, product, pixel } = result;
+  const { page, product, products: tierList, pixel } = result;
   const template = getTemplate(page.template_id);
 
   if (!template) {
@@ -222,6 +234,7 @@ export default async function PublicPage({
         values={values}
         pageId={page.id}
         product={product}
+        products={tierList}
         bumpRuntime={bumpRuntime}
       />
       {exitCfg?.enabled && (

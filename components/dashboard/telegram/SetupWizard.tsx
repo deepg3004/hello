@@ -9,7 +9,9 @@ import {
   ChevronRight,
   ClipboardCopy,
   Loader2,
+  Plus,
   Send,
+  Trash2,
   Users,
 } from "lucide-react";
 
@@ -17,6 +19,7 @@ import {
   saveTelegramSetupAction,
   verifyBotTokenAction,
   verifyGroupAction,
+  type TelegramPlanInput,
 } from "@/actions/telegram";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,14 +47,24 @@ interface SetupWizardProps {
   appUrl: string;
 }
 
-type Step = 1 | 2 | 3 | 4 | 5;
+type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 const STEPS: Array<{ id: Step; label: string }> = [
   { id: 1, label: "Bot token" },
   { id: 2, label: "Add to group" },
   { id: 3, label: "Group id" },
   { id: 4, label: "Access" },
-  { id: 5, label: "Link page" },
+  { id: 5, label: "Plans" },
+  { id: 6, label: "Link page" },
+];
+
+/** Default plan rows shown when seller opens step 5. Seller can edit, add,
+ *  or remove rows. Empty list means "use single-tier flow (access duration)". */
+const DEFAULT_PLAN_TEMPLATES: TelegramPlanInput[] = [
+  { label: "Weekly",   duration_days: 7,    price: 99 },
+  { label: "Monthly",  duration_days: 30,   price: 299 },
+  { label: "Yearly",   duration_days: 365,  price: 2499 },
+  { label: "Lifetime", duration_days: null, price: 4999 },
 ];
 
 const DURATIONS: Array<{ label: string; days: number }> = [
@@ -81,7 +94,13 @@ export function SetupWizard({ pages, appUrl }: SetupWizardProps) {
   const [durationDays, setDurationDays] = useState<number>(30);
   const [autoRenew, setAutoRenew] = useState(false);
 
-  // Step 5
+  // Step 5 — subscription plan tiers. Pre-seeded with the four common tiers,
+  // seller adjusts prices / removes rows / adds custom ones.
+  const [plans, setPlans] = useState<TelegramPlanInput[]>(
+    DEFAULT_PLAN_TEMPLATES.map((p) => ({ ...p })),
+  );
+
+  // Step 6
   const [pageId, setPageId] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
@@ -111,6 +130,15 @@ export function SetupWizard({ pages, appUrl }: SetupWizardProps) {
 
   async function finish() {
     if (!bot || !group) return;
+    // Drop empty rows. Plans only saved if a page is linked.
+    const cleanPlans = plans
+      .map((p) => ({
+        label: p.label.trim(),
+        duration_days: p.duration_days,
+        price: Number(p.price) || 0,
+      }))
+      .filter((p) => p.label.length > 0 && p.price > 0);
+
     setSaving(true);
     const r = await saveTelegramSetupAction({
       bot_token: botToken,
@@ -121,6 +149,7 @@ export function SetupWizard({ pages, appUrl }: SetupWizardProps) {
       access_duration_days: durationDays,
       auto_renewal_enabled: autoRenew,
       page_id: pageId || undefined,
+      plans: pageId ? cleanPlans : undefined,
     });
     setSaving(false);
     if (!r.ok) {
@@ -314,6 +343,132 @@ export function SetupWizard({ pages, appUrl }: SetupWizardProps) {
       {step === 5 && (
         <Card>
           <CardHeader>
+            <CardTitle className="text-base">Subscription plans</CardTitle>
+            <CardDescription>
+              Define one or more pricing tiers. Buyers will pick one on the
+              public page. Leave the list empty to keep the single Access
+              duration from the previous step. Plans are saved only if you
+              link a page in the next step.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              {plans.map((p, idx) => (
+                <div
+                  key={idx}
+                  className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2 rounded-md border bg-muted/20 p-3"
+                >
+                  <div className="space-y-1">
+                    <Label className="text-xs">Label</Label>
+                    <Input
+                      value={p.label}
+                      placeholder="Monthly"
+                      onChange={(e) =>
+                        setPlans((rows) =>
+                          rows.map((r, i) =>
+                            i === idx ? { ...r, label: e.target.value } : r,
+                          ),
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Duration</Label>
+                    <Select
+                      value={
+                        p.duration_days === null
+                          ? "lifetime"
+                          : String(p.duration_days)
+                      }
+                      onValueChange={(v) =>
+                        setPlans((rows) =>
+                          rows.map((r, i) =>
+                            i === idx
+                              ? {
+                                  ...r,
+                                  duration_days:
+                                    v === "lifetime" ? null : Number(v),
+                                }
+                              : r,
+                          ),
+                        )
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="7">Weekly (7 days)</SelectItem>
+                        <SelectItem value="14">14 days</SelectItem>
+                        <SelectItem value="30">Monthly (30 days)</SelectItem>
+                        <SelectItem value="90">Quarterly (90 days)</SelectItem>
+                        <SelectItem value="180">6 months</SelectItem>
+                        <SelectItem value="365">Yearly (365 days)</SelectItem>
+                        <SelectItem value="lifetime">Lifetime</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Price (₹)</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={p.price === 0 ? "" : String(p.price)}
+                      placeholder="299"
+                      onChange={(e) =>
+                        setPlans((rows) =>
+                          rows.map((r, i) =>
+                            i === idx
+                              ? { ...r, price: Number(e.target.value) || 0 }
+                              : r,
+                          ),
+                        )
+                      }
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Remove plan"
+                    onClick={() =>
+                      setPlans((rows) => rows.filter((_, i) => i !== idx))
+                    }
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setPlans((rows) => [
+                  ...rows,
+                  { label: "", duration_days: 30, price: 0 },
+                ])
+              }
+            >
+              <Plus className="mr-1 h-4 w-4" /> Add another tier
+            </Button>
+
+            <div className="flex justify-between pt-2">
+              <Button variant="ghost" onClick={() => setStep(4)}>
+                <ChevronLeft className="mr-1 h-4 w-4" /> Back
+              </Button>
+              <Button onClick={() => setStep(6)}>
+                Continue <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 6 && (
+        <Card>
+          <CardHeader>
             <CardTitle className="text-base">Link to a page</CardTitle>
             <CardDescription>
               We&apos;ll attach this Telegram setup to a payment page so every
@@ -372,7 +527,7 @@ export function SetupWizard({ pages, appUrl }: SetupWizardProps) {
               </p>
             </div>
             <div className="flex justify-between">
-              <Button variant="ghost" onClick={() => setStep(4)}>
+              <Button variant="ghost" onClick={() => setStep(5)}>
                 <ChevronLeft className="mr-1 h-4 w-4" /> Back
               </Button>
               <Button onClick={finish} disabled={saving}>

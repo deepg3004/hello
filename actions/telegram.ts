@@ -85,6 +85,15 @@ export async function verifyGroupAction(
 // Save the setup
 // ----------------------------------------------------------------------------
 
+/** One subscription tier the seller wants to offer (Weekly/Monthly/Yearly/etc).
+ *  Each tier becomes one products row attached to the linked page; the public
+ *  TelegramVipPage renders a picker so buyers choose which to pay for. */
+export interface TelegramPlanInput {
+  label: string;            // "Weekly", "Monthly", "Yearly", "Lifetime"
+  duration_days: number | null; // null = lifetime
+  price: number;            // INR
+}
+
 export interface SaveSetupInput {
   bot_token: string;
   bot_username?: string;
@@ -94,6 +103,10 @@ export interface SaveSetupInput {
   access_duration_days: number;
   auto_renewal_enabled: boolean;
   page_id?: string;
+  /** Optional list of tier plans. When provided and `page_id` is set, we
+   *  insert one products row per plan attached to the page. If empty we
+   *  fall back to the single-duration flow (access_duration_days). */
+  plans?: TelegramPlanInput[];
 }
 
 export async function saveTelegramSetupAction(
@@ -157,6 +170,41 @@ export async function saveTelegramSetupAction(
       .update({ telegram_group_id: inserted.id })
       .eq("id", input.page_id)
       .eq("user_id", user.id);
+
+    // Create tier products if the seller defined plans. We deactivate any
+    // pre-existing active products for the page so this run is the source
+    // of truth (idempotent re-setup).
+    const plans = (input.plans ?? []).filter(
+      (p) => p.label && p.price > 0,
+    );
+    if (plans.length > 0) {
+      await admin
+        .from("products")
+        .update({ active: false })
+        .eq("page_id", input.page_id)
+        .eq("user_id", user.id);
+
+      const rows = plans.map((p, idx) => ({
+        user_id: user.id,
+        page_id: input.page_id,
+        name: `${p.label} VIP access`,
+        display_label: p.label,
+        price: p.price,
+        currency: "INR",
+        type: "one_time" as const,
+        subscription_days: p.duration_days,
+        sort_order: idx,
+        active: true,
+      }));
+      const { error: prodErr } = await admin.from("products").insert(rows);
+      if (prodErr) {
+        return {
+          ok: true,
+          data: { id: inserted.id },
+          message: `Saved, but plan products failed: ${prodErr.message}. Add them from the page editor.`,
+        };
+      }
+    }
   }
 
   revalidatePath("/dashboard/telegram");
@@ -289,7 +337,7 @@ export async function issueInviteForOrder(orderId: string): Promise<
   const { data: order } = await admin
     .from("orders")
     .select(
-      "id, buyer_email, buyer_name, page_id, seller_user_id, telegram_invite_link",
+      "id, buyer_email, buyer_name, page_id, product_id, seller_user_id, telegram_invite_link",
     )
     .eq("id", orderId)
     .single();
@@ -330,9 +378,24 @@ export async function issueInviteForOrder(orderId: string): Promise<
     return { ok: false, message: e instanceof Error ? e.message : String(e) };
   }
 
-  const durationDays = group.access_duration_days ?? 30;
+  // Prefer the product's subscription_days (set by the tier the buyer
+  // picked — e.g. Monthly=30, Yearly=365, Lifetime=null). Fall back to the
+  // group's single access_duration_days for legacy single-tier setups.
+  let tierDays: number | null = null;
+  if (order.product_id) {
+    const { data: prod } = await admin
+      .from("products")
+      .select("subscription_days")
+      .eq("id", order.product_id)
+      .maybeSingle();
+    if (prod) tierDays = prod.subscription_days;
+  }
+  const durationDays =
+    tierDays !== null
+      ? tierDays
+      : (group.access_duration_days ?? 30);
   const expiresAt =
-    durationDays > 0
+    durationDays && durationDays > 0
       ? new Date(Date.now() + durationDays * 86_400_000).toISOString()
       : null; // lifetime
 

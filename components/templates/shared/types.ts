@@ -10,6 +10,12 @@ export interface TemplateProduct {
   image_url: string | null;
   price: number;
   currency: string;
+  /** Days of access granted. NULL = lifetime. Used by the TelegramVipPage
+   *  tier picker to render the "30 days" / "Lifetime" badge. */
+  subscription_days?: number | null;
+  /** Short user-facing label: "Weekly", "Monthly", "Yearly", "Lifetime". */
+  display_label?: string | null;
+  sort_order?: number;
 }
 
 export interface ThemeConfig {
@@ -44,6 +50,10 @@ export type BumpRuntime = (PageBumpConfig & { ready: true }) | null;
 export interface BaseTemplateProps {
   pageId?: string;
   product?: TemplateProduct | null;
+  /** All active products attached to the page. Tiered templates
+   *  (TelegramVipPage with Monthly/Yearly/Lifetime) render this as a picker.
+   *  Single-product templates can ignore it and use `product`. */
+  products?: TemplateProduct[];
   isPreview?: boolean;
   theme?: ThemeConfig;
   timer?: TimerConfig;
