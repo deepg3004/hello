@@ -75,7 +75,7 @@ export interface TemplateRenderProps {
   values: Record<string, unknown>;
   /** Present once the page is saved. Used for analytics / checkout. */
   pageId?: string;
-  /** Pre-fetched product for payment templates. */
+  /** Pre-fetched product for payment templates (lowest sort_order). */
   product?: {
     id: string;
     name: string;
@@ -83,7 +83,24 @@ export interface TemplateRenderProps {
     image_url: string | null;
     price: number;
     currency: string;
+    subscription_days?: number | null;
+    display_label?: string | null;
+    sort_order?: number;
   } | null;
+  /** All active products for the page — tiered templates (TelegramVipPage
+   *  with Monthly/Yearly/Lifetime) render this as a picker. Single-product
+   *  templates can ignore it and use `product`. */
+  products?: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    image_url: string | null;
+    price: number;
+    currency: string;
+    subscription_days?: number | null;
+    display_label?: string | null;
+    sort_order?: number;
+  }>;
   /** Set to true inside the preview iframe — disables analytics + view bump. */
   isPreview?: boolean;
   /** Page-level order-bump runtime resolved at request time. */
