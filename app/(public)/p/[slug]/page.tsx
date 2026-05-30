@@ -4,6 +4,8 @@ import Script from "next/script";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTemplate } from "@/lib/templates/registry";
+import { PageCountdown } from "@/components/templates/shared/PageCountdown";
+import { ExitIntentPopup } from "@/components/templates/shared/ExitIntentPopup";
 
 interface PageRow {
   id: string;
@@ -140,10 +142,22 @@ export default async function PublicPage({
   }
 
   const values = page.page_config ?? template.defaultValues;
+  const countdownCfg = (values as Record<string, unknown>).countdown_config as
+    | import("@/lib/conversion").CountdownConfig
+    | undefined;
+  const exitCfg = (values as Record<string, unknown>).exit_intent_config as
+    | import("@/lib/conversion").ExitIntentConfig
+    | undefined;
 
   return (
     <>
+      {countdownCfg?.enabled && countdownCfg.position !== "hidden" && (
+        <PageCountdown pageSlug={page.slug} config={countdownCfg} />
+      )}
       <template.Render values={values} pageId={page.id} product={product} />
+      {exitCfg?.enabled && (
+        <ExitIntentPopup pageSlug={page.slug} config={exitCfg} />
+      )}
       <PixelScripts pixel={pixel} />
     </>
   );

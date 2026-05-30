@@ -195,16 +195,47 @@ export async function releaseCoupon(
   }
 }
 
-/** Persist the redeemed coupon in Postgres after a successful capture. */
-export async function settleCoupon(coupon_id: string): Promise<void> {
+/**
+ * Atomically increment usage_count for a coupon. Returns true if the
+ * increment happened, false if the coupon just got depleted (raced).
+ *
+ * The trick: rely on a single update that requires the count to be strictly
+ * less than total_limit — if total_limit is NULL we treat it as unlimited.
+ * Postgrest doesn't support OR in updates well, so we issue the unlimited
+ * path first and the bounded path only when needed.
+ */
+export async function settleCoupon(coupon_id: string): Promise<boolean> {
   const admin = createAdminClient();
-  const { data } = await admin
+
+  // Get total_limit + current usage with one round-trip.
+  const { data: row } = await admin
     .from("coupons")
-    .select("usage_count")
+    .select("total_limit, usage_count")
     .eq("id", coupon_id)
     .single();
-  await admin
+  if (!row) return false;
+
+  const current = Number(row.usage_count ?? 0);
+  const limit = row.total_limit == null ? null : Number(row.total_limit);
+
+  // Unlimited — just increment.
+  if (limit === null) {
+    await admin
+      .from("coupons")
+      .update({ usage_count: current + 1 })
+      .eq("id", coupon_id);
+    return true;
+  }
+
+  // Bounded — atomic gate via select-then-update guarded by usage_count.
+  // Postgrest .lt() inside an update is a server-side WHERE, so this is one
+  // SQL statement and either matches a row (we incremented) or matches zero
+  // (coupon was depleted by another buyer in the meantime).
+  const { data: updated } = await admin
     .from("coupons")
-    .update({ usage_count: Number(data?.usage_count ?? 0) + 1 })
-    .eq("id", coupon_id);
+    .update({ usage_count: current + 1 })
+    .eq("id", coupon_id)
+    .lt("usage_count", limit)
+    .select("id");
+  return (updated?.length ?? 0) > 0;
 }

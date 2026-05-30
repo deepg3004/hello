@@ -1,10 +1,13 @@
 // GET /api/coupons/validate?code=XXX&page_id=YYY&amount=ZZZ&buyer_email=...
 //
-// Read-only check. Returns either:
-//   { valid: true,  coupon_id, code, discount_type, discount_value, discount_amount }
-//   { valid: false, reason: "..." }
+// Returns:
+//   { valid: true,  coupon_id, code, discount_type, discount_value,
+//     discount_amount, final_amount, message }
+//   { valid: false, message }
 //
-// Does NOT reserve a slot — that happens in /api/checkout/create-order.
+// Read-only — DOES NOT decrement usage_count. The atomic decrement happens in
+// /api/checkout/verify-payment via a SQL UPDATE...WHERE usage_count < limit so
+// we never oversell.
 
 import { NextResponse } from "next/server";
 
@@ -20,12 +23,12 @@ export async function GET(request: Request) {
 
   if (!code || !page_id) {
     return NextResponse.json(
-      { valid: false, reason: "code and page_id are required" },
+      { valid: false, message: "code and page_id are required" },
       { status: 400 },
     );
   }
 
-  // If amount wasn't supplied, fall back to the product price on the page.
+  // Resolve amount — fall back to the product's price when client didn't pass.
   let amount = amountParam ? Number(amountParam) : NaN;
   if (!Number.isFinite(amount) || amount <= 0) {
     const admin = createAdminClient();
@@ -38,6 +41,54 @@ export async function GET(request: Request) {
     amount = Number(products?.[0]?.price ?? 0);
   }
 
+  // Per-customer limit — count completed (paid) orders by this email that
+  // used this coupon. Cheaper than a redemption table for now.
+  let perCustomerOk = true;
+  let perCustomerLeft: number | null = null;
+  if (buyer_email) {
+    const admin = createAdminClient();
+    const { data: coupon } = await admin
+      .from("coupons")
+      .select("id, per_customer_limit")
+      .eq("code", code)
+      .maybeSingle();
+    if (coupon?.id) {
+      const { count } = await admin
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("coupon_id", coupon.id)
+        .ilike("buyer_email", buyer_email)
+        .eq("status", "paid");
+      const used = count ?? 0;
+      perCustomerLeft = Math.max(0, (coupon.per_customer_limit ?? 1) - used);
+      perCustomerOk = perCustomerLeft > 0;
+    }
+  }
+
+  if (!perCustomerOk) {
+    return NextResponse.json(
+      { valid: false, message: "You've already used this coupon." },
+      { status: 400 },
+    );
+  }
+
   const result = await validateCoupon({ code, page_id, amount, buyer_email });
-  return NextResponse.json(result, { status: result.valid ? 200 : 400 });
+  if (!result.valid) {
+    return NextResponse.json(
+      { valid: false, message: result.reason },
+      { status: 400 },
+    );
+  }
+
+  const final_amount = Math.max(0, amount - result.discount_amount);
+  return NextResponse.json({
+    valid: true,
+    coupon_id: result.coupon_id,
+    code: result.code,
+    discount_type: result.discount_type,
+    discount_value: result.discount_value,
+    discount_amount: result.discount_amount,
+    final_amount,
+    message: `Applied — you save ₹${result.discount_amount.toLocaleString("en-IN")}.`,
+  });
 }

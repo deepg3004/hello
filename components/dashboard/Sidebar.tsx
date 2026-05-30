@@ -10,6 +10,7 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
+  Tag,
   Users,
   Wallet,
 } from "lucide-react";
@@ -29,6 +30,7 @@ const NAV: NavItem[] = [
   { href: "/dashboard/transactions", label: "Transactions", Icon: CreditCard },
   { href: "/dashboard/customers", label: "Customers", Icon: Users },
   { href: "/dashboard/leads", label: "Leads", Icon: Magnet },
+  { href: "/dashboard/coupons", label: "Coupons", Icon: Tag },
   { href: "/dashboard/telegram", label: "Telegram", Icon: Send },
   { href: "/dashboard/kyc", label: "KYC", Icon: ShieldCheck },
   { href: "/dashboard/payouts", label: "Payouts", Icon: Wallet },

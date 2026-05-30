@@ -18,9 +18,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Customizer } from "./Customizer";
 import { FormBuilderTab } from "./FormBuilderTab";
+import { ConversionTab } from "./ConversionTab";
 import { useToast } from "@/hooks/use-toast";
 import { updatePageAction, type UpdatePageInput } from "@/actions/pages";
 import type { FormConfig, LeadMagnetMeta } from "@/lib/leads";
+import type { CountdownConfig, ExitIntentConfig } from "@/lib/conversion";
 
 export interface ExistingPage {
   id: string;
@@ -285,21 +287,17 @@ export function PageEditorTabs({ initial }: { initial: ExistingPage }) {
         </TabsContent>
 
         <TabsContent value="conversion" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Conversion boosters</CardTitle>
-              <CardDescription>
-                Coupons, upsells and countdown timers.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Coming soon — manage coupons under{" "}
-                <a className="underline" href="/dashboard">/dashboard</a> in the
-                meantime.
-              </p>
-            </CardContent>
-          </Card>
+          <ConversionTab
+            countdown={(values.countdown_config as CountdownConfig) ?? {}}
+            onCountdownChange={(next) =>
+              setValues({ ...values, countdown_config: next })
+            }
+            exitIntent={(values.exit_intent_config as ExitIntentConfig) ?? {}}
+            onExitIntentChange={(next) =>
+              setValues({ ...values, exit_intent_config: next })
+            }
+            coupons={[]}
+          />
         </TabsContent>
       </Tabs>
     </div>

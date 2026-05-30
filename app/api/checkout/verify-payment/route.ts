@@ -136,10 +136,20 @@ export async function POST(request: Request) {
     }
   }
 
-  // 5. Settle coupon usage_count in Postgres
+  // 5. Settle coupon usage_count in Postgres — atomic UPDATE that refuses to
+  //    cross the total_limit. If two checkouts race for the last slot, the
+  //    second one's increment matches zero rows. We log that case but the
+  //    order itself still completes — the buyer was already charged before
+  //    this point.
   if (order.coupon_id) {
     try {
-      await settleCoupon(order.coupon_id);
+      const incremented = await settleCoupon(order.coupon_id);
+      if (!incremented) {
+        console.warn("[verify-payment] coupon depleted at settle time", {
+          order_id,
+          coupon_id: order.coupon_id,
+        });
+      }
     } catch (e) {
       console.error("settleCoupon failed", e);
     }

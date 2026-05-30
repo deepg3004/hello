@@ -137,6 +137,25 @@ export function CheckoutForm(props: CheckoutFormProps) {
   const discount = coupon?.discount_amount ?? 0;
   const total = Math.max(0, props.price - discount);
 
+  // Pre-fill coupon code stashed by an exit-intent popup.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stashedKey = Object.keys(window.sessionStorage).find((k) =>
+        k.startsWith("invoxai_coupon_"),
+      );
+      if (!stashedKey) return;
+      const code = window.sessionStorage.getItem(stashedKey);
+      if (code && !coupon && !couponInput) {
+        setCouponInput(code);
+      }
+    } catch {
+      /* sessionStorage may be blocked in private windows */
+    }
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function applyCoupon() {
     if (!couponInput.trim()) return;
     setApplyingCoupon(true);
