@@ -16,6 +16,10 @@ export interface CreatePageInput {
   slug: string;
   values: Record<string, unknown>;
   publish: boolean;
+  /** Sale price in INR. When set on a payment page, we auto-create a
+   *  matching products row attached to the new page so the checkout has
+   *  something to charge for. Ignored for landing / lead_magnet pages. */
+  price?: number | null;
 }
 
 export interface UpdatePageInput {
@@ -27,6 +31,9 @@ export interface UpdatePageInput {
   meta_title: string | null;
   meta_description: string | null;
   custom_domain: string | null;
+  /** Sale price in INR. When provided on a payment page, we upsert the
+   *  associated products row so the public checkout reflects the change. */
+  price?: number | null;
   pixel: {
     meta_pixel_id: string;
     meta_capi_access_token: string;
@@ -93,6 +100,27 @@ export async function createPageAction(
     return { ok: false, message: error?.message ?? "Insert failed" };
   }
 
+  // Auto-create a products row for payment pages with a price. This is the
+  // record the public /p/[slug] route loads to render the checkout form.
+  // Without it the page renders the "Attach a product to this page to enable
+  // checkout" fallback.
+  if (input.type === "payment" && input.price && input.price > 0) {
+    const { error: productErr } = await admin.from("products").insert({
+      user_id: user.id,
+      page_id: data.id,
+      name: input.title,
+      price: input.price,
+      currency: "INR",
+      type: "one_time",
+      active: true,
+    });
+    if (productErr) {
+      // Don't fail the whole page creation — log and let the seller fix
+      // the price later via the editor.
+      console.warn("[createPageAction] product insert failed", productErr);
+    }
+  }
+
   revalidatePath(`/p/${data.slug}`);
   return { ok: true, pageId: data.id, slug: data.slug };
 }
@@ -153,6 +181,37 @@ export async function updatePageAction(
     .eq("id", input.id);
 
   if (pageErr) return { ok: false, message: pageErr.message };
+
+  // Product price — upsert. When the seller types a new price in the editor,
+  // either update the existing products row or insert a new one. We DON'T
+  // delete rows here — old products may be referenced by historical orders.
+  if (typeof input.price === "number" && input.price > 0) {
+    const { data: existingProduct } = await admin
+      .from("products")
+      .select("id")
+      .eq("page_id", input.id)
+      .eq("active", true)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingProduct) {
+      await admin
+        .from("products")
+        .update({ price: input.price, name: input.title })
+        .eq("id", existingProduct.id);
+    } else {
+      await admin.from("products").insert({
+        user_id: user.id,
+        page_id: input.id,
+        name: input.title,
+        price: input.price,
+        currency: "INR",
+        type: "one_time",
+        active: true,
+      });
+    }
+  }
 
   // Pixel configs — upsert (one row per page).
   //   - Booleans always count as "set" so they save even on an otherwise-empty form

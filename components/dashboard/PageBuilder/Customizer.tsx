@@ -21,6 +21,12 @@ interface CustomizerProps {
   slugLocked?: boolean;
   values: Record<string, unknown>;
   onValuesChange: (next: Record<string, unknown>) => void;
+  /** Page type — when "payment", the Page Settings card shows a Price field.
+   *  Left undefined / "landing" / "lead_magnet" hides it. */
+  pageType?: "payment" | "landing" | "lead_magnet";
+  /** Current price (as the raw input string so empty is preserved). */
+  price?: string;
+  onPriceChange?: (next: string) => void;
 }
 
 const PREVIEW_DEBOUNCE_MS = 500;
@@ -34,6 +40,9 @@ export function Customizer({
   slugLocked,
   values,
   onValuesChange,
+  pageType,
+  price,
+  onPriceChange,
 }: CustomizerProps) {
   const template = getTemplate(templateId);
 
@@ -153,6 +162,30 @@ export function Customizer({
                         : "Slug appears in the page URL."}
               </p>
             </div>
+
+            {/* Price — only for payment pages. Auto-creates / updates the
+                attached products row so checkout has something to charge for. */}
+            {pageType === "payment" && onPriceChange && (
+              <div className="space-y-1.5">
+                <Label>Price (INR)</Label>
+                <div className="flex items-center gap-1">
+                  <span className="text-sm text-muted-foreground">₹</span>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min="1"
+                    step="0.01"
+                    value={price ?? ""}
+                    onChange={(e) => onPriceChange(e.target.value)}
+                    placeholder="499"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Charged to the buyer when they click the checkout button.
+                  Leave blank to skip product creation (checkout disabled).
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 

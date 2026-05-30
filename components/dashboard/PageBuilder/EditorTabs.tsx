@@ -69,6 +69,14 @@ export function PageEditorTabs({ initial }: { initial: ExistingPage }) {
   const [metaTitle, setMetaTitle] = useState(initial.meta_title ?? "");
   const [metaDescription, setMetaDescription] = useState(initial.meta_description ?? "");
   const [customDomain, setCustomDomain] = useState(initial.custom_domain ?? "");
+  // Price seeded from the most recently created products row (the same one
+  // the public page renders). Empty string when no product exists yet — the
+  // Customizer's Price field will let the seller set one.
+  const initialPrice =
+    (initial.products?.[0]?.price ?? 0) > 0
+      ? String(initial.products![0].price)
+      : "";
+  const [price, setPrice] = useState<string>(initialPrice);
   const [pixel, setPixel] = useState({
     meta_pixel_id: initial.pixel?.meta_pixel_id ?? "",
     meta_capi_access_token: initial.pixel?.meta_capi_access_token ?? "",
@@ -91,6 +99,24 @@ export function PageEditorTabs({ initial }: { initial: ExistingPage }) {
   const [saving, setSaving] = useState(false);
 
   async function save() {
+    // Validate price up-front for payment pages so the seller sees the
+    // toast immediately instead of after a slow round-trip.
+    const parsedPrice =
+      initial.type === "payment" && price.trim() !== ""
+        ? Number.parseFloat(price)
+        : null;
+    if (
+      initial.type === "payment" &&
+      parsedPrice !== null &&
+      (Number.isNaN(parsedPrice) || parsedPrice <= 0)
+    ) {
+      toast({
+        title: "Enter a valid price",
+        description: "Price must be a positive number in INR.",
+        variant: "destructive",
+      });
+      return;
+    }
     setSaving(true);
     const input: UpdatePageInput = {
       id: initial.id,
@@ -102,6 +128,7 @@ export function PageEditorTabs({ initial }: { initial: ExistingPage }) {
       meta_description: metaDescription || null,
       custom_domain: customDomain || null,
       pixel,
+      price: parsedPrice,
     };
     const result = await updatePageAction(input);
     setSaving(false);
@@ -166,6 +193,9 @@ export function PageEditorTabs({ initial }: { initial: ExistingPage }) {
             slugLocked
             values={values}
             onValuesChange={setValues}
+            pageType={initial.type}
+            price={price}
+            onPriceChange={setPrice}
           />
         </TabsContent>
 

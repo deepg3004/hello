@@ -32,6 +32,10 @@ export function PageBuilderWizard() {
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [values, setValues] = useState<Record<string, unknown>>({});
+  // Price in INR — only shown / sent for "payment" pages. createPageAction
+  // auto-creates a matching products row so the public /p/[slug] route has
+  // something to charge for.
+  const [price, setPrice] = useState<string>("");
   const [saving, setSaving] = useState<"draft" | "publish" | null>(null);
 
   const template = useMemo(
@@ -61,6 +65,20 @@ export function PageBuilderWizard() {
       });
       return;
     }
+    // Parse the price input. Empty string → null (no product created).
+    // Only relevant for payment pages — landing / lead_magnet ignore it.
+    const parsedPrice =
+      type === "payment" && price.trim() !== ""
+        ? Number.parseFloat(price)
+        : null;
+    if (type === "payment" && parsedPrice !== null && (Number.isNaN(parsedPrice) || parsedPrice <= 0)) {
+      toast({
+        title: "Enter a valid price",
+        description: "Price must be a positive number in INR (e.g. 49 or 499.50).",
+        variant: "destructive",
+      });
+      return;
+    }
     setSaving(publish ? "publish" : "draft");
     const result = await createPageAction({
       type,
@@ -69,6 +87,7 @@ export function PageBuilderWizard() {
       slug,
       values,
       publish,
+      price: parsedPrice,
     });
     setSaving(null);
     if (!result.ok) {
@@ -209,6 +228,9 @@ export function PageBuilderWizard() {
             onSlugChange={setSlug}
             values={values}
             onValuesChange={setValues}
+            pageType={type}
+            price={price}
+            onPriceChange={setPrice}
           />
         </div>
       )}
