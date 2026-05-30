@@ -46,7 +46,7 @@ export default async function AdminTelegramPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Telegram VIP memberships</h1>
+        <h1 className="text-2xl font-sora font-semibold tracking-tight">Telegram VIP memberships</h1>
         <p className="text-sm text-muted-foreground">
           Every paid invite, join, expiry and removal across every seller&apos;s VIP group.
         </p>

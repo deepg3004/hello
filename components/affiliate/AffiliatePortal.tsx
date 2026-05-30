@@ -152,7 +152,7 @@ export function AffiliatePortal({ email, links, payouts, baseUrl }: Props) {
           <p className="text-xs uppercase tracking-widest text-muted-foreground">
             invoxai.io / affiliate / portal
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="text-2xl font-sora font-semibold tracking-tight">
             Your portal
           </h1>
           <p className="text-sm text-muted-foreground">

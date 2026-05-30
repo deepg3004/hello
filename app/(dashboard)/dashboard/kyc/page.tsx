@@ -56,14 +56,18 @@ export default async function KycPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">KYC verification</h1>
+      <div className="animate-in-up" style={{ animationDelay: "0ms" }}>
+        <h1 className="font-sora text-2xl font-semibold tracking-tight">
+          KYC verification
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Verify your identity to unlock payouts. Each step uses live API checks
-          — no manual review unless something looks off.
+          Verify your identity to unlock payouts. Each step uses live API
+          checks — no manual review unless something looks off.
         </p>
       </div>
-      <KycWizard initial={initial} />
+      <div className="animate-in-up" style={{ animationDelay: "100ms" }}>
+        <KycWizard initial={initial} />
+      </div>
     </div>
   );
 }

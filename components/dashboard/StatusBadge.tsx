@@ -1,4 +1,3 @@
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 interface StatusBadgeProps {
@@ -6,33 +5,73 @@ interface StatusBadgeProps {
   className?: string;
 }
 
-const STYLES: Record<string, string> = {
-  paid: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-900/40 dark:text-emerald-200",
-  pending: "bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900/40 dark:text-amber-200",
-  failed: "bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900/40 dark:text-red-200",
-  refunded: "bg-blue-100 text-blue-800 hover:bg-blue-100 dark:bg-blue-900/40 dark:text-blue-200",
-  partially_refunded: "bg-blue-100 text-blue-800 hover:bg-blue-100 dark:bg-blue-900/40 dark:text-blue-200",
-  cancelled: "bg-zinc-100 text-zinc-800 hover:bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-200",
-  draft: "bg-zinc-100 text-zinc-700 hover:bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-200",
-  published: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-900/40 dark:text-emerald-200",
-  paused: "bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900/40 dark:text-amber-200",
-  archived: "bg-zinc-100 text-zinc-700 hover:bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-200",
-  completed: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-900/40 dark:text-emerald-200",
-  processing: "bg-blue-100 text-blue-800 hover:bg-blue-100 dark:bg-blue-900/40 dark:text-blue-200",
-  queued: "bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900/40 dark:text-amber-200",
+/**
+ * Maps every status string used across the app to one of four visual
+ * groups defined in app/globals.css:
+ *
+ *   badge-success → green   (paid, active, approved, completed, published, …)
+ *   badge-pending → amber   (pending, processing, trialing, paused, queued, …)
+ *   badge-failed  → red     (failed, rejected, expired, cancelled, …)
+ *   badge-info    → indigo  (draft, inactive, refunded, archived, fallback)
+ *
+ * Unknown statuses fall back to `badge-info` so a new lifecycle state never
+ * renders unstyled. Keep this mapping table in sync with new statuses added
+ * to the DB CHECK constraints.
+ */
+const GROUP_BY_STATUS: Record<
+  string,
+  "badge-success" | "badge-pending" | "badge-failed" | "badge-info"
+> = {
+  // success
+  paid: "badge-success",
+  active: "badge-success",
+  approved: "badge-success",
+  completed: "badge-success",
+  published: "badge-success",
+  delivered: "badge-success",
+  succeeded: "badge-success",
+
+  // pending / in-flight
+  pending: "badge-pending",
+  processing: "badge-pending",
+  trialing: "badge-pending",
+  paused: "badge-pending",
+  queued: "badge-pending",
+  invited: "badge-pending",
+  in_progress: "badge-pending",
+  initiated: "badge-pending",
+  scheduled: "badge-pending",
+
+  // failed / hard-stop
+  failed: "badge-failed",
+  rejected: "badge-failed",
+  expired: "badge-failed",
+  cancelled: "badge-failed",
+  canceled: "badge-failed",
+  removed: "badge-failed",
+  declined: "badge-failed",
+
+  // info / neutral
+  draft: "badge-info",
+  inactive: "badge-info",
+  archived: "badge-info",
+  refunded: "badge-info",
+  partially_refunded: "badge-info",
+  open: "badge-info",
+  unverified: "badge-info",
 };
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
+  const group = GROUP_BY_STATUS[status] ?? "badge-info";
   return (
-    <Badge
-      variant="outline"
+    <span
       className={cn(
-        "border-transparent font-medium capitalize",
-        STYLES[status] ?? "bg-zinc-100 text-zinc-700",
+        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize",
+        group,
         className,
       )}
     >
       {status.replace(/_/g, " ")}
-    </Badge>
+    </span>
   );
 }

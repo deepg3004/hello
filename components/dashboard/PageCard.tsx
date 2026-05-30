@@ -6,10 +6,13 @@ import { useRouter } from "next/navigation";
 import {
   Copy,
   ExternalLink,
+  Eye,
+  IndianRupee,
   Loader2,
   MoreVertical,
   Pause,
   Pencil,
+  Percent,
   Play,
   Trash2,
 } from "lucide-react";
@@ -20,8 +23,6 @@ import {
   togglePagePublishAction,
 } from "@/actions/pages";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,10 +30,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
-import { formatINR } from "@/lib/utils";
-import { getTemplate } from "@/lib/templates/registry";
+import { cn, formatDate, formatINR, truncate } from "@/lib/utils";
 
 export interface PageCardData {
   id: string;
@@ -48,20 +47,49 @@ export interface PageCardData {
   created_at: string;
 }
 
-const TYPE_LABEL: Record<PageCardData["type"], string> = {
-  payment: "Payment",
-  landing: "Landing",
-  lead_magnet: "Lead magnet",
+// Top "band" colour + chip styling per page type. Telegram VIP is recognised
+// from the template_id; the actual DB column is just 'payment'.
+const TYPE_BAND: Record<string, { band: string; chip: string; label: string }> = {
+  payment: {
+    band: "bg-gradient-to-r from-indigo-500 to-indigo-600",
+    chip: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    label: "Payment",
+  },
+  landing: {
+    band: "bg-gradient-to-r from-emerald-500 to-emerald-600",
+    chip: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    label: "Landing",
+  },
+  lead_magnet: {
+    band: "bg-gradient-to-r from-amber-500 to-amber-600",
+    chip: "bg-amber-50 text-amber-700 border-amber-200",
+    label: "Lead magnet",
+  },
+  telegram: {
+    band: "bg-gradient-to-r from-violet-500 to-violet-600",
+    chip: "bg-violet-50 text-violet-700 border-violet-200",
+    label: "Telegram VIP",
+  },
 };
+
+function bandKey(page: PageCardData): keyof typeof TYPE_BAND {
+  // Telegram VIP is a payment page with a specific template — split it out
+  // visually so sellers can tell their cards apart at a glance.
+  if (page.template_id === "telegram-vip" || page.template_id === "telegram_vip") {
+    return "telegram";
+  }
+  return page.type;
+}
 
 export function PageCard({ page }: { page: PageCardData }) {
   const router = useRouter();
   const { toast } = useToast();
-  const [busy, setBusy] = useState<"toggle" | "duplicate" | "delete" | null>(null);
+  const [busy, setBusy] = useState<"toggle" | "duplicate" | "delete" | null>(
+    null,
+  );
 
-  const template = getTemplate(page.template_id);
-  const themeBg = template?.definition.theme.background ?? "#0a0a0a";
-  const themePrimary = template?.definition.theme.primary ?? "#ffffff";
+  const variant = TYPE_BAND[bandKey(page)] ?? TYPE_BAND.payment!;
+  const isPublished = page.status === "published";
   const conversionRate =
     page.view_count > 0
       ? `${((page.conversion_count / page.view_count) * 100).toFixed(1)}%`
@@ -71,8 +99,15 @@ export function PageCard({ page }: { page: PageCardData }) {
     setBusy("toggle");
     const r = await togglePagePublishAction(page.id);
     setBusy(null);
-    if (!r.ok) toast({ title: "Couldn't update", description: r.message, variant: "destructive" });
-    else router.refresh();
+    if (!r.ok) {
+      toast({
+        title: "Couldn't update",
+        description: r.message,
+        variant: "destructive",
+      });
+    } else {
+      router.refresh();
+    }
   }
 
   async function duplicate() {
@@ -80,7 +115,11 @@ export function PageCard({ page }: { page: PageCardData }) {
     const r = await duplicatePageAction(page.id);
     setBusy(null);
     if (!r.ok) {
-      toast({ title: "Couldn't duplicate", description: r.message, variant: "destructive" });
+      toast({
+        title: "Couldn't duplicate",
+        description: r.message,
+        variant: "destructive",
+      });
       return;
     }
     toast({ title: "Duplicated", description: "Opening the copy…" });
@@ -93,7 +132,11 @@ export function PageCard({ page }: { page: PageCardData }) {
     const r = await deletePageAction(page.id);
     setBusy(null);
     if (!r.ok) {
-      toast({ title: "Delete failed", description: r.message, variant: "destructive" });
+      toast({
+        title: "Delete failed",
+        description: r.message,
+        variant: "destructive",
+      });
       return;
     }
     toast({ title: "Page deleted" });
@@ -106,64 +149,68 @@ export function PageCard({ page }: { page: PageCardData }) {
       await navigator.clipboard.writeText(url);
       toast({ title: "Link copied", description: url });
     } catch {
-      toast({ title: "Copy failed", description: url, variant: "destructive" });
+      toast({
+        title: "Copy failed",
+        description: url,
+        variant: "destructive",
+      });
     }
   }
 
   return (
-    <Card className="overflow-hidden">
+    <div
+      className={cn(
+        "group flex flex-col overflow-hidden rounded-xl border border-border bg-white shadow-sm",
+        "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
+      )}
+    >
+      {/* Coloured 10px band — instant visual tag for the page type */}
       <div
-        className="flex h-28 items-center justify-center"
-        style={{ background: themeBg }}
-      >
-        {page.thumbnail_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={page.thumbnail_url} alt={page.title} className="h-full w-full object-cover" />
-        ) : (
-          <span
-            className="rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wider"
-            style={{ background: themePrimary, color: "#0a0a0a" }}
-          >
-            {template?.definition.name ?? "Template"}
-          </span>
-        )}
-      </div>
-      <CardContent className="space-y-3 p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <h3 className="truncate text-sm font-semibold">{page.title}</h3>
-            <p className="truncate text-xs text-muted-foreground">/p/{page.slug}</p>
+        aria-hidden
+        className={cn("h-[10px] w-full", variant.band)}
+      />
+
+      {/* Body */}
+      <div className="flex flex-1 flex-col gap-4 p-5">
+        {/* Title + status toggle pill */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <Link
+              href={`/dashboard/pages/${page.id}/edit`}
+              className="block min-w-0"
+            >
+              <h3
+                className="truncate font-sora text-base font-semibold tracking-tight text-foreground transition-colors group-hover:text-primary"
+                title={page.title}
+              >
+                {page.title}
+              </h3>
+            </Link>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              /p/{truncate(page.slug, 30)}
+            </p>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="More">
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreVertical className="h-4 w-4" />}
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="More actions"
+                className="-mr-2 shrink-0"
+              >
+                {busy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <MoreVertical className="h-4 w-4" />
+                )}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem asChild>
-                <Link href={`/dashboard/pages/${page.id}/edit`}>
-                  <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href={`/dashboard/pages/${page.id}/ab-test`}>
-                  <Pencil className="mr-2 h-3.5 w-3.5" /> A/B test
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <a href={`/p/${page.slug}`} target="_blank" rel="noreferrer">
-                  <ExternalLink className="mr-2 h-3.5 w-3.5" /> View live
-                </a>
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={copyLink}>
-                <Copy className="mr-2 h-3.5 w-3.5" /> Copy link
-              </DropdownMenuItem>
               <DropdownMenuItem onSelect={duplicate} disabled={busy === "duplicate"}>
                 <Copy className="mr-2 h-3.5 w-3.5" /> Duplicate
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={toggle} disabled={busy === "toggle"}>
-                {page.status === "published" ? (
+                {isPublished ? (
                   <>
                     <Pause className="mr-2 h-3.5 w-3.5" /> Pause
                   </>
@@ -173,36 +220,228 @@ export function PageCard({ page }: { page: PageCardData }) {
                   </>
                 )}
               </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/dashboard/pages/${page.id}/ab-test`}>
+                  <Percent className="mr-2 h-3.5 w-3.5" /> A/B test
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onSelect={remove}
                 disabled={busy === "delete"}
-                className="text-destructive focus:text-destructive"
+                className="text-rose-600 focus:text-rose-700"
               >
                 <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Badge variant="outline">{TYPE_LABEL[page.type]}</Badge>
-          <StatusBadge status={page.status} />
+
+        {/* Type chip + status pill (clickable to toggle) */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className={cn(
+              "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium",
+              variant.chip,
+            )}
+          >
+            {variant.label}
+          </span>
+          <button
+            type="button"
+            onClick={toggle}
+            disabled={busy === "toggle"}
+            title={
+              isPublished ? "Click to pause" : "Click to publish"
+            }
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition",
+              "disabled:opacity-70",
+              isPublished
+                ? "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                : page.status === "paused"
+                  ? "border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                  : "border border-border bg-muted text-muted-foreground hover:bg-muted/70",
+            )}
+          >
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                isPublished
+                  ? "bg-emerald-500"
+                  : page.status === "paused"
+                    ? "bg-amber-500"
+                    : "bg-muted-foreground/50",
+              )}
+            />
+            {page.status}
+          </button>
         </div>
-        <div className="grid grid-cols-3 gap-2 border-t pt-3 text-center text-xs">
-          <div>
-            <div className="text-sm font-semibold">{page.view_count.toLocaleString("en-IN")}</div>
-            <div className="text-muted-foreground">Views</div>
-          </div>
-          <div>
-            <div className="text-sm font-semibold">{conversionRate}</div>
-            <div className="text-muted-foreground">CR</div>
-          </div>
-          <div>
-            <div className="text-sm font-semibold">{formatINR(page.total_revenue * 100)}</div>
-            <div className="text-muted-foreground">Revenue</div>
+
+        {/* Stats row — views, CR, revenue */}
+        <div className="grid grid-cols-3 gap-2 rounded-lg bg-muted/30 p-3 text-center">
+          <Stat
+            icon={Eye}
+            value={page.view_count.toLocaleString("en-IN")}
+            label="Views"
+          />
+          <Stat
+            icon={Percent}
+            value={conversionRate}
+            label="Conv. rate"
+          />
+          <Stat
+            icon={IndianRupee}
+            value={formatINR(page.total_revenue * 100)}
+            label="Revenue"
+            valueClassName="text-emerald-700"
+          />
+        </div>
+
+        {/* Footer: created date + action icons */}
+        <div className="mt-auto flex items-center justify-between border-t border-border pt-3">
+          <span className="text-xs text-muted-foreground">
+            Created {formatDate(page.created_at)}
+          </span>
+          <div className="flex items-center gap-0.5">
+            <IconButton
+              href={`/dashboard/pages/${page.id}/edit`}
+              icon={Pencil}
+              label="Edit"
+            />
+            <IconButton
+              href={`/p/${page.slug}`}
+              external
+              icon={ExternalLink}
+              label="Preview"
+            />
+            <button
+              type="button"
+              onClick={copyLink}
+              title="Copy link"
+              aria-label="Copy link"
+              className="rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
+  );
+}
+
+// ── Sub-components ──────────────────────────────────────────────────────
+
+function Stat({
+  icon: Icon,
+  value,
+  label,
+  valueClassName,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  value: string;
+  label: string;
+  valueClassName?: string;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-center gap-1 text-muted-foreground">
+        <Icon className="h-3 w-3" />
+        <span
+          className={cn(
+            "font-sora text-sm font-semibold text-foreground",
+            valueClassName,
+          )}
+        >
+          {value}
+        </span>
+      </div>
+      <p className="mt-0.5 text-[10px] uppercase tracking-widest text-muted-foreground">
+        {label}
+      </p>
+    </div>
+  );
+}
+
+function IconButton({
+  href,
+  external,
+  icon: Icon,
+  label,
+}: {
+  href: string;
+  external?: boolean;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+}) {
+  const className =
+    "rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground";
+  if (external) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        title={label}
+        aria-label={label}
+        className={className}
+      >
+        <Icon className="h-3.5 w-3.5" />
+      </a>
+    );
+  }
+  return (
+    <Link href={href} title={label} aria-label={label} className={className}>
+      <Icon className="h-3.5 w-3.5" />
+    </Link>
+  );
+}
+
+/**
+ * Render this as a grid cell after all the real PageCards. Acts as a
+ * "+ New page" tile.
+ */
+export function CreatePageTile({ disabled }: { disabled?: boolean }) {
+  return (
+    <Link
+      href={disabled ? "/dashboard/upgrade" : "/dashboard/pages/new"}
+      className={cn(
+        "group flex min-h-[260px] flex-col items-center justify-center gap-2 rounded-xl",
+        "border-2 border-dashed border-border bg-white/60 p-6 text-center transition",
+        "hover:border-primary hover:bg-indigo-50/40",
+      )}
+    >
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 transition group-hover:bg-indigo-100">
+        <PlusIcon />
+      </span>
+      <p className="font-sora text-sm font-semibold text-foreground">
+        {disabled ? "Upgrade for more pages" : "New page"}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        {disabled
+          ? "You've hit your plan limit"
+          : "Build a payment, landing, or lead-magnet page"}
+      </p>
+    </Link>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
   );
 }

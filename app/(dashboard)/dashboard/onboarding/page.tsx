@@ -63,7 +63,7 @@ export default async function OnboardingPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="text-2xl font-sora font-semibold tracking-tight">
           Welcome to InvoxAI
         </h1>
         <p className="text-sm text-muted-foreground">

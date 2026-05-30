@@ -72,7 +72,7 @@ export default async function SellerHome({ params }: Props) {
           </div>
         )}
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="text-2xl font-sora font-semibold tracking-tight">
             {sellerName}
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -104,7 +104,7 @@ export default async function SellerHome({ params }: Props) {
                 <div className="aspect-[16/9] w-full bg-zinc-100" />
               )}
               <div className="p-4">
-                <h3 className="text-base font-semibold tracking-tight group-hover:text-primary">
+                <h3 className="text-base font-sora font-semibold tracking-tight group-hover:text-primary">
                   {p.title}
                 </h3>
                 {p.meta_description && (

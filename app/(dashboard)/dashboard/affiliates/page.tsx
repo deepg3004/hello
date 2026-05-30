@@ -47,7 +47,7 @@ export default async function AffiliatesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Affiliates</h1>
+        <h1 className="text-2xl font-sora font-semibold tracking-tight">Affiliates</h1>
         <p className="text-sm text-muted-foreground">
           Pay your customers a cut of every sale they bring in. Each page
           gets its own program — share the join link below for affiliates

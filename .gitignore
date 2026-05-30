@@ -27,12 +27,18 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env
+# env — never commit anything except .env.example.
+# .env.production is on the VPS, NOT in the repo. The deploy.sh script
+# uses `git reset --hard` so any accidentally-tracked .env.production
+# would be wiped on the next deploy (we learned this the hard way).
 .env
 .env.local
 .env.development.local
 .env.test.local
+.env.production
 .env.production.local
+.env.production.bak
+.env*.bak
 !.env.example
 
 # vercel

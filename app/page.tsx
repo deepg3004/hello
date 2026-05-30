@@ -7,7 +7,7 @@ export default function HomePage() {
         <p className="mb-4 text-sm font-medium uppercase tracking-widest text-muted-foreground">
           app.invoxai.io
         </p>
-        <h1 className="text-balance text-5xl font-semibold tracking-tight sm:text-6xl">
+        <h1 className="text-balance text-5xl font-sora font-semibold tracking-tight sm:text-6xl">
           InvoxAI
         </h1>
         <p className="mt-6 text-balance text-lg leading-8 text-muted-foreground">

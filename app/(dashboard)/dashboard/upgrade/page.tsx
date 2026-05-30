@@ -72,7 +72,7 @@ function UpgradeInner() {
   return (
     <div className="mx-auto max-w-6xl space-y-8">
       <div className="text-center">
-        <h1 className="text-3xl font-semibold tracking-tight">Choose your plan</h1>
+        <h1 className="text-3xl font-sora font-semibold tracking-tight">Choose your plan</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Cancel anytime. Prices in INR, billed monthly.
         </p>
@@ -168,7 +168,7 @@ function UpgradeSkeleton() {
   return (
     <div className="mx-auto max-w-6xl space-y-8">
       <div className="text-center">
-        <h1 className="text-3xl font-semibold tracking-tight">Choose your plan</h1>
+        <h1 className="text-3xl font-sora font-semibold tracking-tight">Choose your plan</h1>
       </div>
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         {SELECTABLE.map((k) => (

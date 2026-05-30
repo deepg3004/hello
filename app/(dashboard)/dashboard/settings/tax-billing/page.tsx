@@ -41,7 +41,7 @@ export default async function TaxBillingPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Tax &amp; Billing</h1>
+        <h1 className="text-2xl font-sora font-semibold tracking-tight">Tax &amp; Billing</h1>
         <p className="text-sm text-muted-foreground">
           Your GST profile drives every invoice we generate. Inter-state /
           intra-state tax split is automatic.

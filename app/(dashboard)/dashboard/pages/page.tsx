@@ -1,9 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Plus } from "lucide-react";
+import { AlertTriangle, FileText, Plus, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { PageCard, type PageCardData } from "@/components/dashboard/PageCard";
+import {
+  CreatePageTile,
+  PageCard,
+  type PageCardData,
+} from "@/components/dashboard/PageCard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { PLANS, type PlanKey } from "@/lib/plans";
@@ -60,9 +64,15 @@ export default async function PagesListPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* ── Header row ───────────────────────────────────────────────── */}
+      <div
+        className="flex flex-wrap items-center justify-between gap-3 animate-in-up"
+        style={{ animationDelay: "0ms" }}
+      >
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Pages</h1>
+          <h1 className="font-sora text-2xl font-semibold tracking-tight">
+            Pages
+          </h1>
           <p className="text-sm text-muted-foreground">
             {limit === -1
               ? `${pages.length} pages · unlimited on ${planEntry.name}`
@@ -71,8 +81,8 @@ export default async function PagesListPage() {
         </div>
         {atLimit ? (
           <Button asChild>
-            <Link href={`/dashboard/upgrade?required=pro`}>
-              <Plus className="mr-2 h-4 w-4" />
+            <Link href="/dashboard/upgrade?required=pro">
+              <Sparkles className="mr-2 h-4 w-4" />
               Upgrade to add more
             </Link>
           </Button>
@@ -86,36 +96,71 @@ export default async function PagesListPage() {
         )}
       </div>
 
+      {/* Plan-limit warning banner */}
       {atLimit && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          You&apos;ve hit your plan limit of {limit} pages.{" "}
-          <Link href="/dashboard/upgrade" className="underline">
-            Upgrade
-          </Link>{" "}
-          to publish more, or pause an existing page.
+        <div
+          className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 animate-in-up"
+          style={{ animationDelay: "50ms" }}
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">
+              You&apos;ve hit your plan limit of {limit} pages
+            </p>
+            <p className="mt-1">
+              <Link
+                href="/dashboard/upgrade"
+                className="font-medium underline hover:opacity-90"
+              >
+                Upgrade
+              </Link>{" "}
+              to publish more, or pause an existing page to free up a slot.
+            </p>
+          </div>
         </div>
       )}
 
+      {/* ── Card grid (or zero-state) ────────────────────────────────── */}
       {pages.length === 0 ? (
-        <div className="rounded-md border border-dashed bg-muted/30 p-12 text-center">
-          <h2 className="text-lg font-semibold">No pages yet</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Build your first payment or lead-capture page in under five minutes.
-          </p>
-          <Button asChild className="mt-4">
-            <Link href="/dashboard/pages/new">
-              <Plus className="mr-2 h-4 w-4" />
-              Create your first page
-            </Link>
-          </Button>
-        </div>
+        <ZeroState />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          className="grid grid-cols-1 gap-4 animate-in-up sm:grid-cols-2 xl:grid-cols-3"
+          style={{ animationDelay: "100ms" }}
+        >
           {pages.map((p) => (
             <PageCard key={p.id} page={p} />
           ))}
+          {/* "Create new page" tile lives in the grid so it fills the last
+              row gracefully. When the seller is at limit it nudges to upgrade
+              instead of /pages/new. */}
+          <CreatePageTile disabled={atLimit} />
         </div>
       )}
+    </div>
+  );
+}
+
+function ZeroState() {
+  return (
+    <div
+      className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-white px-6 py-16 text-center animate-in-up"
+      style={{ animationDelay: "100ms" }}
+    >
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50">
+        <FileText className="h-5 w-5 text-indigo-600" />
+      </div>
+      <h2 className="font-sora text-lg font-semibold">No pages yet</h2>
+      <p className="max-w-md text-sm text-muted-foreground">
+        Build your first payment or lead-capture page in under five minutes.
+        You can pick from polished templates or start blank.
+      </p>
+      <Button asChild className="mt-2">
+        <Link href="/dashboard/pages/new">
+          <Plus className="mr-2 h-4 w-4" />
+          Create your first page
+        </Link>
+      </Button>
     </div>
   );
 }

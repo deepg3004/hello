@@ -42,7 +42,7 @@ export default async function AdminSupportPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Support</h1>
+        <h1 className="text-2xl font-sora font-semibold tracking-tight">Support</h1>
         <p className="text-sm text-muted-foreground">
           Tickets from support@invoxai.io. Open: {open} · In progress: {inProgress}
         </p>

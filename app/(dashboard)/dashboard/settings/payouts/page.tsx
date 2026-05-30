@@ -44,7 +44,7 @@ export default async function PayoutSettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Payout settings</h1>
+        <h1 className="text-2xl font-sora font-semibold tracking-tight">Payout settings</h1>
         <p className="text-sm text-muted-foreground">
           Where your money goes, how often, and via which rail.
         </p>

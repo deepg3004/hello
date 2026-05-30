@@ -99,7 +99,7 @@ export default async function ABTestPage({
               {page.title}
             </Link>
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight">A/B test</h1>
+          <h1 className="text-2xl font-sora font-semibold tracking-tight">A/B test</h1>
           <p className="text-sm text-muted-foreground">
             Run two variants of the same page side-by-side and let the data
             pick the winner.

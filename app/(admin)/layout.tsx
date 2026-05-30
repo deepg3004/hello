@@ -17,14 +17,22 @@ export default async function AdminLayout({
   if (!user) redirect("/login?next=/admin");
 
   const admin = createAdminClient();
-  const { data: profile } = await admin
-    .from("user_profiles")
-    .select("id, full_name, email, is_admin")
-    .eq("id", user.id)
-    .single();
+  // Pull the profile (for the topbar + admin gate) and the pending KYC
+  // count in parallel so the layout doesn't add a second sequential
+  // round-trip on every admin page render.
+  const [{ data: profile }, { count: kycPending }] = await Promise.all([
+    admin
+      .from("user_profiles")
+      .select("id, full_name, email, is_admin")
+      .eq("id", user.id)
+      .single(),
+    admin
+      .from("kyc_submissions")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["pending", "under_review"]),
+  ]);
 
   if (!profile?.is_admin) {
-    // Not an admin — bounce to the seller dashboard.
     redirect("/dashboard");
   }
 
@@ -37,5 +45,12 @@ export default async function AdminLayout({
     email: profile.email ?? user.email ?? "",
   };
 
-  return <AdminShell profile={topbarProfile}>{children}</AdminShell>;
+  return (
+    <AdminShell
+      profile={topbarProfile}
+      kycPending={kycPending ?? 0}
+    >
+      {children}
+    </AdminShell>
+  );
 }

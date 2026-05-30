@@ -1,12 +1,29 @@
 import Link from "next/link";
-import { format } from "date-fns";
 import { redirect } from "next/navigation";
+import {
+  AlertCircle,
+  ArrowRight,
+  CreditCard,
+  FileText,
+  Inbox,
+  Send,
+  TrendingUp,
+  Users,
+  Wallet,
+} from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { RevenueBars } from "@/components/dashboard/RevenueBars";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   getDashboardMetrics,
   getRecentTransactions,
@@ -14,7 +31,7 @@ import {
 } from "@/lib/dashboard/queries";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { formatINR } from "@/lib/utils";
+import { formatDateTime, formatINR, truncate } from "@/lib/utils";
 import {
   buildOnboardingSteps,
   computeOnboardingProgress,
@@ -27,7 +44,19 @@ export const metadata = {
 };
 
 function rupees(n: number) {
+  // queries.ts returns rupees (not paise) for revenue/payout/commission
+  // fields, so multiply ×100 to match formatINR's paise contract.
   return formatINR(n * 100);
+}
+
+function trendVsLastMonth(thisMonth: number, lastMonth: number) {
+  if (lastMonth <= 0) return null;
+  const diffPct = Math.round(((thisMonth - lastMonth) / lastMonth) * 100);
+  if (diffPct === 0) return null;
+  return {
+    direction: (diffPct >= 0 ? "up" : "down") as "up" | "down",
+    label: `${diffPct >= 0 ? "+" : ""}${diffPct}%`,
+  };
 }
 
 export default async function DashboardOverview() {
@@ -77,100 +106,297 @@ export default async function DashboardOverview() {
   const showWelcome = shouldShowWelcomeBanner(onboardingProfile);
   const nextStep = onboardingSteps.find((s) => !s.done);
 
+  const noPages = (pagesCount ?? 0) === 0;
+  const revTrend = trendVsLastMonth(
+    metrics.revenueThisMonth,
+    metrics.revenueLastMonth,
+  );
+
   return (
     <div className="space-y-6">
+      {/* ── 1. Welcome banner ─────────────────────────────────────────── */}
       {showWelcome && (
-        <WelcomeBanner
-          progress={onboardingProgress}
-          next={
-            nextStep
-              ? { label: nextStep.cta_label, href: nextStep.cta_href }
-              : null
-          }
-        />
+        <div className="animate-in-up" style={{ animationDelay: "0ms" }}>
+          <WelcomeBanner
+            name={profile?.full_name ?? user.email ?? "there"}
+            progress={onboardingProgress}
+            next={
+              nextStep
+                ? { label: nextStep.cta_label, href: nextStep.cta_href }
+                : null
+            }
+            steps={onboardingSteps.map((s) => ({
+              label: s.title,
+              done: s.done,
+            }))}
+          />
+        </div>
       )}
 
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
+      {/* ── Page heading ─────────────────────────────────────────────── */}
+      <div
+        className="animate-in-up"
+        style={{ animationDelay: "50ms" }}
+      >
+        <h1 className="font-sora text-2xl font-semibold tracking-tight">
+          Overview
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Your store this month.
+          A snapshot of your store this month.
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-        <MetricCard label="Revenue this month" value={rupees(metrics.revenueThisMonth)} />
-        <MetricCard label="Pending payout" value={rupees(metrics.pendingPayout)} hint="Paid orders not yet paid out" />
-        <MetricCard label="Customers" value={metrics.totalCustomers.toLocaleString("en-IN")} />
-        <MetricCard label="Active pages" value={metrics.activePages.toLocaleString("en-IN")} />
-        <MetricCard label="Failed payments" value={metrics.failedPayments.toLocaleString("en-IN")} />
-        <MetricCard label="Commission paid" value={rupees(metrics.commissionPaid)} hint="Platform's cut" />
+      {/* ── 2. Metrics grid ──────────────────────────────────────────── */}
+      <div
+        className="grid grid-cols-2 gap-4 animate-in-up lg:grid-cols-4"
+        style={{ animationDelay: "100ms" }}
+      >
+        <MetricCard
+          label="Revenue (this month)"
+          value={rupees(metrics.revenueThisMonth)}
+          icon={TrendingUp}
+          accentColor="indigo"
+          trend={revTrend ?? undefined}
+          hint={
+            metrics.revenueLastMonth > 0
+              ? `vs ${rupees(metrics.revenueLastMonth)} last month`
+              : "Last month: no sales"
+          }
+        />
+        <MetricCard
+          label="Pending Payout"
+          value={rupees(metrics.pendingPayout)}
+          icon={Wallet}
+          accentColor="emerald"
+          hint="Available to withdraw"
+        />
+        <MetricCard
+          label="Total Customers"
+          value={metrics.totalCustomers.toLocaleString("en-IN")}
+          icon={Users}
+          accentColor="amber"
+          hint="Unique buyers across all pages"
+        />
+        <MetricCard
+          label="Failed Payments"
+          value={metrics.failedLast24h.toLocaleString("en-IN")}
+          icon={AlertCircle}
+          accentColor="rose"
+          hint="In the last 24 hours"
+        />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-base">Recent transactions</CardTitle>
+      {/* ── 3. Recent transactions + Top pages ───────────────────────── */}
+      <div
+        className="grid gap-6 animate-in-up lg:grid-cols-3"
+        style={{ animationDelay: "200ms" }}
+      >
+        {/* LEFT — Recent transactions (2/3 width) */}
+        <div className="rounded-xl border border-border bg-white shadow-sm lg:col-span-2">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <h2 className="font-sora text-base font-semibold tracking-tight">
+              Recent Transactions
+            </h2>
             <Link
               href="/dashboard/transactions"
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="text-sm font-medium text-primary hover:underline"
             >
               View all
             </Link>
-          </CardHeader>
-          <CardContent className="overflow-x-auto p-0">
-            {recent.length === 0 ? (
-              <p className="px-6 py-8 text-center text-sm text-muted-foreground">
-                No transactions yet.
-              </p>
-            ) : (
+          </div>
+
+          {recent.length === 0 ? (
+            <EmptyTransactions />
+          ) : (
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Buyer</TableHead>
-                    <TableHead>Page</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Date</TableHead>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Buyer
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Page
+                    </TableHead>
+                    <TableHead className="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Amount
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Status
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Date
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {recent.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell>
-                        <div className="font-medium">{row.buyer_name ?? row.buyer_email}</div>
+                    <TableRow key={row.id} className="border-border">
+                      <TableCell className="py-3">
+                        <div className="font-medium text-foreground">
+                          {row.buyer_name ?? row.buyer_email}
+                        </div>
                         {row.buyer_name && (
-                          <div className="text-xs text-muted-foreground">{row.buyer_email}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {row.buyer_email}
+                          </div>
                         )}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {row.page_title ?? "—"}
+                      <TableCell
+                        className="text-sm text-muted-foreground"
+                        title={row.page_title ?? undefined}
+                      >
+                        {row.page_title
+                          ? truncate(row.page_title, 24)
+                          : "—"}
                       </TableCell>
-                      <TableCell className="text-right font-mono">
+                      <TableCell className="text-right font-mono text-sm font-semibold text-foreground">
                         {rupees(row.amount)}
                       </TableCell>
                       <TableCell>
                         <StatusBadge status={row.status} />
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {format(new Date(row.created_at), "d MMM, HH:mm")}
+                      <TableCell className="text-sm text-muted-foreground">
+                        {formatDateTime(row.created_at)}
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          )}
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Top pages by revenue</CardTitle>
-          </CardHeader>
-          <CardContent>
+        {/* RIGHT — Top pages (1/3 width) */}
+        <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
+          <h2 className="font-sora text-base font-semibold tracking-tight">
+            Top Pages by Revenue
+          </h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Sorted by lifetime revenue
+          </p>
+          <div className="mt-4">
             <RevenueBars rows={topPages} />
-          </CardContent>
-        </Card>
+          </div>
+          {topPages.length > 0 && (
+            <Link
+              href="/dashboard/pages"
+              className="mt-5 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+            >
+              View all pages
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          )}
+        </div>
       </div>
+
+      {/* ── 4. Quick Actions (only when no pages exist yet) ──────────── */}
+      {noPages && (
+        <div
+          className="animate-in-up"
+          style={{ animationDelay: "300ms" }}
+        >
+          <div className="mb-4">
+            <h2 className="font-sora text-base font-semibold tracking-tight">
+              Quick start
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Create your first page to start collecting payments.
+            </p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            <QuickAction
+              href="/dashboard/pages/new"
+              icon={CreditCard}
+              accent="indigo"
+              title="Create Payment Page"
+              description="A simple checkout for a digital product, course, or service."
+            />
+            <QuickAction
+              href="/dashboard/pages/new"
+              icon={FileText}
+              accent="amber"
+              title="Create Landing Page"
+              description="Capture leads or sell with a long-form sales page."
+            />
+            <QuickAction
+              href="/dashboard/pages/new"
+              icon={Send}
+              accent="emerald"
+              title="Setup Telegram VIP"
+              description="Auto-invite buyers to your private group; auto-remove on expiry."
+            />
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+// ── Sub-components ──────────────────────────────────────────────────────
+
+function EmptyTransactions() {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50">
+        <Inbox className="h-5 w-5 text-indigo-600" />
+      </div>
+      <div>
+        <p className="font-medium text-foreground">No transactions yet</p>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Share your payment page to start collecting orders.
+        </p>
+      </div>
+      <Button asChild size="sm" className="mt-1">
+        <Link href="/dashboard/pages/new">Create a page</Link>
+      </Button>
+    </div>
+  );
+}
+
+type QuickActionAccent = "indigo" | "amber" | "emerald";
+
+const QUICK_ACCENT: Record<
+  QuickActionAccent,
+  { circle: string; icon: string }
+> = {
+  indigo: { circle: "bg-indigo-50", icon: "text-indigo-600" },
+  amber: { circle: "bg-amber-50", icon: "text-amber-600" },
+  emerald: { circle: "bg-emerald-50", icon: "text-emerald-600" },
+};
+
+function QuickAction({
+  href,
+  icon: Icon,
+  accent,
+  title,
+  description,
+}: {
+  href: string;
+  icon: typeof CreditCard;
+  accent: QuickActionAccent;
+  title: string;
+  description: string;
+}) {
+  const a = QUICK_ACCENT[accent];
+  return (
+    <Link
+      href={href}
+      className="group flex items-start gap-4 rounded-xl border border-border bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md"
+    >
+      <span
+        aria-hidden
+        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${a.circle}`}
+      >
+        <Icon className={`h-5 w-5 ${a.icon}`} strokeWidth={2} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <h3 className="font-sora text-sm font-semibold text-foreground transition-colors group-hover:text-primary">
+          {title}
+        </h3>
+        <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+      </div>
+      <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+    </Link>
   );
 }

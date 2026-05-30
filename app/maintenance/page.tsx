@@ -46,7 +46,7 @@ export default async function MaintenancePage() {
           {platformName}
         </p>
       )}
-      <h1 className="text-3xl font-semibold tracking-tight">
+      <h1 className="text-3xl font-sora font-semibold tracking-tight">
         We&apos;ll be back shortly
       </h1>
       <p className="mt-3 max-w-md whitespace-pre-line text-muted-foreground">

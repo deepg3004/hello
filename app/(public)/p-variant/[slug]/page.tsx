@@ -130,7 +130,7 @@ export default async function VariantBPage({
   if (!result) {
     return (
       <main className="mx-auto max-w-2xl px-6 py-16 text-center">
-        <h1 className="text-3xl font-semibold tracking-tight">{params.slug}</h1>
+        <h1 className="text-3xl font-sora font-semibold tracking-tight">{params.slug}</h1>
         <p className="mt-4 text-muted-foreground">
           This page isn&apos;t running an A/B experiment right now.
         </p>
@@ -144,7 +144,7 @@ export default async function VariantBPage({
   if (!template) {
     return (
       <main className="mx-auto max-w-2xl px-6 py-16 text-center">
-        <h1 className="text-3xl font-semibold tracking-tight">{page.title}</h1>
+        <h1 className="text-3xl font-sora font-semibold tracking-tight">{page.title}</h1>
         <p className="mt-4 text-muted-foreground">
           This page uses a template we don&apos;t recognise.
         </p>

@@ -148,7 +148,7 @@ export function PageBuilderWizard() {
       {step === 1 && (
         <div className="space-y-4">
           <div>
-            <h2 className="text-xl font-semibold tracking-tight">What kind of page?</h2>
+            <h2 className="text-xl font-sora font-semibold tracking-tight">What kind of page?</h2>
             <p className="text-sm text-muted-foreground">
               You can always change the template later.
             </p>
@@ -167,7 +167,7 @@ export function PageBuilderWizard() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold tracking-tight">Pick a template</h2>
+              <h2 className="text-xl font-sora font-semibold tracking-tight">Pick a template</h2>
               <p className="text-sm text-muted-foreground">
                 You&apos;ll be able to customise every field next.
               </p>
@@ -188,7 +188,7 @@ export function PageBuilderWizard() {
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-semibold tracking-tight">
+              <h2 className="text-xl font-sora font-semibold tracking-tight">
                 Customise: {template.definition.name}
               </h2>
               <p className="text-sm text-muted-foreground">

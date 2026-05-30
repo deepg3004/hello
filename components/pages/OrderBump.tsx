@@ -1,7 +1,8 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import type { OrderBumpConfig } from "@/lib/upsells";
 import { ORDER_BUMP_DEFAULTS } from "@/lib/upsells";
 
@@ -16,45 +17,67 @@ export function OrderBump({ config, checked, onChange }: OrderBumpProps) {
   const description = config.description ?? ORDER_BUMP_DEFAULTS.description;
   const price = Number(config.price ?? 0);
 
+  // The checkbox state is mirrored to a custom-styled 24px square so we can
+  // theme it consistently without relying on the browser default checkmark.
   return (
     <label
       htmlFor="order-bump-checkbox"
-      className={
-        "block cursor-pointer rounded-md border-2 border-dashed p-3 transition " +
-        (checked
-          ? "border-amber-500 bg-amber-50"
-          : "border-amber-300 bg-amber-50/60 hover:bg-amber-50")
-      }
+      className={cn(
+        "flex cursor-pointer items-start gap-3 rounded-xl border-2 p-4 transition-all duration-200",
+        checked
+          ? "border-amber-400 bg-amber-50 shadow-sm"
+          : "border-amber-300 bg-amber-50/60 hover:border-amber-400 hover:bg-amber-50",
+      )}
     >
-      <div className="flex items-start gap-3">
-        <input
-          id="order-bump-checkbox"
-          type="checkbox"
-          checked={checked}
-          onChange={(e) => onChange(e.target.checked)}
-          className="mt-1 h-4 w-4 shrink-0 cursor-pointer accent-amber-600"
-        />
-        <div className="flex-1">
-          <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>
-              Yes! Add <span className="underline">{title}</span> to my order for just{" "}
-              <span className="font-mono">₹{price.toLocaleString("en-IN")}</span>
-            </span>
-          </div>
-          {description && (
-            <p className="mt-1 text-xs text-amber-800">{description}</p>
-          )}
-        </div>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        {config.image_url && (
-          <img
-            src={config.image_url}
-            alt={title}
-            className="h-14 w-14 shrink-0 rounded-md border border-amber-300 object-cover"
-          />
+      {/* Native checkbox kept for accessibility; visually hidden under the
+          custom square. */}
+      <input
+        id="order-bump-checkbox"
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="sr-only"
+      />
+      <span
+        aria-hidden
+        className={cn(
+          "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 transition-all duration-150",
+          checked
+            ? "border-amber-500 bg-amber-500 text-white shadow-sm"
+            : "border-amber-400 bg-white",
+        )}
+      >
+        {checked && <Check className="h-3.5 w-3.5" strokeWidth={3.5} />}
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <p className="flex flex-wrap items-center gap-x-1.5 text-sm font-semibold text-amber-900">
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+          <span>
+            Add <span className="underline decoration-amber-400 decoration-2 underline-offset-2">{title}</span>
+          </span>
+          <span className="font-mono">· ₹{price.toLocaleString("en-IN")}</span>
+          <span className="ml-1 inline-flex items-center rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-950">
+            Just ₹{price.toLocaleString("en-IN")} more
+          </span>
+        </p>
+        {description && (
+          <p className="mt-1 text-xs leading-relaxed text-amber-800/90">
+            {description}
+          </p>
         )}
       </div>
+
+      {/* Optional thumbnail on the right — kept from the legacy design so
+          existing bumps with an image still render with it. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {config.image_url && (
+        <img
+          src={config.image_url}
+          alt={title}
+          className="h-14 w-14 shrink-0 rounded-lg border border-amber-300 object-cover"
+        />
+      )}
     </label>
   );
 }

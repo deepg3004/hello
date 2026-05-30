@@ -1,10 +1,17 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { ArrowRight, Calendar, Clock, Lock, Sparkles, Video } from "lucide-react";
+
 import { LeadCaptureForm } from "@/components/pages/LeadCaptureForm";
 import { Countdown } from "./shared/Countdown";
 import type { BaseTemplateProps } from "./shared/types";
 
-interface AgendaItem { text: string }
+interface AgendaItem {
+  text: string;
+  /** Optional 1-line description for the topic. */
+  description?: string;
+}
 
 export interface LandingWebinarPageProps extends BaseTemplateProps {
   banner_text?: string;
@@ -21,85 +28,295 @@ export interface LandingWebinarPageProps extends BaseTemplateProps {
   register_count_label?: string;
   /** Optional URL to redirect to after successful registration. */
   redirect_url?: string;
+  /** Total seats available — drives the "X of N seats left" progress bar.
+   *  Optional. When absent the seats meter is hidden. */
+  total_seats?: number;
+  /** Currently filled seats. Used with total_seats to show progress. */
+  seats_filled?: number;
+  /** Social-proof number rendered below the form ("2,304 already registered"). */
+  registered_count?: number;
+  /** Event date for the calendar chip + countdown ISO. */
+  event_date_label?: string;
 }
 
 export function LandingWebinarPage(props: LandingWebinarPageProps) {
   const agenda = props.agenda_items ?? [];
+  const totalSeats = props.total_seats ?? 0;
+  const filled = props.seats_filled ?? 0;
+  const seatsLeft = Math.max(0, totalSeats - filled);
+  const showSeats = totalSeats > 0;
+  const fillPct = totalSeats > 0 ? Math.min(100, (filled / totalSeats) * 100) : 0;
+  const lowSeats = totalSeats > 0 && seatsLeft / totalSeats < 0.2;
+
+  // Smooth-scroll to the registration card from the sticky header CTA.
+  const [headerVisible, setHeaderVisible] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setHeaderVisible(window.scrollY > 200);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
-    <div className="min-h-screen bg-[#0b0b14] text-zinc-100">
+    <div className="min-h-screen bg-[#0a0418] text-white">
+      {/* ── Sticky header (slides in after scrolling past hero) ─────── */}
+      <header
+        className={[
+          "fixed inset-x-0 top-0 z-40 transition-all duration-300",
+          "border-b border-white/10 bg-purple-950/95 backdrop-blur",
+          headerVisible ? "translate-y-0" : "-translate-y-full",
+        ].join(" ")}
+      >
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-emerald-300">
+              <span className="inline-block h-1.5 w-1.5 animate-pulse-slow rounded-full bg-emerald-400" />
+              Free Webinar
+            </span>
+            <span className="truncate text-sm font-medium text-white/90">
+              {props.hero_headline}
+            </span>
+          </div>
+          <a
+            href="#register"
+            className="shrink-0 rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-purple-900 transition hover:bg-purple-50"
+          >
+            Register Free →
+          </a>
+        </div>
+      </header>
+
+      {/* Optional top banner */}
       {props.banner_text && (
-        <div className="bg-indigo-600 px-4 py-2 text-center text-sm font-medium">
+        <div className="bg-purple-700 px-4 py-2 text-center text-sm font-medium text-white">
+          <span className="mr-2 inline-flex items-center gap-1">
+            <Sparkles className="h-3.5 w-3.5" />
+          </span>
           {props.banner_text}
         </div>
       )}
 
+      {/* ====================================================================
+          HERO + REGISTRATION (2-col on lg)
+          ==================================================================== */}
       <section
-        className="px-4 pb-12 pt-16 text-center"
+        className="relative isolate overflow-hidden"
         style={{
           background:
-            "linear-gradient(160deg, #0b0b14 0%, #131329 70%, #0b0b14 100%)",
+            "linear-gradient(135deg, #2e1065 0%, #4c1d95 35%, #312e81 100%)",
         }}
       >
-        {props.timer?.enabled && props.timer.target && (
-          <div className="mx-auto mb-8 flex max-w-3xl justify-center">
-            <Countdown
-              targetIso={props.timer.target}
-              label={props.timer.label ?? "Live in"}
-              boxClassName="bg-indigo-500/15 text-indigo-100"
-            />
+        {/* Radial glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-32 -top-32 h-[480px] w-[480px] rounded-full bg-fuchsia-500/20 blur-3xl"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -left-40 bottom-0 h-[360px] w-[360px] rounded-full bg-violet-500/20 blur-3xl"
+        />
+        {/* Subtle grid overlay */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-30"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)",
+            backgroundSize: "32px 32px",
+          }}
+        />
+
+        <div className="relative mx-auto grid max-w-6xl gap-10 px-4 pb-16 pt-24 md:pb-20 md:pt-28 lg:grid-cols-[1.4fr_minmax(0,1fr)] lg:gap-12">
+          {/* LEFT — hero copy */}
+          <div className="text-center lg:text-left">
+            <span className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-400/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-emerald-300">
+              <span className="inline-block h-1.5 w-1.5 animate-pulse-slow rounded-full bg-emerald-400" />
+              Free Webinar
+            </span>
+
+            {/* Countdown (if seller set one) */}
+            {props.timer?.enabled && props.timer.target && (
+              <div className="mb-6 mx-auto inline-block lg:mx-0">
+                <Countdown
+                  targetIso={props.timer.target}
+                  label={props.timer.label ?? "Starts in"}
+                  boxClassName="bg-white text-purple-900"
+                />
+              </div>
+            )}
+
+            <h1 className="font-sora text-[40px] font-bold leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-[52px]">
+              {props.hero_headline}
+            </h1>
+
+            {props.hero_subheadline && (
+              <p className="mt-5 max-w-xl text-base leading-relaxed text-white/75 sm:text-lg md:text-xl lg:mx-0 mx-auto">
+                {props.hero_subheadline}
+              </p>
+            )}
+
+            {/* Event meta chips */}
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-sm lg:justify-start">
+              {props.event_date_label && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-white/90">
+                  <Calendar className="h-3.5 w-3.5" />
+                  {props.event_date_label}
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-white/90">
+                <Video className="h-3.5 w-3.5" />
+                Live + Q&amp;A
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-white/90">
+                <Clock className="h-3.5 w-3.5" />
+                60 minutes
+              </span>
+            </div>
+
+            {/* Host row */}
+            {(props.host_name || props.host_avatar) && (
+              <div className="mt-8 flex items-center gap-3 lg:justify-start justify-center">
+                <span className="h-12 w-12 shrink-0 overflow-hidden rounded-full border-2 border-white/30 bg-purple-950">
+                  {props.host_avatar ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={props.host_avatar}
+                      alt={props.host_name ?? ""}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center font-sora text-base font-bold text-white/60">
+                      {(props.host_name ?? "?")[0]?.toUpperCase()}
+                    </span>
+                  )}
+                </span>
+                <div className="text-left">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-fuchsia-300">
+                    Hosted by
+                  </p>
+                  <p className="font-sora text-sm font-semibold text-white">
+                    {props.host_name}
+                  </p>
+                  {props.host_title && (
+                    <p className="text-xs text-white/60">{props.host_title}</p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-        )}
-        <div className="mx-auto max-w-3xl">
-          <h1 className="text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
-            {props.hero_headline}
-          </h1>
-          {props.hero_subheadline && (
-            <p className="mt-5 text-lg leading-relaxed text-zinc-300">
-              {props.hero_subheadline}
-            </p>
-          )}
+
+          {/* RIGHT — registration card (sticky on desktop) */}
+          <aside
+            id="register"
+            className="scroll-mt-24 lg:sticky lg:top-24 lg:self-start"
+          >
+            <div className="rounded-2xl bg-white p-6 text-zinc-900 shadow-2xl md:p-8">
+              <h2 className="font-sora text-xl font-bold tracking-tight">
+                {props.register_title ?? "Reserve Your Seat"}
+              </h2>
+              {props.register_count_label && (
+                <p className="mt-1 text-sm text-zinc-500">
+                  {props.register_count_label}
+                </p>
+              )}
+
+              {/* Seats remaining bar */}
+              {showSeats && (
+                <div className="mt-4 rounded-lg border border-zinc-100 bg-zinc-50 p-3">
+                  <div className="flex items-center justify-between text-xs font-medium">
+                    <span
+                      className={
+                        lowSeats ? "text-rose-600" : "text-zinc-700"
+                      }
+                    >
+                      {seatsLeft.toLocaleString("en-IN")} of{" "}
+                      {totalSeats.toLocaleString("en-IN")} seats left
+                    </span>
+                    {lowSeats && (
+                      <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700">
+                        Filling fast
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200">
+                    <div
+                      className={[
+                        "h-full rounded-full transition-[width] duration-500 ease-out",
+                        lowSeats ? "bg-rose-500" : "bg-emerald-500",
+                      ].join(" ")}
+                      style={{ width: `${fillPct}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Form */}
+              <div className="mt-5">
+                {props.pageId && !props.isPreview ? (
+                  <LeadCaptureForm
+                    pageId={props.pageId}
+                    ctaLabel={props.register_cta ?? "Register free"}
+                    requirePhone
+                    redirectUrl={props.redirect_url}
+                    formConfig={props.formConfig}
+                  />
+                ) : (
+                  <p className="rounded-lg border border-dashed border-zinc-200 bg-zinc-50 p-4 text-center text-sm text-zinc-500">
+                    Registration form renders on the live page.
+                  </p>
+                )}
+              </div>
+
+              {/* Trust strip */}
+              <div className="mt-5 border-t border-zinc-100 pt-4">
+                <p className="flex items-center justify-center gap-1.5 text-xs text-zinc-500">
+                  <Lock className="h-3 w-3" />
+                  No spam · Unsubscribe anytime
+                </p>
+                {typeof props.registered_count === "number" &&
+                  props.registered_count > 0 && (
+                    <p className="mt-2 text-center text-xs text-zinc-500">
+                      <span className="font-semibold text-emerald-600">
+                        {props.registered_count.toLocaleString("en-IN")}
+                      </span>{" "}
+                      already registered
+                    </p>
+                  )}
+              </div>
+            </div>
+          </aside>
         </div>
       </section>
 
-      {(props.host_name || props.host_bio) && (
-        <section className="border-t border-white/5 py-12">
-          <div className="mx-auto flex max-w-3xl items-center gap-5 px-6">
-            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full bg-zinc-800">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              {props.host_avatar ? (
-                <img
-                  src={props.host_avatar}
-                  alt={props.host_name ?? ""}
-                  className="h-full w-full object-cover"
-                />
-              ) : null}
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-widest text-indigo-300">
-                Hosted by
-              </p>
-              <div className="font-medium">{props.host_name}</div>
-              <div className="text-sm text-zinc-400">{props.host_title}</div>
-              <p className="mt-2 text-sm text-zinc-300">{props.host_bio}</p>
-            </div>
-          </div>
-        </section>
-      )}
-
+      {/* ====================================================================
+          WHAT YOU'LL LEARN (grid)
+          ==================================================================== */}
       {agenda.length > 0 && (
-        <section className="border-t border-white/5 bg-[#10101c] py-16">
-          <div className="mx-auto max-w-2xl px-6">
-            <h2 className="text-2xl font-semibold tracking-tight">
-              {props.agenda_title}
+        <section className="bg-slate-50 py-16 text-zinc-900 md:py-20">
+          <div className="mx-auto max-w-6xl px-4">
+            <h2 className="text-center font-sora text-2xl font-bold tracking-tight sm:text-3xl">
+              {props.agenda_title ?? "What you'll learn"}
             </h2>
-            <ul className="mt-6 space-y-3">
+            <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {agenda.map((b, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <span className="mt-1 inline-block h-5 w-5 shrink-0 rounded-full bg-indigo-500/20 text-center text-xs font-semibold leading-5 text-indigo-300">
-                    {i + 1}
+                <li
+                  key={i}
+                  className="group rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                >
+                  <span
+                    aria-hidden
+                    className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-violet-600 font-sora text-sm font-bold text-white shadow-sm"
+                  >
+                    {String(i + 1).padStart(2, "0")}
                   </span>
-                  <span className="text-zinc-200">{b.text}</span>
+                  <p className="font-sora text-sm font-semibold text-zinc-900">
+                    {b.text}
+                  </p>
+                  {b.description && (
+                    <p className="mt-1 text-sm leading-relaxed text-zinc-600">
+                      {b.description}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>
@@ -107,31 +324,66 @@ export function LandingWebinarPage(props: LandingWebinarPageProps) {
         </section>
       )}
 
-      <section id="register" className="border-t border-white/5 py-16">
-        <div className="mx-auto max-w-md px-6">
-          <h2 className="text-center text-2xl font-semibold tracking-tight">
-            {props.register_title}
-          </h2>
-          {props.register_count_label && (
-            <p className="mt-2 text-center text-sm text-zinc-400">
-              {props.register_count_label}
-            </p>
-          )}
-          <div className="mt-6 rounded-xl bg-white p-6 text-zinc-900">
-            {props.pageId && !props.isPreview ? (
-              <LeadCaptureForm
-                pageId={props.pageId}
-                ctaLabel={props.register_cta ?? "Register free"}
-                requirePhone
-                redirectUrl={props.redirect_url}
-                formConfig={props.formConfig}
-              />
-            ) : (
-              <p className="text-center text-sm text-zinc-500">
-                Registration form renders on the live page.
-              </p>
-            )}
+      {/* ====================================================================
+          HOST BIO
+          ==================================================================== */}
+      {(props.host_name || props.host_bio) && (
+        <section className="bg-white py-16 text-zinc-900 md:py-20">
+          <div className="mx-auto max-w-3xl px-4">
+            <div className="flex flex-col items-center gap-6 text-center md:flex-row md:items-start md:text-left">
+              <div className="h-28 w-28 shrink-0 overflow-hidden rounded-full border-2 border-purple-400 bg-zinc-100 shadow-lg">
+                {props.host_avatar ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={props.host_avatar}
+                    alt={props.host_name ?? ""}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-purple-200 to-violet-400 font-sora text-2xl font-bold text-purple-900">
+                    {(props.host_name ?? "?")[0]?.toUpperCase()}
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-purple-600">
+                  Your host
+                </p>
+                <h3 className="mt-1 font-sora text-2xl font-bold tracking-tight">
+                  {props.host_name}
+                </h3>
+                {props.host_title && (
+                  <p className="text-sm text-zinc-500">{props.host_title}</p>
+                )}
+                {props.host_bio && (
+                  <p className="mt-3 text-base leading-relaxed text-zinc-600">
+                    {props.host_bio}
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
+        </section>
+      )}
+
+      {/* ====================================================================
+          FINAL CTA STRIP
+          ==================================================================== */}
+      <section className="bg-purple-950 py-12 text-center text-white">
+        <div className="mx-auto max-w-xl px-4">
+          <h3 className="font-sora text-2xl font-bold tracking-tight">
+            Ready to join the live session?
+          </h3>
+          <p className="mt-2 text-sm text-white/70">
+            It&apos;s free. It&apos;s live. And there&apos;s a Q&amp;A at the end.
+          </p>
+          <a
+            href="#register"
+            className="mt-6 inline-flex items-center gap-2 rounded-full bg-white px-7 py-3 text-base font-semibold text-purple-900 shadow-lg transition hover:scale-105 hover:bg-purple-50"
+          >
+            Reserve my seat
+            <ArrowRight className="h-4 w-4" strokeWidth={2.5} />
+          </a>
         </div>
       </section>
     </div>

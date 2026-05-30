@@ -4,7 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Check, Loader2, Tag, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  Loader2,
+  Lock,
+  Tag,
+  X,
+} from "lucide-react";
 
 import { OrderBump } from "@/components/pages/OrderBump";
 import type { OrderBumpConfig } from "@/lib/upsells";
@@ -17,13 +26,6 @@ import {
 } from "@/lib/pixel-events";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   Form,
   FormControl,
   FormField,
@@ -32,7 +34,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -117,6 +118,13 @@ export interface CheckoutFormProps {
   initialBuyer?: { name?: string; email?: string; phone?: string };
   /** When present + enabled, render the bump checkbox and add it to the total. */
   orderBump?: OrderBumpConfig & { ready: boolean };
+  /**
+   * Optional hex / CSS colour used for the Pay button background, the
+   * coupon-applied tick, and Razorpay's modal accent. Templates pass their
+   * own theme colour (#d4af37 gold for course, #f97316 orange for coaching,
+   * #4F46E5 indigo for digital, etc.). Defaults to indigo when not set.
+   */
+  primaryColor?: string;
 }
 
 interface AppliedCoupon {
@@ -129,6 +137,7 @@ export function CheckoutForm(props: CheckoutFormProps) {
   const { toast } = useToast();
   const razorpayReady = useRazorpayScript();
   const currency = props.currency ?? "INR";
+  const primaryColor = props.primaryColor ?? "#4F46E5";
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -139,36 +148,46 @@ export function CheckoutForm(props: CheckoutFormProps) {
     },
   });
 
+  // ── Local UI state ────────────────────────────────────────────────────
   const [couponInput, setCouponInput] = useState("");
+  const [couponOpen, setCouponOpen] = useState(false);
   const [applyingCoupon, setApplyingCoupon] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
   const [coupon, setCoupon] = useState<AppliedCoupon | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // True while Razorpay's modal is open in front — we dim the form behind it
+  // and block clicks so the user can't double-submit.
+  const [modalOpen, setModalOpen] = useState(false);
   const [bumpAccepted, setBumpAccepted] = useState(false);
-  // Email-blur pre-capture lifecycle — we never fire for the same address
-  // twice, but we do refresh on phone/name updates.
+  // Last-fired failure banner — populated when Razorpay errors OR the verify
+  // step fails. Cleared on the next submit attempt.
+  const [failure, setFailure] = useState<string | null>(null);
+  // Post-payment success splash — shown briefly before redirect so the buyer
+  // sees confirmation instead of staring at a frozen form.
+  const [success, setSuccess] = useState(false);
+
   const lastCapturedEmailRef = useRef<string | null>(null);
 
-  // Optional GST / billing details (B2B invoice path) — opt-in via toggle so
-  // the checkout stays one-screen for B2C buyers.
+  // ── Optional GST / billing details (B2B invoice path) ─────────────────
   const [gstOpen, setGstOpen] = useState(false);
   const [buyerGstin, setBuyerGstin] = useState("");
   const [billLine1, setBillLine1] = useState("");
   const [billLine2, setBillLine2] = useState("");
   const [billCity, setBillCity] = useState("");
   const [billPincode, setBillPincode] = useState("");
-
   const gstinUpper = buyerGstin.trim().toUpperCase();
   const gstinValid = gstinUpper === "" || GSTIN_REGEX.test(gstinUpper);
 
+  // ── Derived totals ────────────────────────────────────────────────────
   const discount = coupon?.discount_amount ?? 0;
   const bumpReady = !!props.orderBump?.ready;
   const bumpPrice = Number(props.orderBump?.price ?? 0);
   const bumpExtra = bumpReady && bumpAccepted ? bumpPrice : 0;
-  const total = Math.max(0, props.price - discount) + bumpExtra;
+  const subtotal = props.price;
+  const total = Math.max(0, subtotal - discount) + bumpExtra;
+  const hasPrice = subtotal > 0;
 
-  // Cart-recovery prefill: if the URL carries ?r=<token>, look up the
-  // abandoned cart and populate the buyer fields. Then strip the token
-  // from the visible URL so it can't be shared accidentally.
+  // ── Cart-recovery prefill: ?r=<token> populates the form once ────────
   useEffect(() => {
     if (typeof window === "undefined") return;
     const sp = new URLSearchParams(window.location.search);
@@ -219,6 +238,26 @@ export function CheckoutForm(props: CheckoutFormProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Pre-fill coupon stashed by an exit-intent popup, and open the panel.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stashedKey = Object.keys(window.sessionStorage).find((k) =>
+        k.startsWith("invoxai_coupon_"),
+      );
+      if (!stashedKey) return;
+      const code = window.sessionStorage.getItem(stashedKey);
+      if (code && !coupon && !couponInput) {
+        setCouponInput(code);
+        setCouponOpen(true);
+      }
+    } catch {
+      /* sessionStorage may be blocked in private windows */
+    }
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Fire-and-forget pre-capture on email blur once the user types a valid
   // address. The server is idempotent, so accidental double-fires are fine.
   function maybePreCapture() {
@@ -233,7 +272,6 @@ export function CheckoutForm(props: CheckoutFormProps) {
       buyer_phone: form.getValues("buyer_phone") || undefined,
       amount: total,
     };
-    // Use sendBeacon when available (survives tab close); fallback to fetch.
     try {
       if (
         typeof navigator !== "undefined" &&
@@ -256,32 +294,15 @@ export function CheckoutForm(props: CheckoutFormProps) {
     }).catch(() => undefined);
   }
 
-  // Pre-fill coupon code stashed by an exit-intent popup.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const stashedKey = Object.keys(window.sessionStorage).find((k) =>
-        k.startsWith("invoxai_coupon_"),
-      );
-      if (!stashedKey) return;
-      const code = window.sessionStorage.getItem(stashedKey);
-      if (code && !coupon && !couponInput) {
-        setCouponInput(code);
-      }
-    } catch {
-      /* sessionStorage may be blocked in private windows */
-    }
-    // run once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   async function applyCoupon() {
-    if (!couponInput.trim()) return;
+    const code = couponInput.trim();
+    if (!code) return;
     setApplyingCoupon(true);
+    setCouponError(null);
     try {
       const buyerEmail = form.getValues("buyer_email");
       const qs = new URLSearchParams({
-        code: couponInput.trim(),
+        code,
         page_id: props.pageId,
         amount: String(props.price),
       });
@@ -290,23 +311,14 @@ export function CheckoutForm(props: CheckoutFormProps) {
       const body = (await res.json()) as
         | { valid: true; coupon_id: string; code: string; discount_amount: number }
         | { valid: false; reason: string };
-
       if (!body.valid) {
-        toast({
-          title: "Coupon not valid",
-          description: body.reason,
-          variant: "destructive",
-        });
+        setCouponError(body.reason);
         return;
       }
       setCoupon({
         code: body.code,
         coupon_id: body.coupon_id,
         discount_amount: body.discount_amount,
-      });
-      toast({
-        title: "Coupon applied",
-        description: `-₹${body.discount_amount.toLocaleString("en-IN")}`,
       });
     } finally {
       setApplyingCoupon(false);
@@ -316,27 +328,20 @@ export function CheckoutForm(props: CheckoutFormProps) {
   function clearCoupon() {
     setCoupon(null);
     setCouponInput("");
+    setCouponError(null);
   }
 
   async function onSubmit(values: FormValues) {
+    setFailure(null);
     if (!razorpayReady) {
-      toast({
-        title: "Checkout still loading",
-        description: "Give it a second and try again.",
-        variant: "destructive",
-      });
+      setFailure("Checkout is still loading. Try again in a moment.");
       return;
     }
     if (gstOpen && gstinUpper && !gstinValid) {
-      toast({
-        title: "GSTIN looks invalid",
-        description: "Check the 15-character format or clear the field.",
-        variant: "destructive",
-      });
+      setFailure("The GSTIN you entered looks invalid. Check it or clear the field.");
       return;
     }
     setSubmitting(true);
-    // Make sure pre-capture has fired before Razorpay opens.
     maybePreCapture();
 
     let createBody: {
@@ -363,15 +368,13 @@ export function CheckoutForm(props: CheckoutFormProps) {
           amount: total,
           buyer_email: values.buyer_email,
           buyer_name: values.buyer_name,
-          buyer_phone: values.buyer_phone,
+          buyer_phone: normalisePhone(values.buyer_phone),
           coupon_code: coupon?.code,
           bump_offered: bumpReady,
           bump_accepted: bumpReady && bumpAccepted,
           bump_product_id:
             bumpReady && bumpAccepted ? props.orderBump?.product_id : undefined,
           bump_amount: bumpReady && bumpAccepted ? bumpPrice : undefined,
-          // Optional GST / billing — only forwarded when the buyer expanded
-          // the section, otherwise the API treats it as a B2C sale.
           buyer_gstin: gstOpen && gstinUpper ? gstinUpper : undefined,
           buyer_state_code:
             gstOpen && gstinUpper
@@ -395,11 +398,7 @@ export function CheckoutForm(props: CheckoutFormProps) {
       }
     } catch (err) {
       setSubmitting(false);
-      toast({
-        title: "Couldn't start checkout",
-        description: err instanceof Error ? err.message : String(err),
-        variant: "destructive",
-      });
+      setFailure(err instanceof Error ? err.message : String(err));
       return;
     }
 
@@ -413,10 +412,10 @@ export function CheckoutForm(props: CheckoutFormProps) {
       prefill: {
         name: values.buyer_name,
         email: values.buyer_email,
-        contact: values.buyer_phone,
+        contact: normalisePhone(values.buyer_phone),
       },
       notes: { invoxai_order_id: createBody.order_id ?? "" },
-      theme: { color: "#0f0f10" },
+      theme: { color: primaryColor },
       handler: async (response) => {
         try {
           const verifyRes = await fetch("/api/checkout/verify-payment", {
@@ -461,343 +460,551 @@ export function CheckoutForm(props: CheckoutFormProps) {
           } catch (pixelErr) {
             console.warn("[checkout] pixel fire failed", pixelErr);
           }
-          window.location.href = verifyBody.redirect_url ?? "/";
+
+          // Show the success splash for ~700ms then redirect — gives the
+          // buyer's eye time to land on the green check before navigation.
+          setModalOpen(false);
+          setSuccess(true);
+          setTimeout(() => {
+            window.location.href = verifyBody.redirect_url ?? "/";
+          }, 700);
         } catch (e) {
           setSubmitting(false);
-          toast({
-            title: "Payment captured but verification failed",
-            description:
-              e instanceof Error ? e.message : "Contact support with your payment id.",
-            variant: "destructive",
-          });
+          setModalOpen(false);
+          setFailure(
+            e instanceof Error
+              ? `Payment captured but verification failed: ${e.message}`
+              : "Payment captured but verification failed — contact support with your payment id.",
+          );
         }
       },
       modal: {
         ondismiss: () => {
           setSubmitting(false);
-          // abandoned_checkouts row was already created server-side; nothing
-          // more to do — the dunning job will pick it up.
-          toast({
-            title: "Checkout cancelled",
-            description:
-              "We saved your cart. We'll email you a recovery link if you opted in.",
-          });
+          setModalOpen(false);
         },
       },
     };
 
     const rzp = new window.Razorpay!(options);
+    setModalOpen(true);
     rzp.open();
   }
 
+  // ── Render ────────────────────────────────────────────────────────────
+  if (success) {
+    return <SuccessSplash />;
+  }
+
   return (
-    <div className="grid gap-6 md:grid-cols-2">
-      {/* ----- Buyer details ----- */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Your details</CardTitle>
-          <CardDescription>
-            We&apos;ll send the confirmation and any access links here.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form
-              id="checkout-form"
-              onSubmit={form.handleSubmit(onSubmit)}
-              className="space-y-4"
-            >
-              <FormField
-                control={form.control}
-                name="buyer_name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Full name</FormLabel>
-                    <FormControl>
-                      <Input autoComplete="name" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="buyer_email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="email"
-                        autoComplete="email"
-                        placeholder="you@example.com"
-                        {...field}
-                        onBlur={(e) => {
-                          field.onBlur();
-                          // Schedule one tick later so RHF's state is settled
-                          // before we read form values for the pre-capture body.
-                          setTimeout(maybePreCapture, 0);
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="buyer_phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="tel"
-                        autoComplete="tel"
-                        placeholder="+91 98765 43210"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* ─── Optional GST / billing details ─── */}
-              <div className="rounded-md border bg-muted/30 p-3">
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between text-left text-sm font-medium"
-                  onClick={() => setGstOpen((v) => !v)}
-                >
-                  <span>
-                    Buying for a business? Add GSTIN
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      (optional)
-                    </span>
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {gstOpen ? "Hide" : "Add"}
-                  </span>
-                </button>
-                {gstOpen && (
-                  <div className="mt-3 space-y-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground">
-                        GSTIN
-                      </label>
-                      <Input
-                        placeholder="27ABCDE1234F1Z5"
-                        value={buyerGstin}
-                        maxLength={15}
-                        onChange={(e) =>
-                          setBuyerGstin(e.target.value.toUpperCase())
-                        }
-                        style={{ textTransform: "uppercase" }}
-                      />
-                      {buyerGstin && !gstinValid && (
-                        <p className="mt-1 text-xs text-destructive">
-                          Invalid GSTIN format.
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground">
-                        Billing address
-                      </label>
-                      <Input
-                        placeholder="Address line 1"
-                        value={billLine1}
-                        onChange={(e) => setBillLine1(e.target.value)}
-                      />
-                    </div>
-                    <Input
-                      placeholder="Address line 2 (optional)"
-                      value={billLine2}
-                      onChange={(e) => setBillLine2(e.target.value)}
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input
-                        placeholder="City"
-                        value={billCity}
-                        onChange={(e) => setBillCity(e.target.value)}
-                      />
-                      <Input
-                        placeholder="Pincode"
-                        value={billPincode}
-                        maxLength={6}
-                        inputMode="numeric"
-                        onChange={(e) => setBillPincode(e.target.value)}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      We&apos;ll issue a B2B GST invoice with your GSTIN and
-                      billing address.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
-
-      {/* ----- Order summary ----- */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Order summary</CardTitle>
-          <CardDescription>
-            Secured by Razorpay. You won&apos;t be charged until you confirm.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-start gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            {props.productImage ? (
-              <img
-                src={props.productImage}
-                alt={props.productName}
-                className="h-14 w-14 rounded-md border object-cover"
-              />
-            ) : (
-              <div className="flex h-14 w-14 items-center justify-center rounded-md border bg-muted text-xs font-semibold text-muted-foreground">
-                IXA
-              </div>
-            )}
-            <div className="flex-1">
-              <div className="font-medium">{props.productName}</div>
-              {props.productDescription && (
-                <p className="text-sm text-muted-foreground line-clamp-2">
-                  {props.productDescription}
-                </p>
-              )}
-            </div>
-            <div className="text-right font-medium">₹{props.price.toLocaleString("en-IN")}</div>
-          </div>
-
-          <Separator />
-
-          {/* Coupon */}
-          {!coupon ? (
-            <div className="flex gap-2">
-              <Input
-                placeholder="Coupon code"
-                value={couponInput}
-                onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                disabled={applyingCoupon}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={applyCoupon}
-                disabled={applyingCoupon || !couponInput.trim()}
-              >
-                {applyingCoupon ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Tag className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
+    <div
+      className={cn(
+        "relative space-y-5 transition-opacity duration-200",
+        modalOpen && "pointer-events-none select-none opacity-50",
+      )}
+    >
+      {/* Mini order summary (only when price > 0) */}
+      {hasPrice && (
+        <div className="flex items-start gap-3 border-b border-zinc-200 pb-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {props.productImage ? (
+            <img
+              src={props.productImage}
+              alt={props.productName}
+              className="h-12 w-12 shrink-0 rounded-lg border border-zinc-200 object-cover"
+            />
           ) : (
-            <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2 text-sm">
-              <span className="inline-flex items-center gap-2 font-medium">
-                <Check className="h-4 w-4 text-primary" />
-                {coupon.code}
+            <div
+              aria-hidden
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 font-mono text-[10px] font-bold text-zinc-400"
+            >
+              IXA
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-sora text-sm font-semibold text-zinc-900">
+              {props.productName}
+            </p>
+            {props.productDescription && (
+              <p className="line-clamp-1 text-xs text-zinc-500">
+                {props.productDescription}
+              </p>
+            )}
+          </div>
+          <p className="shrink-0 text-right font-mono text-base font-semibold text-zinc-900">
+            ₹{subtotal.toLocaleString("en-IN")}
+          </p>
+        </div>
+      )}
+
+      {/* Failure banner */}
+      {failure && (
+        <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="flex-1">{failure}</div>
+          <button
+            type="button"
+            onClick={() => setFailure(null)}
+            aria-label="Dismiss"
+            className="text-rose-700/70 hover:text-rose-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* ── Form ── */}
+      <Form {...form}>
+        <form
+          id="checkout-form"
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="space-y-4"
+        >
+          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+            Your Details
+          </p>
+
+          <FormField
+            control={form.control}
+            name="buyer_name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-semibold text-zinc-700">
+                  Full name
+                </FormLabel>
+                <FormControl>
+                  <Input autoComplete="name" placeholder="Your name" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="buyer_email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-semibold text-zinc-700">
+                  Email
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    type="email"
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    {...field}
+                    onBlur={() => {
+                      field.onBlur();
+                      // One tick later so RHF state is settled before the
+                      // pre-capture beacon reads form values.
+                      setTimeout(maybePreCapture, 0);
+                    }}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="buyer_phone"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-semibold text-zinc-700">
+                  Phone
+                </FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    {/* +91 prefix shown as grey static text inside the field */}
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none text-sm font-medium text-zinc-400"
+                    >
+                      +91
+                    </span>
+                    <Input
+                      type="tel"
+                      autoComplete="tel-national"
+                      inputMode="numeric"
+                      placeholder="98765 43210"
+                      className="pl-12"
+                      {...field}
+                      onChange={(e) => {
+                        // Allow digits + spaces only; strip everything else
+                        const cleaned = e.target.value.replace(
+                          /[^\d\s]/g,
+                          "",
+                        );
+                        field.onChange(cleaned);
+                      }}
+                    />
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* GSTIN collapsible */}
+          <Collapsible
+            open={gstOpen}
+            onToggle={() => setGstOpen((v) => !v)}
+            label={
+              <>
+                I have a GSTIN
+                <span className="ml-1.5 text-[11px] font-normal text-zinc-400">
+                  (business invoice)
+                </span>
+              </>
+            }
+          >
+            <div className="space-y-3 pt-2">
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-600">
+                  GSTIN
+                </label>
+                <Input
+                  placeholder="27ABCDE1234F1Z5"
+                  value={buyerGstin}
+                  maxLength={15}
+                  onChange={(e) => setBuyerGstin(e.target.value.toUpperCase())}
+                  className="font-mono uppercase"
+                />
+                {buyerGstin && !gstinValid && (
+                  <p className="mt-1 text-xs text-rose-600">
+                    Invalid GSTIN format.
+                  </p>
+                )}
+              </div>
+              <Input
+                placeholder="Address line 1"
+                value={billLine1}
+                onChange={(e) => setBillLine1(e.target.value)}
+              />
+              <Input
+                placeholder="Address line 2 (optional)"
+                value={billLine2}
+                onChange={(e) => setBillLine2(e.target.value)}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="City"
+                  value={billCity}
+                  onChange={(e) => setBillCity(e.target.value)}
+                />
+                <Input
+                  placeholder="Pincode"
+                  value={billPincode}
+                  maxLength={6}
+                  inputMode="numeric"
+                  onChange={(e) => setBillPincode(e.target.value)}
+                />
+              </div>
+              <p className="text-xs text-zinc-500">
+                We&apos;ll issue a B2B GST invoice with your GSTIN + billing
+                address.
+              </p>
+            </div>
+          </Collapsible>
+        </form>
+      </Form>
+
+      {/* ── Coupon ── */}
+      {hasPrice && (
+        <Collapsible
+          open={couponOpen || !!coupon}
+          onToggle={() => setCouponOpen((v) => !v)}
+          label={
+            coupon ? (
+              <span className="inline-flex items-center gap-1.5 text-emerald-700">
+                <Check className="h-3.5 w-3.5" />
+                Coupon applied — {coupon.code}
               </span>
-              <span className="flex items-center gap-3">
-                <span className="text-primary">
-                  -₹{coupon.discount_amount.toLocaleString("en-IN")}
+            ) : (
+              <span className="inline-flex items-center gap-1.5">
+                <Tag className="h-3.5 w-3.5" />
+                Have a coupon? Apply
+              </span>
+            )
+          }
+          collapsibleWhenLocked={!coupon}
+        >
+          <div className="space-y-2 pt-2">
+            {coupon ? (
+              <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
+                <span className="inline-flex items-center gap-2 font-medium text-emerald-800">
+                  <Check className="h-4 w-4" />
+                  {coupon.code} — ₹
+                  {coupon.discount_amount.toLocaleString("en-IN")} off
                 </span>
                 <button
                   type="button"
-                  className="text-muted-foreground hover:text-foreground"
+                  className="text-emerald-700/70 hover:text-emerald-700"
                   onClick={clearCoupon}
                   aria-label="Remove coupon"
                 >
                   <X className="h-4 w-4" />
                 </button>
-              </span>
-            </div>
-          )}
-
-          {bumpReady && props.orderBump && (
-            <>
-              <Separator />
-              <OrderBump
-                config={props.orderBump}
-                checked={bumpAccepted}
-                onChange={setBumpAccepted}
-              />
-            </>
-          )}
-
-          <Separator />
-
-          <div className="space-y-1 text-sm">
-            <Row label="Subtotal" value={`₹${props.price.toLocaleString("en-IN")}`} />
-            {discount > 0 && (
-              <Row
-                label="Discount"
-                value={`-₹${discount.toLocaleString("en-IN")}`}
-                muted
-              />
+              </div>
+            ) : (
+              <>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="COUPON CODE"
+                    value={couponInput}
+                    onChange={(e) => {
+                      setCouponInput(e.target.value.toUpperCase());
+                      setCouponError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        applyCoupon();
+                      }
+                    }}
+                    disabled={applyingCoupon}
+                    className="font-mono uppercase"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={applyCoupon}
+                    disabled={applyingCoupon || !couponInput.trim()}
+                  >
+                    {applyingCoupon ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Apply"
+                    )}
+                  </Button>
+                </div>
+                {couponError && (
+                  <p className="text-xs text-rose-600">{couponError}</p>
+                )}
+              </>
             )}
-            {bumpExtra > 0 && (
-              <Row
-                label={`+ ${props.orderBump?.title ?? "Bump"}`}
-                value={`+₹${bumpExtra.toLocaleString("en-IN")}`}
-              />
-            )}
-            <Row
-              label="Total"
-              value={`₹${total.toLocaleString("en-IN")} ${currency}`}
-              emphasised
-            />
           </div>
+        </Collapsible>
+      )}
 
-          <Button
-            type="submit"
-            form="checkout-form"
-            className="w-full"
-            size="lg"
-            disabled={submitting || !razorpayReady}
-          >
-            {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Pay ₹{total.toLocaleString("en-IN")}
-          </Button>
+      {/* ── Order Bump ── */}
+      {bumpReady && props.orderBump && (
+        <OrderBump
+          config={props.orderBump}
+          checked={bumpAccepted}
+          onChange={setBumpAccepted}
+        />
+      )}
 
-          <p className="text-center text-xs text-muted-foreground">
-            By continuing you agree to InvoxAI&apos;s terms. Refunds per the
-            seller&apos;s policy.
-          </p>
-        </CardContent>
-      </Card>
+      {/* ── Price summary ── */}
+      {hasPrice && (
+        <div className="space-y-1.5 rounded-lg border border-zinc-200 bg-zinc-50/60 p-4">
+          <Row
+            label="Subtotal"
+            value={`₹${subtotal.toLocaleString("en-IN")}`}
+          />
+          {discount > 0 && (
+            <Row
+              label={`Discount (${coupon?.code ?? "coupon"})`}
+              value={`-₹${discount.toLocaleString("en-IN")}`}
+              accent="emerald"
+            />
+          )}
+          {bumpExtra > 0 && (
+            <Row
+              label={`+ ${props.orderBump?.title ?? "Bonus"}`}
+              value={`+₹${bumpExtra.toLocaleString("en-IN")}`}
+              accent="amber"
+            />
+          )}
+          <div className="mt-2 flex items-baseline justify-between border-t border-zinc-200 pt-2">
+            <span className="text-sm font-medium text-zinc-700">Total</span>
+            <span className="font-sora text-2xl font-bold text-zinc-900">
+              ₹{total.toLocaleString("en-IN")}
+              <span className="ml-1 text-xs font-normal text-zinc-500">
+                {currency}
+              </span>
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Pay button (theme-coloured) ── */}
+      <button
+        type="submit"
+        form="checkout-form"
+        disabled={submitting || !razorpayReady}
+        style={{ background: primaryColor }}
+        className={cn(
+          "group flex w-full items-center justify-center gap-2 rounded-xl py-4 text-base font-semibold text-white shadow-lg transition",
+          "hover:brightness-110 active:brightness-95",
+          "disabled:cursor-not-allowed disabled:opacity-70",
+        )}
+      >
+        {submitting ? (
+          <>
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Processing…
+          </>
+        ) : (
+          <>
+            <Lock className="h-4 w-4" />
+            {hasPrice
+              ? `Pay ₹${total.toLocaleString("en-IN")} securely`
+              : "Complete order"}
+            <span className="transition-transform group-hover:translate-x-0.5">
+              →
+            </span>
+          </>
+        )}
+      </button>
+
+      {/* ── Trust strip ── */}
+      <div className="space-y-2 text-center">
+        <p className="flex items-center justify-center gap-1.5 text-[11px] text-zinc-500">
+          <Lock className="h-3 w-3" />
+          SSL Secured · Powered by Razorpay
+        </p>
+        <div className="flex items-center justify-center gap-1.5">
+          {["UPI", "Visa", "Mastercard", "RuPay"].map((m) => (
+            <span
+              key={m}
+              className="rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-700"
+            >
+              {m}
+            </span>
+          ))}
+        </div>
+        <p className="text-[11px] text-zinc-400">
+          By continuing you agree to InvoxAI&apos;s terms · Refunds per the
+          seller&apos;s policy
+        </p>
+      </div>
     </div>
   );
 }
 
+// ── Sub-components ──────────────────────────────────────────────────────
+
 function Row({
   label,
   value,
-  muted,
-  emphasised,
+  accent,
 }: {
   label: string;
   value: string;
-  muted?: boolean;
-  emphasised?: boolean;
+  accent?: "emerald" | "amber";
 }) {
   return (
-    <div
-      className={cn(
-        "flex items-center justify-between",
-        emphasised && "pt-1 text-base font-semibold",
-        muted && "text-muted-foreground",
-      )}
-    >
-      <span>{label}</span>
-      <span>{value}</span>
+    <div className="flex items-center justify-between text-sm">
+      <span className="text-zinc-600">{label}</span>
+      <span
+        className={cn(
+          "font-mono",
+          accent === "emerald" && "text-emerald-700",
+          accent === "amber" && "text-amber-700",
+          !accent && "text-zinc-700",
+        )}
+      >
+        {value}
+      </span>
     </div>
   );
+}
+
+function Collapsible({
+  open,
+  onToggle,
+  label,
+  children,
+  collapsibleWhenLocked = true,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  label: React.ReactNode;
+  children: React.ReactNode;
+  /** When false the chevron rotates but the toggle handler is suppressed
+   *  (used when a coupon is applied — clicking the header just shows the
+   *  state, not a re-open). */
+  collapsibleWhenLocked?: boolean;
+}) {
+  return (
+    <div className="rounded-lg border border-zinc-200 bg-zinc-50/60">
+      <button
+        type="button"
+        onClick={collapsibleWhenLocked ? onToggle : undefined}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm font-medium text-zinc-800"
+        aria-expanded={open}
+      >
+        <span className="flex items-center gap-1.5">{label}</span>
+        {collapsibleWhenLocked && (
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 text-zinc-500 transition-transform duration-200",
+              open && "rotate-180",
+            )}
+          />
+        )}
+      </button>
+      {/* Smooth height transition via grid-rows trick — no measurement, no JS. */}
+      <div
+        className={cn(
+          "grid overflow-hidden transition-[grid-template-rows] duration-200 ease-out",
+          open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        )}
+      >
+        <div className="min-h-0">
+          <div className="px-3 pb-3">{children}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SuccessSplash() {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 px-4 py-10 text-center">
+      <span
+        aria-hidden
+        className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg"
+        style={{
+          animation: "ixaScaleIn 350ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
+        }}
+      >
+        <CheckCircle2 className="h-8 w-8" />
+      </span>
+      <h3 className="font-sora text-xl font-bold tracking-tight text-zinc-900">
+        Payment successful!
+      </h3>
+      <p className="text-sm text-zinc-500">Redirecting to your order…</p>
+      <style jsx>{`
+        @keyframes ixaScaleIn {
+          0% {
+            opacity: 0;
+            transform: scale(0.4);
+          }
+          60% {
+            opacity: 1;
+            transform: scale(1.05);
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function normalisePhone(raw: string): string {
+  // Strip non-digits and prepend +91 if the result looks like a 10-digit
+  // Indian mobile. Otherwise return as-is — the API does its own parsing
+  // for international numbers.
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 10) return `+91${digits}`;
+  if (raw.startsWith("+")) return raw;
+  return digits;
 }

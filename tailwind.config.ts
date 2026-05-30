@@ -18,7 +18,19 @@ const config: Config = {
       },
     },
     extend: {
+      // ── Typography ────────────────────────────────────────────────────
+      fontFamily: {
+        sora: ["Sora", "sans-serif"],
+        dm: ["DM Sans", "sans-serif"],
+        // Keep `font-sans` as the default app font (DM Sans) so utility
+        // classes already in the codebase continue to render with the new
+        // body face rather than the browser default.
+        sans: ["DM Sans", "system-ui", "sans-serif"],
+      },
+
+      // ── Colors ────────────────────────────────────────────────────────
       colors: {
+        // shadcn tokens — unchanged keys, repointed to the new HSL vars
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -52,12 +64,25 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+
+        // ── Brand palette (use as bg-brand-indigo, text-brand-amber, etc) ─
+        "brand-indigo": {
+          DEFAULT: "hsl(var(--brand-indigo))",
+          light: "hsl(var(--brand-indigo-light))",
+        },
+        "brand-amber": "hsl(var(--brand-amber))",
+        "brand-emerald": "hsl(var(--brand-emerald))",
+        "brand-rose": "hsl(var(--brand-rose))",
+        "brand-slate": "hsl(var(--brand-slate))",
       },
+
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+
+      // ── Keyframes ─────────────────────────────────────────────────────
       keyframes: {
         "accordion-down": {
           from: { height: "0" },
@@ -67,10 +92,29 @@ const config: Config = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        // Skeleton shimmer — sweeps a translucent band left → right
+        shimmer: {
+          "0%":   { backgroundPosition: "-700px 0" },
+          "100%": { backgroundPosition: "700px 0" },
+        },
+        // A slower variant of Tailwind's built-in pulse for ambient indicators
+        "pulse-slow": {
+          "0%, 100%": { opacity: "1" },
+          "50%":      { opacity: "0.55" },
+        },
+        // A slower spin for loaders that shouldn't dominate the eye
+        "spin-slow": {
+          from: { transform: "rotate(0deg)" },
+          to:   { transform: "rotate(360deg)" },
+        },
       },
+
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
+        "accordion-up":   "accordion-up 0.2s ease-out",
+        shimmer:          "shimmer 1.6s linear infinite",
+        "pulse-slow":     "pulse-slow 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "spin-slow":      "spin-slow 2s linear infinite",
       },
     },
   },

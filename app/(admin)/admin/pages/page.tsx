@@ -46,7 +46,7 @@ export default async function AdminPagesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Pages</h1>
+        <h1 className="text-2xl font-sora font-semibold tracking-tight">Pages</h1>
         <p className="text-sm text-muted-foreground">
           Every page across every seller. Flagged pages show a warning to the seller.
         </p>

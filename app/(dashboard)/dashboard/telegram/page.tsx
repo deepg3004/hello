@@ -45,7 +45,7 @@ export default async function TelegramListPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Telegram VIP groups</h1>
+          <h1 className="text-2xl font-sora font-semibold tracking-tight">Telegram VIP groups</h1>
           <p className="text-sm text-muted-foreground">
             Buyers get a one-time invite on payment and are auto-removed on expiry.
           </p>

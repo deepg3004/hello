@@ -7,6 +7,7 @@ import {
   Handshake,
   LayoutDashboard,
   LineChart,
+  LogOut,
   Magnet,
   Send,
   Settings,
@@ -15,67 +16,197 @@ import {
   Tag,
   Users,
   Wallet,
+  Zap,
 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { signOutAction } from "@/actions/auth";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { PLANS, type PlanKey } from "@/lib/plans";
+import { cn, truncate } from "@/lib/utils";
+
+import type { TopbarProfile } from "./Topbar";
 
 interface NavItem {
   href: string;
   label: string;
   Icon: React.ComponentType<{ className?: string }>;
-  emphasis?: boolean;
 }
 
-const NAV: NavItem[] = [
+// Three-section nav. The "Main" group is unlabeled so the first thing the eye
+// catches is the brand mark + the most-used view. "Growth" + "Account" get
+// quiet uppercase section headers (sidebar-fg/50 via Tailwind opacity).
+const NAV_MAIN: NavItem[] = [
   { href: "/dashboard", label: "Overview", Icon: LayoutDashboard },
   { href: "/dashboard/pages", label: "Pages", Icon: FileText },
   { href: "/dashboard/transactions", label: "Transactions", Icon: CreditCard },
   { href: "/dashboard/customers", label: "Customers", Icon: Users },
   { href: "/dashboard/leads", label: "Leads", Icon: Magnet },
+];
+
+const NAV_GROWTH: NavItem[] = [
   { href: "/dashboard/coupons", label: "Coupons", Icon: Tag },
   { href: "/dashboard/affiliates", label: "Affiliates", Icon: Handshake },
   { href: "/dashboard/analytics", label: "Recovery", Icon: LineChart },
   { href: "/dashboard/telegram", label: "Telegram", Icon: Send },
+];
+
+const NAV_ACCOUNT: NavItem[] = [
   { href: "/dashboard/kyc", label: "KYC", Icon: ShieldCheck },
   { href: "/dashboard/payouts", label: "Payouts", Icon: Wallet },
   { href: "/dashboard/settings", label: "Settings", Icon: Settings },
 ];
 
-const UPGRADE: NavItem = {
-  href: "/dashboard/upgrade",
-  label: "Upgrade",
-  Icon: Sparkles,
-  emphasis: true,
-};
-
-export function Sidebar({
-  pathname,
-  onNavigate,
-}: {
+interface SidebarProps {
   pathname: string;
+  profile: TopbarProfile;
   onNavigate?: () => void;
-}) {
+}
+
+export function Sidebar({ pathname, profile, onNavigate }: SidebarProps) {
+  const plan = ((profile.subscription_plan ?? "free") as PlanKey) in PLANS
+    ? (profile.subscription_plan as PlanKey)
+    : "free";
+  const planName = PLANS[plan].name;
+  const showUpgrade = plan === "free" || plan === "starter";
+
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex h-14 items-center border-b px-5">
-        <Link href="/dashboard" className="text-base font-semibold tracking-tight">
-          InvoxAI
-        </Link>
+    <div
+      className="flex h-full flex-col bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-fg))]"
+    >
+      {/* ── Logo block ───────────────────────────────────────────────── */}
+      <div
+        className={cn(
+          "relative flex h-16 shrink-0 items-center gap-2.5 px-5",
+          // Subtle gradient hairline border below the logo block
+          "after:absolute after:inset-x-4 after:bottom-0 after:h-px",
+          "after:bg-gradient-to-r after:from-transparent after:via-indigo-500/40 after:to-transparent",
+        )}
+      >
+        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 shadow-sm shadow-indigo-900/40">
+          <Zap className="h-4 w-4 text-white" strokeWidth={2.5} />
+        </span>
+        <div className="leading-tight">
+          <Link
+            href="/dashboard"
+            onClick={onNavigate}
+            className="block font-sora text-base font-semibold tracking-tight text-white"
+          >
+            InvoxAI
+          </Link>
+          <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--sidebar-fg))]/50">
+            Seller Dashboard
+          </p>
+        </div>
       </div>
-      <nav className="flex-1 space-y-1 p-3">
-        {NAV.map((item) => (
-          <NavRow key={item.href} item={item} pathname={pathname} onNavigate={onNavigate} />
+
+      {/* ── Nav (scrolls if it overflows) ─────────────────────────────── */}
+      <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
+        {NAV_MAIN.map((item) => (
+          <NavRow
+            key={item.href}
+            item={item}
+            pathname={pathname}
+            onNavigate={onNavigate}
+          />
+        ))}
+
+        <SectionLabel>Growth</SectionLabel>
+        {NAV_GROWTH.map((item) => (
+          <NavRow
+            key={item.href}
+            item={item}
+            pathname={pathname}
+            onNavigate={onNavigate}
+          />
+        ))}
+
+        <SectionLabel>Account</SectionLabel>
+        {NAV_ACCOUNT.map((item) => (
+          <NavRow
+            key={item.href}
+            item={item}
+            pathname={pathname}
+            onNavigate={onNavigate}
+          />
         ))}
       </nav>
-      <div className="border-t p-3">
-        <NavRow item={UPGRADE} pathname={pathname} onNavigate={onNavigate} />
-        <p className="mt-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground">
-          app.invoxai.io
-        </p>
+
+      {/* ── Upgrade CTA card (free / starter only) ───────────────────── */}
+      {showUpgrade && (
+        <div className="px-3 pt-2">
+          <div className="rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 p-3 text-white shadow-lg shadow-indigo-900/30">
+            <div className="flex items-center justify-between">
+              <span className="inline-flex items-center gap-1 rounded-md bg-white/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
+                <Sparkles className="h-3 w-3" />
+                {planName}
+              </span>
+            </div>
+            <p className="mt-2 text-sm font-medium leading-snug">
+              Unlock more features
+            </p>
+            <p className="mt-0.5 text-[11px] text-white/75 leading-snug">
+              Custom domains, A/B tests, affiliate system + more.
+            </p>
+            <Button
+              asChild
+              size="sm"
+              className="mt-3 w-full bg-white text-indigo-700 hover:bg-white/90"
+            >
+              <Link href="/dashboard/upgrade" onClick={onNavigate}>
+                Upgrade
+              </Link>
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── User row + sign-out ──────────────────────────────────────── */}
+      <div
+        className={cn(
+          "flex items-center gap-3 border-t border-[hsl(var(--sidebar-border))]",
+          "mt-3 px-3 py-3",
+        )}
+      >
+        <Avatar className="h-9 w-9 shrink-0">
+          {profile.avatar_url ? (
+            <AvatarImage
+              src={profile.avatar_url}
+              alt={profile.full_name ?? profile.email}
+            />
+          ) : null}
+          <AvatarFallback className="bg-indigo-600 text-xs text-white">
+            {makeInitials(profile.full_name ?? profile.email)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="truncate text-xs font-medium text-white">
+            {truncate(profile.full_name ?? "Seller", 22)}
+          </p>
+          <p className="truncate text-[11px] text-[hsl(var(--sidebar-fg))]/60">
+            {truncate(profile.email, 24)}
+          </p>
+        </div>
+        <form
+          action={async () => {
+            await signOutAction();
+            window.location.href = "/login";
+          }}
+        >
+          <button
+            type="submit"
+            aria-label="Sign out"
+            className="rounded-md p-1.5 text-[hsl(var(--sidebar-fg))]/70 transition hover:bg-[hsl(var(--sidebar-hover-bg))] hover:text-white"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </form>
       </div>
     </div>
   );
 }
+
+// ── Sub-components ──────────────────────────────────────────────────────
 
 function NavRow({
   item,
@@ -86,6 +217,9 @@ function NavRow({
   pathname: string;
   onNavigate?: () => void;
 }) {
+  // Exact match for /dashboard (otherwise EVERY route would mark it active);
+  // prefix match for child sections so /dashboard/pages/new still highlights
+  // "Pages".
   const active =
     item.href === "/dashboard"
       ? pathname === "/dashboard"
@@ -95,17 +229,38 @@ function NavRow({
     <Link
       href={item.href}
       onClick={onNavigate}
-      className={cn(
-        "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition",
-        active
-          ? "bg-primary text-primary-foreground"
-          : item.emphasis
-            ? "bg-amber-50 text-amber-900 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-200"
-            : "text-muted-foreground hover:bg-muted hover:text-foreground",
-      )}
+      className={cn("sidebar-link", active && "active")}
     >
-      <item.Icon className="h-4 w-4" />
-      {item.label}
+      <item.Icon
+        className={cn(
+          "h-4 w-4 shrink-0",
+          active ? "opacity-100" : "opacity-70",
+        )}
+      />
+      <span className="truncate">{item.label}</span>
     </Link>
   );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p
+      className={cn(
+        "mt-4 mb-1 px-3 text-[9px] font-semibold uppercase tracking-[0.12em]",
+        "text-[hsl(var(--sidebar-fg))]/50",
+      )}
+    >
+      {children}
+    </p>
+  );
+}
+
+function makeInitials(s: string): string {
+  return s
+    .replace(/@.*$/, "")
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
 }

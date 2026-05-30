@@ -43,7 +43,7 @@ export default async function CouponsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Coupons</h1>
+        <h1 className="text-2xl font-sora font-semibold tracking-tight">Coupons</h1>
         <p className="text-sm text-muted-foreground">
           Build discount codes that buyers enter at checkout. Validation happens
           server-side and the counter is atomic — no oversells.

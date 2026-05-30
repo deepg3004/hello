@@ -123,7 +123,7 @@ export default async function AnalyticsPage() {
     <div className="space-y-6">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="text-2xl font-sora font-semibold tracking-tight">
             Abandoned-cart recovery
           </h1>
           <p className="text-sm text-muted-foreground">

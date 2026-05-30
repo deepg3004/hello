@@ -76,13 +76,17 @@ export default async function CustomersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Customers</h1>
+      <div className="animate-in-up" style={{ animationDelay: "0ms" }}>
+        <h1 className="font-sora text-2xl font-semibold tracking-tight">
+          Customers
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Everyone who&apos;s ever bought from you.
+          Everyone who&apos;s ever bought from you. Sorted by total spent.
         </p>
       </div>
-      <CustomersClient customers={customers} />
+      <div className="animate-in-up" style={{ animationDelay: "100ms" }}>
+        <CustomersClient customers={customers} />
+      </div>
     </div>
   );
 }

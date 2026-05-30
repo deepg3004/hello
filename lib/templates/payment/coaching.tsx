@@ -81,13 +81,15 @@ const definition: TemplateDefinition = {
     },
     {
       id: "who",
-      label: "Who this is for",
+      label: "Is this for you?",
       type: "audience",
       fields: [
-        { key: "who_title", label: "Section title", type: "text", defaultValue: "Who this is for" },
+        { key: "who_title", label: "Section title", type: "text", defaultValue: "Is this for you?" },
         {
+          // YES column — keeps the legacy `who_items` key so existing pages
+          // don't lose their data on this redesign.
           key: "who_items",
-          label: "Audience bullets",
+          label: "✅ This IS for you if…",
           type: "list",
           itemLabel: "audience",
           itemFields: [{ key: "text", label: "Text", type: "text", defaultValue: "" }],
@@ -95,6 +97,19 @@ const definition: TemplateDefinition = {
             { text: "First-time founders who want to skip the dumb mistakes" },
             { text: "Operators going indie for the first time" },
             { text: "Side-project builders ready to commit full-time" },
+          ],
+        },
+        {
+          // NO column — new field powering the second "is this NOT for you" list.
+          key: "forme_no_items",
+          label: "❌ This is NOT for you if…",
+          type: "list",
+          itemLabel: "exclusion",
+          itemFields: [{ key: "text", label: "Text", type: "text", defaultValue: "" }],
+          defaultValue: [
+            { text: "You're looking for a one-call magic fix" },
+            { text: "You won't put in 4–6 hours of work each week" },
+            { text: "You expect templates without thinking through the why" },
           ],
         },
       ],
@@ -151,6 +166,7 @@ const Render: TemplateRender = ({ values, pageId, product, isPreview, bumpRuntim
       metric3_label={readField(values, "metric3_label", "")}
       who_title={readField(values, "who_title", "")}
       who_items={readField(values, "who_items", [])}
+      forme_no_items={readField(values, "forme_no_items", [])}
       checkout_title={readField(values, "checkout_title", "")}
       checkout_note={readField(values, "checkout_note", "")}
     />

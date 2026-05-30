@@ -28,13 +28,23 @@ export default async function AdminUsersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
+      <div
+        className="animate-in-up"
+        style={{ animationDelay: "0ms" }}
+      >
+        <h1 className="font-sora text-2xl font-semibold tracking-tight">
+          Users
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Every seller on the platform.
+          {users.length.toLocaleString("en-IN")} sellers on the platform.
         </p>
       </div>
-      <UsersTable users={users} />
+      <div
+        className="animate-in-up"
+        style={{ animationDelay: "100ms" }}
+      >
+        <UsersTable users={users} />
+      </div>
     </div>
   );
 }

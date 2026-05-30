@@ -52,7 +52,7 @@ export default async function AdminTransactionsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
+          <h1 className="text-2xl font-sora font-semibold tracking-tight">Transactions</h1>
           <p className="text-sm text-muted-foreground">
             All orders platform-wide. Refund or mark-as-paid actions log to admin audit.
           </p>

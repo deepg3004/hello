@@ -3,30 +3,57 @@
 // is responsible for verifying the caller owns that user_id (typically by
 // reading auth.uid() from the session).
 
-import { startOfMonth } from "date-fns";
+import { startOfMonth, subMonths, subHours } from "date-fns";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface DashboardMetrics {
   revenueThisMonth: number;
+  /** Revenue captured Jan 1–31 of the previous calendar month. Drives the
+   *  "vs ₹X last month" hint on the Revenue MetricCard. */
+  revenueLastMonth: number;
   pendingPayout: number;
   totalCustomers: number;
   activePages: number;
   failedPayments: number;
+  /** Failed orders in the last 24 hours — feeds the rolling-window
+   *  "Failed Payments" metric card. */
+  failedLast24h: number;
   commissionPaid: number;
 }
 
 export async function getDashboardMetrics(userId: string): Promise<DashboardMetrics> {
   const admin = createAdminClient();
-  const monthStart = startOfMonth(new Date()).toISOString();
+  const now = new Date();
+  const monthStart = startOfMonth(now).toISOString();
+  const lastMonthStart = startOfMonth(subMonths(now, 1)).toISOString();
+  const lastMonthEnd = startOfMonth(now).toISOString();
+  const dayAgo = subHours(now, 24).toISOString();
 
-  const [{ data: revenueRows }, { data: pendingRows }, { data: paidOrders }, { count: pagesCount }, { count: failedCount }, { data: commissionRows }] = await Promise.all([
+  const [
+    { data: revenueRows },
+    { data: lastMonthRevenueRows },
+    { data: pendingRows },
+    { data: paidOrders },
+    { count: pagesCount },
+    { count: failedCount },
+    { count: failedLast24hCount },
+    { data: commissionRows },
+  ] = await Promise.all([
     admin
       .from("orders")
       .select("amount")
       .eq("seller_user_id", userId)
       .eq("status", "paid")
       .gte("paid_at", monthStart),
+    // Last calendar month — used for the "vs ₹X last month" trend hint.
+    admin
+      .from("orders")
+      .select("amount")
+      .eq("seller_user_id", userId)
+      .eq("status", "paid")
+      .gte("paid_at", lastMonthStart)
+      .lt("paid_at", lastMonthEnd),
     admin
       .from("orders")
       .select("seller_amount")
@@ -47,6 +74,14 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
       .select("id", { count: "exact", head: true })
       .eq("seller_user_id", userId)
       .eq("status", "failed"),
+    // Rolling 24-hour failed-orders count — drives the at-a-glance card on
+    // the overview page. Index on orders(created_at) keeps this cheap.
+    admin
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .eq("seller_user_id", userId)
+      .eq("status", "failed")
+      .gte("created_at", dayAgo),
     admin
       .from("orders")
       .select("platform_commission")
@@ -55,6 +90,11 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
   ]);
 
   const revenueThisMonth = (revenueRows ?? []).reduce(
+    (acc, r) => acc + Number(r.amount ?? 0),
+    0,
+  );
+
+  const revenueLastMonth = (lastMonthRevenueRows ?? []).reduce(
     (acc, r) => acc + Number(r.amount ?? 0),
     0,
   );
@@ -87,10 +127,12 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
 
   return {
     revenueThisMonth,
+    revenueLastMonth,
     pendingPayout,
     totalCustomers: uniqueCustomers,
     activePages: pagesCount ?? 0,
     failedPayments: failedCount ?? 0,
+    failedLast24h: failedLast24hCount ?? 0,
     commissionPaid,
   };
 }

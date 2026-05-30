@@ -134,7 +134,7 @@ export default async function PublicPage({
         <p className="text-xs uppercase tracking-widest text-muted-foreground">
           invoxai.io / p
         </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+        <h1 className="mt-2 text-3xl font-sora font-semibold tracking-tight">
           {params.slug}
         </h1>
         <p className="mt-4 text-muted-foreground">
@@ -150,7 +150,7 @@ export default async function PublicPage({
   if (!template) {
     return (
       <main className="mx-auto max-w-2xl px-6 py-16 text-center">
-        <h1 className="text-3xl font-semibold tracking-tight">{page.title}</h1>
+        <h1 className="text-3xl font-sora font-semibold tracking-tight">{page.title}</h1>
         <p className="mt-4 text-muted-foreground">
           This page uses a template we don&apos;t recognise.
         </p>

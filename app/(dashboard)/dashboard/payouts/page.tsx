@@ -1,16 +1,20 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { format } from "date-fns";
-import { AlertTriangle } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Inbox,
+  ShieldCheck,
+  Wallet,
+} from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { RequestPayoutDialog } from "@/components/dashboard/RequestPayoutDialog";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { formatINR } from "@/lib/utils";
+import { cn, formatDate, formatINR } from "@/lib/utils";
 
 export const metadata = { title: "Payouts" };
 
@@ -25,32 +29,39 @@ export default async function PayoutsPage() {
 
   const admin = createAdminClient();
 
-  const [{ data: profile }, { data: paidOrders }, { data: payouts }] = await Promise.all([
-    admin
-      .from("user_profiles")
-      .select("kyc_level, bank_verified, payouts_enabled")
-      .eq("id", user.id)
-      .single(),
-    admin
-      .from("orders")
-      .select("seller_amount")
-      .eq("seller_user_id", user.id)
-      .eq("status", "paid"),
-    admin
-      .from("payouts")
-      .select("id, amount, status, gateway, bank_account, initiated_at, completed_at, failure_reason")
-      .eq("user_id", user.id)
-      .order("initiated_at", { ascending: false })
-      .limit(100),
-  ]);
+  const [{ data: profile }, { data: paidOrders }, { data: payouts }] =
+    await Promise.all([
+      admin
+        .from("user_profiles")
+        .select("kyc_level, bank_verified, payouts_enabled")
+        .eq("id", user.id)
+        .single(),
+      admin
+        .from("orders")
+        .select("seller_amount")
+        .eq("seller_user_id", user.id)
+        .eq("status", "paid"),
+      admin
+        .from("payouts")
+        .select(
+          "id, amount, status, gateway, bank_account, initiated_at, completed_at, failure_reason",
+        )
+        .eq("user_id", user.id)
+        .order("initiated_at", { ascending: false })
+        .limit(100),
+    ]);
 
-  const gross = (paidOrders ?? []).reduce((acc, r) => acc + Number(r.seller_amount ?? 0), 0);
+  const gross = (paidOrders ?? []).reduce(
+    (acc, r) => acc + Number(r.seller_amount ?? 0),
+    0,
+  );
   const reserved = (payouts ?? [])
     .filter((p) => ["queued", "processing", "completed"].includes(p.status))
     .reduce((acc, p) => acc + Number(p.amount ?? 0), 0);
   const available = Math.max(0, gross - reserved);
 
-  const kycComplete = !!profile?.bank_verified && (profile?.kyc_level ?? 0) >= 2;
+  const kycComplete =
+    !!profile?.bank_verified && (profile?.kyc_level ?? 0) >= 2;
   const totalPaid = (payouts ?? [])
     .filter((p) => p.status === "completed")
     .reduce((acc, p) => acc + Number(p.amount ?? 0), 0);
@@ -60,89 +71,177 @@ export default async function PayoutsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* ── Header ───────────────────────────────────────────────────── */}
+      <div
+        className="flex flex-wrap items-center justify-between gap-3 animate-in-up"
+        style={{ animationDelay: "0ms" }}
+      >
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Payouts</h1>
+          <h1 className="font-sora text-2xl font-semibold tracking-tight">
+            Payouts
+          </h1>
           <p className="text-sm text-muted-foreground">
-            Your share of every paid order, minus what you&apos;ve already withdrawn.
+            Your share of every paid order, minus what you&apos;ve already
+            withdrawn.
           </p>
         </div>
         {kycComplete && <RequestPayoutDialog available={available} />}
       </div>
 
+      {/* ── KYC-incomplete banner (full-width, amber) ────────────────── */}
       {!kycComplete && (
-        <div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <div>
-            <p className="font-medium">Complete KYC to enable payouts</p>
+        <div
+          className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 animate-in-up"
+          style={{ animationDelay: "50ms" }}
+        >
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+          <div className="flex-1">
+            <p className="font-semibold">
+              Complete KYC to enable payouts
+            </p>
             <p className="mt-1">
-              We can&apos;t send you money until your bank account is verified.{" "}
-              <Link href="/dashboard/settings" className="underline">
-                Finish KYC
-              </Link>
-              .
+              We can&apos;t send money until your bank account is verified
+              against your PAN. The KYC flow is fully automated — usually
+              takes 2 minutes.
             </p>
           </div>
+          <Link
+            href="/dashboard/kyc"
+            className="self-center rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-700"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Finish KYC
+            </span>
+          </Link>
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <MetricCard label="Available" value={rupees(available)} hint="Ready to withdraw" />
-        <MetricCard label="In flight" value={rupees(inFlight)} hint="Queued / processing" />
-        <MetricCard label="Total paid out" value={rupees(totalPaid)} hint="All-time" />
+      {/* ── 3 metric cards ───────────────────────────────────────────── */}
+      <div
+        className="grid grid-cols-1 gap-4 animate-in-up sm:grid-cols-3"
+        style={{ animationDelay: "100ms" }}
+      >
+        <MetricCard
+          label="Available balance"
+          value={rupees(available)}
+          icon={Wallet}
+          accentColor="indigo"
+          hint="Ready to withdraw"
+        />
+        <MetricCard
+          label="Pending clearance"
+          value={rupees(inFlight)}
+          icon={Clock}
+          accentColor="amber"
+          hint="Queued or processing"
+        />
+        <MetricCard
+          label="Total paid out"
+          value={rupees(totalPaid)}
+          icon={CheckCircle2}
+          accentColor="emerald"
+          hint="All-time settled"
+        />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Payout history</CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto p-0">
-          {(payouts ?? []).length === 0 ? (
-            <p className="px-6 py-10 text-center text-sm text-muted-foreground">
-              No payouts yet.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Bank · last 4</TableHead>
-                  <TableHead>Requested</TableHead>
-                  <TableHead>Settled</TableHead>
-                  <TableHead>Notes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+      {/* ── Payout history table ─────────────────────────────────────── */}
+      <div
+        className="overflow-hidden rounded-xl border border-border bg-white shadow-sm animate-in-up"
+        style={{ animationDelay: "200ms" }}
+      >
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="font-sora text-base font-semibold tracking-tight">
+            Payout history
+          </h2>
+          <span className="text-xs text-muted-foreground">
+            Showing last {Math.min((payouts ?? []).length, 100)} payouts
+          </span>
+        </div>
+
+        {(payouts ?? []).length === 0 ? (
+          <EmptyPayouts kycComplete={kycComplete} />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40">
+                <tr className="text-left">
+                  <Th className="text-right">Amount</Th>
+                  <Th>Status</Th>
+                  <Th>Bank · last 4</Th>
+                  <Th>Requested</Th>
+                  <Th>Settled</Th>
+                  <Th>Notes</Th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
                 {(payouts ?? []).map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="text-right font-mono">
+                  <tr
+                    key={p.id}
+                    className="transition-colors hover:bg-muted/30"
+                  >
+                    <td className="px-4 py-3 text-right font-mono text-sm font-semibold text-foreground">
                       {rupees(Number(p.amount ?? 0))}
-                    </TableCell>
-                    <TableCell>
+                    </td>
+                    <td className="px-4 py-3">
                       <StatusBadge status={p.status} />
-                    </TableCell>
-                    <TableCell className="font-mono text-muted-foreground">
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                       ••{p.bank_account ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {format(new Date(p.initiated_at), "d MMM yyyy")}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {p.completed_at
-                        ? format(new Date(p.completed_at), "d MMM yyyy")
-                        : "—"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {formatDate(p.initiated_at)}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {p.completed_at ? formatDate(p.completed_at) : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
                       {p.failure_reason ?? "—"}
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Th({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <th
+      className={cn(
+        "px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground",
+        className,
+      )}
+    >
+      {children}
+    </th>
+  );
+}
+
+function EmptyPayouts({ kycComplete }: { kycComplete: boolean }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50">
+        <Inbox className="h-5 w-5 text-indigo-600" />
+      </div>
+      <div>
+        <p className="font-medium text-foreground">No payouts yet</p>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          {kycComplete
+            ? "Once you have orders, request your first payout from the button above."
+            : "Finish KYC to unlock payouts."}
+        </p>
+      </div>
     </div>
   );
 }

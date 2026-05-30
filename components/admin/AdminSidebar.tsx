@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  ArrowLeft,
   CreditCard,
   FileText,
   KeyRound,
@@ -17,77 +18,214 @@ import {
 
 import { cn } from "@/lib/utils";
 
+import type { AdminTopbarProfile } from "./AdminTopbar";
+
 interface NavItem {
   href: string;
   label: string;
   Icon: React.ComponentType<{ className?: string }>;
+  /** When set, render a small badge next to the label (e.g. KYC queue count). */
+  badge?: number;
 }
 
-const NAV: NavItem[] = [
-  { href: "/admin", label: "Overview", Icon: LayoutDashboard },
-  { href: "/admin/users", label: "Users", Icon: Users },
-  { href: "/admin/pages", label: "Pages", Icon: FileText },
-  { href: "/admin/transactions", label: "Transactions", Icon: CreditCard },
-  { href: "/admin/payouts", label: "Payouts", Icon: Wallet },
-  { href: "/admin/telegram", label: "Telegram", Icon: Send },
-  { href: "/admin/kyc", label: "KYC Queue", Icon: ShieldCheck },
-  { href: "/admin/support", label: "Support", Icon: LifeBuoy },
-  { href: "/admin/credentials", label: "Credentials", Icon: KeyRound },
-  { href: "/admin/settings", label: "Platform Settings", Icon: Sliders },
-  { href: "/admin/audit-logs", label: "Audit Logs", Icon: ScrollText },
-];
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+interface AdminSidebarProps {
+  pathname: string;
+  profile: AdminTopbarProfile;
+  /** Number of KYC submissions awaiting review — drives the red badge. */
+  kycPending: number;
+  onNavigate?: () => void;
+}
 
 export function AdminSidebar({
   pathname,
+  profile,
+  kycPending,
   onNavigate,
-}: {
-  pathname: string;
-  onNavigate?: () => void;
-}) {
+}: AdminSidebarProps) {
+  const groups: NavGroup[] = [
+    {
+      label: "Operations",
+      items: [
+        { href: "/admin", label: "Overview", Icon: LayoutDashboard },
+        { href: "/admin/users", label: "Users", Icon: Users },
+        { href: "/admin/pages", label: "Pages", Icon: FileText },
+        { href: "/admin/transactions", label: "Transactions", Icon: CreditCard },
+        { href: "/admin/payouts", label: "Payouts", Icon: Wallet },
+      ],
+    },
+    {
+      label: "Compliance",
+      items: [
+        {
+          href: "/admin/kyc",
+          label: "KYC Queue",
+          Icon: ShieldCheck,
+          badge: kycPending,
+        },
+        { href: "/admin/telegram", label: "Telegram", Icon: Send },
+        { href: "/admin/support", label: "Support", Icon: LifeBuoy },
+      ],
+    },
+    {
+      label: "System",
+      items: [
+        { href: "/admin/credentials", label: "Credentials", Icon: KeyRound },
+        { href: "/admin/settings", label: "Platform Settings", Icon: Sliders },
+        { href: "/admin/audit-logs", label: "Audit Logs", Icon: ScrollText },
+      ],
+    },
+  ];
+
   return (
-    <div className="flex h-full flex-col bg-zinc-950 text-zinc-100">
-      <div className="flex h-14 items-center border-b border-white/10 px-5">
-        <Link href="/admin" className="flex items-center gap-2 text-sm font-semibold tracking-tight">
-          <ShieldCheck className="h-4 w-4 text-amber-400" />
-          InvoxAI · Admin
-        </Link>
+    <div
+      className="flex h-full flex-col text-[hsl(var(--sidebar-fg))]"
+      style={{ background: "#050810" }}
+    >
+      {/* ── Logo block (h-16 to match user sidebar) ─────────────────── */}
+      <div
+        className={cn(
+          "relative flex h-16 shrink-0 items-center gap-2.5 px-5",
+          // Amber hairline below — admin signal
+          "after:absolute after:inset-x-4 after:bottom-0 after:h-px",
+          "after:bg-gradient-to-r after:from-transparent after:via-amber-500/40 after:to-transparent",
+        )}
+      >
+        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-amber-400 shadow-sm shadow-amber-900/40">
+          <ShieldCheck className="h-4 w-4 text-zinc-950" strokeWidth={2.5} />
+        </span>
+        <div className="leading-tight">
+          <Link
+            href="/admin"
+            onClick={onNavigate}
+            className="block font-sora text-base font-semibold tracking-tight text-white"
+          >
+            InvoxAI
+          </Link>
+          <p className="text-[10px] uppercase tracking-wider text-amber-300/70">
+            Admin Console
+          </p>
+        </div>
       </div>
-      <nav className="flex-1 space-y-1 p-3">
-        {NAV.map((item) => {
-          const active =
-            item.href === "/admin"
-              ? pathname === "/admin"
-              : pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNavigate}
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition",
-                active
-                  ? "bg-amber-400 text-zinc-950"
-                  : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100",
-              )}
-            >
-              <item.Icon className="h-4 w-4" />
-              {item.label}
-            </Link>
-          );
-        })}
+
+      {/* ── Nav groups ──────────────────────────────────────────────── */}
+      <nav className="flex-1 overflow-y-auto p-3">
+        {groups.map((g, gi) => (
+          <div key={g.label} className={gi === 0 ? "" : "mt-5"}>
+            <p className="mb-1 px-3 text-[9px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+              {g.label}
+            </p>
+            <div className="space-y-0.5">
+              {g.items.map((item) => (
+                <NavRow
+                  key={item.href}
+                  item={item}
+                  pathname={pathname}
+                  onNavigate={onNavigate}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
       </nav>
-      <div className="border-t border-white/10 p-3">
-        <Link
-          href="/dashboard"
-          onClick={onNavigate}
-          className="block rounded-md bg-white/5 px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-white/10"
+
+      {/* ── Back-to-seller link ─────────────────────────────────────── */}
+      <Link
+        href="/dashboard"
+        onClick={onNavigate}
+        className={cn(
+          "mx-3 mt-3 flex items-center gap-2 rounded-lg px-3 py-2",
+          "text-xs font-medium text-zinc-400 transition",
+          "hover:bg-white/5 hover:text-zinc-100",
+        )}
+      >
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Seller dashboard
+      </Link>
+
+      {/* ── Admin identity row ──────────────────────────────────────── */}
+      <div className="mt-3 flex items-center gap-3 border-t border-white/10 px-3 py-3">
+        <span
+          aria-hidden
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-400 text-xs font-semibold text-zinc-950"
         >
-          ← Back to seller dashboard
-        </Link>
-        <p className="mt-2 px-3 text-[10px] uppercase tracking-wider text-zinc-500">
-          admin.invoxai.io
-        </p>
+          {makeInitials(profile.full_name ?? profile.email)}
+        </span>
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="truncate text-xs font-medium text-white">
+            {profile.full_name ?? "Admin"}
+          </p>
+          <p className="truncate text-[11px] text-zinc-500">{profile.email}</p>
+        </div>
+        <span className="inline-flex shrink-0 items-center rounded-md bg-amber-400/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-amber-300">
+          Admin
+        </span>
       </div>
     </div>
   );
+}
+
+// ── Sub-components ──────────────────────────────────────────────────────
+
+function NavRow({
+  item,
+  pathname,
+  onNavigate,
+}: {
+  item: NavItem;
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  const active =
+    item.href === "/admin"
+      ? pathname === "/admin"
+      : pathname.startsWith(item.href);
+
+  return (
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      className={cn(
+        "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
+        active
+          ? "bg-amber-400 text-zinc-950 shadow-sm shadow-amber-900/40"
+          : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100",
+      )}
+    >
+      <item.Icon
+        className={cn(
+          "h-4 w-4 shrink-0",
+          active ? "opacity-100" : "opacity-70 group-hover:opacity-100",
+        )}
+      />
+      <span className="flex-1 truncate">{item.label}</span>
+      {/* Red badge for KYC queue (and any future counter) — hidden when 0 */}
+      {item.badge != null && item.badge > 0 && (
+        <span
+          className={cn(
+            "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
+            active
+              ? "bg-zinc-950 text-amber-300"
+              : "bg-rose-500 text-white",
+          )}
+        >
+          {item.badge > 99 ? "99+" : item.badge}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+function makeInitials(s: string): string {
+  return s
+    .replace(/@.*$/, "")
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
 }

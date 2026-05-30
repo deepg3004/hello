@@ -1,34 +1,84 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { Inbox } from "lucide-react";
+
+import { cn, truncate } from "@/lib/utils";
 
 interface RevenueBarsProps {
-  rows: Array<{ id: string; title: string; slug: string; total_revenue: number }>;
+  rows: Array<{
+    id: string;
+    title: string;
+    slug: string;
+    total_revenue: number;
+  }>;
 }
 
+/**
+ * Top-pages list with animated revenue bars. Each row's fill grows from 0 →
+ * target width on mount, staggered by 100ms per item so the eye reads them
+ * in order.
+ *
+ * The animation is pure CSS — we flip `mounted` to true once on the client
+ * after first paint, and the bars `transition` to their target widths.
+ * Server-rendered initial markup ships width: 0 so there's no layout
+ * flash if JS is slow.
+ */
 export function RevenueBars({ rows }: RevenueBarsProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    // requestAnimationFrame ensures the 0%-width markup paints first, then
+    // the transition to the real width kicks in on the next frame.
+    const id = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   if (rows.length === 0) {
     return (
-      <p className="rounded-md border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-        No revenue yet. When orders come in, your top pages will appear here.
-      </p>
+      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/30 px-4 py-8 text-center">
+        <Inbox className="h-6 w-6 text-muted-foreground/60" />
+        <p className="mt-2 text-sm text-muted-foreground">
+          No revenue yet. Top pages appear here once orders come in.
+        </p>
+      </div>
     );
   }
+
   const max = Math.max(...rows.map((r) => r.total_revenue), 1);
+
   return (
-    <ul className="space-y-3">
-      {rows.map((r) => {
+    <ul className="space-y-3.5">
+      {rows.map((r, i) => {
         const pct = Math.round((r.total_revenue / max) * 100);
         return (
-          <li key={r.id} className="space-y-1">
-            <div className="flex items-center justify-between text-sm">
-              <Link href={`/p/${r.slug}`} className="font-medium hover:underline" target="_blank">
-                {r.title}
+          <li key={r.id} className="space-y-1.5">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <Link
+                href={`/p/${r.slug}`}
+                target="_blank"
+                rel="noreferrer"
+                className="truncate font-medium text-foreground hover:text-primary hover:underline"
+                title={r.title}
+              >
+                {truncate(r.title, 22)}
               </Link>
-              <span className="font-mono">₹{r.total_revenue.toLocaleString("en-IN")}</span>
+              <span className="shrink-0 font-mono text-xs font-semibold text-foreground">
+                ₹{r.total_revenue.toLocaleString("en-IN")}
+              </span>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-muted">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-indigo-50">
               <div
-                className="h-full rounded-full bg-primary transition-all"
-                style={{ width: `${pct}%` }}
+                className={cn(
+                  "h-full rounded-full bg-indigo-500",
+                  "transition-[width] duration-700 ease-out",
+                )}
+                style={{
+                  width: mounted ? `${pct}%` : "0%",
+                  // Stagger each bar's start by 100ms — feels alive on mount
+                  // without being so slow it draws attention.
+                  transitionDelay: `${i * 100}ms`,
+                }}
               />
             </div>
           </li>

@@ -1,163 +1,321 @@
 "use client";
 
+import { ArrowRight, Check, Lock, Star, X } from "lucide-react";
+
 import { CheckoutForm } from "@/components/pages/CheckoutForm";
 import { Countdown } from "./shared/Countdown";
 import { StickyCheckoutBar } from "./shared/StickyCheckoutBar";
-import type { BaseTemplateProps, ThemeConfig } from "./shared/types";
-import { DEFAULT_THEME } from "./shared/types";
+import type { BaseTemplateProps } from "./shared/types";
 
-interface Bullet { text: string }
+interface Bullet {
+  text: string;
+}
 
 export interface PaymentCoachingPageProps extends BaseTemplateProps {
   urgency_enabled?: boolean;
   urgency_text?: string;
+
   hero_headline: string;
+  /** Small word/phrase rendered with an orange underline accent under the
+   *  headline — defaults to the last word of the headline if not set. */
+  hero_underline?: string;
   hero_subheadline?: string;
   hero_cta?: string;
+  /** Photo of the coach (optional — falls back to a gradient placeholder). */
+  coach_image?: string;
+  coach_name?: string;
+
+  /** "You will get" bullet list rendered under the hero copy. */
   wyg_title?: string;
   wyg_items?: Bullet[];
+
+  /** Social-proof avatar bar: "Join 1,200+ professionals…" */
+  social_proof_count?: number;
+  social_proof_text?: string;
+  /** Optional comma-separated initials list for the avatar stack
+   *  (e.g. "PS, RK, AM, JT"). When absent we generate filler initials. */
+  social_proof_initials?: string;
+
   metric1_value?: string;
   metric1_label?: string;
   metric2_value?: string;
   metric2_label?: string;
   metric3_value?: string;
   metric3_label?: string;
+
+  /** "Is this for you?" two-column section */
+  forme_title?: string;
+  forme_yes_items?: Bullet[];
+  forme_no_items?: Bullet[];
+
+  // ── Legacy props (kept so existing page_configs and the current
+  //   coaching template registry continue to render without changes) ─────
+  /** Legacy: title for the original "Who this is for" section. Used as the
+   *  `forme_title` fallback if the new prop isn't set. */
   who_title?: string;
+  /** Legacy: bullets for the original "Who this is for" section. Used as
+   *  the YES column items if `forme_yes_items` isn't set. */
   who_items?: Bullet[];
+
   checkout_title?: string;
   checkout_note?: string;
 }
 
 export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
-  const theme: Required<ThemeConfig> = {
-    ...DEFAULT_THEME,
-    bgFrom: "#18181b",
-    bgTo: "#27272a",
-    heroText: "#ffffff",
-    primary: "#f97316",
-    mode: "dark",
-    ...props.theme,
-  };
-
   const wyg = props.wyg_items ?? [];
-  const who = props.who_items ?? [];
+  // Prefer the new "is this for you?" YES/NO props; fall back to the legacy
+  // who_items as the YES column so existing pages render unchanged.
+  const yesItems = props.forme_yes_items ?? props.who_items ?? [];
+  const noItems = props.forme_no_items ?? [];
+  const formeTitle = props.forme_title ?? props.who_title;
   const timer = props.timer;
-
   const price = props.product?.price ?? 0;
+  const heroCta = props.hero_cta ?? "Book a strategy call";
+
+  const socialCount = props.social_proof_count ?? 1200;
+  const socialText =
+    props.social_proof_text ??
+    `Join ${socialCount.toLocaleString("en-IN")}+ professionals`;
+  const avatarInitials = (
+    props.social_proof_initials ?? "PS,RK,AM,JT,SN"
+  )
+    .split(",")
+    .map((s) => s.trim().toUpperCase().slice(0, 2))
+    .filter(Boolean);
+
+  // Split the headline so the last word (or the explicit hero_underline) gets
+  // the orange underline accent. Keeps the editor simple — most users won't
+  // need to set hero_underline.
+  const headlineParts = splitHeadline(
+    props.hero_headline,
+    props.hero_underline,
+  );
 
   return (
     <div className="min-h-screen bg-zinc-900 text-zinc-100">
+      {/* ── Optional urgency strip ──────────────────────────────────── */}
       {props.urgency_enabled && props.urgency_text && (
-        <div
-          className="px-4 py-2 text-center text-sm font-medium"
-          style={{ background: theme.primary, color: "#1a0a02" }}
-        >
+        <div className="bg-orange-500 px-4 py-2 text-center text-sm font-semibold text-zinc-950">
           {props.urgency_text}
         </div>
       )}
 
+      {/* ====================================================================
+          HERO — split layout (text left, coach photo right)
+          ==================================================================== */}
       <section
-        className="px-4 pb-16 pt-14 text-center"
+        className="relative isolate overflow-hidden"
         style={{
-          background: `linear-gradient(160deg, ${theme.bgFrom} 0%, ${theme.bgTo} 100%)`,
-          color: theme.heroText,
+          background:
+            "linear-gradient(160deg, #18181b 0%, #27272a 100%)",
         }}
       >
-        <div className="mx-auto max-w-3xl">
-          {timer?.enabled && timer.target && (
-            <div className="mb-8 flex justify-center">
-              <Countdown
-                targetIso={timer.target}
-                label={timer.label ?? "Cohort closes in"}
-                boxClassName="bg-orange-500/15 text-orange-100"
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-32 top-0 h-[420px] w-[420px] rounded-full bg-orange-500/15 blur-3xl"
+        />
+
+        <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 pb-16 pt-12 md:grid-cols-[1.1fr_minmax(0,1fr)] md:gap-12 md:pb-20 md:pt-16">
+          <div>
+            {timer?.enabled && timer.target && (
+              <div className="mb-6">
+                <Countdown
+                  targetIso={timer.target}
+                  label={timer.label ?? "Cohort closes in"}
+                  boxClassName="bg-orange-500/15 text-orange-100"
+                />
+              </div>
+            )}
+
+            <h1 className="font-sora text-[40px] font-bold leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-6xl">
+              {headlineParts.head}
+              {headlineParts.tail && (
+                <>
+                  <br />
+                  <span className="relative inline-block">
+                    {headlineParts.tail}
+                    <span
+                      aria-hidden
+                      className="absolute -bottom-1.5 left-0 right-0 h-1.5 rounded-full bg-orange-500"
+                    />
+                  </span>
+                </>
+              )}
+            </h1>
+
+            {props.hero_subheadline && (
+              <p className="mt-5 max-w-xl text-base leading-relaxed text-white/75 sm:text-lg">
+                {props.hero_subheadline}
+              </p>
+            )}
+
+            {/* You will get — checkmark list */}
+            {wyg.length > 0 && (
+              <ul className="mt-6 space-y-2 text-base text-white/85">
+                {wyg.slice(0, 6).map((b, i) => (
+                  <li key={i} className="flex items-start gap-3">
+                    <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500 text-zinc-950">
+                      <Check className="h-3 w-3" strokeWidth={3} />
+                    </span>
+                    {b.text}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* CTA + social proof bar */}
+            <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center">
+              <a
+                href="#book"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-500 px-8 py-4 text-base font-semibold text-white shadow-xl shadow-orange-900/40 transition hover:scale-105 hover:bg-orange-600"
+              >
+                {heroCta}
+                <ArrowRight className="h-5 w-5" strokeWidth={2.5} />
+              </a>
+              <AvatarStack
+                initials={avatarInitials}
+                label={socialText}
               />
             </div>
-          )}
-          <h1 className="text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
-            {props.hero_headline}
-          </h1>
-          {props.hero_subheadline && (
-            <p className="mt-5 text-lg leading-relaxed text-zinc-300">
-              {props.hero_subheadline}
-            </p>
-          )}
-          <a
-            href="#book"
-            className="mt-8 inline-block rounded-md px-6 py-3 text-sm font-semibold shadow"
-            style={{ background: theme.primary, color: "#ffffff" }}
-          >
-            {props.hero_cta ?? "Book a strategy call"}
-          </a>
-        </div>
-      </section>
+          </div>
 
-      <section className="bg-zinc-800 py-12">
-        <div className="mx-auto grid max-w-3xl grid-cols-1 gap-6 px-6 text-center md:grid-cols-3">
-          {[
-            [props.metric1_value, props.metric1_label],
-            [props.metric2_value, props.metric2_label],
-            [props.metric3_value, props.metric3_label],
-          ].map(([v, l], i) =>
-            v ? (
-              <div key={i}>
+          {/* Coach photo (placeholder gradient if not set) */}
+          <div className="relative">
+            <div className="aspect-[4/5] w-full overflow-hidden rounded-2xl border border-white/10 shadow-2xl shadow-orange-900/20">
+              {props.coach_image ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={props.coach_image}
+                  alt={props.coach_name ?? "Coach"}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
                 <div
-                  className="text-3xl font-semibold"
-                  style={{ color: theme.primary }}
+                  className="flex h-full w-full items-center justify-center text-zinc-500"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, rgba(249,115,22,0.25), rgba(39,39,42,1) 70%)",
+                  }}
                 >
-                  {v}
+                  <span className="font-sora text-5xl font-bold text-white/30">
+                    {(props.coach_name ?? "Coach")
+                      .split(/\s+/)
+                      .map((p) => p[0])
+                      .slice(0, 2)
+                      .join("")}
+                  </span>
                 </div>
-                <div className="text-sm text-zinc-400">{l}</div>
+              )}
+            </div>
+            {props.coach_name && (
+              <div className="absolute -bottom-3 left-3 right-3 rounded-xl border border-white/10 bg-zinc-900/95 px-4 py-3 backdrop-blur">
+                <p className="font-sora text-sm font-semibold text-white">
+                  {props.coach_name}
+                </p>
+                <div className="mt-0.5 flex items-center gap-1 text-xs text-orange-400">
+                  <Star className="h-3 w-3 fill-current" />
+                  <Star className="h-3 w-3 fill-current" />
+                  <Star className="h-3 w-3 fill-current" />
+                  <Star className="h-3 w-3 fill-current" />
+                  <Star className="h-3 w-3 fill-current" />
+                  <span className="ml-1 text-white/70">
+                    Verified coach
+                  </span>
+                </div>
               </div>
-            ) : null,
-          )}
+            )}
+          </div>
         </div>
       </section>
 
-      {wyg.length > 0 && (
-        <section className="py-16">
-          <div className="mx-auto max-w-2xl px-6">
-            <h2 className="text-2xl font-semibold tracking-tight">
-              {props.wyg_title}
-            </h2>
-            <ul className="mt-6 space-y-3">
-              {wyg.map((b, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <span
-                    className="mt-2 inline-block h-1.5 w-3 shrink-0 rounded-sm"
-                    style={{ background: theme.primary }}
-                  />
-                  <span className="text-zinc-200">{b.text}</span>
-                </li>
-              ))}
-            </ul>
+      {/* ── Metrics row ─────────────────────────────────────────────── */}
+      {(props.metric1_value || props.metric2_value || props.metric3_value) && (
+        <section className="bg-zinc-950 py-10">
+          <div className="mx-auto grid max-w-3xl grid-cols-1 gap-6 px-6 text-center md:grid-cols-3">
+            {[
+              [props.metric1_value, props.metric1_label],
+              [props.metric2_value, props.metric2_label],
+              [props.metric3_value, props.metric3_label],
+            ].map(([v, l], i) =>
+              v ? (
+                <div key={i}>
+                  <div className="font-sora text-3xl font-bold text-orange-500">
+                    {v}
+                  </div>
+                  <div className="text-sm text-zinc-400">{l}</div>
+                </div>
+              ) : null,
+            )}
           </div>
         </section>
       )}
 
-      {who.length > 0 && (
+      {/* ====================================================================
+          "Is this for you?" — two-column comparison
+          ==================================================================== */}
+      {(yesItems.length > 0 || noItems.length > 0) && (
         <section className="bg-zinc-800 py-16">
-          <div className="mx-auto max-w-2xl px-6">
-            <h2 className="text-2xl font-semibold tracking-tight">
-              {props.who_title}
-            </h2>
-            <ul className="mt-6 space-y-2">
-              {who.map((b, i) => (
-                <li
-                  key={i}
-                  className="rounded-md border border-white/5 bg-zinc-900 px-4 py-3 text-zinc-200"
-                >
-                  {b.text}
-                </li>
-              ))}
-            </ul>
+          <div className="mx-auto max-w-5xl px-6">
+            {formeTitle && (
+              <h2 className="text-center font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                {formeTitle}
+              </h2>
+            )}
+            <div className="mt-8 grid gap-5 md:grid-cols-2">
+              {/* YES column */}
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-6">
+                <div className="mb-4 flex items-center gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white">
+                    <Check className="h-4 w-4" strokeWidth={3} />
+                  </span>
+                  <h3 className="font-sora text-lg font-bold text-emerald-300">
+                    This IS for you if…
+                  </h3>
+                </div>
+                <ul className="space-y-3 text-sm text-white/85">
+                  {yesItems.map((b, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                      {b.text}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* NO column */}
+              <div className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-6">
+                <div className="mb-4 flex items-center gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-500 text-white">
+                    <X className="h-4 w-4" strokeWidth={3} />
+                  </span>
+                  <h3 className="font-sora text-lg font-bold text-rose-300">
+                    This is NOT for you if…
+                  </h3>
+                </div>
+                <ul className="space-y-3 text-sm text-white/75">
+                  {noItems.map((b, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <X className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+                      {b.text}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           </div>
         </section>
       )}
 
-      <section id="book" className="scroll-mt-16 pb-32 pt-16 md:pb-16">
-        <div className="mx-auto max-w-5xl px-6">
+      {/* ====================================================================
+          CHECKOUT
+          ==================================================================== */}
+      <section
+        id="book"
+        className="scroll-mt-16 bg-zinc-900 px-4 pb-32 pt-16 md:pb-20"
+      >
+        <div className="mx-auto max-w-3xl">
           {props.checkout_title && (
-            <h2 className="text-center text-2xl font-semibold tracking-tight">
+            <h2 className="text-center font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
               {props.checkout_title}
             </h2>
           )}
@@ -166,7 +324,15 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
               {props.checkout_note}
             </p>
           )}
-          <div className="mt-8 rounded-xl bg-white p-6 text-zinc-900 shadow-2xl">
+
+          <div className="mt-8 rounded-2xl bg-white p-6 text-zinc-900 shadow-2xl md:p-8">
+            <div className="mb-5 flex items-baseline gap-2 border-b border-zinc-100 pb-4">
+              <span className="font-sora text-4xl font-bold text-zinc-900">
+                ₹{Number(price).toLocaleString("en-IN")}
+              </span>
+              <span className="text-sm text-zinc-500">one-time</span>
+            </div>
+
             {props.pageId && props.product && !props.isPreview ? (
               <CheckoutForm
                 pageId={props.pageId}
@@ -176,15 +342,35 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
                 productImage={props.product.image_url}
                 price={Number(props.product.price)}
                 currency={props.product.currency}
-                orderBump={props.bumpRuntime ? { ...props.bumpRuntime, ready: true } : undefined}
+                orderBump={
+                  props.bumpRuntime
+                    ? { ...props.bumpRuntime, ready: true }
+                    : undefined
+                }
               />
             ) : (
-              <p className="text-center text-sm text-zinc-500">
+              <p className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-4 text-center text-sm text-zinc-500">
                 {props.isPreview
                   ? "Checkout form renders on the live page."
                   : "Attach a product to this page to enable checkout."}
               </p>
             )}
+
+            <div className="mt-5 border-t border-zinc-100 pt-4">
+              <p className="flex items-center justify-center gap-1.5 text-xs text-zinc-500">
+                <Lock className="h-3 w-3" /> SSL Encrypted · Powered by Razorpay
+              </p>
+              <div className="mt-3 flex items-center justify-center gap-2">
+                {["UPI", "Visa", "Mastercard", "RuPay"].map((m) => (
+                  <span
+                    key={m}
+                    className="rounded-md border border-zinc-200 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-700"
+                  >
+                    {m}
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -192,10 +378,67 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
       <StickyCheckoutBar
         targetId="book"
         priceLabel={price ? `₹${price.toLocaleString("en-IN")}` : "Book"}
-        cta={props.hero_cta ?? "Book"}
+        cta={heroCta}
         buttonClassName="bg-orange-500 text-white"
       />
-
     </div>
   );
+}
+
+// ── Sub-components ──────────────────────────────────────────────────────
+
+function AvatarStack({
+  initials,
+  label,
+}: {
+  initials: string[];
+  label: string;
+}) {
+  const palette = [
+    "bg-orange-500",
+    "bg-rose-500",
+    "bg-amber-500",
+    "bg-emerald-500",
+    "bg-sky-500",
+  ];
+  return (
+    <div className="inline-flex items-center gap-3">
+      <div className="flex -space-x-2">
+        {initials.slice(0, 5).map((init, i) => (
+          <span
+            key={i}
+            className={[
+              "flex h-8 w-8 items-center justify-center rounded-full",
+              "border-2 border-zinc-900 text-[10px] font-bold text-white shadow-sm",
+              palette[i % palette.length] ?? "bg-orange-500",
+            ].join(" ")}
+            style={{ zIndex: 10 - i }}
+          >
+            {init}
+          </span>
+        ))}
+      </div>
+      <span className="text-sm font-medium text-white/80">{label}</span>
+    </div>
+  );
+}
+
+function splitHeadline(
+  headline: string,
+  explicit?: string,
+): { head: string; tail: string } {
+  if (explicit && headline.includes(explicit)) {
+    const i = headline.lastIndexOf(explicit);
+    return {
+      head: headline.slice(0, i).trim(),
+      tail: explicit,
+    };
+  }
+  const words = headline.trim().split(/\s+/);
+  if (words.length < 2) return { head: "", tail: headline };
+  const tail = words.slice(-2).join(" ");
+  return {
+    head: words.slice(0, -2).join(" "),
+    tail,
+  };
 }

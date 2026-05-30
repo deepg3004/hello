@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
+  ArrowRight,
   Camera,
   Check,
   CreditCard,
@@ -12,6 +13,7 @@ import {
   RefreshCcw,
   ShieldCheck,
   Upload,
+  User2,
 } from "lucide-react";
 
 import {
@@ -22,15 +24,7 @@ import {
   uploadKycDocumentAction,
   type DocumentType,
 } from "@/actions/kyc";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -58,137 +52,320 @@ interface KycWizardProps {
   initial: KycInitial;
 }
 
+type StepKey = "basics" | "standard" | "advanced";
+
+interface Step {
+  key: StepKey;
+  title: string;
+  subtitle: string;
+  done: boolean;
+  available: boolean;
+}
+
 export function KycWizard({ initial }: KycWizardProps) {
+  const basicsDone = initial.emailConfirmed && !!initial.phone;
+  const standardDone =
+    initial.panVerified && initial.bankVerified && initial.selfieUploaded;
+  const advancedDone =
+    initial.aadhaarVerified && initial.gstUploaded;
+
+  const steps: Step[] = [
+    {
+      key: "basics",
+      title: "Basics",
+      subtitle: "Email + phone confirmation",
+      done: basicsDone,
+      available: true,
+    },
+    {
+      key: "standard",
+      title: "Standard",
+      subtitle: "PAN · Bank · Selfie — required for payouts",
+      done: standardDone,
+      available: basicsDone,
+    },
+    {
+      key: "advanced",
+      title: "Advanced",
+      subtitle: "Aadhaar + GST — optional, lower commission",
+      done: advancedDone,
+      available: standardDone,
+    },
+  ];
+
+  // Pick the first unfinished step as the default active. If everything's
+  // done, land on the last one so the user lands on something meaningful.
+  const firstPending = steps.find((s) => !s.done && s.available) ?? steps[steps.length - 1]!;
+  const [active, setActive] = useState<StepKey>(firstPending.key);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      {/* Top-level status banner (rejected / under-review / approved) */}
       <OverallStatus initial={initial} />
-      <Level1Card initial={initial} />
-      <Level2Card initial={initial} />
-      <Level3Card initial={initial} />
+
+      <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)]">
+        {/* ── Vertical stepper (desktop) / horizontal tabs (mobile) ── */}
+        <Stepper steps={steps} active={active} onPick={setActive} />
+
+        {/* ── Active step content ──────────────────────────────────── */}
+        <div key={active} className="min-w-0 animate-in-up">
+          {active === "basics" && <BasicsStep initial={initial} />}
+          {active === "standard" && <StandardStep initial={initial} />}
+          {active === "advanced" && <AdvancedStep initial={initial} />}
+        </div>
+      </div>
     </div>
   );
 }
 
-// ============================================================================
-// Top summary
-// ============================================================================
+// ── Status banner (rejected / under review / approved) ──────────────────
 
 function OverallStatus({ initial }: { initial: KycInitial }) {
   if (initial.status === "rejected") {
     return (
-      <Card className="border-destructive/40 bg-destructive/5">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <AlertTriangle className="h-4 w-4 text-destructive" />
-            KYC rejected
-          </CardTitle>
-          <CardDescription>
-            {initial.rejectionReason ?? "Please re-submit the items below."}
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        <div>
+          <p className="font-semibold">KYC rejected</p>
+          <p className="mt-0.5">
+            {initial.rejectionReason ??
+              "Please re-submit the items below — see the highlighted fields."}
+          </p>
+        </div>
+      </div>
     );
   }
   if (initial.status === "under_review") {
     return (
-      <Card className="border-amber-300 bg-amber-50">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base text-amber-900">
-            <RefreshCcw className="h-4 w-4" /> Under review
-          </CardTitle>
-          <CardDescription className="text-amber-900">
-            We&apos;ve received your details and they&apos;re being checked by our team.
+      <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <RefreshCcw className="mt-0.5 h-4 w-4 shrink-0" />
+        <div>
+          <p className="font-semibold">
+            Document under review — usually 24–48 hours
+          </p>
+          <p className="mt-0.5">
+            We&apos;ve received your details and our team is checking them.
+            You&apos;ll receive an email the moment we&apos;re done.
             {initial.riskFlags.length > 0 && (
-              <> Flags: {initial.riskFlags.join(", ")}</>
+              <> Flags: {initial.riskFlags.join(", ")}.</>
             )}
-          </CardDescription>
-        </CardHeader>
-      </Card>
+          </p>
+        </div>
+      </div>
     );
   }
   if (initial.kycLevel >= 2) {
     return (
-      <Card className="border-emerald-300 bg-emerald-50">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base text-emerald-900">
-            <ShieldCheck className="h-4 w-4" /> KYC level {initial.kycLevel} — payouts enabled
-          </CardTitle>
-          <CardDescription className="text-emerald-900">
-            You&apos;re fully verified. Payouts can be requested from the Payouts page.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+        <div>
+          <p className="font-semibold">
+            KYC level {initial.kycLevel} — payouts enabled
+          </p>
+          <p className="mt-0.5">
+            You&apos;re fully verified. Payouts can be requested from the
+            Payouts page.
+          </p>
+        </div>
+      </div>
     );
   }
   return null;
 }
 
-// ============================================================================
-// Level 1
-// ============================================================================
+// ── Stepper ────────────────────────────────────────────────────────────
 
-function Level1Card({ initial }: { initial: KycInitial }) {
+function Stepper({
+  steps,
+  active,
+  onPick,
+}: {
+  steps: Step[];
+  active: StepKey;
+  onPick: (k: StepKey) => void;
+}) {
+  return (
+    <nav aria-label="KYC steps">
+      {/* Mobile: horizontal pill row */}
+      <ol className="flex gap-2 overflow-x-auto pb-2 md:hidden">
+        {steps.map((s, i) => (
+          <li key={s.key} className="shrink-0">
+            <button
+              type="button"
+              onClick={() => s.available && onPick(s.key)}
+              disabled={!s.available}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition",
+                active === s.key
+                  ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                  : s.done
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : s.available
+                      ? "border-border bg-white text-foreground"
+                      : "border-border bg-muted text-muted-foreground",
+              )}
+            >
+              <StepNumber index={i + 1} done={s.done} active={active === s.key} />
+              {s.title}
+            </button>
+          </li>
+        ))}
+      </ol>
+
+      {/* Desktop: vertical stepper */}
+      <ol className="relative hidden md:block">
+        {/* Trail line connecting circles */}
+        <span
+          aria-hidden
+          className="absolute left-[15px] top-4 bottom-4 w-px bg-border"
+        />
+        {steps.map((s, i) => {
+          const isActive = active === s.key;
+          return (
+            <li key={s.key} className="relative pl-12 pb-6 last:pb-0">
+              <button
+                type="button"
+                onClick={() => s.available && onPick(s.key)}
+                disabled={!s.available}
+                className={cn(
+                  "absolute left-0 top-0 flex h-8 w-8 items-center justify-center rounded-full border-2 transition",
+                  isActive
+                    ? "border-primary bg-primary text-primary-foreground shadow-md shadow-indigo-500/20"
+                    : s.done
+                      ? "border-emerald-500 bg-emerald-500 text-white"
+                      : s.available
+                        ? "border-border bg-white text-muted-foreground"
+                        : "border-border bg-muted text-muted-foreground/50",
+                )}
+                aria-current={isActive ? "step" : undefined}
+                aria-label={`Step ${i + 1}: ${s.title}`}
+              >
+                {s.done ? (
+                  <Check className="h-3.5 w-3.5" />
+                ) : (
+                  <span className="text-xs font-semibold">{i + 1}</span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => s.available && onPick(s.key)}
+                disabled={!s.available}
+                className={cn(
+                  "block text-left transition",
+                  !s.available && "cursor-not-allowed opacity-50",
+                )}
+              >
+                <p
+                  className={cn(
+                    "font-sora text-sm font-semibold",
+                    isActive ? "text-foreground" : "text-foreground/80",
+                  )}
+                >
+                  {s.title}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {s.subtitle}
+                </p>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
+function StepNumber({
+  index,
+  done,
+  active,
+}: {
+  index: number;
+  done: boolean;
+  active: boolean;
+}) {
+  if (done) return <Check className="h-3 w-3" />;
+  return (
+    <span
+      className={cn(
+        "flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold",
+        active ? "bg-white/25 text-white" : "bg-foreground/10",
+      )}
+    >
+      {index}
+    </span>
+  );
+}
+
+// ── Step bodies ────────────────────────────────────────────────────────
+
+function BasicsStep({ initial }: { initial: KycInitial }) {
   const emailOk = initial.emailConfirmed;
   const phoneOk = !!initial.phone;
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between text-base">
-          <span>Level 1 — Basics</span>
-          {emailOk && phoneOk ? (
-            <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
-              <Check className="mr-1 h-3 w-3" /> Done
-            </Badge>
-          ) : (
-            <Badge variant="outline">In progress</Badge>
-          )}
-        </CardTitle>
-        <CardDescription>
-          Set automatically when you sign up + confirm your email.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-2 text-sm">
-        <Row label="Email confirmed" ok={emailOk} value={initial.email} />
-        <Row label="Phone on file" ok={phoneOk} value={initial.phone ?? "—"} />
-      </CardContent>
-    </Card>
+    <SectionCard
+      icon={User2}
+      title="Basics"
+      subtitle="Auto-completed when you sign up + confirm your email."
+      status={emailOk && phoneOk ? "verified" : "required"}
+    >
+      <Row label="Email confirmed" ok={emailOk} value={initial.email} />
+      <Row label="Phone on file" ok={phoneOk} value={initial.phone ?? "—"} />
+    </SectionCard>
   );
 }
 
-// ============================================================================
-// Level 2
-// ============================================================================
-
-function Level2Card({ initial }: { initial: KycInitial }) {
-  const allDone = initial.panVerified && initial.bankVerified && initial.selfieUploaded;
-
+function StandardStep({ initial }: { initial: KycInitial }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between text-base">
-          <span>Level 2 — Standard (required for payouts)</span>
-          {allDone ? (
-            <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
-              <Check className="mr-1 h-3 w-3" /> Done
-            </Badge>
-          ) : (
-            <Badge variant="outline">3 items</Badge>
-          )}
-        </CardTitle>
-        <CardDescription>
-          PAN + bank account + selfie. Verified live with Surepass.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <PanForm initial={initial} />
-        <BankForm initial={initial} />
-        <SelfieUpload initial={initial} />
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      <PanForm initial={initial} />
+      <BankForm initial={initial} />
+      <SelfieUpload initial={initial} />
+    </div>
   );
 }
 
-// ----- PAN -------------------------------------------------------------------
+function AdvancedStep({ initial }: { initial: KycInitial }) {
+  if (initial.kycLevel < 2) {
+    return (
+      <SectionCard
+        icon={ShieldCheck}
+        title="Finish Standard first"
+        subtitle="Advanced KYC unlocks once Standard (PAN + Bank + Selfie) is complete."
+        status="required"
+      >
+        <p className="text-sm text-muted-foreground">
+          Once Standard is verified, return here to add Aadhaar e-KYC and your
+          GST certificate. These lower your platform commission and let you
+          take higher monthly volumes.
+        </p>
+      </SectionCard>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      <AadhaarFlow initial={initial} />
+      <DocumentUpload
+        icon={FileText}
+        title="GST certificate"
+        description="Your GST registration certificate. PDF / PNG / JPEG."
+        documentType="gst_certificate"
+        done={initial.gstUploaded}
+        accept=".pdf,image/png,image/jpeg,image/webp"
+      />
+      <DocumentUpload
+        icon={FileText}
+        title="Business registration (optional)"
+        description="LLP / Pvt Ltd / Partnership deed if applicable."
+        documentType="business_registration"
+        done={false}
+        accept=".pdf,image/png,image/jpeg,image/webp"
+      />
+    </div>
+  );
+}
+
+// ── Verification cards ─────────────────────────────────────────────────
 
 function PanForm({ initial }: { initial: KycInitial }) {
   const router = useRouter();
@@ -202,7 +379,11 @@ function PanForm({ initial }: { initial: KycInitial }) {
     const r = await submitPanVerificationAction(pan);
     setBusy(false);
     if (!r.ok) {
-      toast({ title: "PAN verification failed", description: r.message, variant: "destructive" });
+      toast({
+        title: "PAN verification failed",
+        description: r.message,
+        variant: "destructive",
+      });
       return;
     }
     toast({ title: "PAN verified", description: r.message });
@@ -210,42 +391,46 @@ function PanForm({ initial }: { initial: KycInitial }) {
     router.refresh();
   }
 
-  if (initial.panVerified && initial.panName) {
-    return (
-      <DoneRow
-        title="PAN verified"
-        icon={<CreditCard className="h-4 w-4" />}
-        description={`Holder: ${initial.panName}`}
-      />
-    );
-  }
-
   return (
-    <div className="rounded-md border bg-muted/30 p-3">
-      <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-        <CreditCard className="h-4 w-4" /> PAN verification
-      </div>
-      <div className="flex gap-2">
-        <Input
-          value={pan}
-          onChange={(e) => setPan(e.target.value.toUpperCase())}
-          placeholder="ABCDE1234F"
-          maxLength={10}
-          className="font-mono uppercase"
-        />
-        <Button onClick={submit} disabled={busy || pan.length !== 10}>
-          {busy && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
-          Verify
-        </Button>
-      </div>
-      <p className="mt-1 text-xs text-muted-foreground">
-        Format: 5 letters + 4 digits + 1 letter (e.g. ABCDE1234F).
-      </p>
-    </div>
+    <SectionCard
+      icon={CreditCard}
+      title="PAN verification"
+      subtitle={
+        initial.panVerified && initial.panName
+          ? `Holder name: ${initial.panName}`
+          : "Verified live via Surepass — no manual review."
+      }
+      status={initial.panVerified ? "verified" : "required"}
+    >
+      {initial.panVerified ? (
+        <VerifiedInput value={initial.panName ?? "PAN on file"} />
+      ) : (
+        <>
+          <div className="space-y-1.5">
+            <Label className="text-xs">PAN number</Label>
+            <Input
+              value={pan}
+              onChange={(e) => setPan(e.target.value.toUpperCase())}
+              placeholder="ABCDE1234F"
+              maxLength={10}
+              className="font-mono uppercase"
+            />
+            <p className="text-xs text-muted-foreground">
+              5 letters + 4 digits + 1 letter
+            </p>
+          </div>
+          <PrimaryButton
+            onClick={submit}
+            disabled={busy || pan.length !== 10}
+            busy={busy}
+          >
+            Verify PAN
+          </PrimaryButton>
+        </>
+      )}
+    </SectionCard>
   );
 }
-
-// ----- Bank ------------------------------------------------------------------
 
 function BankForm({ initial }: { initial: KycInitial }) {
   const router = useRouter();
@@ -259,7 +444,11 @@ function BankForm({ initial }: { initial: KycInitial }) {
     const r = await submitBankVerificationAction(account, ifsc);
     setBusy(false);
     if (!r.ok) {
-      toast({ title: "Bank verification failed", description: r.message, variant: "destructive" });
+      toast({
+        title: "Bank verification failed",
+        description: r.message,
+        variant: "destructive",
+      });
       return;
     }
     toast({ title: "Bank checked", description: r.message });
@@ -268,106 +457,67 @@ function BankForm({ initial }: { initial: KycInitial }) {
     router.refresh();
   }
 
-  if (initial.bankVerified && initial.bankHolderName) {
-    return (
-      <DoneRow
-        title="Bank verified"
-        icon={<ShieldCheck className="h-4 w-4" />}
-        description={`Holder: ${initial.bankHolderName}`}
-      />
-    );
-  }
-
   return (
-    <div className="rounded-md border bg-muted/30 p-3">
-      <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-        <ShieldCheck className="h-4 w-4" /> Bank account verification
-      </div>
-      <div className="grid gap-2 md:grid-cols-2">
-        <div>
-          <Label className="text-xs">Account number</Label>
-          <Input
-            value={account}
-            onChange={(e) => setAccount(e.target.value.replace(/\D/g, ""))}
-            placeholder="123456789012"
-            className="font-mono"
-          />
-        </div>
-        <div>
-          <Label className="text-xs">IFSC code</Label>
-          <Input
-            value={ifsc}
-            onChange={(e) => setIfsc(e.target.value.toUpperCase())}
-            placeholder="HDFC0001234"
-            maxLength={11}
-            className="font-mono uppercase"
-          />
-        </div>
-      </div>
-      <p className="mt-2 text-xs text-muted-foreground">
-        We&apos;ll send ₹1 (penny drop) to confirm the account holder name matches your PAN.
-      </p>
-      <Button onClick={submit} disabled={busy || !account || ifsc.length !== 11} className="mt-2">
-        {busy && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
-        Verify
-      </Button>
-    </div>
+    <SectionCard
+      icon={ShieldCheck}
+      title="Bank account"
+      subtitle={
+        initial.bankVerified && initial.bankHolderName
+          ? `Holder name: ${initial.bankHolderName}`
+          : "Penny-drop of ₹1 confirms the account holder name matches your PAN."
+      }
+      status={initial.bankVerified ? "verified" : "required"}
+    >
+      {initial.bankVerified ? (
+        <VerifiedInput value={initial.bankHolderName ?? "Account on file"} />
+      ) : (
+        <>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Account number</Label>
+              <Input
+                value={account}
+                onChange={(e) =>
+                  setAccount(e.target.value.replace(/\D/g, ""))
+                }
+                placeholder="123456789012"
+                className="font-mono"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">IFSC code</Label>
+              <Input
+                value={ifsc}
+                onChange={(e) => setIfsc(e.target.value.toUpperCase())}
+                placeholder="HDFC0001234"
+                maxLength={11}
+                className="font-mono uppercase"
+              />
+            </div>
+          </div>
+          <PrimaryButton
+            onClick={submit}
+            disabled={busy || !account || ifsc.length !== 11}
+            busy={busy}
+          >
+            Verify bank account
+          </PrimaryButton>
+        </>
+      )}
+    </SectionCard>
   );
 }
-
-// ----- Selfie ----------------------------------------------------------------
 
 function SelfieUpload({ initial }: { initial: KycInitial }) {
   return (
     <DocumentUpload
-      icon={<Camera className="h-4 w-4" />}
+      icon={Camera}
       title="Selfie photo"
       description="A clear photo of your face. PNG / JPEG up to 20 MB."
       documentType="selfie"
       done={initial.selfieUploaded}
       accept="image/png,image/jpeg,image/webp"
     />
-  );
-}
-
-// ============================================================================
-// Level 3
-// ============================================================================
-
-function Level3Card({ initial }: { initial: KycInitial }) {
-  if (initial.kycLevel < 2) return null; // gate behind Level 2
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between text-base">
-          <span>Level 3 — Advanced (high-volume sellers)</span>
-          <Badge variant="outline">Optional</Badge>
-        </CardTitle>
-        <CardDescription>
-          Required once you cross ₹1L/month in sales. Lowers your platform commission.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <AadhaarFlow initial={initial} />
-        <DocumentUpload
-          icon={<FileText className="h-4 w-4" />}
-          title="GST certificate"
-          description="Upload your GST registration certificate. PDF / PNG / JPEG."
-          documentType="gst_certificate"
-          done={initial.gstUploaded}
-          accept=".pdf,image/png,image/jpeg,image/webp"
-        />
-        <DocumentUpload
-          icon={<FileText className="h-4 w-4" />}
-          title="Business registration (optional)"
-          description="LLP / Pvt Ltd / Partnership deed if applicable."
-          documentType="business_registration"
-          done={false}
-          accept=".pdf,image/png,image/jpeg,image/webp"
-        />
-      </CardContent>
-    </Card>
   );
 }
 
@@ -379,26 +529,23 @@ function AadhaarFlow({ initial }: { initial: KycInitial }) {
   const [stage, setStage] = useState<"start" | "otp">("start");
   const [busy, setBusy] = useState(false);
 
-  if (initial.aadhaarVerified) {
-    return (
-      <DoneRow
-        title="Aadhaar verified"
-        icon={<ShieldCheck className="h-4 w-4" />}
-        description="Live e-KYC confirmed."
-      />
-    );
-  }
-
   async function start() {
     setBusy(true);
     const r = await aadhaarStartAction(aadhaar);
     setBusy(false);
     if (!r.ok) {
-      toast({ title: "Couldn't send OTP", description: r.message, variant: "destructive" });
+      toast({
+        title: "Couldn't send OTP",
+        description: r.message,
+        variant: "destructive",
+      });
       return;
     }
     setStage("otp");
-    toast({ title: "OTP sent", description: "Check your phone for the Aadhaar OTP." });
+    toast({
+      title: "OTP sent",
+      description: "Check your phone for the Aadhaar OTP.",
+    });
   }
 
   async function verify() {
@@ -406,7 +553,11 @@ function AadhaarFlow({ initial }: { initial: KycInitial }) {
     const r = await aadhaarVerifyAction(otp);
     setBusy(false);
     if (!r.ok) {
-      toast({ title: "OTP verification failed", description: r.message, variant: "destructive" });
+      toast({
+        title: "OTP verification failed",
+        description: r.message,
+        variant: "destructive",
+      });
       return;
     }
     toast({ title: "Aadhaar verified" });
@@ -417,31 +568,40 @@ function AadhaarFlow({ initial }: { initial: KycInitial }) {
   }
 
   return (
-    <div className="rounded-md border bg-muted/30 p-3">
-      <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-        <ShieldCheck className="h-4 w-4" /> Aadhaar (OTP)
-      </div>
-      {stage === "start" ? (
+    <SectionCard
+      icon={ShieldCheck}
+      title="Aadhaar (OTP)"
+      subtitle="UIDAI eKYC via Surepass. We store only the last 4 digits."
+      status={initial.aadhaarVerified ? "verified" : "required"}
+    >
+      {initial.aadhaarVerified ? (
+        <VerifiedInput value="Aadhaar verified" />
+      ) : stage === "start" ? (
         <>
-          <Label className="text-xs">Aadhaar number</Label>
-          <div className="flex gap-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Aadhaar number</Label>
             <Input
               value={aadhaar}
-              onChange={(e) => setAadhaar(e.target.value.replace(/\D/g, ""))}
+              onChange={(e) =>
+                setAadhaar(e.target.value.replace(/\D/g, ""))
+              }
               placeholder="12-digit Aadhaar"
               maxLength={12}
               className="font-mono"
             />
-            <Button onClick={start} disabled={busy || aadhaar.length !== 12}>
-              {busy && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
-              Send OTP
-            </Button>
           </div>
+          <PrimaryButton
+            onClick={start}
+            disabled={busy || aadhaar.length !== 12}
+            busy={busy}
+          >
+            Send OTP
+          </PrimaryButton>
         </>
       ) : (
         <>
-          <Label className="text-xs">OTP from SMS</Label>
-          <div className="flex gap-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs">OTP from SMS</Label>
             <Input
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
@@ -449,79 +609,182 @@ function AadhaarFlow({ initial }: { initial: KycInitial }) {
               maxLength={8}
               className="font-mono"
             />
-            <Button onClick={verify} disabled={busy || otp.length < 4}>
-              {busy && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
-              Verify
-            </Button>
-            <Button variant="ghost" onClick={() => setStage("start")} disabled={busy}>
+          </div>
+          <div className="flex items-center gap-2">
+            <PrimaryButton
+              onClick={verify}
+              disabled={busy || otp.length < 4}
+              busy={busy}
+            >
+              Verify OTP
+            </PrimaryButton>
+            <Button
+              variant="ghost"
+              onClick={() => setStage("start")}
+              disabled={busy}
+            >
               Back
             </Button>
           </div>
         </>
       )}
-      <p className="mt-2 text-xs text-muted-foreground">
-        Aadhaar is processed by Surepass via UIDAI&apos;s eKYC API. We store only the
-        last 4 digits.
-      </p>
-    </div>
+    </SectionCard>
   );
 }
 
-// ============================================================================
-// Shared sub-components
-// ============================================================================
+// ── Shared sub-components ──────────────────────────────────────────────
 
-function Row({ label, ok, value }: { label: string; ok: boolean; value: string }) {
+type SectionStatus = "verified" | "required" | "review";
+
+function SectionCard({
+  icon: Icon,
+  title,
+  subtitle,
+  status,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  subtitle?: string;
+  status: SectionStatus;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="flex items-center justify-between">
+    <section className="rounded-xl border border-border bg-white p-6 shadow-sm">
+      <header className="mb-4 flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+            <Icon className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="font-sora text-base font-semibold tracking-tight">
+              {title}
+            </h3>
+            {subtitle && (
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                {subtitle}
+              </p>
+            )}
+          </div>
+        </div>
+        <StatusPill status={status} />
+      </header>
+
+      <div className="space-y-3">{children}</div>
+    </section>
+  );
+}
+
+function StatusPill({ status }: { status: SectionStatus }) {
+  if (status === "verified") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+        <Check className="h-3 w-3" />
+        Verified
+      </span>
+    );
+  }
+  if (status === "review") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+        <RefreshCcw className="h-3 w-3" />
+        Pending
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-xs font-medium text-rose-700">
+      Required
+    </span>
+  );
+}
+
+function PrimaryButton({
+  children,
+  onClick,
+  disabled,
+  busy,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  busy?: boolean;
+}) {
+  return (
+    <Button
+      onClick={onClick}
+      disabled={disabled}
+      className="w-full sm:w-auto"
+    >
+      {busy ? (
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+      ) : (
+        <ArrowRight className="mr-2 h-4 w-4" />
+      )}
+      {children}
+    </Button>
+  );
+}
+
+function Row({
+  label,
+  ok,
+  value,
+}: {
+  label: string;
+  ok: boolean;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-border bg-muted/20 px-3 py-2.5 text-sm">
       <div className="flex items-center gap-2">
         <span
           className={cn(
             "inline-flex h-5 w-5 items-center justify-center rounded-full",
-            ok ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground",
+            ok
+              ? "bg-emerald-100 text-emerald-700"
+              : "bg-muted text-muted-foreground",
           )}
         >
-          {ok ? <Check className="h-3 w-3" /> : "·"}
+          {ok ? <Check className="h-3 w-3" /> : <span className="text-xs">·</span>}
         </span>
-        <span>{label}</span>
+        <span className="font-medium text-foreground">{label}</span>
       </div>
       <span className="text-muted-foreground">{value}</span>
     </div>
   );
 }
 
-function DoneRow({
-  title,
-  description,
-  icon,
-}: {
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-}) {
+/**
+ * Disabled input with a green checkmark overlay — used for fields that
+ * are already verified (PAN holder name, bank holder name, etc).
+ */
+function VerifiedInput({ value }: { value: string }) {
   return (
-    <div className="flex items-start gap-3 rounded-md border bg-emerald-50 p-3 text-sm">
-      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-        {icon}
-      </div>
-      <div className="flex-1">
-        <div className="font-medium text-emerald-900">{title}</div>
-        <div className="text-xs text-emerald-800">{description}</div>
-      </div>
-      <Check className="h-4 w-4 text-emerald-700" />
+    <div className="relative">
+      <Input
+        value={value}
+        disabled
+        readOnly
+        className="bg-emerald-50/40 pr-9 font-medium text-emerald-900"
+      />
+      <Check
+        className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600"
+        aria-hidden
+      />
     </div>
   );
 }
 
 function DocumentUpload({
-  icon,
+  icon: Icon,
   title,
   description,
   documentType,
   done,
   accept,
 }: {
-  icon: React.ReactNode;
+  icon: React.ComponentType<{ className?: string }>;
   title: string;
   description: string;
   documentType: DocumentType;
@@ -532,10 +795,6 @@ function DocumentUpload({
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
-
-  if (done) {
-    return <DoneRow title={title} icon={icon} description="Uploaded" />;
-  }
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -548,7 +807,11 @@ function DocumentUpload({
     setBusy(false);
     if (inputRef.current) inputRef.current.value = "";
     if (!r.ok) {
-      toast({ title: "Upload failed", description: r.message, variant: "destructive" });
+      toast({
+        title: "Upload failed",
+        description: r.message,
+        variant: "destructive",
+      });
       return;
     }
     toast({ title: `${title} uploaded` });
@@ -556,25 +819,38 @@ function DocumentUpload({
   }
 
   return (
-    <div className="rounded-md border bg-muted/30 p-3">
-      <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-        {icon} {title}
-      </div>
-      <p className="mb-2 text-xs text-muted-foreground">{description}</p>
-      <input ref={inputRef} type="file" accept={accept} className="hidden" onChange={onFile} />
-      <Button
-        type="button"
-        variant="outline"
-        onClick={() => inputRef.current?.click()}
-        disabled={busy}
-      >
-        {busy ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        ) : (
-          <Upload className="mr-2 h-4 w-4" />
-        )}
-        Upload
-      </Button>
-    </div>
+    <SectionCard
+      icon={Icon}
+      title={title}
+      subtitle={description}
+      status={done ? "verified" : "required"}
+    >
+      {done ? (
+        <VerifiedInput value="Document uploaded" />
+      ) : (
+        <>
+          <input
+            ref={inputRef}
+            type="file"
+            accept={accept}
+            className="hidden"
+            onChange={onFile}
+          />
+          <Button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={busy}
+            className="w-full sm:w-auto"
+          >
+            {busy ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Upload className="mr-2 h-4 w-4" />
+            )}
+            Upload {title.toLowerCase()}
+          </Button>
+        </>
+      )}
+    </SectionCard>
   );
 }
