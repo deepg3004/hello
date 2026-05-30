@@ -28,6 +28,9 @@ export interface SendArgs {
   html: string;
   text?: string;
   reply_to?: string;
+  /** Resend tags — used by the open-tracking webhook to disambiguate which
+   *  recovery email a `email.opened` event belongs to. */
+  tags?: Array<{ name: string; value: string }>;
 }
 
 export interface SendResult {
@@ -54,6 +57,7 @@ export async function sendEmail(args: SendArgs): Promise<SendResult> {
       html: args.html,
       text: args.text,
       replyTo: args.reply_to,
+      tags: args.tags,
     });
     if (res.error) return { ok: false, message: res.error.message };
     return { ok: true, id: res.data?.id };
@@ -310,6 +314,115 @@ export function saleConfirmationEmail(vars: SaleConfirmationEmailVars): {
           ? `<p style="margin:0 0 12px"><a href="${vars.orderUrl}" style="color:#0a0a0a">View order details →</a></p>`
           : ""
       }
+    `),
+  };
+}
+
+// ============================================================================
+// Cart-recovery templates
+// ============================================================================
+
+interface RecoveryCommon {
+  buyerName: string | null;
+  sellerName: string;
+  productName: string;
+  productImage: string | null;
+  productPrice: number | null;
+  recoveryUrl: string;
+}
+
+function recoveryHero(args: RecoveryCommon, kicker: string): string {
+  const price =
+    args.productPrice == null
+      ? ""
+      : `₹${args.productPrice.toLocaleString("en-IN")}`;
+  return `
+    <p style="margin:0 0 12px;color:#a1a1aa;font-size:11px;text-transform:uppercase;letter-spacing:1.4px">${escapeHtml(
+      kicker,
+    )}</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin:0 0 18px">
+      <tr>
+        ${
+          args.productImage
+            ? `<td style="width:88px;padding-right:14px;vertical-align:top"><img src="${args.productImage}" width="88" height="88" style="display:block;border-radius:8px;border:1px solid #e4e4e7;object-fit:cover" alt="" /></td>`
+            : ""
+        }
+        <td style="vertical-align:top">
+          <p style="margin:0 0 2px;font-size:16px;font-weight:600;color:#18181b">${escapeHtml(
+            args.productName,
+          )}</p>
+          ${price ? `<p style="margin:0;color:#52525b;font-size:13px">${price}</p>` : ""}
+          <p style="margin:8px 0 0;color:#71717a;font-size:12px">from ${escapeHtml(args.sellerName)}</p>
+        </td>
+      </tr>
+    </table>
+  `;
+}
+
+export function recoveryEmail1(args: RecoveryCommon): {
+  subject: string;
+  html: string;
+} {
+  const hello = args.buyerName ? `Hi ${args.buyerName},` : "Hi,";
+  const subject = args.buyerName
+    ? `You left something behind, ${args.buyerName}`
+    : `You left something behind`;
+  return {
+    subject,
+    html: SHELL(`
+      ${recoveryHero(args, "Almost yours")}
+      <p style="margin:0 0 12px;line-height:1.5">${hello}</p>
+      <p style="margin:0 0 16px;line-height:1.5">
+        You were one click away from buying <strong>${escapeHtml(args.productName)}</strong>.
+        We saved your cart — pick up where you left off below.
+      </p>
+      <p style="margin:0 0 14px">
+        <a href="${args.recoveryUrl}" style="display:inline-block;background:#0a0a0a;color:#fff;padding:11px 18px;border-radius:6px;text-decoration:none;font-weight:600">Complete your purchase →</a>
+      </p>
+      <p style="margin:0;color:#a1a1aa;font-size:11px">If the button doesn't work, copy this link into your browser: <span style="color:#52525b">${args.recoveryUrl}</span></p>
+    `),
+  };
+}
+
+export interface RecoveryEmail2Vars extends RecoveryCommon {
+  couponCode: string | null;
+  couponLabel: string | null;
+}
+
+export function recoveryEmail2(args: RecoveryEmail2Vars): {
+  subject: string;
+  html: string;
+} {
+  const hello = args.buyerName ? `Hi ${args.buyerName},` : "Hi,";
+  const subject = args.couponCode
+    ? `${args.couponLabel ?? "A little something off"} — ${args.productName}`
+    : `Still thinking it over?`;
+  const couponBlock = args.couponCode
+    ? `
+        <div style="margin:0 0 18px;border:1px dashed #e4e4e7;border-radius:8px;padding:14px 16px;background:#fafafa">
+          <p style="margin:0 0 4px;color:#18181b;font-size:14px">
+            Here's <strong>${escapeHtml(args.couponLabel ?? "a discount")}</strong> to complete your order.
+          </p>
+          <p style="margin:0;font-size:18px;font-weight:700;font-family:ui-monospace,Menlo,Consolas,monospace;color:#18181b;letter-spacing:1.5px">${escapeHtml(args.couponCode)}</p>
+          <p style="margin:6px 0 0;color:#71717a;font-size:11px">Apply it at checkout — valid while stocks last.</p>
+        </div>`
+    : "";
+  return {
+    subject,
+    html: SHELL(`
+      ${recoveryHero(args, args.couponCode ? "One-day only" : "Last chance")}
+      <p style="margin:0 0 12px;line-height:1.5">${hello}</p>
+      <p style="margin:0 0 16px;line-height:1.5">
+        Just checking in — you started checking out <strong>${escapeHtml(args.productName)}</strong>
+        yesterday on ${escapeHtml(args.sellerName)}'s page but didn't finish.
+      </p>
+      ${couponBlock}
+      <p style="margin:0 0 14px">
+        <a href="${args.recoveryUrl}" style="display:inline-block;background:#0a0a0a;color:#fff;padding:11px 18px;border-radius:6px;text-decoration:none;font-weight:600">
+          ${args.couponCode ? `Use ${args.couponCode} now →` : `Complete your purchase →`}
+        </a>
+      </p>
+      <p style="margin:0;color:#a1a1aa;font-size:11px">If the button doesn't work, copy this link into your browser: <span style="color:#52525b">${args.recoveryUrl}</span></p>
     `),
   };
 }

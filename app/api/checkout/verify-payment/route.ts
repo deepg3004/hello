@@ -102,13 +102,48 @@ export async function POST(request: Request) {
     },
   ]);
 
-  // 3. Abandoned checkout → recovered
-  await admin
-    .from("abandoned_checkouts")
-    .update({ status: "recovered", recovered_at: paidAt })
-    .eq("buyer_email", order.buyer_email)
-    .eq("page_id", order.page_id)
-    .eq("status", "active");
+  // 3. Abandoned checkout → recovered (+ cancel scheduled recovery jobs).
+  // We need the job_ids BEFORE we flip the status — pull them, then update.
+  try {
+    const { data: abandoned } = await admin
+      .from("abandoned_checkouts")
+      .select("id, recovery_job_ids")
+      .eq("buyer_email", order.buyer_email)
+      .eq("page_id", order.page_id)
+      .eq("status", "active");
+
+    await admin
+      .from("abandoned_checkouts")
+      .update({ status: "recovered", recovered_at: paidAt })
+      .eq("buyer_email", order.buyer_email)
+      .eq("page_id", order.page_id)
+      .eq("status", "active");
+
+    if (abandoned && abandoned.length > 0) {
+      const { cancelRecovery } = await import("@/lib/queues/recovery");
+      for (const row of abandoned) {
+        const ids = (row.recovery_job_ids ?? {}) as {
+          email1?: string;
+          whatsapp?: string;
+          email2?: string;
+          expire?: string;
+        };
+        // Fire-and-forget — recovery cancel failures shouldn't block payment.
+        void cancelRecovery(ids).catch((e) =>
+          console.error("[verify-payment] cancelRecovery failed", e),
+        );
+      }
+    }
+  } catch (e) {
+    console.error("[verify-payment] abandoned_checkouts cleanup failed", e);
+    // Still keep marching — payment is verified.
+    await admin
+      .from("abandoned_checkouts")
+      .update({ status: "recovered", recovered_at: paidAt })
+      .eq("buyer_email", order.buyer_email)
+      .eq("page_id", order.page_id)
+      .eq("status", "active");
+  }
 
   // 4. Roll up totals — read, increment, write (no SQL fn here)
   if (order.page_id) {

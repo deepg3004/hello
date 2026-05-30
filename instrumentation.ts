@@ -11,10 +11,15 @@ export async function register(): Promise<void> {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const req = eval("require") as (m: string) => unknown;
-    const mod = req("./lib/queues/invoices") as {
+    const invoices = req("./lib/queues/invoices") as {
       bootInvoiceWorker?: () => Promise<void>;
     };
-    if (mod.bootInvoiceWorker) await mod.bootInvoiceWorker();
+    if (invoices.bootInvoiceWorker) await invoices.bootInvoiceWorker();
+
+    const recovery = req("./lib/queues/recovery") as {
+      bootRecoveryWorker?: () => Promise<void>;
+    };
+    if (recovery.bootRecoveryWorker) await recovery.bootRecoveryWorker();
   } catch (e) {
     console.error("[instrumentation] worker boot failed", e);
   }

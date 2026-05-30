@@ -138,6 +138,9 @@ export function CheckoutForm(props: CheckoutFormProps) {
   const [coupon, setCoupon] = useState<AppliedCoupon | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [bumpAccepted, setBumpAccepted] = useState(false);
+  // Email-blur pre-capture lifecycle — we never fire for the same address
+  // twice, but we do refresh on phone/name updates.
+  const lastCapturedEmailRef = useRef<string | null>(null);
 
   // Optional GST / billing details (B2B invoice path) — opt-in via toggle so
   // the checkout stays one-screen for B2C buyers.
@@ -150,13 +153,102 @@ export function CheckoutForm(props: CheckoutFormProps) {
 
   const gstinUpper = buyerGstin.trim().toUpperCase();
   const gstinValid = gstinUpper === "" || GSTIN_REGEX.test(gstinUpper);
-  const dismissCapturedEmailRef = useRef<string | null>(null);
 
   const discount = coupon?.discount_amount ?? 0;
   const bumpReady = !!props.orderBump?.ready;
   const bumpPrice = Number(props.orderBump?.price ?? 0);
   const bumpExtra = bumpReady && bumpAccepted ? bumpPrice : 0;
   const total = Math.max(0, props.price - discount) + bumpExtra;
+
+  // Cart-recovery prefill: if the URL carries ?r=<token>, look up the
+  // abandoned cart and populate the buyer fields. Then strip the token
+  // from the visible URL so it can't be shared accidentally.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const token = sp.get("r");
+    if (!token) return;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/checkout/prefill?token=${encodeURIComponent(token)}`,
+          { cache: "no-store" },
+        );
+        if (res.ok) {
+          const body = (await res.json()) as {
+            ok?: boolean;
+            buyer_name?: string | null;
+            buyer_email?: string | null;
+            buyer_phone?: string | null;
+          };
+          if (body.ok) {
+            form.reset({
+              buyer_name: body.buyer_name ?? form.getValues("buyer_name"),
+              buyer_email:
+                body.buyer_email ?? form.getValues("buyer_email"),
+              buyer_phone: body.buyer_phone ?? form.getValues("buyer_phone"),
+            });
+            if (body.buyer_email) {
+              lastCapturedEmailRef.current = body.buyer_email;
+            }
+            toast({
+              title: "Welcome back",
+              description: "We saved your cart — finish your purchase below.",
+            });
+          }
+        }
+      } catch {
+        /* network noise — silent fallback */
+      }
+      try {
+        sp.delete("r");
+        const newQuery = sp.toString();
+        const newUrl = `${window.location.pathname}${newQuery ? "?" + newQuery : ""}${window.location.hash}`;
+        window.history.replaceState({}, "", newUrl);
+      } catch {
+        /* private windows / very old browsers */
+      }
+    })();
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fire-and-forget pre-capture on email blur once the user types a valid
+  // address. The server is idempotent, so accidental double-fires are fine.
+  function maybePreCapture() {
+    const email = form.getValues("buyer_email")?.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    if (lastCapturedEmailRef.current === email) return;
+    lastCapturedEmailRef.current = email;
+    const payload = {
+      page_id: props.pageId,
+      buyer_email: email,
+      buyer_name: form.getValues("buyer_name") || undefined,
+      buyer_phone: form.getValues("buyer_phone") || undefined,
+      amount: total,
+    };
+    // Use sendBeacon when available (survives tab close); fallback to fetch.
+    try {
+      if (
+        typeof navigator !== "undefined" &&
+        typeof navigator.sendBeacon === "function"
+      ) {
+        const blob = new Blob([JSON.stringify(payload)], {
+          type: "application/json",
+        });
+        navigator.sendBeacon("/api/checkout/pre-capture", blob);
+        return;
+      }
+    } catch {
+      /* fall through */
+    }
+    void fetch("/api/checkout/pre-capture", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    }).catch(() => undefined);
+  }
 
   // Pre-fill coupon code stashed by an exit-intent popup.
   useEffect(() => {
@@ -238,7 +330,8 @@ export function CheckoutForm(props: CheckoutFormProps) {
       return;
     }
     setSubmitting(true);
-    dismissCapturedEmailRef.current = values.buyer_email;
+    // Make sure pre-capture has fired before Razorpay opens.
+    maybePreCapture();
 
     let createBody: {
       ok?: boolean;
@@ -409,6 +502,12 @@ export function CheckoutForm(props: CheckoutFormProps) {
                         autoComplete="email"
                         placeholder="you@example.com"
                         {...field}
+                        onBlur={(e) => {
+                          field.onBlur();
+                          // Schedule one tick later so RHF's state is settled
+                          // before we read form values for the pre-capture body.
+                          setTimeout(maybePreCapture, 0);
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
