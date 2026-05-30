@@ -17,6 +17,12 @@ import {
   revenueKey,
   variantCookieName,
 } from "@/lib/ab";
+import {
+  anonymiseName,
+  shortCity,
+  spCountKey,
+  SP_MAX_EVENTS_KEPT,
+} from "@/lib/social-proof";
 
 export async function POST(request: Request) {
   let body: {
@@ -47,7 +53,7 @@ export async function POST(request: Request) {
   const { data: order } = await admin
     .from("orders")
     .select(
-      "id, page_id, seller_user_id, product_id, amount, platform_commission, seller_amount, currency, coupon_id, status, buyer_email, buyer_name, source",
+      "id, page_id, seller_user_id, product_id, amount, platform_commission, seller_amount, currency, coupon_id, status, buyer_email, buyer_name, buyer_address, source",
     )
     .eq("id", order_id)
     .single();
@@ -320,6 +326,73 @@ export async function POST(request: Request) {
     void sendEmail({ to: order.buyer_email, subject: tpl.subject, html: tpl.html });
   } catch (e) {
     console.error("[verify-payment] receipt email dispatch failed", e);
+  }
+
+  // 5h. Social-proof event — anonymised name + city for the public widgets
+  //     on /p/[slug]. Best-effort and trimmed to the last 20 rows per page.
+  try {
+    if (order.page_id) {
+      const { data: prod } = order.product_id
+        ? await admin
+            .from("products")
+            .select("name")
+            .eq("id", order.product_id)
+            .single<{ name: string }>()
+        : { data: null };
+
+      const buyerAddrCity =
+        (order.buyer_address &&
+          typeof order.buyer_address === "object" &&
+          // The order may carry GST billing OR a generic shipping address.
+          ((order.buyer_address as Record<string, unknown>).city as
+            | string
+            | null)) ||
+        null;
+      // Optional: pull-through-IP could be done with a geo provider — we
+      // leave hook present but fall back to "—" when no city is known.
+
+      const spInsert = await admin
+        .from("social_proof_events")
+        .insert({
+          page_id: order.page_id,
+          buyer_name: anonymiseName(order.buyer_name),
+          buyer_city: shortCity(buyerAddrCity),
+          product_name: prod?.name ?? null,
+          amount: Number(order.amount ?? 0),
+          is_seed: false,
+        })
+        .select("id")
+        .single();
+      if (spInsert.data) {
+        // Keep only the last N rows for this page — fetch the (N+1)th row's
+        // created_at and delete everything older. Cheap with the existing
+        // created_at index.
+        const { data: cutoff } = await admin
+          .from("social_proof_events")
+          .select("created_at")
+          .eq("page_id", order.page_id)
+          .order("created_at", { ascending: false })
+          .range(SP_MAX_EVENTS_KEPT, SP_MAX_EVENTS_KEPT)
+          .maybeSingle();
+        if (cutoff?.created_at) {
+          await admin
+            .from("social_proof_events")
+            .delete()
+            .eq("page_id", order.page_id)
+            .lt("created_at", cutoff.created_at);
+        }
+      }
+
+      // Realtime total counter — survives the prune above.
+      try {
+        const redis = getRedis();
+        if (redis) await redis.incr(spCountKey(order.page_id));
+      } catch {
+        /* non-fatal */
+      }
+    }
+  } catch (e) {
+    console.error("[verify-payment] social-proof insert failed", e);
   }
 
   // 6. Post-purchase: if the page has a Telegram VIP group attached, mint a

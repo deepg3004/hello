@@ -2,7 +2,6 @@
 
 import { CheckoutForm } from "@/components/pages/CheckoutForm";
 import { Countdown } from "./shared/Countdown";
-import { SocialProofPopup } from "./shared/SocialProofPopup";
 import { StickyCheckoutBar } from "./shared/StickyCheckoutBar";
 import type { BaseTemplateProps, ThemeConfig } from "./shared/types";
 import { DEFAULT_THEME } from "./shared/types";
@@ -197,12 +196,6 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
         buttonClassName="bg-orange-500 text-white"
       />
 
-      {props.pageId && (
-        <SocialProofPopup
-          pageId={props.pageId}
-          disabled={props.isPreview || !props.socialProofEnabled}
-        />
-      )}
     </div>
   );
 }

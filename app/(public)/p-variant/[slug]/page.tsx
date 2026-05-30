@@ -16,6 +16,12 @@ import { isBumpReady, type OrderBumpConfig } from "@/lib/upsells";
 import type { BumpRuntime } from "@/components/templates/shared/types";
 import { getRedis } from "@/lib/redis";
 import { visitorsKey } from "@/lib/ab";
+import { SocialProofPopup } from "@/components/templates/shared/SocialProofPopup";
+import { BuyerCountBadge } from "@/components/templates/shared/BuyerCountBadge";
+import {
+  resolveSocialProofConfig,
+  type SocialProofConfig,
+} from "@/lib/social-proof";
 
 interface PageRow {
   id: string;
@@ -194,10 +200,21 @@ export default async function VariantBPage({
     }
   }
 
+  const spCfg = resolveSocialProofConfig(
+    values.social_proof_config as SocialProofConfig | undefined,
+  );
+
   return (
     <>
       {countdownCfg?.enabled && countdownCfg.position !== "hidden" && (
         <PageCountdown pageSlug={page.slug} config={countdownCfg} />
+      )}
+      {spCfg.badge_enabled && (
+        <BuyerCountBadge
+          pageId={page.id}
+          countType={spCfg.badge_count_type}
+          labelText={spCfg.badge_label_text}
+        />
       )}
       <template.Render
         values={values}
@@ -207,6 +224,14 @@ export default async function VariantBPage({
       />
       {exitCfg?.enabled && (
         <ExitIntentPopup pageSlug={page.slug} config={exitCfg} />
+      )}
+      {spCfg.popup_enabled && (
+        <SocialProofPopup
+          pageId={page.id}
+          delayBetweenSeconds={spCfg.popup_delay_seconds}
+          displayDurationSeconds={spCfg.popup_duration_seconds}
+          position={spCfg.popup_position}
+        />
       )}
       <PixelScripts pixel={pixel} />
     </>

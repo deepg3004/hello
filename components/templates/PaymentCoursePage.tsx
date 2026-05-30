@@ -8,7 +8,6 @@ import {
 } from "@/components/ui/accordion";
 import { CheckoutForm } from "@/components/pages/CheckoutForm";
 import { Countdown } from "./shared/Countdown";
-import { SocialProofPopup } from "./shared/SocialProofPopup";
 import { Stars } from "./shared/Stars";
 import { StickyCheckoutBar } from "./shared/StickyCheckoutBar";
 import type {
@@ -350,13 +349,6 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
         buttonClassName="bg-[#d4af37] text-[#0a1828]"
       />
 
-      {/* Social proof popup — live page only */}
-      {props.pageId && (
-        <SocialProofPopup
-          pageId={props.pageId}
-          disabled={props.isPreview || !props.socialProofEnabled}
-        />
-      )}
     </div>
   );
 }

@@ -23,6 +23,13 @@ import { COUNTDOWN_DEFAULTS, EXIT_INTENT_DEFAULTS } from "@/lib/conversion";
 import type { OrderBumpConfig, OtoConfig } from "@/lib/upsells";
 import { ORDER_BUMP_DEFAULTS, OTO_DEFAULTS } from "@/lib/upsells";
 import { Textarea as TA } from "@/components/ui/textarea";
+import type { SocialProofConfig } from "@/lib/social-proof";
+import { SOCIAL_PROOF_DEFAULTS } from "@/lib/social-proof";
+import { useTransition } from "react";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
+import { seedSocialProofAction } from "@/actions/social-proof";
+import { useToast } from "@/hooks/use-toast";
 
 interface ProductOption {
   id: string;
@@ -39,6 +46,10 @@ interface ConversionTabProps {
   onBumpChange: (next: OrderBumpConfig) => void;
   oto: OtoConfig;
   onOtoChange: (next: OtoConfig) => void;
+  socialProof: SocialProofConfig;
+  onSocialProofChange: (next: SocialProofConfig) => void;
+  /** Required for the "Seed sample events" action — null on /new pages. */
+  pageId: string | null;
   coupons: Array<{ code: string }>;
   products: ProductOption[];
 }
@@ -52,9 +63,14 @@ export function ConversionTab({
   onBumpChange,
   oto,
   onOtoChange,
+  socialProof,
+  onSocialProofChange,
+  pageId,
   coupons,
   products,
 }: ConversionTabProps) {
+  const { toast } = useToast();
+  const [seeding, startSeeding] = useTransition();
   const setC = <K extends keyof CountdownConfig>(k: K, v: CountdownConfig[K]) =>
     onCountdownChange({ ...countdown, [k]: v });
   const setE = <K extends keyof ExitIntentConfig>(k: K, v: ExitIntentConfig[K]) =>
@@ -63,6 +79,45 @@ export function ConversionTab({
     onBumpChange({ ...bump, [k]: v });
   const setO = <K extends keyof OtoConfig>(k: K, v: OtoConfig[K]) =>
     onOtoChange({ ...oto, [k]: v });
+  const setSP = <K extends keyof SocialProofConfig>(
+    k: K,
+    v: SocialProofConfig[K],
+  ) => onSocialProofChange({ ...socialProof, [k]: v });
+
+  function seedNow() {
+    if (!pageId) {
+      toast({
+        title: "Save the page first",
+        description:
+          "Once the page is saved we can seed sample events for the widget.",
+      });
+      return;
+    }
+    const n = socialProof.seed_count ?? SOCIAL_PROOF_DEFAULTS.seed_count;
+    if (n < 1 || n > 10) {
+      toast({
+        variant: "destructive",
+        title: "Pick 1–10",
+        description: "Choose between 1 and 10 seed events.",
+      });
+      return;
+    }
+    startSeeding(async () => {
+      const res = await seedSocialProofAction({ page_id: pageId, count: n });
+      if (!res.ok) {
+        toast({
+          variant: "destructive",
+          title: "Couldn't seed",
+          description: res.message,
+        });
+        return;
+      }
+      toast({
+        title: "Seeded",
+        description: `${res.inserted} sample event${res.inserted === 1 ? "" : "s"} added.`,
+      });
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -541,6 +596,173 @@ export function ConversionTab({
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* ===== Social proof ===== */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Social proof</CardTitle>
+          <CardDescription>
+            Recent-buyer popup + a live buyer-count badge. Both pull from the
+            real /api/social-proof feed for this page.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Recent-buyer popup */}
+          <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+            <Row label="Recent-buyer popup">
+              <Switch
+                checked={!!socialProof.popup_enabled}
+                onCheckedChange={(v) => setSP("popup_enabled", v)}
+              />
+            </Row>
+            {socialProof.popup_enabled && (
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div>
+                  <Label className="text-xs">Delay between popups (sec)</Label>
+                  <Input
+                    type="number"
+                    min={10}
+                    max={60}
+                    value={
+                      socialProof.popup_delay_seconds ??
+                      SOCIAL_PROOF_DEFAULTS.popup_delay_seconds
+                    }
+                    onChange={(e) =>
+                      setSP("popup_delay_seconds", Number(e.target.value))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Display duration (sec)</Label>
+                  <Input
+                    type="number"
+                    min={5}
+                    max={10}
+                    value={
+                      socialProof.popup_duration_seconds ??
+                      SOCIAL_PROOF_DEFAULTS.popup_duration_seconds
+                    }
+                    onChange={(e) =>
+                      setSP("popup_duration_seconds", Number(e.target.value))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Position</Label>
+                  <Select
+                    value={
+                      socialProof.popup_position ??
+                      SOCIAL_PROOF_DEFAULTS.popup_position
+                    }
+                    onValueChange={(v) =>
+                      setSP(
+                        "popup_position",
+                        v as "bottom-left" | "bottom-right",
+                      )
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bottom-left">Bottom-left</SelectItem>
+                      <SelectItem value="bottom-right">Bottom-right</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Buyer-count badge */}
+          <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+            <Row label="Buyer-count badge">
+              <Switch
+                checked={!!socialProof.badge_enabled}
+                onCheckedChange={(v) => setSP("badge_enabled", v)}
+              />
+            </Row>
+            {socialProof.badge_enabled && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label className="text-xs">Count type</Label>
+                  <Select
+                    value={
+                      socialProof.badge_count_type ??
+                      SOCIAL_PROOF_DEFAULTS.badge_count_type
+                    }
+                    onValueChange={(v) =>
+                      setSP(
+                        "badge_count_type",
+                        v as "total" | "today" | "week",
+                      )
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="total">All-time total</SelectItem>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="week">Last 7 days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Label text</Label>
+                  <Input
+                    value={
+                      socialProof.badge_label_text ??
+                      SOCIAL_PROOF_DEFAULTS.badge_label_text
+                    }
+                    onChange={(e) =>
+                      setSP("badge_label_text", e.target.value)
+                    }
+                    placeholder="people bought this"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Seed initial data */}
+          <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+            <div>
+              <p className="text-sm font-medium">Seed initial entries</p>
+              <p className="text-xs text-muted-foreground">
+                Brand-new pages have no real buyers yet. Generate 1–10 fake
+                purchases so the widgets aren&apos;t empty on launch day. Seed
+                rows are tagged{" "}
+                <code className="rounded bg-muted px-1">is_seed=true</code>{" "}
+                in the DB so you can identify them later.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+              <div>
+                <Label className="text-xs">How many?</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={socialProof.seed_count ?? 5}
+                  onChange={(e) =>
+                    setSP("seed_count", Number(e.target.value))
+                  }
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={seedNow}
+                disabled={seeding || !pageId}
+              >
+                {seeding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Seed sample events
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

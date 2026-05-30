@@ -304,6 +304,15 @@ export function PageEditorTabs({ initial }: { initial: ExistingPage }) {
             onBumpChange={(next) => setValues({ ...values, order_bump: next })}
             oto={(values.oto_config as OtoConfig) ?? {}}
             onOtoChange={(next) => setValues({ ...values, oto_config: next })}
+            socialProof={
+              (values.social_proof_config as
+                | import("@/lib/social-proof").SocialProofConfig
+                | undefined) ?? {}
+            }
+            onSocialProofChange={(next) =>
+              setValues({ ...values, social_proof_config: next })
+            }
+            pageId={initial.id ?? null}
             coupons={initial.coupons ?? []}
             products={initial.products ?? []}
           />
