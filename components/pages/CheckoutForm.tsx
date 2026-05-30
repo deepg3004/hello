@@ -8,6 +8,7 @@ import { Check, Loader2, Tag, X } from "lucide-react";
 
 import { OrderBump } from "@/components/pages/OrderBump";
 import type { OrderBumpConfig } from "@/lib/upsells";
+import { GSTIN_REGEX, stateCodeFromGstin } from "@/lib/gst";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -137,6 +138,18 @@ export function CheckoutForm(props: CheckoutFormProps) {
   const [coupon, setCoupon] = useState<AppliedCoupon | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [bumpAccepted, setBumpAccepted] = useState(false);
+
+  // Optional GST / billing details (B2B invoice path) — opt-in via toggle so
+  // the checkout stays one-screen for B2C buyers.
+  const [gstOpen, setGstOpen] = useState(false);
+  const [buyerGstin, setBuyerGstin] = useState("");
+  const [billLine1, setBillLine1] = useState("");
+  const [billLine2, setBillLine2] = useState("");
+  const [billCity, setBillCity] = useState("");
+  const [billPincode, setBillPincode] = useState("");
+
+  const gstinUpper = buyerGstin.trim().toUpperCase();
+  const gstinValid = gstinUpper === "" || GSTIN_REGEX.test(gstinUpper);
   const dismissCapturedEmailRef = useRef<string | null>(null);
 
   const discount = coupon?.discount_amount ?? 0;
@@ -216,6 +229,14 @@ export function CheckoutForm(props: CheckoutFormProps) {
       });
       return;
     }
+    if (gstOpen && gstinUpper && !gstinValid) {
+      toast({
+        title: "GSTIN looks invalid",
+        description: "Check the 15-character format or clear the field.",
+        variant: "destructive",
+      });
+      return;
+    }
     setSubmitting(true);
     dismissCapturedEmailRef.current = values.buyer_email;
 
@@ -250,6 +271,23 @@ export function CheckoutForm(props: CheckoutFormProps) {
           bump_product_id:
             bumpReady && bumpAccepted ? props.orderBump?.product_id : undefined,
           bump_amount: bumpReady && bumpAccepted ? bumpPrice : undefined,
+          // Optional GST / billing — only forwarded when the buyer expanded
+          // the section, otherwise the API treats it as a B2C sale.
+          buyer_gstin: gstOpen && gstinUpper ? gstinUpper : undefined,
+          buyer_state_code:
+            gstOpen && gstinUpper
+              ? stateCodeFromGstin(gstinUpper) ?? undefined
+              : undefined,
+          buyer_address:
+            gstOpen && (billLine1 || billCity || billPincode)
+              ? {
+                  line1: billLine1 || undefined,
+                  line2: billLine2 || undefined,
+                  city: billCity || undefined,
+                  state_code: stateCodeFromGstin(gstinUpper) ?? undefined,
+                  pincode: billPincode || undefined,
+                }
+              : undefined,
         }),
       });
       createBody = (await res.json()) as typeof createBody;
@@ -395,6 +433,81 @@ export function CheckoutForm(props: CheckoutFormProps) {
                   </FormItem>
                 )}
               />
+
+              {/* ─── Optional GST / billing details ─── */}
+              <div className="rounded-md border bg-muted/30 p-3">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between text-left text-sm font-medium"
+                  onClick={() => setGstOpen((v) => !v)}
+                >
+                  <span>
+                    Buying for a business? Add GSTIN
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      (optional)
+                    </span>
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {gstOpen ? "Hide" : "Add"}
+                  </span>
+                </button>
+                {gstOpen && (
+                  <div className="mt-3 space-y-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground">
+                        GSTIN
+                      </label>
+                      <Input
+                        placeholder="27ABCDE1234F1Z5"
+                        value={buyerGstin}
+                        maxLength={15}
+                        onChange={(e) =>
+                          setBuyerGstin(e.target.value.toUpperCase())
+                        }
+                        style={{ textTransform: "uppercase" }}
+                      />
+                      {buyerGstin && !gstinValid && (
+                        <p className="mt-1 text-xs text-destructive">
+                          Invalid GSTIN format.
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">
+                        Billing address
+                      </label>
+                      <Input
+                        placeholder="Address line 1"
+                        value={billLine1}
+                        onChange={(e) => setBillLine1(e.target.value)}
+                      />
+                    </div>
+                    <Input
+                      placeholder="Address line 2 (optional)"
+                      value={billLine2}
+                      onChange={(e) => setBillLine2(e.target.value)}
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        placeholder="City"
+                        value={billCity}
+                        onChange={(e) => setBillCity(e.target.value)}
+                      />
+                      <Input
+                        placeholder="Pincode"
+                        value={billPincode}
+                        maxLength={6}
+                        inputMode="numeric"
+                        onChange={(e) => setBillPincode(e.target.value)}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      We&apos;ll issue a B2B GST invoice with your GSTIN and
+                      billing address.
+                    </p>
+                  </div>
+                )}
+              </div>
             </form>
           </Form>
         </CardContent>

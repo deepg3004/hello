@@ -40,6 +40,16 @@ export async function POST(request: Request) {
     bump_accepted?: boolean;
     bump_product_id?: string;
     bump_amount?: number;
+    // Optional buyer GST capture (B2B invoice path)
+    buyer_gstin?: string;
+    buyer_state_code?: string;
+    buyer_address?: {
+      line1?: string;
+      line2?: string;
+      city?: string;
+      state_code?: string;
+      pincode?: string;
+    };
   };
   try {
     body = await request.json();
@@ -61,7 +71,44 @@ export async function POST(request: Request) {
     bump_accepted = false,
     bump_product_id,
     bump_amount: bump_amount_in,
+    buyer_gstin: buyer_gstin_raw,
+    buyer_state_code: buyer_state_code_raw,
+    buyer_address: buyer_address_raw,
   } = body;
+
+  // Normalise + validate the optional GSTIN before we hit Razorpay.
+  let buyer_gstin: string | null = null;
+  let buyer_state_code: string | null = null;
+  if (buyer_gstin_raw) {
+    const { GSTIN_REGEX, stateCodeFromGstin } = await import("@/lib/gst");
+    const upper = buyer_gstin_raw.trim().toUpperCase();
+    if (!GSTIN_REGEX.test(upper)) {
+      return NextResponse.json(
+        { error: "Buyer GSTIN format is invalid" },
+        { status: 400 },
+      );
+    }
+    buyer_gstin = upper;
+    buyer_state_code = stateCodeFromGstin(upper);
+  }
+  if (!buyer_state_code && buyer_state_code_raw) {
+    const c = buyer_state_code_raw.trim();
+    if (/^[0-9]{2}$/.test(c)) buyer_state_code = c;
+  }
+  if (!buyer_state_code && buyer_address_raw?.state_code) {
+    const c = buyer_address_raw.state_code.trim();
+    if (/^[0-9]{2}$/.test(c)) buyer_state_code = c;
+  }
+  const buyer_address_clean = buyer_address_raw
+    ? {
+        line1: buyer_address_raw.line1?.trim() || null,
+        line2: buyer_address_raw.line2?.trim() || null,
+        city: buyer_address_raw.city?.trim() || null,
+        state_code: buyer_state_code,
+        pincode: buyer_address_raw.pincode?.trim() || null,
+        country: "India",
+      }
+    : null;
 
   if (!page_id || !product_id || !buyer_email) {
     return NextResponse.json(
@@ -262,6 +309,9 @@ export async function POST(request: Request) {
     bump_product_id: bumpProduct?.id ?? null,
     bump_amount: bumpAmount > 0 ? bumpAmount : null,
     bump_title: bumpProduct?.name ?? null,
+    buyer_gstin,
+    buyer_state_code,
+    buyer_address: buyer_address_clean,
   });
   if (insertErr) {
     console.error("orders insert failed", insertErr);

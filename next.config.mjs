@@ -12,6 +12,37 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: "5mb",
     },
+    // Required for our BullMQ workers + Puppeteer to load on server startup.
+    instrumentationHook: true,
+    // Keep puppeteer/bullmq/ioredis out of the server-component bundle (we
+    // lazy-import them from worker / route handler code only). Avoids
+    // "Critical dependency" warnings and the heavy Chromium download from
+    // being inlined.
+    serverComponentsExternalPackages: ["puppeteer", "bullmq", "ioredis"],
+  },
+  // Mark puppeteer + bullmq as Node externals at webpack level so the
+  // route-handler chunks don't try to bundle their node:fs / node:path deps.
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      const externals = Array.isArray(config.externals)
+        ? config.externals
+        : [config.externals].filter(Boolean);
+      externals.push(
+        // Functional form so we externalise *any* sub-path
+        ({ request }, callback) => {
+          if (
+            request &&
+            (request.startsWith("puppeteer") ||
+              request.startsWith("bullmq"))
+          ) {
+            return callback(null, "commonjs " + request);
+          }
+          callback();
+        },
+      );
+      config.externals = externals;
+    }
+    return config;
   },
 };
 

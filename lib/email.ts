@@ -256,3 +256,60 @@ export function newLeadNotificationEmail(vars: NewLeadEmailVars): {
     `),
   };
 }
+
+// ============================================================================
+// Sale confirmation receipt (with optional GST invoice link)
+// ============================================================================
+
+export interface SaleConfirmationEmailVars {
+  buyerName?: string | null;
+  sellerLegalName?: string | null;
+  productName?: string | null;
+  amountInr: number;
+  currency?: string;
+  orderId: string;
+  /** Direct signed URL or public download endpoint for the GST invoice PDF. */
+  invoiceUrl?: string | null;
+  /** Order detail page URL (where the buyer can self-serve). */
+  orderUrl?: string | null;
+}
+
+export function saleConfirmationEmail(vars: SaleConfirmationEmailVars): {
+  subject: string;
+  html: string;
+} {
+  const hello = vars.buyerName ? `Hi ${vars.buyerName},` : "Hi,";
+  const product = vars.productName ?? "Your purchase";
+  const seller = vars.sellerLegalName ?? "the seller";
+  const currency = vars.currency ?? "INR";
+  const amount = vars.amountInr.toLocaleString("en-IN", {
+    maximumFractionDigits: 2,
+  });
+  const orderShort = vars.orderId.slice(0, 12) + "…";
+  return {
+    subject: `Receipt — ${product} (₹${amount})`,
+    html: SHELL(`
+      <h2 style="margin:0 0 12px;font-size:20px">Thanks for your purchase 🎉</h2>
+      <p style="margin:0 0 12px;line-height:1.5">${hello}</p>
+      <p style="margin:0 0 16px;line-height:1.5">
+        Your payment for <strong>${escapeHtml(product)}</strong> from
+        ${escapeHtml(seller)} was successful.
+      </p>
+      <table style="border-collapse:collapse;font-size:14px;margin:0 0 18px;width:100%">
+        <tr><td style="padding:6px 12px 6px 0;color:#71717a">Item</td><td style="padding:6px 0">${escapeHtml(product)}</td></tr>
+        <tr><td style="padding:6px 12px 6px 0;color:#71717a">Amount</td><td style="padding:6px 0">₹${amount} ${currency}</td></tr>
+        <tr><td style="padding:6px 12px 6px 0;color:#71717a">Order id</td><td style="padding:6px 0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px">${orderShort}</td></tr>
+      </table>
+      ${
+        vars.invoiceUrl
+          ? `<p style="margin:0 0 12px"><a href="${vars.invoiceUrl}" style="display:inline-block;background:#0a0a0a;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;font-weight:600">Download GST invoice</a></p><p style="margin:0 0 12px;color:#71717a;font-size:12px">Link is valid for 7 days. You can always re-download from your order page.</p>`
+          : ""
+      }
+      ${
+        vars.orderUrl
+          ? `<p style="margin:0 0 12px"><a href="${vars.orderUrl}" style="color:#0a0a0a">View order details →</a></p>`
+          : ""
+      }
+    `),
+  };
+}

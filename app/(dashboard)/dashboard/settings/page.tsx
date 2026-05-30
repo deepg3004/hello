@@ -71,6 +71,23 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">Tax &amp; Billing</CardTitle>
+          <CardDescription>
+            GST profile that drives every invoice we generate.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-sm">
+          <Link
+            href="/dashboard/settings/tax-billing"
+            className="text-primary underline"
+          >
+            Configure GST profile →
+          </Link>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">Notifications</CardTitle>
           <CardDescription>
             WhatsApp + email alerts for sales, leads, payouts, and KYC updates.

@@ -50,6 +50,17 @@ export function OrderActionsMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
         {status === "paid" && (
+          <DropdownMenuItem asChild>
+            <a
+              href={`/api/orders/${orderId}/invoice`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Download GST invoice
+            </a>
+          </DropdownMenuItem>
+        )}
+        {status === "paid" && (
           <DropdownMenuItem
             onSelect={() =>
               run("Refund this order", () => adminRefundOrderAction(orderId))

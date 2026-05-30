@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>{{INVOICE_NUMBER}} · {{SELLER_NAME}}</title>
+    <style>
+      @page { size: A4; margin: 18mm 16mm; }
+      * { box-sizing: border-box; }
+      body {
+        font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+        color: #1a1a1c;
+        font-size: 11px;
+        line-height: 1.45;
+        margin: 0;
+        background: #fff;
+      }
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding-bottom: 14px;
+        border-bottom: 2px solid #18181b;
+      }
+      .brand {
+        display: flex;
+        flex-direction: column;
+      }
+      .brand .logo {
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        color: #18181b;
+      }
+      .brand .seller {
+        font-size: 18px;
+        font-weight: 600;
+        margin-top: 2px;
+        color: #18181b;
+      }
+      .invoice-meta {
+        text-align: right;
+      }
+      .invoice-meta .pill {
+        display: inline-block;
+        padding: 4px 10px;
+        background: #18181b;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        border-radius: 3px;
+      }
+      .invoice-meta h2 {
+        margin: 8px 0 4px 0;
+        font-size: 14px;
+        color: #18181b;
+      }
+      .invoice-meta div {
+        color: #52525b;
+      }
+
+      .parties {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-top: 18px;
+      }
+      .party {
+        border: 1px solid #e4e4e7;
+        border-radius: 4px;
+        padding: 10px 12px;
+      }
+      .party h3 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: #71717a;
+        margin: 0 0 6px 0;
+      }
+      .party .name {
+        font-size: 13px;
+        font-weight: 600;
+        color: #18181b;
+        margin-bottom: 2px;
+      }
+      .party div {
+        color: #3f3f46;
+      }
+
+      table.items {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 18px;
+      }
+      table.items th {
+        background: #f4f4f5;
+        text-align: left;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #52525b;
+        padding: 8px 10px;
+        border-bottom: 1px solid #e4e4e7;
+      }
+      table.items td {
+        padding: 10px;
+        border-bottom: 1px solid #f4f4f5;
+      }
+      table.items td.r,
+      table.items th.r { text-align: right; }
+      table.items td.c,
+      table.items th.c { text-align: center; }
+      .item-desc {
+        font-weight: 600;
+        color: #18181b;
+      }
+      .item-sub {
+        font-size: 10px;
+        color: #71717a;
+      }
+
+      .totals {
+        margin-top: 16px;
+        display: grid;
+        grid-template-columns: 1fr 240px;
+        gap: 16px;
+      }
+      .totals .note {
+        font-size: 10px;
+        color: #52525b;
+        padding: 10px 12px;
+        background: #fafafa;
+        border-left: 3px solid #18181b;
+      }
+      .totals table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .totals td {
+        padding: 4px 0;
+      }
+      .totals td.l { color: #71717a; }
+      .totals td.v { text-align: right; }
+      .totals tr.grand td {
+        padding-top: 8px;
+        font-size: 13px;
+        font-weight: 700;
+        border-top: 1px solid #18181b;
+        color: #18181b;
+      }
+
+      .payment {
+        margin-top: 18px;
+        padding: 10px 12px;
+        background: #f4f4f5;
+        border-radius: 4px;
+        font-size: 10px;
+      }
+      .payment strong {
+        color: #18181b;
+      }
+
+      .footer {
+        margin-top: 28px;
+        text-align: center;
+        font-size: 10px;
+        color: #71717a;
+        border-top: 1px dashed #e4e4e7;
+        padding-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div class="brand">
+        <span class="logo">InvoxAI</span>
+        <span class="seller">{{SELLER_LEGAL_NAME}}</span>
+      </div>
+      <div class="invoice-meta">
+        <span class="pill">{{INVOICE_HEADER}}</span>
+        <h2>{{INVOICE_NUMBER}}</h2>
+        <div>Invoice date: <strong>{{INVOICE_DATE}}</strong></div>
+        <div>Due date: <strong>{{DUE_DATE}}</strong></div>
+        <div>Place of supply: <strong>{{PLACE_OF_SUPPLY}}</strong></div>
+      </div>
+    </div>
+
+    <div class="parties">
+      <div class="party">
+        <h3>Seller</h3>
+        <div class="name">{{SELLER_LEGAL_NAME}}</div>
+        <div>{{SELLER_ADDRESS}}</div>
+        <div>State: {{SELLER_STATE_NAME}} ({{SELLER_STATE_CODE}})</div>
+        <div>GSTIN: <strong>{{SELLER_GSTIN}}</strong></div>
+        <div>HSN / SAC: {{SELLER_HSN}}</div>
+      </div>
+      <div class="party">
+        <h3>Bill to</h3>
+        <div class="name">{{BUYER_NAME}}</div>
+        <div>{{BUYER_EMAIL}}</div>
+        <div>{{BUYER_PHONE}}</div>
+        <div>{{BUYER_ADDRESS}}</div>
+        <div>GSTIN: <strong>{{BUYER_GSTIN}}</strong></div>
+      </div>
+    </div>
+
+    <table class="items">
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th class="c">HSN/SAC</th>
+          <th class="c">Qty</th>
+          <th class="r">Rate</th>
+          <th class="r">Discount</th>
+          <th class="r">Taxable</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div class="item-desc">{{ITEM_NAME}}</div>
+            <div class="item-sub">{{ITEM_NOTE}}</div>
+          </td>
+          <td class="c">{{ITEM_HSN}}</td>
+          <td class="c">1</td>
+          <td class="r">₹{{ITEM_RATE}}</td>
+          <td class="r">₹{{ITEM_DISCOUNT}}</td>
+          <td class="r">₹{{ITEM_TAXABLE}}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="totals">
+      <div class="note">
+        <strong>Amount in words:</strong><br />
+        {{AMOUNT_IN_WORDS}}
+      </div>
+      <table>
+        <tr><td class="l">Subtotal</td><td class="v">₹{{TOTAL_TAXABLE}}</td></tr>
+        {{TAX_ROWS}}
+        <tr class="grand"><td>Grand total</td><td class="v">₹{{GRAND_TOTAL}}</td></tr>
+      </table>
+    </div>
+
+    <div class="payment">
+      <strong>Payment received</strong> · {{PAYMENT_DATE}}<br />
+      Razorpay payment id: {{PAYMENT_REFERENCE}}<br />
+      Razorpay order id: {{GATEWAY_ORDER_ID}}
+    </div>
+
+    <div class="footer">
+      This is a computer-generated invoice. No signature required.<br />
+      Issued via InvoxAI · invoxai.io · A SaaS platform for sellers and creators.
+    </div>
+  </body>
+</html>

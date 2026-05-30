@@ -393,8 +393,26 @@ function ExpandableRow({
                   View page
                 </a>
               </Button>
-              <Button size="sm" variant="outline" disabled>
-                Invoice (coming soon)
+              <Button
+                size="sm"
+                variant="outline"
+                asChild
+                disabled={row.status !== "paid"}
+              >
+                <a
+                  href={row.status === "paid" ? `/api/orders/${row.id}/invoice` : "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => {
+                    if (row.status !== "paid") {
+                      e.preventDefault();
+                      return;
+                    }
+                    e.stopPropagation();
+                  }}
+                >
+                  GST invoice (PDF)
+                </a>
               </Button>
               {isAdmin && row.status === "paid" && (
                 <Button

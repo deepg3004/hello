@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CheckCircle2, ExternalLink, Send } from "lucide-react";
+import { CheckCircle2, Download, ExternalLink, Send } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -103,6 +103,15 @@ export default async function OrderConfirmationPage({
               <span className="font-mono text-xs">{order.id.slice(0, 12)}…</span>
             </div>
           </div>
+
+          {paid && (
+            <Button asChild variant="outline" className="w-full">
+              <a href={`/api/orders/${order.id}/invoice`}>
+                <Download className="mr-2 h-4 w-4" />
+                Download GST invoice (PDF)
+              </a>
+            </Button>
+          )}
 
           {!order.telegram_invite_link && (
             <Button asChild className="w-full">

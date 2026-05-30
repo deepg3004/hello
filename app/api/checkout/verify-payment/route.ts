@@ -181,6 +181,63 @@ export async function POST(request: Request) {
     console.error("[verify-payment] notifyNewSale dispatch failed", e);
   }
 
+  // 5f. Enqueue invoice generation. The job runs in the background BullMQ
+  //     worker — we don't await it so the response stays snappy. The OTO
+  //     follow-on order generates its own separate invoice when it's paid.
+  try {
+    const { enqueueInvoiceJob } = await import("@/lib/queues/invoices");
+    void enqueueInvoiceJob(order_id);
+    // Also enqueue an invoice for the bump child row if there is one.
+    const { data: bumpChild } = await admin
+      .from("orders")
+      .select("id")
+      .eq("parent_order_id", order_id)
+      .eq("source", "bump")
+      .maybeSingle();
+    if (bumpChild?.id) {
+      void enqueueInvoiceJob(bumpChild.id);
+    }
+  } catch (e) {
+    console.error("[verify-payment] invoice enqueue failed", e);
+  }
+
+  // 5g. Sale-confirmation receipt to the buyer. The PDF link points at our
+  //     public /api/orders/:id/invoice redirect — it generates inline if the
+  //     worker hasn't caught up. The email itself goes out immediately.
+  try {
+    const { sendEmail, saleConfirmationEmail } = await import("@/lib/email");
+    const { data: prod } = order.product_id
+      ? await admin
+          .from("products")
+          .select("name")
+          .eq("id", order.product_id)
+          .single<{ name: string }>()
+      : { data: null };
+    const { data: sellerForReceipt } = await admin
+      .from("user_profiles")
+      .select("legal_business_name, full_name")
+      .eq("id", order.seller_user_id)
+      .single<{ legal_business_name: string | null; full_name: string | null }>();
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io";
+    const tpl = saleConfirmationEmail({
+      buyerName: order.buyer_name,
+      sellerLegalName:
+        sellerForReceipt?.legal_business_name ??
+        sellerForReceipt?.full_name ??
+        null,
+      productName: prod?.name ?? null,
+      amountInr: Number(order.amount),
+      currency: order.currency ?? "INR",
+      orderId: order_id,
+      invoiceUrl: `${baseUrl}/api/orders/${order_id}/invoice`,
+      orderUrl: `${baseUrl}/order/${order_id}`,
+    });
+    void sendEmail({ to: order.buyer_email, subject: tpl.subject, html: tpl.html });
+  } catch (e) {
+    console.error("[verify-payment] receipt email dispatch failed", e);
+  }
+
   // 6. Post-purchase: if the page has a Telegram VIP group attached, mint a
   //    one-time invite + membership row. Best-effort — bot/group failures
   //    surface on the thank-you page but don't block checkout.
