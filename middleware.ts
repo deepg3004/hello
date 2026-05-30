@@ -9,6 +9,7 @@ import {
   newVisitorId,
   variantCookieName,
 } from "@/lib/ab";
+import { isPlatformOwnHost } from "@/lib/domains";
 
 const AUTH_ROUTES = ["/login", "/signup", "/forgot-password"];
 const PROTECTED_PREFIXES = ["/dashboard", "/admin"];
@@ -136,6 +137,51 @@ function maybeRouteAB(
   })();
 }
 
+// ── Host → seller routing (subdomain + custom domain) ──────────────────────
+interface CachedLookup {
+  kind: "subdomain" | "custom_domain" | null;
+  user_id: string | null;
+  username: string | null;
+  fetchedAt: number;
+}
+const HOST_LOOKUP_TTL_MS = 5 * 60 * 1000;
+const hostLookupCache = new Map<string, CachedLookup>();
+
+async function lookupHost(
+  request: NextRequest,
+  host: string,
+): Promise<CachedLookup | null> {
+  const cleaned = host.toLowerCase().split(":")[0]!;
+  const cached = hostLookupCache.get(cleaned);
+  if (cached && Date.now() - cached.fetchedAt < HOST_LOOKUP_TTL_MS) {
+    return cached;
+  }
+  try {
+    const u = request.nextUrl.clone();
+    u.pathname = "/api/domains/lookup";
+    u.search = `?host=${encodeURIComponent(cleaned)}`;
+    const res = await fetch(u.toString(), {
+      headers: { accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as {
+      kind?: "subdomain" | "custom_domain" | null;
+      user_id?: string | null;
+      username?: string | null;
+    };
+    const fresh: CachedLookup = {
+      kind: body.kind ?? null,
+      user_id: body.user_id ?? null,
+      username: body.username ?? null,
+      fetchedAt: Date.now(),
+    };
+    hostLookupCache.set(cleaned, fresh);
+    return fresh;
+  } catch {
+    return null;
+  }
+}
+
 // ── Maintenance flag — 60-second module-level cache ──────────────────────────
 let maintenanceCache: { on: boolean; fetchedAt: number } | null = null;
 const MAINTENANCE_TTL_MS = 60_000;
@@ -171,6 +217,43 @@ export async function middleware(request: NextRequest) {
     pathname === "/favicon.ico"
   ) {
     return NextResponse.next();
+  }
+
+  // ── Host routing: rewrite *.invoxai.io subdomains + custom domains
+  //    to /seller-host/[username]/[...slug] so the browser keeps the
+  //    seller's branded URL while we render their page server-side.
+  try {
+    const rawHost = request.headers.get("host") ?? "";
+    if (rawHost && !isPlatformOwnHost(rawHost)) {
+      const isDashboard =
+        pathname === "/dashboard" || pathname.startsWith("/dashboard/");
+      const isAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
+      const isAuth =
+        pathname.startsWith("/login") ||
+        pathname.startsWith("/signup") ||
+        pathname.startsWith("/forgot-password") ||
+        pathname.startsWith("/reset-password") ||
+        pathname.startsWith("/auth/");
+      const isSubdomainRoute = pathname.startsWith("/seller-host/");
+      const isMaintenance = pathname === "/maintenance";
+      if (
+        !isDashboard &&
+        !isAdmin &&
+        !isAuth &&
+        !isSubdomainRoute &&
+        !isMaintenance
+      ) {
+        const lookup = await lookupHost(request, rawHost);
+        if (lookup?.user_id && lookup.username) {
+          const url = request.nextUrl.clone();
+          const segments = pathname.split("/").filter(Boolean);
+          url.pathname = `/seller-host/${lookup.username}${segments.length ? "/" + segments.join("/") : ""}`;
+          return NextResponse.rewrite(url);
+        }
+      }
+    }
+  } catch {
+    /* non-fatal — fall through */
   }
 
   // Maintenance mode — admins always pass through.

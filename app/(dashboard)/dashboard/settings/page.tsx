@@ -71,6 +71,23 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">Domains</CardTitle>
+          <CardDescription>
+            Claim your *.invoxai.io subdomain or bring your own hostname.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-sm">
+          <Link
+            href="/dashboard/settings/domains"
+            className="text-primary underline"
+          >
+            Configure domains →
+          </Link>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">Tax &amp; Billing</CardTitle>
           <CardDescription>
             GST profile that drives every invoice we generate.

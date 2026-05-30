@@ -1,0 +1,98 @@
+import { redirect } from "next/navigation";
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { appRootHost, platformRootDomain } from "@/lib/domains";
+import { DomainSettingsForm } from "@/components/dashboard/DomainSettingsForm";
+
+export const metadata = { title: "Domains · Settings" };
+
+export default async function DomainsSettingsPage() {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login?next=/dashboard/settings/domains");
+
+  const admin = createAdminClient();
+  const [{ data: profile }, { data: flag }] = await Promise.all([
+    admin
+      .from("user_profiles")
+      .select(
+        "subdomain, subdomain_claimed_at, custom_domain, custom_domain_verified_at, custom_domain_cert_status, custom_domain_last_checked_at, custom_domain_last_error, subscription_plan",
+      )
+      .eq("id", user.id)
+      .single(),
+    admin
+      .from("platform_settings")
+      .select("value")
+      .eq("key", "feature_custom_domains")
+      .maybeSingle(),
+  ]);
+
+  const plan = (profile?.subscription_plan ?? "free") as string;
+  const canUseCustomDomains =
+    (plan === "pro" || plan === "business") && flag?.value !== "false";
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Domains</h1>
+        <p className="text-sm text-muted-foreground">
+          Pick a subdomain everyone can remember, or bring your own.
+        </p>
+      </div>
+
+      <DomainSettingsForm
+        rootDomain={platformRootDomain()}
+        appRootHost={appRootHost()}
+        subdomain={profile?.subdomain ?? null}
+        subdomainClaimedAt={profile?.subdomain_claimed_at ?? null}
+        customDomain={profile?.custom_domain ?? null}
+        customDomainVerifiedAt={profile?.custom_domain_verified_at ?? null}
+        customDomainCertStatus={
+          (profile?.custom_domain_cert_status ?? null) as
+            | "pending"
+            | "provisioning"
+            | "active"
+            | "failed"
+            | null
+        }
+        customDomainLastCheckedAt={profile?.custom_domain_last_checked_at ?? null}
+        customDomainLastError={profile?.custom_domain_last_error ?? null}
+        canUseCustomDomains={canUseCustomDomains}
+        plan={plan}
+      />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">How routing works</CardTitle>
+          <CardDescription>
+            Both addresses point at the same Next.js app — the server reads
+            the host header to figure out whose pages to render.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <p>
+            <Badge variant="outline">/p/[slug]</Badge> still works for shared
+            preview links and SEO meta tags.
+          </p>
+          <p>
+            <Badge variant="outline">subdomain</Badge> and{" "}
+            <Badge variant="outline">custom domain</Badge> serve the same page
+            at the root: <code>subdomain.invoxai.io/my-course</code>{" "}
+            and <code>pages.you.com/my-course</code>.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
