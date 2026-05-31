@@ -342,19 +342,14 @@ export async function addBotToChannel(
       return { ok: true };
     }
 
-    // Channels / supergroups: address directly via (id, access_hash) so we
-    // never hang resolving a bare id from a fresh session (was Error: TIMEOUT).
+    // Channels / supergroups: a bot is added by PROMOTING it to admin —
+    // channels.InviteToChannel rejects bots with USER_BOT. EditAdmin adds +
+    // promotes in one step. Address directly via (id, access_hash) so we never
+    // hang resolving a bare id from a fresh session (was Error: TIMEOUT).
     const channel = new Api.InputChannel({
       channelId: bigInt(chatId),
       accessHash: bigInt(accessHash ?? "0"),
     });
-    try {
-      await client.invoke(
-        new Api.channels.InviteToChannel({ channel, users: [BOT_USERNAME] }),
-      );
-    } catch (e) {
-      ignore(e, "USER_ALREADY_PARTICIPANT");
-    }
     await client.invoke(
       new Api.channels.EditAdmin({
         channel,
