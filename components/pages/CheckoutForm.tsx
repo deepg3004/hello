@@ -366,6 +366,14 @@ export function CheckoutForm(props: CheckoutFormProps) {
       setFailure("The GSTIN you entered looks invalid. Check it or clear the field.");
       return;
     }
+    setQuestionError(null);
+    const missingQ = customQuestions.find(
+      (q) => q.required && !(customAnswers[q.label]?.trim()),
+    );
+    if (missingQ) {
+      setQuestionError(`Please answer: ${missingQ.label}`);
+      return;
+    }
     setSubmitting(true);
     maybePreCapture();
 

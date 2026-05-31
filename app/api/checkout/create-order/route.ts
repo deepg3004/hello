@@ -50,6 +50,7 @@ export async function POST(request: Request) {
       state_code?: string;
       pincode?: string;
     };
+    custom_fields?: Record<string, unknown> | null;
   };
   try {
     body = await request.json();
