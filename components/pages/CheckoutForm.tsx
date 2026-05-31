@@ -415,6 +415,7 @@ export function CheckoutForm(props: CheckoutFormProps) {
                   pincode: billPincode || undefined,
                 }
               : undefined,
+          custom_fields: Object.keys(customAnswers).length ? customAnswers : undefined,
         }),
       });
       createBody = (await res.json()) as typeof createBody;
@@ -703,6 +704,28 @@ export function CheckoutForm(props: CheckoutFormProps) {
               </FormItem>
             )}
           />
+
+          {/* Seller-defined custom questions */}
+          {customQuestions.length > 0 && (
+            <div className="space-y-3">
+              {customQuestions.map((q, i) => (
+                <div key={i}>
+                  <label className="mb-1 block text-sm font-medium text-zinc-700">
+                    {q.label}
+                    {q.required && <span className="text-rose-500"> *</span>}
+                  </label>
+                  <Input
+                    value={customAnswers[q.label] ?? ""}
+                    onChange={(e) =>
+                      setCustomAnswers((prev) => ({ ...prev, [q.label]: e.target.value }))
+                    }
+                    placeholder="Your answer"
+                  />
+                </div>
+              ))}
+              {questionError && <p className="text-sm text-rose-600">{questionError}</p>}
+            </div>
+          )}
 
           {/* GSTIN collapsible */}
           <Collapsible
