@@ -151,7 +151,7 @@ export function TelegramVipPage(props: TelegramVipPageProps) {
     <div className="relative min-h-screen" style={{ background: theme.bg }}>
       <BgAnimation type={props.bg_animation} />
       <div className="relative z-10 mx-auto max-w-5xl px-4 py-10 md:py-14">
-        {props.offer_ends_at && <OfferCountdown endsAt={props.offer_ends_at} />}
+        {props.offer_ends_at && <OfferCountdown endsAt={props.offer_ends_at} accent={accent} />}
         <div className="grid gap-5 lg:grid-cols-2">
           {/* ============ LEFT — About the offering ============ */}
           <div className="rounded-2xl border border-white/10 bg-black/30 p-6 text-zinc-100 shadow-2xl md:p-8">
@@ -464,7 +464,7 @@ function initials(name: string): string {
     .join("");
 }
 
-function OfferCountdown({ endsAt }: { endsAt: string }) {
+function OfferCountdown({ endsAt, accent }: { endsAt: string; accent: string }) {
   // null until mounted so SSR and first client paint match (no hydration warn).
   const [left, setLeft] = useState<number | null>(null);
   useEffect(() => {
@@ -481,21 +481,36 @@ function OfferCountdown({ endsAt }: { endsAt: string }) {
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
   const box = (v: number, l: string) => (
-    <div className="flex min-w-[44px] flex-col items-center rounded-lg bg-black/30 px-2 py-1">
-      <span className="font-sora text-xl font-bold tabular-nums text-white">{String(v).padStart(2, "0")}</span>
-      <span className="text-[9px] uppercase tracking-wider text-amber-200/80">{l}</span>
+    <div className="flex flex-col items-center">
+      <div
+        className="flex h-12 w-12 items-center justify-center rounded-xl bg-black/40 font-sora text-2xl font-bold tabular-nums text-white"
+        style={{ boxShadow: `inset 0 0 0 1px ${accent}66` }}
+      >
+        {String(v).padStart(2, "0")}
+      </div>
+      <span className="mt-1 text-[9px] uppercase tracking-widest text-white/55">{l}</span>
     </div>
   );
+  const sep = (k: string) => (
+    <span key={k} className="self-start pt-2.5 text-xl font-bold" style={{ color: `${accent}99` }}>:</span>
+  );
   return (
-    <div className="mb-5 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-center">
-      <div className="text-[11px] font-bold uppercase tracking-widest text-amber-300">
-        ⏳ Limited-time offer — ends in
+    <div
+      className="mb-6 rounded-2xl border p-4 text-center"
+      style={{ borderColor: `${accent}40`, background: `linear-gradient(180deg, ${accent}22, transparent)` }}
+    >
+      <div className="flex items-center justify-center gap-1.5 text-[11px] font-bold uppercase tracking-widest" style={{ color: accent }}>
+        <span className="inline-block h-2 w-2 animate-pulse rounded-full" style={{ background: accent }} />
+        🔥 Limited-time offer ends in
       </div>
-      <div className="mt-2 flex items-center justify-center gap-2">
-        {d > 0 && box(d, "days")}
-        {box(h, "hrs")}
-        {box(m, "min")}
-        {box(sec, "sec")}
+      <div className="mt-3 flex items-center justify-center gap-2">
+        {d > 0 && box(d, "Days")}
+        {d > 0 && sep("s1")}
+        {box(h, "Hrs")}
+        {sep("s2")}
+        {box(m, "Min")}
+        {sep("s3")}
+        {box(sec, "Sec")}
       </div>
     </div>
   );

@@ -218,6 +218,7 @@ export async function publishChannelAction(data: {
   offerEndsAt?: string | null;
   theme?: string;
   bgAnimation?: string;
+  logoUrl?: string | null;
 }): Promise<ActionResult<{ slug: string; pageUrl: string }>> {
   const user = await authUser();
   if (!user) return { ok: false, message: "Not signed in" };
@@ -237,6 +238,7 @@ export async function publishChannelAction(data: {
   }
 
   const pageName = group.page_name || group.group_name || "VIP Channel";
+  const logoUrl = data.logoUrl ?? group.logo_url ?? null;
 
   // 1. Resolve the page row (reuse auto_page_id on re-publish, else create).
   let pageId = group.auto_page_id as string | null;
@@ -245,7 +247,7 @@ export async function publishChannelAction(data: {
   const pageConfig = {
     group_id: group.id,
     group_name: pageName,
-    group_avatar: group.logo_url ?? undefined,
+    group_avatar: logoUrl ?? undefined,
     channel_type: group.channel_type,
     channel_username: group.channel_username,
     active_members: group.total_member_count ?? 0,
@@ -354,6 +356,7 @@ export async function publishChannelAction(data: {
       auto_page_id: pageId,
       page_id: pageId,
       page_name: pageName,
+      logo_url: logoUrl,
       auto_renewal_enabled: data.autoRenewal,
       setup_complete: true,
     })
@@ -393,6 +396,7 @@ export async function getChannelPlansAction(groupId: string): Promise<
     offerEndsAt: string | null;
     theme: string;
     bgAnimation: string;
+    logoUrl: string | null;
     plans: EditablePlan[];
   }>
 > {
@@ -402,7 +406,7 @@ export async function getChannelPlansAction(groupId: string): Promise<
 
   const { data: group } = await admin
     .from("telegram_vip_groups")
-    .select("id, user_id, group_name, page_name, auto_renewal_enabled, auto_page_id")
+    .select("id, user_id, group_name, page_name, logo_url, auto_renewal_enabled, auto_page_id")
     .eq("id", groupId)
     .maybeSingle();
   if (!group || group.user_id !== user.id) return { ok: false, message: "Channel not found" };
@@ -451,6 +455,7 @@ export async function getChannelPlansAction(groupId: string): Promise<
       offerEndsAt,
       theme,
       bgAnimation,
+      logoUrl: group.logo_url ?? null,
       plans,
     },
   };

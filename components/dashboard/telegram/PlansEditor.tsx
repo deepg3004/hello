@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Eye, EyeOff, Loader2, Plus, Star, Trash2 } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Loader2, Plus, Star, Trash2, Upload } from "lucide-react";
 
 import {
   publishChannelAction,
@@ -67,6 +67,7 @@ export function PlansEditor({
   initialOfferEndsAt,
   initialTheme,
   initialBgAnimation,
+  initialLogoUrl,
   pageUrl,
 }: {
   groupDbId: string;
@@ -77,6 +78,7 @@ export function PlansEditor({
   initialOfferEndsAt: string | null;
   initialTheme: string;
   initialBgAnimation: string;
+  initialLogoUrl: string | null;
   pageUrl: string | null;
 }) {
   const router = useRouter();
@@ -91,7 +93,27 @@ export function PlansEditor({
   const [offerEndsAt, setOfferEndsAt] = useState(isoToLocalInput(initialOfferEndsAt));
   const [theme, setTheme] = useState(initialTheme || "purple");
   const [bgAnimation, setBgAnimation] = useState(initialBgAnimation || "none");
+  const [logoUrl, setLogoUrl] = useState(initialLogoUrl || "");
+  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  async function uploadLogo(file: File | undefined) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/telegram/upload-logo", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Upload failed");
+      setLogoUrl(json.url);
+      toast({ title: "Logo uploaded" });
+    } catch (e) {
+      toast({ title: "Upload failed", description: String(e instanceof Error ? e.message : e), variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  }
   const [toggling, setToggling] = useState(false);
 
   function update(i: number, patch: Partial<Row>) {
@@ -128,6 +150,7 @@ export function PlansEditor({
         offerEndsAt: offerEndsAt ? new Date(offerEndsAt).toISOString() : null,
         theme,
         bgAnimation,
+        logoUrl: logoUrl || null,
       });
       if (!res.ok) throw new Error(res.message ?? "Save failed");
       setPublished(true);
@@ -196,6 +219,31 @@ export function PlansEditor({
             <Button type="button" variant="ghost" size="sm" onClick={() => setOfferEndsAt("")}>Clear</Button>
           )}
         </div>
+      </div>
+
+      <div className="rounded-md border p-3">
+        <div className="mb-2 text-sm font-medium">Channel logo</div>
+        <div className="flex items-center gap-3">
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logoUrl} alt="logo" className="h-14 w-14 rounded-full border object-cover" />
+          ) : (
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted text-[10px] text-muted-foreground">No logo</div>
+          )}
+          <div className="flex flex-col gap-1.5">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm hover:bg-muted/40">
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              {uploading ? "Uploading…" : "Upload image"}
+              <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={(e) => uploadLogo(e.target.files?.[0])} />
+            </label>
+            {logoUrl && (
+              <button type="button" onClick={() => setLogoUrl("")} className="text-left text-xs text-muted-foreground hover:underline">
+                Remove logo
+              </button>
+            )}
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">PNG/JPG/WebP, up to 2 MB. Hosted on InvoxAI — reliable (pasted Google-image links get blocked).</p>
       </div>
 
       <div className="grid gap-3 rounded-md border p-3 sm:grid-cols-2">
