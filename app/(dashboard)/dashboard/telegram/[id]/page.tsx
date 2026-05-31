@@ -72,7 +72,7 @@ export default async function TelegramChannelPage({
     const admin = createAdminClient();
     const { data: memsRaw } = await admin
       .from("telegram_memberships")
-      .select("id, buyer_email, telegram_user_id, status, joined_at, expires_at, invited_at")
+      .select("id, buyer_email, telegram_user_id, status, joined_at, expires_at, invited_at, invite_link")
       .eq("telegram_group_id", params.id)
       .order("invited_at", { ascending: false })
       .limit(1000);
@@ -84,6 +84,7 @@ export default async function TelegramChannelPage({
       joined_at: m.joined_at,
       expires_at: m.expires_at,
       invited_at: m.invited_at,
+      invite_link: m.invite_link ?? null,
     }));
   }
 
@@ -195,7 +196,7 @@ export default async function TelegramChannelPage({
       )}
 
       {tab === "members" && (
-        <TelegramMembersClient rows={memberRows} groupName={groupName} />
+        <TelegramMembersClient rows={memberRows} groupName={groupName} groupId={group.id} />
       )}
 
       {tab === "transactions" && (

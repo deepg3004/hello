@@ -8,6 +8,10 @@ import { formatINR } from "@/lib/utils";
 
 export const metadata = { title: "Checkout" };
 
+// Always fresh — reflect plan/price/theme edits immediately (no stale cache).
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+
 const inr = (n: number) => formatINR(n * 100);
 
 function formatDuration(days: number | null | undefined): string {

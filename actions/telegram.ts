@@ -420,9 +420,121 @@ export async function issueInviteForOrder(orderId: string): Promise<
     status: "invited",
     invited_at: new Date().toISOString(),
     expires_at: expiresAt,
+    invite_link: invite.invite_link,
     bot_token_snapshot: group.bot_token,
     group_chat_id: String(chatId),
   });
 
   return { ok: true, invite_link: invite.invite_link };
+}
+
+// ----------------------------------------------------------------------------
+// Seller-facing member management (add / regenerate invite)
+// ----------------------------------------------------------------------------
+
+/** Manually add a member to a channel — mints a 7-day one-time invite link. */
+export async function addMemberAction(input: {
+  groupId: string;
+  email: string;
+  durationDays?: number | null;
+}): Promise<ActionResult<{ invite_link: string }>> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+
+  const email = input.email.trim().toLowerCase();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false, message: "Enter a valid email" };
+  }
+
+  const admin = createAdminClient();
+  const { data: group } = await admin
+    .from("telegram_vip_groups")
+    .select("id, user_id, bot_token, group_chat_id, group_id")
+    .eq("id", input.groupId)
+    .maybeSingle();
+  if (!group || group.user_id !== user.id) {
+    return { ok: false, message: "Channel not found" };
+  }
+  const chatId = group.group_chat_id ?? group.group_id;
+  if (!group.bot_token || !chatId) {
+    return { ok: false, message: "Channel is not fully connected yet." };
+  }
+
+  let invite;
+  try {
+    invite = await generateInviteLink(group.bot_token, chatId, 60 * 24 * 7, `manual`);
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) };
+  }
+
+  const days = input.durationDays ?? null;
+  const expiresAt =
+    days && days > 0 ? new Date(Date.now() + days * 86_400_000).toISOString() : null;
+
+  const { error } = await admin.from("telegram_memberships").insert({
+    telegram_group_id: group.id,
+    buyer_email: email,
+    status: "invited",
+    invited_at: new Date().toISOString(),
+    expires_at: expiresAt,
+    invite_link: invite.invite_link,
+    bot_token_snapshot: group.bot_token,
+    group_chat_id: String(chatId),
+  });
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath(`/dashboard/telegram/${group.id}`);
+  return { ok: true, data: { invite_link: invite.invite_link } };
+}
+
+/** Regenerate a member's one-time invite link (7-day validity). */
+export async function regenerateMemberInviteAction(
+  membershipId: string,
+): Promise<ActionResult<{ invite_link: string }>> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+
+  const admin = createAdminClient();
+  const { data: mem } = await admin
+    .from("telegram_memberships")
+    .select("id, telegram_group_id, group_chat_id, bot_token_snapshot")
+    .eq("id", membershipId)
+    .maybeSingle();
+  if (!mem) return { ok: false, message: "Member not found" };
+
+  const { data: group } = await admin
+    .from("telegram_vip_groups")
+    .select("id, user_id, bot_token, group_chat_id, group_id")
+    .eq("id", mem.telegram_group_id)
+    .maybeSingle();
+  if (!group || group.user_id !== user.id) {
+    return { ok: false, message: "Member not found" };
+  }
+
+  const botToken = mem.bot_token_snapshot ?? group.bot_token;
+  const chatId = mem.group_chat_id ?? group.group_chat_id ?? group.group_id;
+  if (!botToken || !chatId) {
+    return { ok: false, message: "Channel is not fully connected yet." };
+  }
+
+  let invite;
+  try {
+    invite = await generateInviteLink(botToken, chatId, 60 * 24 * 7, `regen`);
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) };
+  }
+
+  await admin
+    .from("telegram_memberships")
+    .update({ invite_link: invite.invite_link })
+    .eq("id", membershipId);
+
+  revalidatePath(`/dashboard/telegram/${group.id}`);
+  return { ok: true, data: { invite_link: invite.invite_link } };
 }
