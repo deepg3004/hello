@@ -9,6 +9,21 @@ import { verifyOtp } from "@/lib/telegram-user-client";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * MUST match send-code's normalisation exactly — Telegram's auth.signIn
+ * rejects (PHONE_NUMBER_INVALID) unless the phone string is byte-identical to
+ * the one passed to sendCode.
+ */
+function normalizePhone(raw: string): string | null {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
+  if (raw.trim().startsWith("+") && digits.length >= 10 && digits.length <= 15) {
+    return `+${digits}`;
+  }
+  return null;
+}
+
 export async function POST(req: Request) {
   const supabase = createClient();
   const {
@@ -36,8 +51,14 @@ export async function POST(req: Request) {
     );
   }
 
+  // Normalise identically to send-code so auth.signIn gets the same string.
+  const normalizedPhone = normalizePhone(phone);
+  if (!normalizedPhone) {
+    return NextResponse.json({ error: "Invalid phone number" }, { status: 400 });
+  }
+
   try {
-    const result = await verifyOtp(phone, otp, phoneCodeHash, sessionKey);
+    const result = await verifyOtp(normalizedPhone, otp, phoneCodeHash, sessionKey);
     const name = [result.firstName, result.lastName].filter(Boolean).join(" ");
 
     const admin = createAdminClient();
@@ -46,7 +67,7 @@ export async function POST(req: Request) {
       {
         user_id: user.id,
         telegram_user_id: result.userId.toString(),
-        telegram_phone: phone,
+        telegram_phone: normalizedPhone,
         telegram_username: result.username ?? null,
         telegram_name: name || null,
         session_string: encryptValue(result.sessionString),
