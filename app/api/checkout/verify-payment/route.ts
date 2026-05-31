@@ -97,7 +97,10 @@ export async function POST(request: Request) {
     console.error("[verify-payment] AB cookie read failed", e);
   }
 
-  // 1. Mark order paid (and any bump child row riding on the same payment)
+  // 1. Mark order paid (and any bump child row riding on the same payment).
+  //    Guarded by status='pending' so a delayed/replayed verify call can't
+  //    transition refunded/cancelled rows back to paid. Pairs with the
+  //    short-circuit at L65 (already-paid → idempotent return).
   const paidAt = new Date().toISOString();
   await admin
     .from("orders")
@@ -108,7 +111,8 @@ export async function POST(request: Request) {
       paid_at: paidAt,
       exp_variant: expVariant,
     })
-    .eq("id", order_id);
+    .eq("id", order_id)
+    .eq("status", "pending");
 
   // 1b. AB conversion counters — best-effort. Revenue tracked in paise so we
   //     don't lose paisa-level precision when summing.
@@ -134,7 +138,8 @@ export async function POST(request: Request) {
       paid_at: paidAt,
     })
     .eq("parent_order_id", order_id)
-    .eq("source", "bump");
+    .eq("source", "bump")
+    .eq("status", "pending");
 
   // 2. Ledger: sale (seller credit) + commission (platform credit)
   await admin.from("transactions").insert([

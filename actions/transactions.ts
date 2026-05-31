@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { getRazorpay } from "@/lib/razorpay";
 
 export interface TransactionsFilter {
   from?: string;     // ISO date
@@ -138,23 +139,29 @@ export async function exportTransactionsCsvAction(
 export interface RefundResult {
   ok: boolean;
   message?: string;
+  refund_id?: string;
 }
 
 /**
- * Admin-only stub. Real refund flow lands in a later prompt.
+ * Admin-only full refund.
  *
- * SECURITY / FIXME (audit #2 — refund ledger reversal):
- * This currently only flips orders.status='refunded'. It must also:
- *   1. Call Razorpay payments.refund() to actually return money
- *   2. Insert a negated `transactions` row (sale + commission) so the
- *      seller balance and platform earnings reflect the reversal
- *   3. If the order originated from an affiliate referral, mark the
- *      corresponding affiliate_payouts row as 'reversed' so we don't
- *      pay commission on a refunded sale
- *   4. If a subscription charge: also handle the subscription's own
- *      refund event from the Razorpay webhook
- * Left out of this batch because the reversal semantics need a product
- * decision (partial refunds? refund window? affiliate clawback policy?).
+ * Sequence (audit #2 — refund ledger reversal, NOW IMPLEMENTED):
+ *   1. Authn check — caller must be signed in AND user_profiles.is_admin.
+ *   2. Status guard — only `paid` orders can be refunded (no double-refund,
+ *      no refunding pending/failed orders).
+ *   3. Call Razorpay payments.refund() to actually return the money. If
+ *      Razorpay rejects (already refunded, expired window, etc.) we surface
+ *      the message and DON'T touch our ledger.
+ *   4. Update orders.status='refunded' (guarded by status='paid' so a
+ *      concurrent admin clicking Refund twice can't double-reverse).
+ *   5. Insert negating ledger rows so seller's pending balance and the
+ *      platform's commission earnings reflect the reversal.
+ *   6. Mark any affiliate_payouts on this order as 'reversed' so we don't
+ *      pay commission on a refunded sale.
+ *
+ * Partial refunds and subscription charges are NOT handled here yet —
+ * see app/api/webhooks/razorpay/subscription for the subscription path,
+ * and a future product decision for partial-refund UX.
  */
 export async function refundOrderAction(orderId: string): Promise<RefundResult> {
   const supabase = createClient();
@@ -170,9 +177,94 @@ export async function refundOrderAction(orderId: string): Promise<RefundResult> 
     .eq("id", user.id)
     .single();
   if (!profile?.is_admin) {
-    return { ok: false, message: "Refunds are admin-only for now" };
+    return { ok: false, message: "Refunds are admin-only" };
   }
 
-  await admin.from("orders").update({ status: "refunded" }).eq("id", orderId);
-  return { ok: true };
+  // Pull the order + ledger context we need for the reversal.
+  const { data: order, error: loadErr } = await admin
+    .from("orders")
+    .select(
+      "id, status, gateway_payment_id, amount, seller_amount, platform_commission, seller_user_id",
+    )
+    .eq("id", orderId)
+    .single();
+  if (loadErr || !order) {
+    return { ok: false, message: "Order not found" };
+  }
+  if (order.status !== "paid") {
+    return {
+      ok: false,
+      message: `Order is ${order.status} — only paid orders can be refunded`,
+    };
+  }
+  if (!order.gateway_payment_id) {
+    return {
+      ok: false,
+      message: "Order has no Razorpay payment id — cannot refund",
+    };
+  }
+
+  // ── Razorpay refund — surface failures BEFORE touching our ledger ───────
+  let refundId: string;
+  try {
+    const razorpay = getRazorpay();
+    const refund = await razorpay.payments.refund(order.gateway_payment_id, {
+      amount: Math.round(Number(order.amount) * 100), // paise
+      speed: "normal",
+      notes: { invoxai_order_id: orderId, invoxai_initiator: user.id },
+    });
+    refundId = (refund as unknown as { id: string }).id;
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Razorpay refund failed";
+    return { ok: false, message };
+  }
+
+  // ── Flip status — guarded so a concurrent admin click can't double-flip
+  const { data: updatedRows } = await admin
+    .from("orders")
+    .update({
+      status: "refunded",
+      refund_id: refundId,
+      refunded_at: new Date().toISOString(),
+    })
+    .eq("id", orderId)
+    .eq("status", "paid")
+    .select("id");
+  if (!updatedRows || updatedRows.length === 0) {
+    // Someone else got there first (or refund webhook ran). The Razorpay
+    // refund is real but our ledger already shows reversed — exit cleanly.
+    return { ok: true, refund_id: refundId };
+  }
+
+  // ── Negate the ledger so seller balance + platform commission unwind ────
+  await admin.from("transactions").insert([
+    {
+      user_id: order.seller_user_id,
+      order_id: orderId,
+      type: "refund",
+      amount: -Number(order.seller_amount),
+      status: "completed",
+      reference_id: refundId,
+      notes: `Refund ${refundId} — sale reversal`,
+    },
+    {
+      user_id: order.seller_user_id,
+      order_id: orderId,
+      type: "refund_commission",
+      amount: Number(order.platform_commission),
+      status: "completed",
+      reference_id: refundId,
+      notes: `Refund ${refundId} — commission give-back`,
+    },
+  ]);
+
+  // ── Affiliate clawback — mark any pending/paid commission as reversed ──
+  await admin
+    .from("affiliate_payouts")
+    .update({ status: "reversed", reversed_at: new Date().toISOString() })
+    .eq("order_id", orderId)
+    .in("status", ["pending", "paid"]);
+
+  return { ok: true, refund_id: refundId };
 }

@@ -1,9 +1,14 @@
 // POST /api/kyc/create-linked-account
 //
-// Body: { user_id: string }
+// AUTH (SECURITY): The user_id is ALWAYS resolved from the Supabase session.
+// Previously this route trusted body.user_id, letting any unauthenticated
+// caller create a Razorpay Route linked account against any user_id and
+// flip their payouts_enabled flag — effectively hijacking the seller's
+// payout destination.
 //
 // Pre-conditions:
-//   - user_profiles row exists
+//   - logged-in seller
+//   - user_profiles row exists for the session user
 //   - kyc_level >= 2 (bank verified)
 //   - bank_account_number, bank_ifsc, bank_holder_name are set
 //   - razorpay_linked_account_id is NULL (idempotency)
@@ -16,19 +21,19 @@
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { createLinkedAccount } from "@/lib/razorpay";
 
-export async function POST(request: Request) {
-  let body: { user_id?: string };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+export async function POST() {
+  // ── AuthN — the only acceptable source for user_id ───────────────────────
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
-  const { user_id } = body;
-  if (!user_id) {
-    return NextResponse.json({ error: "user_id is required" }, { status: 400 });
-  }
+  const userId = user.id;
 
   const admin = createAdminClient();
   const { data: profile, error: profileErr } = await admin
@@ -36,7 +41,7 @@ export async function POST(request: Request) {
     .select(
       "id, email, full_name, phone, kyc_level, bank_verified, bank_account_number, bank_ifsc, bank_holder_name, razorpay_linked_account_id",
     )
-    .eq("id", user_id)
+    .eq("id", userId)
     .single();
   if (profileErr || !profile) {
     return NextResponse.json({ error: "Profile not found" }, { status: 404 });
@@ -84,7 +89,7 @@ export async function POST(request: Request) {
         ifsc_code: profile.bank_ifsc,
         beneficiary_name: profile.bank_holder_name,
       },
-      notes: { invoxai_user_id: user_id },
+      notes: { invoxai_user_id: userId },
     });
     accountId = account.id;
   } catch (err) {
@@ -95,7 +100,7 @@ export async function POST(request: Request) {
   await admin
     .from("user_profiles")
     .update({ razorpay_linked_account_id: accountId, payouts_enabled: true })
-    .eq("id", user_id);
+    .eq("id", userId);
 
   return NextResponse.json({ ok: true, linked_account_id: accountId });
 }

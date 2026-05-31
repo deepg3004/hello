@@ -3,9 +3,12 @@
 // Razorpay subscription lifecycle webhook.
 //
 // 1. Verify X-Razorpay-Signature against RAZORPAY_WEBHOOK_SECRET (HMAC-SHA256).
-// 2. On subscription.activated → mark user as active on the chosen plan.
-// 3. On subscription.charged   → insert a transaction row.
-// 4. On subscription.halted / .deactivated / .cancelled / .paused → update.
+// 2. Dedup against webhook_events_processed.
+// 3. On subscription.activated → mark user as active on the chosen plan.
+// 4. On subscription.charged   → insert a transaction row.
+// 5. On refund.created (with subscription id in notes) → insert negative
+//    subscription_payment so the ledger stays balanced after a refund.
+// 6. On subscription.halted / .deactivated / .cancelled / .paused → update.
 //
 // Configure the webhook URL in Razorpay dashboard:
 //   https://app.invoxai.io/api/webhooks/razorpay/subscription
@@ -33,11 +36,22 @@ interface PaymentEntity {
   status?: string;
 }
 
+interface RefundEntity {
+  id: string;
+  payment_id: string;
+  amount: number;
+  currency?: string;
+  status?: string;
+  notes?: Record<string, string>;
+}
+
 interface WebhookPayload {
+  id?: string;
   event: string;
   payload: {
     subscription?: { entity: SubscriptionEntity };
     payment?: { entity: PaymentEntity };
+    refund?: { entity: RefundEntity };
   };
 }
 
@@ -64,8 +78,59 @@ export async function POST(request: Request) {
   const event = body.event;
   const subEntity = body.payload?.subscription?.entity;
   const payEntity = body.payload?.payment?.entity;
+  const refundEntity = body.payload?.refund?.entity;
 
-  // We need a subscription to do anything meaningful.
+  // ── Idempotency gate (see app/api/webhooks/razorpay/payment for rationale)
+  const eventId =
+    body.id ??
+    (subEntity ? `sub_${subEntity.id}_${event}` : null) ??
+    (refundEntity ? `ref_${refundEntity.id}_${event}` : null);
+  if (eventId) {
+    const { error: dupErr } = await admin
+      .from("webhook_events_processed")
+      .insert({
+        provider: "razorpay",
+        event_id: eventId,
+        event_type: event,
+        resource_id: subEntity?.id ?? refundEntity?.id ?? null,
+      });
+    if (dupErr) {
+      return NextResponse.json({ ok: true, dedup: true });
+    }
+  }
+
+  // ── Refund of a subscription charge — reverse the ledger entry ──────────
+  // Razorpay sends refund.* events on the main "payments" event stream and
+  // the subscription event stream depending on configuration; we accept it
+  // here too because Razorpay won't tell us up-front which charge belongs
+  // to a subscription. The reference_id ties it back to the original
+  // subscription_payment row.
+  if (event === "refund.created" || event === "refund.processed") {
+    if (!refundEntity?.payment_id) {
+      return NextResponse.json({ ok: true, skipped: "no payment_id" });
+    }
+    const { data: original } = await admin
+      .from("transactions")
+      .select("id, user_id, amount, type")
+      .eq("reference_id", refundEntity.payment_id)
+      .eq("type", "subscription_payment")
+      .maybeSingle();
+    if (!original) {
+      // Not a subscription refund — let the main payment webhook handle it.
+      return NextResponse.json({ ok: true, skipped: "not a subscription charge" });
+    }
+    await admin.from("transactions").insert({
+      user_id: original.user_id,
+      type: "subscription_refund",
+      amount: -Number(original.amount),
+      status: "completed",
+      reference_id: refundEntity.id,
+      notes: `Subscription refund for ${refundEntity.payment_id}`,
+    });
+    return NextResponse.json({ ok: true, refunded: refundEntity.id });
+  }
+
+  // We need a subscription to do anything meaningful past this point.
   if (!subEntity?.id) {
     return NextResponse.json({ ok: true, skipped: "no subscription entity" });
   }
@@ -118,14 +183,6 @@ export async function POST(request: Request) {
     }
 
     case "subscription.charged": {
-      // SECURITY / FIXME (audit #16 — subscription refund handler):
-      // There is no `refund.created` handler downstream that negates the
-      // subscription_payment row we insert here. If Razorpay refunds a
-      // subscription charge, the seller's ledger remains overstated. Need
-      // a matching switch case that inserts a negative subscription_payment
-      // transaction keyed on reference_id=payEntity.id. Deferred — pairs
-      // with the wider refund-reversal flow tracked at
-      // actions/transactions.ts refundOrderAction.
       // Mirror the gross charge into the ledger.
       if (payEntity?.amount) {
         await admin.from("transactions").insert({
