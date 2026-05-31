@@ -62,10 +62,11 @@ const definition: TemplateDefinition = {
   ],
 };
 
-const Render: TemplateRender = ({ values, pageId, product, isPreview, bumpRuntime }) => (
+const Render: TemplateRender = ({ values, pageId, product, products, isPreview, bumpRuntime }) => (
   <TelegramVipPage
     pageId={pageId}
     product={product}
+    products={products}
     isPreview={isPreview}
     bumpRuntime={bumpRuntime}
     group_name={readField(values, "group_name", "")}
