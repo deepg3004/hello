@@ -95,11 +95,14 @@ export function WelcomeBanner({ name, progress, next, steps = [] }: Props) {
               aria-valuenow={progress}
               aria-valuemin={0}
               aria-valuemax={100}
-              className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-white/30"
+              className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-border"
             >
               <div
-                className="h-full rounded-full bg-white transition-[width] duration-500 ease-out"
-                style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
+                className="h-full rounded-full transition-[width] duration-500 ease-out"
+                style={{
+                  backgroundColor: "hsl(220 30% 15%)",
+                  width: `${Math.max(0, Math.min(100, progress))}%`,
+                }}
               />
             </div>
           </div>

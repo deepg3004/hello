@@ -15,9 +15,9 @@
     --brand-slate: 222 47% 8%;         /* #0E1117 sidebar */
 
     /* shadcn tokens — light mode */
-    --background: 220 20% 97%;         /* #F4F5F8 subtle warm white */
+    --background: 60 33% 97%;         /* #FAFAF5 warm ivory */
     --foreground: 222 47% 11%;
-    --card: 0 0% 100%;
+    --card: 45 40% 99%;
     --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
@@ -25,16 +25,19 @@
     --primary-foreground: 0 0% 100%;
     --secondary: 220 16% 93%;
     --secondary-foreground: 222 47% 11%;
-    --muted: 220 16% 94%;
+    --muted: 55 25% 94%;
     --muted-foreground: 220 10% 46%;
     --accent: 243 75% 95%;
     --accent-foreground: 243 75% 40%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 14% 90%;
-    --input: 220 14% 90%;
+    --border: 60 14% 89%;
+    --input: 60 14% 89%;
     --ring: 243 75% 59%;
     --radius: 0.625rem;
+
+    /* Progress bar fill — deep ink for premium contrast on warm surfaces */
+    --progress-fill: 220 30% 15%;
 
     /* Custom semantic tokens */
     --sidebar-bg: 222 47% 8%;
