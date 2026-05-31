@@ -1,12 +1,9 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { format } from "date-fns";
-import { ChevronRight, Plus, Send } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  TelegramListClient,
+  type ListChannel,
+} from "@/components/dashboard/telegram/TelegramListClient";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -20,133 +17,110 @@ export default async function TelegramListPage() {
   if (!user) redirect("/login");
 
   const admin = createAdminClient();
-  const { data: groupsRaw } = await admin
-    .from("telegram_vip_groups")
-    .select(
-      "id, group_name, group_id, bot_username, access_duration_days, auto_renewal_enabled, webhook_set_at, active_members, page_id, pages(title, slug)",
-    )
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
 
-  const groups = (groupsRaw ?? []) as unknown as Array<{
+  const [{ data: session }, { data: groupsRaw }] = await Promise.all([
+    admin
+      .from("telegram_user_sessions")
+      .select("telegram_username")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    admin
+      .from("telegram_vip_groups")
+      .select(
+        "id, group_name, group_id, channel_type, channel_username, logo_url, active_members, total_member_count, setup_complete, auto_page_id, page_id",
+      )
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  const groups = (groupsRaw ?? []) as Array<{
     id: string;
     group_name: string | null;
     group_id: string;
-    bot_username: string | null;
-    access_duration_days: number | null;
-    auto_renewal_enabled: boolean | null;
-    webhook_set_at: string | null;
+    channel_type: string | null;
+    channel_username: string | null;
+    logo_url: string | null;
     active_members: number | null;
+    total_member_count: number | null;
+    setup_complete: boolean | null;
+    auto_page_id: string | null;
     page_id: string | null;
-    pages: { title: string; slug: string } | { title: string; slug: string }[] | null;
   }>;
+
+  const pageIds = groups
+    .map((g) => g.auto_page_id ?? g.page_id)
+    .filter(Boolean) as string[];
+
+  // Page slugs + per-page revenue + plans, fetched in bulk.
+  const [{ data: pagesRaw }, { data: ordersRaw }, { data: plansRaw }] =
+    await Promise.all([
+      pageIds.length
+        ? admin.from("pages").select("id, slug").in("id", pageIds)
+        : Promise.resolve({ data: [] as Array<{ id: string; slug: string }> }),
+      pageIds.length
+        ? admin
+            .from("orders")
+            .select("page_id, amount")
+            .eq("seller_user_id", user.id)
+            .eq("status", "paid")
+            .in("page_id", pageIds)
+        : Promise.resolve({ data: [] as Array<{ page_id: string; amount: number }> }),
+      admin
+        .from("telegram_subscription_plans")
+        .select("group_id, name, price, sort_order")
+        .eq("user_id", user.id)
+        .order("sort_order", { ascending: true }),
+    ]);
+
+  const slugByPage = new Map(
+    ((pagesRaw ?? []) as Array<{ id: string; slug: string }>).map((p) => [p.id, p.slug]),
+  );
+  const revByPage = new Map<string, number>();
+  for (const o of (ordersRaw ?? []) as Array<{ page_id: string; amount: number }>) {
+    revByPage.set(o.page_id, (revByPage.get(o.page_id) ?? 0) + Number(o.amount ?? 0));
+  }
+  const plansByGroup = new Map<string, Array<{ name: string; price: number }>>();
+  for (const p of (plansRaw ?? []) as Array<{ group_id: string; name: string; price: number }>) {
+    const arr = plansByGroup.get(p.group_id) ?? [];
+    arr.push({ name: p.name, price: Number(p.price ?? 0) });
+    plansByGroup.set(p.group_id, arr);
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io";
+
+  const channels: ListChannel[] = groups.map((g) => {
+    const pageId = g.auto_page_id ?? g.page_id;
+    const slug = pageId ? slugByPage.get(pageId) : undefined;
+    return {
+      id: g.id,
+      name: g.group_name ?? g.group_id,
+      type: g.channel_type,
+      username: g.channel_username,
+      logoUrl: g.logo_url,
+      activeMembers: Number(g.active_members ?? 0),
+      memberCount: Number(g.total_member_count ?? 0),
+      revenue: pageId ? revByPage.get(pageId) ?? 0 : 0,
+      setupComplete: !!g.setup_complete,
+      pageUrl: slug ? `${appUrl}/p/${slug}` : null,
+      plans: plansByGroup.get(g.id) ?? [],
+    };
+  });
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-sora font-semibold tracking-tight">Telegram VIP groups</h1>
-          <p className="text-sm text-muted-foreground">
-            Buyers get a one-time invite on payment and are auto-removed on expiry.
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/dashboard/telegram/setup">
-            <Plus className="mr-2 h-4 w-4" />
-            New setup
-          </Link>
-        </Button>
+      <div>
+        <h1 className="text-2xl font-sora font-semibold tracking-tight">
+          My Telegram Channels
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Paid access, auto-invite on payment, and auto-removal on expiry.
+        </p>
       </div>
-
-      {groups.length === 0 ? (
-        <div className="rounded-md border border-dashed bg-muted/30 p-10 text-center">
-          <Send className="mx-auto h-6 w-6 text-muted-foreground" />
-          <h2 className="mt-2 text-lg font-semibold">No Telegram groups yet</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Connect a bot + group so paid buyers join automatically.
-          </p>
-          <Button asChild className="mt-4">
-            <Link href="/dashboard/telegram/setup">
-              <Plus className="mr-2 h-4 w-4" /> Set up Telegram VIP
-            </Link>
-          </Button>
-        </div>
-      ) : (
-        <Card>
-          <CardContent className="overflow-x-auto p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Group</TableHead>
-                  <TableHead>Bot</TableHead>
-                  <TableHead>Linked page</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead className="text-right">Active</TableHead>
-                  <TableHead>Webhook</TableHead>
-                  <TableHead className="w-10" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {groups.map((g) => {
-                  const page = Array.isArray(g.pages) ? g.pages[0] : g.pages;
-                  return (
-                    <TableRow key={g.id}>
-                      <TableCell>
-                        <Link
-                          href={`/dashboard/telegram/${g.id}`}
-                          className="font-medium hover:underline"
-                        >
-                          {g.group_name ?? g.group_id}
-                        </Link>
-                        <div className="text-xs text-muted-foreground font-mono">{g.group_id}</div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {g.bot_username ? `@${g.bot_username}` : "—"}
-                      </TableCell>
-                      <TableCell>
-                        {page ? (
-                          <Link href={`/p/${page.slug}`} target="_blank" className="hover:underline">
-                            {page.title}
-                          </Link>
-                        ) : (
-                          <span className="text-muted-foreground">Not linked</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {g.access_duration_days === 0 || g.access_duration_days == null
-                          ? "Lifetime"
-                          : `${g.access_duration_days} days`}
-                        {g.auto_renewal_enabled && (
-                          <Badge variant="outline" className="ml-2 text-xs">Renewals on</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {Number(g.active_members ?? 0).toLocaleString("en-IN")}
-                      </TableCell>
-                      <TableCell>
-                        {g.webhook_set_at ? (
-                          <Badge variant="outline" className="bg-emerald-100 text-emerald-800">Live</Badge>
-                        ) : (
-                          <Badge variant="outline" className="bg-amber-100 text-amber-800">Not set</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Link
-                          href={`/dashboard/telegram/${g.id}`}
-                          className="inline-flex text-muted-foreground hover:text-foreground"
-                          aria-label="Manage group"
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </Link>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+      <TelegramListClient
+        connected={!!session}
+        username={session?.telegram_username ?? null}
+        channels={channels}
+      />
     </div>
   );
 }
