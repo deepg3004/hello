@@ -77,6 +77,9 @@ const Render: TemplateRender = ({ values, pageId, product, products, isPreview, 
     benefits_items={readField(values, "benefits_items", [])}
     join_title={readField(values, "join_title", "")}
     join_note={readField(values, "join_note", "")}
+    description={readField(values, "description", "")}
+    category={readField(values, "category", "")}
+    active_members={readField(values, "active_members", undefined)}
   />
 );
 

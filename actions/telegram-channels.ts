@@ -296,6 +296,7 @@ export async function publishChannelAction(data: {
         name: `${p.name} — ${pageName}`,
         display_label: p.name,
         price: p.price,
+        original_price: p.originalPrice ?? null,
         currency: "INR",
         type: "one_time",
         subscription_days: p.durationDays === 0 ? null : p.durationDays,

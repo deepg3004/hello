@@ -9,6 +9,8 @@ export interface TemplateProduct {
   description: string | null;
   image_url: string | null;
   price: number;
+  /** Optional crossed-out "compare at" price for discount display. */
+  original_price?: number | null;
   currency: string;
   /** Days of access granted. NULL = lifetime. Used by the TelegramVipPage
    *  tier picker to render the "30 days" / "Lifetime" badge. */
