@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ArrowRight, Check, ExternalLink, Lock, Send, Star } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { StickyCheckoutBar } from "./shared/StickyCheckoutBar";
 import { BgAnimation } from "./BgAnimation";
 import { tgTheme } from "@/lib/telegram-themes";
 import type { BaseTemplateProps, TemplateProduct } from "./shared/types";
@@ -133,7 +132,6 @@ export function TelegramVipPage(props: TelegramVipPageProps) {
   const selectedTier =
     tiers.find((t) => t.id === selectedTierId) ?? tiers[0] ?? null;
   const price = selectedTier?.price ?? 0;
-  const stickyPriceLabel = price ? inr(price) : "Join";
 
   // Carry a coupon from /p/<slug>?coupon=CODE into the dedicated checkout page.
   const [couponParam, setCouponParam] = useState("");
@@ -147,10 +145,36 @@ export function TelegramVipPage(props: TelegramVipPageProps) {
       couponParam ? `&coupon=${encodeURIComponent(couponParam)}` : ""
     }`;
 
+  // Mobile: plans live in a bottom sheet opened from the fixed bottom bar.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [mobileChosen, setMobileChosen] = useState(false);
+
   return (
     <div className="relative min-h-screen" style={{ background: theme.bg }}>
       <BgAnimation type={props.bg_animation} />
-      <div className="relative z-10 mx-auto max-w-5xl px-4 py-10 md:py-14">
+      <div className="relative z-10 mx-auto max-w-5xl px-4 pb-28 pt-10 md:pb-14 md:pt-14">
+        {/* Mobile header — creator avatar + name */}
+        <div className="mb-4 flex items-center gap-3 lg:hidden">
+          <div
+            className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 text-white"
+            style={{ backgroundColor: accent, borderColor: `${accent}99` }}
+          >
+            {props.group_avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={props.group_avatar} alt={props.group_name} className="h-full w-full object-cover" />
+            ) : (
+              <Send className="h-5 w-5" />
+            )}
+          </div>
+          <div className="min-w-0">
+            <div className="truncate font-sora font-semibold text-white">{props.group_name}</div>
+            <div className="text-[11px] text-white/60">
+              {props.category ? `${props.category} · ` : ""}
+              {tiers.length} {tiers.length === 1 ? "plan" : "plans"}
+            </div>
+          </div>
+        </div>
+
         {props.offer_ends_at && <OfferCountdown endsAt={props.offer_ends_at} accent={accent} />}
         <div className="grid gap-5 lg:grid-cols-2">
           {/* ============ LEFT — About the offering ============ */}
@@ -194,9 +218,11 @@ export function TelegramVipPage(props: TelegramVipPageProps) {
           </div>
 
           {/* ============ RIGHT — product + plans + checkout ============ */}
+          {/* On mobile this is hidden (the fixed bottom bar + plan sheet take
+              over); the invite-success card still shows on every size. */}
           <div
             id="join"
-            className="scroll-mt-16 rounded-2xl border border-white/10 bg-black/30 p-6 text-zinc-100 shadow-2xl md:p-8"
+            className={`scroll-mt-16 rounded-2xl border border-white/10 bg-black/30 p-6 text-zinc-100 shadow-2xl md:p-8 ${inviteLink ? "" : "hidden lg:block"}`}
           >
             {inviteLink ? (
               <InviteLinkCard
@@ -356,12 +382,72 @@ export function TelegramVipPage(props: TelegramVipPageProps) {
         )}
       </div>
 
-      <StickyCheckoutBar
-        targetId="join"
-        priceLabel={stickyPriceLabel}
-        cta="Join Group"
-        buttonClassName="bg-[#0088cc] text-white"
-      />
+      {/* ===== Mobile: plan bottom-sheet + fixed bottom bar ===== */}
+      {!inviteLink && (
+        <div className="lg:hidden">
+          {sheetOpen && (
+            <div className="fixed inset-0 z-50 flex items-end" onClick={() => setSheetOpen(false)}>
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+              <div
+                className="relative max-h-[82vh] w-full overflow-y-auto rounded-t-2xl border-t border-white/10 p-4 pb-6"
+                style={{ background: theme.card }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/25" />
+                <h3 className="mb-3 text-center font-sora text-lg font-bold text-white">Choose your plan</h3>
+                <div className="space-y-3">
+                  {tiers.map((tier) => {
+                    const orig = tier.original_price ?? 0;
+                    const off = orig > tier.price ? Math.round((1 - tier.price / orig) * 100) : 0;
+                    const sel = tier.id === selectedTierId && mobileChosen;
+                    return (
+                      <button
+                        key={tier.id}
+                        type="button"
+                        onClick={() => { setSelectedTierId(tier.id); setMobileChosen(true); setSheetOpen(false); }}
+                        style={sel ? { borderColor: accent, backgroundColor: `${accent}26` } : undefined}
+                        className={`flex w-full items-center justify-between rounded-xl border-2 px-4 py-3 text-left ${sel ? "" : "border-white/10 bg-white/5"}`}
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold text-white">{tierLabel(tier)}</span>
+                            {tier.is_popular && <span className="rounded bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-zinc-950">⭐ POPULAR</span>}
+                            {off > 0 && <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">{off}% OFF</span>}
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-white/60">{tierDurationLabel(tier)}</div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          {orig > tier.price && <div className="text-xs text-white/40 line-through">{inr(orig)}</div>}
+                          <div className="font-sora text-lg font-bold text-white">{inr(tier.price)}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-black/85 p-3 backdrop-blur">
+            {mobileChosen && selectedTier ? (
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setSheetOpen(true)} className="shrink-0 px-2 text-xs text-white/70 underline">
+                  Change
+                </button>
+                <Button asChild className="flex-1 py-6 text-base font-semibold text-white" style={{ backgroundColor: accent }}>
+                  <Link href={checkoutHref(selectedTier.id)}>
+                    Continue · {inr(price)} <ArrowRight className="ml-1 h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+            ) : (
+              <Button type="button" onClick={() => setSheetOpen(true)} className="w-full py-6 text-base font-semibold text-white" style={{ backgroundColor: accent }}>
+                Select a plan →
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
