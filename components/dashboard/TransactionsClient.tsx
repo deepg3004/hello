@@ -53,6 +53,8 @@ export interface TransactionRow {
   utm_campaign: string | null;
   page_title: string | null;
   page_slug: string | null;
+  coupon_code: string | null;
+  discount_amount: number;
   created_at: string;
 }
 
@@ -592,6 +594,12 @@ function ExpandableRow({
                     mono
                   />
                   <KV k="Seller share" v={rupees(row.seller_amount)} mono />
+                  {row.coupon_code && (
+                    <KV
+                      k="Coupon"
+                      v={`${row.coupon_code}${row.discount_amount > 0 ? ` (−${rupees(row.discount_amount)})` : " (applied)"}`}
+                    />
+                  )}
                 </DetailBlock>
                 <DetailBlock label="Attribution (UTM)">
                   <KV k="Source" v={row.utm_source ?? "—"} />

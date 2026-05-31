@@ -22,7 +22,7 @@ export default async function TransactionsPage() {
     admin
       .from("orders")
       .select(
-        "id, buyer_name, buyer_email, buyer_phone, buyer_address, amount, platform_commission, seller_amount, status, payment_gateway, gateway_payment_id, utm_source, utm_medium, utm_campaign, created_at, pages(title, slug)",
+        "id, buyer_name, buyer_email, buyer_phone, buyer_address, amount, platform_commission, seller_amount, status, payment_gateway, gateway_payment_id, coupon_id, discount_amount, utm_source, utm_medium, utm_campaign, created_at, pages(title, slug)",
       )
       .eq("seller_user_id", user.id)
       .order("created_at", { ascending: false })
@@ -39,7 +39,7 @@ export default async function TransactionsPage() {
       .single(),
   ]);
 
-  const rows: TransactionRow[] = ((rowsRaw ?? []) as unknown as Array<{
+  type RawOrder = {
     id: string;
     buyer_name: string | null;
     buyer_email: string;
@@ -51,12 +51,27 @@ export default async function TransactionsPage() {
     status: string;
     payment_gateway: string | null;
     gateway_payment_id: string | null;
+    coupon_id: string | null;
+    discount_amount: number | null;
     utm_source: string | null;
     utm_medium: string | null;
     utm_campaign: string | null;
     created_at: string;
     pages: { title: string; slug: string } | { title: string; slug: string }[] | null;
-  }>).map((r) => {
+  };
+  const rawOrders = (rowsRaw ?? []) as unknown as RawOrder[];
+
+  // Resolve coupon codes for any orders that used one.
+  const couponIds = Array.from(
+    new Set(rawOrders.map((r) => r.coupon_id).filter(Boolean)),
+  ) as string[];
+  const couponMap = new Map<string, string>();
+  if (couponIds.length) {
+    const { data: cps } = await admin.from("coupons").select("id, code").in("id", couponIds);
+    for (const c of (cps ?? []) as Array<{ id: string; code: string }>) couponMap.set(c.id, c.code);
+  }
+
+  const rows: TransactionRow[] = rawOrders.map((r) => {
     const page = Array.isArray(r.pages) ? r.pages[0] : r.pages;
     return {
       id: r.id,
@@ -75,6 +90,8 @@ export default async function TransactionsPage() {
       utm_campaign: r.utm_campaign,
       page_title: page?.title ?? null,
       page_slug: page?.slug ?? null,
+      coupon_code: r.coupon_id ? couponMap.get(r.coupon_id) ?? null : null,
+      discount_amount: Number(r.discount_amount ?? 0),
       created_at: r.created_at,
     };
   });
