@@ -199,6 +199,8 @@ export async function publishChannelAction(data: {
   groupDbId: string;
   plans: PublishPlanInput[];
   autoRenewal: boolean;
+  /** ISO datetime — drives the public-page countdown / limited-time offer. */
+  offerEndsAt?: string | null;
 }): Promise<ActionResult<{ slug: string; pageUrl: string }>> {
   const user = await authUser();
   if (!user) return { ok: false, message: "Not signed in" };
@@ -233,6 +235,7 @@ export async function publishChannelAction(data: {
     description: group.page_description ?? "",
     category: group.category ?? "General",
     auto_renewal: data.autoRenewal,
+    offer_ends_at: data.offerEndsAt ?? null,
   };
 
   if (pageId) {
@@ -297,6 +300,7 @@ export async function publishChannelAction(data: {
         display_label: p.name,
         price: p.price,
         original_price: p.originalPrice ?? null,
+        is_popular: p.isPopular,
         currency: "INR",
         type: "one_time",
         subscription_days: p.durationDays === 0 ? null : p.durationDays,
@@ -359,6 +363,7 @@ export async function getChannelPlansAction(groupId: string): Promise<
     autoRenewal: boolean;
     published: boolean;
     pageUrl: string | null;
+    offerEndsAt: string | null;
     plans: EditablePlan[];
   }>
 > {
@@ -380,9 +385,12 @@ export async function getChannelPlansAction(groupId: string): Promise<
       .eq("group_id", groupId)
       .order("sort_order", { ascending: true }),
     group.auto_page_id
-      ? admin.from("pages").select("slug, status").eq("id", group.auto_page_id).maybeSingle()
-      : Promise.resolve({ data: null as { slug: string; status: string } | null }),
+      ? admin.from("pages").select("slug, status, page_config").eq("id", group.auto_page_id).maybeSingle()
+      : Promise.resolve({ data: null as { slug: string; status: string; page_config: Record<string, unknown> | null } | null }),
   ]);
+
+  const offerEndsAt =
+    ((pageRow?.page_config as Record<string, unknown> | null)?.offer_ends_at as string | null) ?? null;
 
   const plans: EditablePlan[] = ((plansRaw ?? []) as Array<{
     name: string;
@@ -409,6 +417,7 @@ export async function getChannelPlansAction(groupId: string): Promise<
       autoRenewal: !!group.auto_renewal_enabled,
       published: pageRow?.status === "published",
       pageUrl: pageRow?.slug ? `${APP_URL}/p/${pageRow.slug}` : null,
+      offerEndsAt,
       plans,
     },
   };

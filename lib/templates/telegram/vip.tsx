@@ -80,6 +80,7 @@ const Render: TemplateRender = ({ values, pageId, product, products, isPreview, 
     description={readField(values, "description", "")}
     category={readField(values, "category", "")}
     active_members={readField(values, "active_members", undefined)}
+    offer_ends_at={readField(values, "offer_ends_at", null)}
   />
 );
 

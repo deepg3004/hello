@@ -42,6 +42,7 @@ interface ProductRow {
   image_url: string | null;
   price: number;
   original_price: number | null;
+  is_popular: boolean | null;
   currency: string;
   active: boolean;
   /** Days of access granted after purchase. NULL = no expiry (lifetime). */
@@ -79,7 +80,7 @@ async function loadPage(slug: string) {
   const { data: products } = await admin
     .from("products")
     .select(
-      "id, user_id, name, description, image_url, price, original_price, currency, active, subscription_days, display_label, sort_order",
+      "id, user_id, name, description, image_url, price, original_price, is_popular, currency, active, subscription_days, display_label, sort_order",
     )
     .eq("user_id", page.user_id)
     .eq("page_id", page.id)

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, ExternalLink, Lock, Send, Star, Users } from "lucide-react";
+import { Check, ExternalLink, Lock, Send, Star } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { CheckoutForm } from "@/components/pages/CheckoutForm";
@@ -63,6 +63,7 @@ export interface TelegramVipPageProps extends BaseTemplateProps {
   monthly_join_count?: number;
   description?: string;
   category?: string;
+  offer_ends_at?: string | null;
 }
 
 // ── Component ──────────────────────────────────────────────────────────
@@ -135,6 +136,7 @@ export function TelegramVipPage(props: TelegramVipPageProps) {
       }}
     >
       <div className="mx-auto max-w-5xl px-4 py-10 md:py-14">
+        {props.offer_ends_at && <OfferCountdown endsAt={props.offer_ends_at} />}
         <div className="grid gap-5 lg:grid-cols-2">
           {/* ============ LEFT — About the offering ============ */}
           <div className="rounded-2xl border border-white/10 bg-[#15151f] p-6 text-zinc-100 shadow-2xl md:p-8">
@@ -154,12 +156,6 @@ export function TelegramVipPage(props: TelegramVipPageProps) {
               <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-300">
                 ⚡ {tiers.length} {tiers.length === 1 ? "Plan" : "Plans"}
               </span>
-              {props.active_members != null && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-300">
-                  <Users className="h-3 w-3" />
-                  {props.active_members.toLocaleString("en-IN")} members
-                </span>
-              )}
             </div>
 
             {featureList.length > 0 && (
@@ -228,8 +224,13 @@ export function TelegramVipPage(props: TelegramVipPageProps) {
                         ].join(" ")}
                       >
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="font-semibold text-white">{tierLabel(tier)}</span>
+                            {tier.is_popular && (
+                              <span className="rounded-md bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-zinc-950">
+                                ⭐ MOST POPULAR
+                              </span>
+                            )}
                             {off > 0 && (
                               <span className="rounded-md bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">
                                 {off}% OFF
@@ -243,6 +244,9 @@ export function TelegramVipPage(props: TelegramVipPageProps) {
                             <div className="text-xs text-white/40 line-through">{inr(orig)}</div>
                           )}
                           <div className="font-sora text-lg font-bold text-white">{inr(tier.price)}</div>
+                          {orig > tier.price && (
+                            <div className="text-[10px] font-semibold text-emerald-400">Save {inr(orig - tier.price)}</div>
+                          )}
                         </div>
                       </button>
                     );
@@ -438,4 +442,41 @@ function initials(name: string): string {
     .slice(0, 2)
     .map((s) => s[0]?.toUpperCase() ?? "")
     .join("");
+}
+
+function OfferCountdown({ endsAt }: { endsAt: string }) {
+  // null until mounted so SSR and first client paint match (no hydration warn).
+  const [left, setLeft] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => setLeft(Math.max(0, new Date(endsAt).getTime() - Date.now()));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [endsAt]);
+  if (left == null || left <= 0) return null;
+
+  const s = Math.floor(left / 1000);
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  const box = (v: number, l: string) => (
+    <div className="flex min-w-[44px] flex-col items-center rounded-lg bg-black/30 px-2 py-1">
+      <span className="font-sora text-xl font-bold tabular-nums text-white">{String(v).padStart(2, "0")}</span>
+      <span className="text-[9px] uppercase tracking-wider text-amber-200/80">{l}</span>
+    </div>
+  );
+  return (
+    <div className="mb-5 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-center">
+      <div className="text-[11px] font-bold uppercase tracking-widest text-amber-300">
+        ⏳ Limited-time offer — ends in
+      </div>
+      <div className="mt-2 flex items-center justify-center gap-2">
+        {d > 0 && box(d, "days")}
+        {box(h, "hrs")}
+        {box(m, "min")}
+        {box(sec, "sec")}
+      </div>
+    </div>
+  );
 }

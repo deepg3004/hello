@@ -23,6 +23,7 @@ export default async function EditPlansPage({ params }: { params: { id: string }
       initialPlans={res.data.plans}
       initialAutoRenewal={res.data.autoRenewal}
       initialPublished={res.data.published}
+      initialOfferEndsAt={res.data.offerEndsAt}
       pageUrl={res.data.pageUrl}
     />
   );

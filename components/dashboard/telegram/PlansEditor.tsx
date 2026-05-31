@@ -49,12 +49,21 @@ function toRow(p: EditablePlan): Row {
   };
 }
 
+function isoToLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
 export function PlansEditor({
   groupDbId,
   groupName,
   initialPlans,
   initialAutoRenewal,
   initialPublished,
+  initialOfferEndsAt,
   pageUrl,
 }: {
   groupDbId: string;
@@ -62,6 +71,7 @@ export function PlansEditor({
   initialPlans: EditablePlan[];
   initialAutoRenewal: boolean;
   initialPublished: boolean;
+  initialOfferEndsAt: string | null;
   pageUrl: string | null;
 }) {
   const router = useRouter();
@@ -73,6 +83,7 @@ export function PlansEditor({
   );
   const [autoRenewal, setAutoRenewal] = useState(initialAutoRenewal);
   const [published, setPublished] = useState(initialPublished);
+  const [offerEndsAt, setOfferEndsAt] = useState(isoToLocalInput(initialOfferEndsAt));
   const [saving, setSaving] = useState(false);
   const [toggling, setToggling] = useState(false);
 
@@ -103,7 +114,12 @@ export function PlansEditor({
         isPopular: p.isPopular,
         sortOrder: i,
       }));
-      const res = await publishChannelAction({ groupDbId, plans: payload, autoRenewal });
+      const res = await publishChannelAction({
+        groupDbId,
+        plans: payload,
+        autoRenewal,
+        offerEndsAt: offerEndsAt ? new Date(offerEndsAt).toISOString() : null,
+      });
       if (!res.ok) throw new Error(res.message ?? "Save failed");
       setPublished(true);
       toast({ title: "Plans saved & page published" });
@@ -158,6 +174,19 @@ export function PlansEditor({
           <div className="text-xs text-muted-foreground">Remind members before expiry so they can renew.</div>
         </div>
         <Switch checked={autoRenewal} onCheckedChange={setAutoRenewal} />
+      </div>
+
+      <div className="rounded-md border p-3">
+        <div className="text-sm font-medium">Limited-time offer countdown</div>
+        <div className="mb-2 text-xs text-muted-foreground">
+          Optional. Shows a live countdown banner on the public page until this time. Leave empty for none.
+        </div>
+        <div className="flex items-center gap-2">
+          <Input type="datetime-local" value={offerEndsAt} onChange={(e) => setOfferEndsAt(e.target.value)} className="max-w-xs" />
+          {offerEndsAt && (
+            <Button type="button" variant="ghost" size="sm" onClick={() => setOfferEndsAt("")}>Clear</Button>
+          )}
+        </div>
       </div>
 
       <div className="space-y-3">

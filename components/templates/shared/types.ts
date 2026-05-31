@@ -11,6 +11,8 @@ export interface TemplateProduct {
   price: number;
   /** Optional crossed-out "compare at" price for discount display. */
   original_price?: number | null;
+  /** Highlight this tier with a "Most Popular" badge. */
+  is_popular?: boolean | null;
   currency: string;
   /** Days of access granted. NULL = lifetime. Used by the TelegramVipPage
    *  tier picker to render the "30 days" / "Lifetime" badge. */
