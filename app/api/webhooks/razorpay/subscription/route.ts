@@ -118,6 +118,14 @@ export async function POST(request: Request) {
     }
 
     case "subscription.charged": {
+      // SECURITY / FIXME (audit #16 — subscription refund handler):
+      // There is no `refund.created` handler downstream that negates the
+      // subscription_payment row we insert here. If Razorpay refunds a
+      // subscription charge, the seller's ledger remains overstated. Need
+      // a matching switch case that inserts a negative subscription_payment
+      // transaction keyed on reference_id=payEntity.id. Deferred — pairs
+      // with the wider refund-reversal flow tracked at
+      // actions/transactions.ts refundOrderAction.
       // Mirror the gross charge into the ledger.
       if (payEntity?.amount) {
         await admin.from("transactions").insert({

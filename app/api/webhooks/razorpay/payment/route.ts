@@ -64,6 +64,16 @@ export async function POST(request: Request) {
   switch (event) {
     case "payment.captured": {
       if (!payment?.order_id) break;
+      // SECURITY / FIXME (audit #1 — webhook idempotency race):
+      // Two concurrent payment.captured deliveries for the same order can
+      // both observe status='pending' before either has flipped it to
+      // 'paid', causing duplicate transaction rows and double-credit on
+      // the seller ledger. The `order.status === 'paid'` short-circuit
+      // below is racy on its own. Needs a webhook_events_processed table
+      // keyed by (event_id, payment_id) with a unique constraint, OR a
+      // SELECT ... FOR UPDATE inside an explicit transaction, before the
+      // ledger inserts at lines ~87–106. Requires choosing the locking
+      // strategy and a small migration — left out of this batch.
       // Locate our order via the Razorpay order id we recorded on create.
       const { data: order } = await admin
         .from("orders")

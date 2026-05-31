@@ -20,6 +20,18 @@ const OTP_TTL_MS = 10 * 60 * 1000;
 const COOLDOWN_MS = 60 * 1000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// SECURITY / FIXME (audit #12, #13 — rate limiting):
+// This endpoint, /verify-otp, /api/lead-captures, /api/affiliate/signup,
+// /api/checkout/pre-capture, and the Supabase signInWithPassword call in
+// /login all currently have no per-IP rate limiting. Suggested defaults:
+//   * request-otp:        10 / 15min / (email,ip)
+//   * verify-otp:         10 / 15min / (email,ip)
+//   * lead-captures:      30 /  1min / ip
+//   * login:               5 /  5min / ip
+//   * checkout pre-capture: 5 / 24h  / (page_id, buyer_email)
+// Recommended implementation: Redis (already wired via ioredis) with a
+// sliding-window counter. Deferred — limit choices are policy.
+
 function clientIp(request: Request): string | null {
   const fwd = request.headers.get("x-forwarded-for");
   if (fwd) return fwd.split(",")[0]?.trim() ?? null;

@@ -52,12 +52,11 @@ async function main(): Promise<void> {
   console.log("[workers] all workers booted");
 
   // PM2 sends SIGINT on reload — give workers a chance to finish in-flight
-  // jobs before tearing the process down.
+  // jobs before tearing the process down. PM2's kill_timeout is set to 8s
+  // in ecosystem.config.js, so leave a 6s drain window.
   const shutdown = (signal: string): void => {
     console.log(`[workers] ${signal} received — exiting gracefully`);
-    // BullMQ Worker auto-closes when the Redis connection drops; PM2's
-    // kill_timeout (3 s by default) gives us the runway we need.
-    setTimeout(() => process.exit(0), 1_000);
+    setTimeout(() => process.exit(0), 6_000);
   };
   process.on("SIGINT", () => shutdown("SIGINT"));
   process.on("SIGTERM", () => shutdown("SIGTERM"));

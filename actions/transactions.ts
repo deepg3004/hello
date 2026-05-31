@@ -140,7 +140,22 @@ export interface RefundResult {
   message?: string;
 }
 
-/** Admin-only stub. Real refund flow lands in a later prompt. */
+/**
+ * Admin-only stub. Real refund flow lands in a later prompt.
+ *
+ * SECURITY / FIXME (audit #2 — refund ledger reversal):
+ * This currently only flips orders.status='refunded'. It must also:
+ *   1. Call Razorpay payments.refund() to actually return money
+ *   2. Insert a negated `transactions` row (sale + commission) so the
+ *      seller balance and platform earnings reflect the reversal
+ *   3. If the order originated from an affiliate referral, mark the
+ *      corresponding affiliate_payouts row as 'reversed' so we don't
+ *      pay commission on a refunded sale
+ *   4. If a subscription charge: also handle the subscription's own
+ *      refund event from the Razorpay webhook
+ * Left out of this batch because the reversal semantics need a product
+ * decision (partial refunds? refund window? affiliate clawback policy?).
+ */
 export async function refundOrderAction(orderId: string): Promise<RefundResult> {
   const supabase = createClient();
   const {
