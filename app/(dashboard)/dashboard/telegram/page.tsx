@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { format } from "date-fns";
-import { Plus, Send } from "lucide-react";
+import { ChevronRight, Plus, Send } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -83,6 +83,7 @@ export default async function TelegramListPage() {
                   <TableHead>Duration</TableHead>
                   <TableHead className="text-right">Active</TableHead>
                   <TableHead>Webhook</TableHead>
+                  <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -91,7 +92,12 @@ export default async function TelegramListPage() {
                   return (
                     <TableRow key={g.id}>
                       <TableCell>
-                        <div className="font-medium">{g.group_name ?? g.group_id}</div>
+                        <Link
+                          href={`/dashboard/telegram/${g.id}`}
+                          className="font-medium hover:underline"
+                        >
+                          {g.group_name ?? g.group_id}
+                        </Link>
                         <div className="text-xs text-muted-foreground font-mono">{g.group_id}</div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
@@ -123,6 +129,15 @@ export default async function TelegramListPage() {
                         ) : (
                           <Badge variant="outline" className="bg-amber-100 text-amber-800">Not set</Badge>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <Link
+                          href={`/dashboard/telegram/${g.id}`}
+                          className="inline-flex text-muted-foreground hover:text-foreground"
+                          aria-label="Manage group"
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Link>
                       </TableCell>
                     </TableRow>
                   );
