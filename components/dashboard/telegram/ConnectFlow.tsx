@@ -97,6 +97,8 @@ export function ConnectFlow({ commissionPercent }: { commissionPercent: number }
   const [otpSent, setOtpSent] = useState(false);
   const [phoneCodeHash, setPhoneCodeHash] = useState("");
   const [sessionKey, setSessionKey] = useState("");
+  const [passwordNeeded, setPasswordNeeded] = useState(false);
+  const [twoFaPassword, setTwoFaPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
   // step 2
@@ -179,11 +181,36 @@ export function ConnectFlow({ commissionPercent }: { commissionPercent: number }
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Verification failed");
+      if (json.passwordNeeded) {
+        setPasswordNeeded(true);
+        toast({ title: "Two-step verification", description: "Enter your Telegram cloud password." });
+        return;
+      }
       setConnected(true);
       setTgUser({ username: json.telegramUser?.username ?? undefined, name: json.telegramUser?.name ?? "" });
       toast({ title: "Telegram connected" });
     } catch (e) {
       toast({ title: "Couldn't verify", description: String(e instanceof Error ? e.message : e), variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verifyTwoFa() {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/telegram/user/verify-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: twoFaPassword, sessionKey, phone }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Wrong password");
+      setConnected(true);
+      setTgUser({ username: json.telegramUser?.username ?? undefined, name: json.telegramUser?.name ?? "" });
+      toast({ title: "Telegram connected" });
+    } catch (e) {
+      toast({ title: "Couldn't verify password", description: String(e instanceof Error ? e.message : e), variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -398,6 +425,22 @@ export function ConnectFlow({ commissionPercent }: { commissionPercent: number }
                   <Button className="w-full" disabled={busy || phone.replace(/\D/g, "").length < 10} onClick={sendOtp}>
                     {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} Send OTP
                   </Button>
+                </div>
+              ) : passwordNeeded ? (
+                <div className="space-y-3">
+                  <Label>Two-step verification password</Label>
+                  <Input
+                    type="password"
+                    placeholder="Your Telegram cloud password"
+                    value={twoFaPassword}
+                    onChange={(e) => setTwoFaPassword(e.target.value)}
+                  />
+                  <Button className="w-full" disabled={busy || !twoFaPassword} onClick={verifyTwoFa}>
+                    {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Verify password
+                  </Button>
+                  <p className="text-center text-xs text-muted-foreground">
+                    This is your Telegram 2FA password (cloud password), not the OTP code.
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-3">

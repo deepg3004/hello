@@ -12,10 +12,11 @@
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions";
 import { Api } from "telegram";
+import { computeCheck } from "telegram/Password";
 import { LogLevel } from "telegram/extensions/Logger";
 import bigInt from "big-integer";
 
-import { decryptValue } from "@/lib/admin/vault";
+import { decryptValue, encryptValue } from "@/lib/admin/vault";
 import { getRedis } from "@/lib/redis";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -103,7 +104,7 @@ export async function sendCode(phone: string): Promise<SendCodeResult> {
   }
 }
 
-export interface VerifyOtpResult {
+export interface TgAuthUser {
   sessionString: string;
   userId: bigint;
   username: string | undefined;
@@ -111,10 +112,24 @@ export interface VerifyOtpResult {
   lastName: string | undefined;
 }
 
+export type VerifyOtpResult =
+  | { status: "ok"; user: TgAuthUser }
+  | { status: "password_needed" };
+
+function authUserFrom(client: TelegramClient, user: Api.User): TgAuthUser {
+  return {
+    sessionString: (client.session as StringSession).save(),
+    userId: BigInt(user.id.toString()),
+    username: user.username ?? undefined,
+    firstName: user.firstName ?? "",
+    lastName: user.lastName ?? undefined,
+  };
+}
+
 /**
- * Step 2: verify the OTP and return the now-authenticated session string
- * (caller must encrypt before storing). Surfaces clear errors for the two
- * common edge cases: 2FA-enabled accounts and sign-up-required numbers.
+ * Step 2: verify the OTP. Returns the authenticated session on success, or
+ * `{status: "password_needed"}` when the account has 2FA — in which case the
+ * pending session is kept in Redis so verifyPassword() can finish the login.
  */
 export async function verifyOtp(
   phone: string,
@@ -131,20 +146,16 @@ export async function verifyOtp(
     let result: Api.auth.TypeAuthorization;
     try {
       result = await client.invoke(
-        new Api.auth.SignIn({
-          phoneNumber: phone,
-          phoneCodeHash,
-          phoneCode: otp,
-        }),
+        new Api.auth.SignIn({ phoneNumber: phone, phoneCodeHash, phoneCode: otp }),
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("SESSION_PASSWORD_NEEDED")) {
-        throw new Error(
-          "This Telegram account has two-step verification (2FA) enabled, " +
-            "which isn't supported yet. Disable it temporarily or use an " +
-            "account without 2FA.",
-        );
+        // Persist the in-progress session so the password step can resume it.
+        if (redis) {
+          await redis.set(sessionKey, (client.session as StringSession).save(), "EX", 600);
+        }
+        return { status: "password_needed" };
       }
       throw e;
     }
@@ -152,19 +163,72 @@ export async function verifyOtp(
     if (result instanceof Api.auth.AuthorizationSignUpRequired) {
       throw new Error("This phone number is not registered on Telegram.");
     }
-    const user = result.user as Api.User;
-    const sessionString = (client.session as StringSession).save();
+    const user = authUserFrom(client, result.user as Api.User);
     if (redis) await redis.del(sessionKey);
-    return {
-      sessionString,
-      userId: BigInt(user.id.toString()),
-      username: user.username ?? undefined,
-      firstName: user.firstName ?? "",
-      lastName: user.lastName ?? undefined,
-    };
+    return { status: "ok", user };
   } finally {
     await client.disconnect();
   }
+}
+
+/**
+ * Step 2b (2FA accounts only): complete login with the cloud password using
+ * Telegram's SRP check. `sessionKey` is the same one from sendCode/verifyOtp.
+ */
+export async function verifyPassword(
+  password: string,
+  sessionKey: string,
+): Promise<TgAuthUser> {
+  assertConfigured();
+  const redis = getRedis();
+  const pending = redis ? (await redis.get(sessionKey)) ?? "" : "";
+  if (!pending) {
+    throw new Error("Login session expired. Please restart and request a new code.");
+  }
+  const client = makeClient(pending);
+  await client.connect();
+  try {
+    const pwd = await client.invoke(new Api.account.GetPassword());
+    const check = await computeCheck(pwd, password);
+    const result = await client.invoke(new Api.auth.CheckPassword({ password: check }));
+    if (result instanceof Api.auth.AuthorizationSignUpRequired) {
+      throw new Error("This phone number is not registered on Telegram.");
+    }
+    const user = authUserFrom(client, result.user as Api.User);
+    if (redis) await redis.del(sessionKey);
+    return user;
+  } finally {
+    await client.disconnect();
+  }
+}
+
+/**
+ * Encrypt + upsert a completed login into telegram_user_sessions. Used by both
+ * the OTP path and the 2FA-password path so persistence stays identical.
+ */
+export async function persistTelegramSession(
+  invoxUserId: string,
+  phone: string,
+  u: TgAuthUser,
+): Promise<{ id: string; username: string | null; name: string }> {
+  const admin = createAdminClient();
+  const name = [u.firstName, u.lastName].filter(Boolean).join(" ");
+  const nowIso = new Date().toISOString();
+  const { error } = await admin.from("telegram_user_sessions").upsert(
+    {
+      user_id: invoxUserId,
+      telegram_user_id: u.userId.toString(),
+      telegram_phone: phone,
+      telegram_username: u.username ?? null,
+      telegram_name: name || null,
+      session_string: encryptValue(u.sessionString),
+      connected_at: nowIso,
+      last_used_at: nowIso,
+    },
+    { onConflict: "user_id" },
+  );
+  if (error) throw new Error(error.message);
+  return { id: u.userId.toString(), username: u.username ?? null, name };
 }
 
 // ── Channels / dialogs ──────────────────────────────────────────────────────
