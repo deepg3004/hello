@@ -154,6 +154,8 @@ export function CheckoutForm(props: CheckoutFormProps) {
   const [applyingCoupon, setApplyingCoupon] = useState(false);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [coupon, setCoupon] = useState<AppliedCoupon | null>(null);
+  // Brief celebratory popup when a coupon is applied (holds the saved amount).
+  const [celebrateSaved, setCelebrateSaved] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   // True while Razorpay's modal is open in front — we dim the form behind it
   // and block clicks so the user can't double-submit.
@@ -334,6 +336,9 @@ export function CheckoutForm(props: CheckoutFormProps) {
         coupon_id: body.coupon_id,
         discount_amount: body.discount_amount,
       });
+      // Celebrate — animated popup that auto-dismisses.
+      setCelebrateSaved(body.discount_amount);
+      setTimeout(() => setCelebrateSaved(null), 2800);
     } finally {
       setApplyingCoupon(false);
     }
@@ -517,6 +522,38 @@ export function CheckoutForm(props: CheckoutFormProps) {
         modalOpen && "pointer-events-none select-none opacity-50",
       )}
     >
+      {/* Coupon-applied celebration — confetti + saved amount, auto-dismisses */}
+      {celebrateSaved != null && (
+        <div className="pointer-events-none fixed inset-0 z-[60] flex items-center justify-center">
+          <style>{`@keyframes cpPop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}@keyframes cpFall{0%{transform:translateY(-20px) rotate(0);opacity:1}100%{transform:translateY(140px) rotate(380deg);opacity:0}}`}</style>
+          {Array.from({ length: 16 }).map((_, i) => (
+            <span
+              key={i}
+              style={{
+                position: "absolute",
+                left: `${(i * 37) % 100}%`,
+                top: "40%",
+                width: 8,
+                height: 12,
+                borderRadius: 2,
+                background: ["#f43f5e", "#f59e0b", "#10b981", "#3b82f6", "#a855f7"][i % 5],
+                animation: `cpFall ${0.9 + (i % 5) * 0.15}s ${(i % 5) * 0.05}s ease-in forwards`,
+              }}
+            />
+          ))}
+          <div
+            className="rounded-2xl bg-white px-6 py-5 text-center"
+            style={{ animation: "cpPop .35s ease-out both", boxShadow: `0 10px 44px ${primaryColor}55` }}
+          >
+            <div className="text-4xl">🎉</div>
+            <div className="mt-1 font-sora text-lg font-bold text-zinc-900">Coupon applied!</div>
+            <div className="mt-0.5 text-sm font-semibold" style={{ color: primaryColor }}>
+              You saved ₹{celebrateSaved.toLocaleString("en-IN")}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mini order summary (only when price > 0) */}
       {hasPrice && (
         <div className="flex items-start gap-3 border-b border-zinc-200 pb-4">
