@@ -27,6 +27,7 @@ export default async function EditPlansPage({ params }: { params: { id: string }
       initialTheme={res.data.theme}
       initialBgAnimation={res.data.bgAnimation}
       initialLogoUrl={res.data.logoUrl}
+      initialQuestions={res.data.checkoutQuestions}
       pageUrl={res.data.pageUrl}
     />
   );

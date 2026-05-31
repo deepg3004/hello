@@ -53,6 +53,9 @@ export default async function CheckoutPage({
   const groupName = String(cfg.group_name ?? page.title);
   // Match the public page's theme (background + accent).
   const theme = tgTheme(cfg.theme as string | undefined);
+  const questions = (Array.isArray(cfg.checkout_questions)
+    ? cfg.checkout_questions
+    : []) as Array<{ label: string; required: boolean }>;
 
   // Plan no longer available (e.g. a stale link after the seller edited plans).
   if (!product || !product.active || product.page_id !== page.id) {
@@ -145,6 +148,7 @@ export default async function CheckoutPage({
               price={price}
               currency={product.currency}
               primaryColor={theme.accent}
+              questions={questions}
             />
           </div>
         </div>

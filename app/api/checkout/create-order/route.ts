@@ -74,7 +74,18 @@ export async function POST(request: Request) {
     buyer_gstin: buyer_gstin_raw,
     buyer_state_code: buyer_state_code_raw,
     buyer_address: buyer_address_raw,
+    custom_fields: custom_fields_raw,
   } = body;
+
+  // Sanitise seller custom-question answers: up to 10 trimmed string entries.
+  let custom_fields_clean: Record<string, string> | null = null;
+  if (custom_fields_raw && typeof custom_fields_raw === "object") {
+    const entries = Object.entries(custom_fields_raw as Record<string, unknown>)
+      .filter(([, v]) => typeof v === "string" && (v as string).trim())
+      .slice(0, 10)
+      .map(([k, v]) => [String(k).slice(0, 120), String(v).slice(0, 500)] as const);
+    if (entries.length) custom_fields_clean = Object.fromEntries(entries);
+  }
 
   // Normalise + validate the optional GSTIN before we hit Razorpay.
   let buyer_gstin: string | null = null;
@@ -336,6 +347,7 @@ export async function POST(request: Request) {
     buyer_gstin,
     buyer_state_code,
     buyer_address: buyer_address_clean,
+    custom_fields: custom_fields_clean,
   });
   if (insertErr) {
     console.error("orders insert failed", insertErr);

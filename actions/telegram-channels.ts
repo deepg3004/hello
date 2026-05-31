@@ -219,6 +219,7 @@ export async function publishChannelAction(data: {
   theme?: string;
   bgAnimation?: string;
   logoUrl?: string | null;
+  checkoutQuestions?: Array<{ label: string; required: boolean }>;
 }): Promise<ActionResult<{ slug: string; pageUrl: string }>> {
   const user = await authUser();
   if (!user) return { ok: false, message: "Not signed in" };
@@ -257,6 +258,10 @@ export async function publishChannelAction(data: {
     offer_ends_at: data.offerEndsAt ?? null,
     theme: data.theme ?? "purple",
     bg_animation: data.bgAnimation ?? "none",
+    checkout_questions: (data.checkoutQuestions ?? [])
+      .filter((q) => q.label.trim())
+      .slice(0, 5)
+      .map((q) => ({ label: q.label.trim().slice(0, 120), required: !!q.required })),
   };
 
   if (pageId) {
@@ -397,6 +402,7 @@ export async function getChannelPlansAction(groupId: string): Promise<
     theme: string;
     bgAnimation: string;
     logoUrl: string | null;
+    checkoutQuestions: Array<{ label: string; required: boolean }>;
     plans: EditablePlan[];
   }>
 > {
@@ -426,6 +432,9 @@ export async function getChannelPlansAction(groupId: string): Promise<
   const offerEndsAt = (cfg?.offer_ends_at as string | null) ?? null;
   const theme = (cfg?.theme as string) ?? "purple";
   const bgAnimation = (cfg?.bg_animation as string) ?? "none";
+  const checkoutQuestions = (Array.isArray(cfg?.checkout_questions)
+    ? cfg.checkout_questions
+    : []) as Array<{ label: string; required: boolean }>;
 
   const plans: EditablePlan[] = ((plansRaw ?? []) as Array<{
     name: string;
@@ -456,6 +465,7 @@ export async function getChannelPlansAction(groupId: string): Promise<
       theme,
       bgAnimation,
       logoUrl: group.logo_url ?? null,
+      checkoutQuestions,
       plans,
     },
   };

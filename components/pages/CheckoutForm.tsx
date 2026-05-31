@@ -125,6 +125,8 @@ export interface CheckoutFormProps {
    * #4F46E5 indigo for digital, etc.). Defaults to indigo when not set.
    */
   primaryColor?: string;
+  /** Seller-defined extra checkout questions. */
+  questions?: Array<{ label: string; required: boolean }>;
 }
 
 interface AppliedCoupon {
@@ -156,6 +158,10 @@ export function CheckoutForm(props: CheckoutFormProps) {
   const [coupon, setCoupon] = useState<AppliedCoupon | null>(null);
   // Brief celebratory popup when a coupon is applied (holds the saved amount).
   const [celebrateSaved, setCelebrateSaved] = useState<number | null>(null);
+  // Answers to seller-defined custom questions (keyed by question label).
+  const customQuestions = props.questions ?? [];
+  const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({});
+  const [questionError, setQuestionError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   // True while Razorpay's modal is open in front — we dim the form behind it
   // and block clicks so the user can't double-submit.

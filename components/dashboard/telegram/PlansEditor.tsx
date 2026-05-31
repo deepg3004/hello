@@ -68,6 +68,7 @@ export function PlansEditor({
   initialTheme,
   initialBgAnimation,
   initialLogoUrl,
+  initialQuestions,
   pageUrl,
 }: {
   groupDbId: string;
@@ -79,6 +80,7 @@ export function PlansEditor({
   initialTheme: string;
   initialBgAnimation: string;
   initialLogoUrl: string | null;
+  initialQuestions: Array<{ label: string; required: boolean }>;
   pageUrl: string | null;
 }) {
   const router = useRouter();
@@ -95,6 +97,9 @@ export function PlansEditor({
   const [bgAnimation, setBgAnimation] = useState(initialBgAnimation || "none");
   const [logoUrl, setLogoUrl] = useState(initialLogoUrl || "");
   const [uploading, setUploading] = useState(false);
+  const [questions, setQuestions] = useState<Array<{ label: string; required: boolean }>>(
+    initialQuestions ?? [],
+  );
   const [saving, setSaving] = useState(false);
 
   async function uploadLogo(file: File | undefined) {
@@ -151,6 +156,7 @@ export function PlansEditor({
         theme,
         bgAnimation,
         logoUrl: logoUrl || null,
+        checkoutQuestions: questions.filter((q) => q.label.trim()),
       });
       if (!res.ok) throw new Error(res.message ?? "Save failed");
       setPublished(true);
@@ -262,6 +268,54 @@ export function PlansEditor({
               <option key={a.key} value={a.key}>{a.label}</option>
             ))}
           </select>
+        </div>
+      </div>
+
+      <div className="rounded-md border p-3">
+        <div className="mb-1 text-sm font-medium">Checkout questions</div>
+        <div className="mb-2 text-xs text-muted-foreground">
+          Extra fields buyers answer at checkout (e.g. Telegram username, trading experience). Max 5.
+        </div>
+        <div className="space-y-2">
+          {questions.map((q, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Input
+                value={q.label}
+                placeholder="Question (e.g. Your Telegram @username)"
+                onChange={(e) =>
+                  setQuestions((prev) => prev.map((x, idx) => (idx === i ? { ...x, label: e.target.value } : x)))
+                }
+              />
+              <label className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={q.required}
+                  onChange={(e) =>
+                    setQuestions((prev) => prev.map((x, idx) => (idx === i ? { ...x, required: e.target.checked } : x)))
+                  }
+                />
+                Required
+              </label>
+              <button
+                type="button"
+                onClick={() => setQuestions((prev) => prev.filter((_, idx) => idx !== i))}
+                className="shrink-0 text-muted-foreground hover:text-destructive"
+                aria-label="Remove question"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+          {questions.length < 5 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setQuestions((prev) => [...prev, { label: "", required: false }])}
+            >
+              <Plus className="mr-1 h-4 w-4" /> Add question
+            </Button>
+          )}
         </div>
       </div>
 
