@@ -12,6 +12,8 @@
 //   0 * * * * curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" \
 //             https://app.invoxai.io/api/cron/telegram-expiries
 
+import crypto from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -50,7 +52,11 @@ interface GroupRow {
 function authed(req: Request): boolean {
   const expected = process.env.CRON_SECRET;
   if (!expected) return false;
-  return req.headers.get("x-cron-secret") === expected;
+  const provided = req.headers.get("x-cron-secret") ?? "";
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 }
 
 async function run() {

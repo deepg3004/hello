@@ -143,14 +143,23 @@ export async function saveTelegramSetupAction(
     return { ok: false, message: error?.message ?? "Insert failed" };
   }
 
-  // Subscribe to chat_member updates for this page.
+  // Subscribe to chat_member updates for this page. We mint a per-group
+  // secret token here so the webhook handler can verify deliveries — without
+  // it, anyone who guesses the group_id URL can POST fake join/leave
+  // events (Telegram itself does not sign webhook bodies).
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io";
   const webhookUrl = `${base}/api/webhooks/telegram/${inserted.id}`;
+  // Telegram requires secret_token to match /^[A-Za-z0-9_-]{1,256}$/.
+  const { randomBytes } = await import("node:crypto");
+  const secretToken = randomBytes(32).toString("base64url");
   try {
-    await setWebhook(input.bot_token, webhookUrl);
+    await setWebhook(input.bot_token, webhookUrl, secretToken);
     await admin
       .from("telegram_vip_groups")
-      .update({ webhook_set_at: new Date().toISOString() })
+      .update({
+        webhook_set_at: new Date().toISOString(),
+        webhook_secret_token: secretToken,
+      })
       .eq("id", inserted.id);
   } catch (e) {
     // Non-fatal — surface in result so the wizard can show a warning.

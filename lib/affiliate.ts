@@ -63,31 +63,56 @@ export function generatePortalOtp(length = 6): string {
   return String(buf).padStart(length, "0");
 }
 
+const DEV_OTP_SALT_FALLBACK = "invoxai_aff_otp_v1";
+const DEV_PORTAL_SECRET_FALLBACK = "invoxai_aff_portal_dev";
+
+function affiliateOtpSalt(): string {
+  const salt = process.env.AFFILIATE_OTP_SALT;
+  if (salt && salt.length >= 16) return salt;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "AFFILIATE_OTP_SALT must be set (>=16 chars) in production.",
+    );
+  }
+  return DEV_OTP_SALT_FALLBACK;
+}
+
+function affiliatePortalSecret(): string {
+  const secret = process.env.AFFILIATE_PORTAL_SECRET;
+  if (secret && secret.length >= 16) return secret;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "AFFILIATE_PORTAL_SECRET must be set (>=16 chars) in production.",
+    );
+  }
+  return DEV_PORTAL_SECRET_FALLBACK;
+}
+
 export function hashPortalOtp(otp: string): string {
-  const salt = process.env.AFFILIATE_OTP_SALT ?? "invoxai_aff_otp_v1";
   return crypto
-    .createHmac("sha256", salt)
+    .createHmac("sha256", affiliateOtpSalt())
     .update(otp.trim())
     .digest("hex");
 }
 
 /** Sign an email into the portal session cookie value. */
 export function signPortalSession(email: string): string {
-  const secret = process.env.AFFILIATE_PORTAL_SECRET ?? "";
-  if (!secret) {
-    // In dev / when the operator hasn't rotated a secret yet, sign with a
-    // hard-coded fallback. Still HMAC'd so an external visitor can't forge.
-    return signWith(email, "invoxai_aff_portal_dev");
-  }
-  return signWith(email, secret);
+  return signWith(email, affiliatePortalSecret());
 }
 
 export function verifyPortalSession(value: string): string | null {
-  const secret = process.env.AFFILIATE_PORTAL_SECRET ?? "";
-  const sig = secret
-    ? signWith(decode(value), secret)
-    : signWith(decode(value), "invoxai_aff_portal_dev");
-  if (sig === value) return decode(value);
+  const decoded = decode(value);
+  const expected = signWith(decoded, affiliatePortalSecret());
+  if (expected.length !== value.length) return null;
+  try {
+    if (
+      crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(value))
+    ) {
+      return decoded;
+    }
+  } catch {
+    return null;
+  }
   return null;
 }
 

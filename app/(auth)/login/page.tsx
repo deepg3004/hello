@@ -10,6 +10,7 @@ import { Loader2 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { safeNext } from "@/lib/safe-redirect";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -94,7 +95,7 @@ function LoginInner() {
       return;
     }
 
-    const next = params.get("next") ?? "/dashboard";
+    const next = safeNext(params.get("next"));
     router.push(next);
     router.refresh();
   }
@@ -105,9 +106,9 @@ function LoginInner() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${
-          params.get("next") ?? "/dashboard"
-        }`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(
+          safeNext(params.get("next")),
+        )}`,
       },
     });
     if (error) {

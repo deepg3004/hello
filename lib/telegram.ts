@@ -174,16 +174,24 @@ export async function kickMember(
 /**
  * Tell Telegram to deliver chat_member updates to our endpoint. We only
  * subscribe to the events we care about so traffic stays small.
+ *
+ * `secretToken` (optional but required in production callers) is echoed
+ * back by Telegram in the `X-Telegram-Bot-Api-Secret-Token` header on
+ * every webhook delivery. The webhook handler verifies it so an attacker
+ * who knows our group_id can't forge join/leave events.
  */
 export async function setWebhook(
   botToken: string,
   url: string,
+  secretToken?: string,
 ): Promise<void> {
-  await call(botToken, "setWebhook", {
+  const payload: Record<string, unknown> = {
     url,
     allowed_updates: ["chat_member", "my_chat_member"],
     drop_pending_updates: false,
-  });
+  };
+  if (secretToken) payload.secret_token = secretToken;
+  await call(botToken, "setWebhook", payload);
 }
 
 export async function deleteWebhook(botToken: string): Promise<void> {
