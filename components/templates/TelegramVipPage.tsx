@@ -6,6 +6,8 @@ import { ArrowRight, Check, ExternalLink, Lock, Send, Star } from "lucide-react"
 
 import { Button } from "@/components/ui/button";
 import { StickyCheckoutBar } from "./shared/StickyCheckoutBar";
+import { BgAnimation } from "./BgAnimation";
+import { tgTheme } from "@/lib/telegram-themes";
 import type { BaseTemplateProps, TemplateProduct } from "./shared/types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -64,6 +66,10 @@ export interface TelegramVipPageProps extends BaseTemplateProps {
   description?: string;
   category?: string;
   offer_ends_at?: string | null;
+  /** Theme key (see lib/telegram-themes). Defaults to "purple". */
+  theme_key?: string;
+  /** Background animation: none | snow | gift | party | space | planet. */
+  bg_animation?: string;
 }
 
 // ── Component ──────────────────────────────────────────────────────────
@@ -75,6 +81,8 @@ export function TelegramVipPage(props: TelegramVipPageProps) {
     .map((s) => s.trim())
     .filter(Boolean);
   const testimonials = props.testimonials_items ?? [];
+  const theme = tgTheme(props.theme_key);
+  const accent = theme.accent;
 
   // Feature list for the "About the offering" panel: prefer structured
   // benefits, then the free-text description (one feature per line), then the
@@ -140,18 +148,13 @@ export function TelegramVipPage(props: TelegramVipPageProps) {
     }`;
 
   return (
-    <div
-      className="min-h-screen"
-      style={{
-        background:
-          "radial-gradient(1200px 600px at 50% -10%, #4c1d95 0%, #2e1065 45%, #1a0733 100%)",
-      }}
-    >
-      <div className="mx-auto max-w-5xl px-4 py-10 md:py-14">
+    <div className="relative min-h-screen" style={{ background: theme.bg }}>
+      <BgAnimation type={props.bg_animation} />
+      <div className="relative z-10 mx-auto max-w-5xl px-4 py-10 md:py-14">
         {props.offer_ends_at && <OfferCountdown endsAt={props.offer_ends_at} />}
         <div className="grid gap-5 lg:grid-cols-2">
           {/* ============ LEFT — About the offering ============ */}
-          <div className="rounded-2xl border border-white/10 bg-[#15151f] p-6 text-zinc-100 shadow-2xl md:p-8">
+          <div className="rounded-2xl border border-white/10 bg-black/30 p-6 text-zinc-100 shadow-2xl md:p-8">
             <h2 className="text-[11px] font-bold uppercase tracking-widest text-zinc-400">
               About the offering
             </h2>
@@ -193,7 +196,7 @@ export function TelegramVipPage(props: TelegramVipPageProps) {
           {/* ============ RIGHT — product + plans + checkout ============ */}
           <div
             id="join"
-            className="scroll-mt-16 rounded-2xl border border-white/10 bg-[#15151f] p-6 text-zinc-100 shadow-2xl md:p-8"
+            className="scroll-mt-16 rounded-2xl border border-white/10 bg-black/30 p-6 text-zinc-100 shadow-2xl md:p-8"
           >
             {inviteLink ? (
               <InviteLinkCard
@@ -204,7 +207,10 @@ export function TelegramVipPage(props: TelegramVipPageProps) {
             ) : (
               <>
                 <div className="flex flex-col items-center text-center">
-                  <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 border-[#0088cc]/60 bg-[#0088cc] text-white shadow-lg">
+                  <div
+                    className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 text-white shadow-lg"
+                    style={{ backgroundColor: accent, borderColor: `${accent}99` }}
+                  >
                     {props.group_avatar ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={props.group_avatar} alt={props.group_name} className="h-full w-full object-cover" />
@@ -228,11 +234,14 @@ export function TelegramVipPage(props: TelegramVipPageProps) {
                         key={tier.id}
                         type="button"
                         onClick={() => setSelectedTierId(tier.id)}
+                        style={
+                          isSel
+                            ? { borderColor: accent, backgroundColor: `${accent}26`, boxShadow: `0 0 0 3px ${accent}33` }
+                            : undefined
+                        }
                         className={[
                           "flex w-full items-center justify-between rounded-xl border-2 px-4 py-3 text-left transition",
-                          isSel
-                            ? "border-[#0088cc] bg-[#0088cc]/15 ring-2 ring-[#0088cc]/30"
-                            : "border-white/10 bg-white/5 hover:border-white/30",
+                          isSel ? "" : "border-white/10 bg-white/5 hover:border-white/30",
                         ].join(" ")}
                       >
                         <div className="min-w-0">
@@ -274,7 +283,8 @@ export function TelegramVipPage(props: TelegramVipPageProps) {
                   ) : selectedTier && props.slug ? (
                     <Button
                       asChild
-                      className="w-full bg-[#0088cc] py-6 text-base font-semibold text-white hover:bg-[#0099e0]"
+                      style={{ backgroundColor: accent }}
+                      className="w-full py-6 text-base font-semibold text-white hover:opacity-90"
                     >
                       <Link href={checkoutHref(selectedTier.id)}>
                         Continue to checkout · {inr(price)}

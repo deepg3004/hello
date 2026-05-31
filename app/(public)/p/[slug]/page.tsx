@@ -18,6 +18,11 @@ import {
   type SocialProofConfig,
 } from "@/lib/social-proof";
 
+// Always render fresh — sellers expect plan/theme/page edits to show
+// immediately. Without this, Next's Data Cache serves stale page_config.
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+
 interface PageRow {
   id: string;
   user_id: string;

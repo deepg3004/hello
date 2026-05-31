@@ -16,6 +16,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { TG_THEMES, TG_ANIMATIONS } from "@/lib/telegram-themes";
 
 const DURATIONS: Array<{ label: string; days: number }> = [
   { label: "1 Day", days: 1 },
@@ -64,6 +65,8 @@ export function PlansEditor({
   initialAutoRenewal,
   initialPublished,
   initialOfferEndsAt,
+  initialTheme,
+  initialBgAnimation,
   pageUrl,
 }: {
   groupDbId: string;
@@ -72,6 +75,8 @@ export function PlansEditor({
   initialAutoRenewal: boolean;
   initialPublished: boolean;
   initialOfferEndsAt: string | null;
+  initialTheme: string;
+  initialBgAnimation: string;
   pageUrl: string | null;
 }) {
   const router = useRouter();
@@ -84,6 +89,8 @@ export function PlansEditor({
   const [autoRenewal, setAutoRenewal] = useState(initialAutoRenewal);
   const [published, setPublished] = useState(initialPublished);
   const [offerEndsAt, setOfferEndsAt] = useState(isoToLocalInput(initialOfferEndsAt));
+  const [theme, setTheme] = useState(initialTheme || "purple");
+  const [bgAnimation, setBgAnimation] = useState(initialBgAnimation || "none");
   const [saving, setSaving] = useState(false);
   const [toggling, setToggling] = useState(false);
 
@@ -119,6 +126,8 @@ export function PlansEditor({
         plans: payload,
         autoRenewal,
         offerEndsAt: offerEndsAt ? new Date(offerEndsAt).toISOString() : null,
+        theme,
+        bgAnimation,
       });
       if (!res.ok) throw new Error(res.message ?? "Save failed");
       setPublished(true);
@@ -186,6 +195,25 @@ export function PlansEditor({
           {offerEndsAt && (
             <Button type="button" variant="ghost" size="sm" onClick={() => setOfferEndsAt("")}>Clear</Button>
           )}
+        </div>
+      </div>
+
+      <div className="grid gap-3 rounded-md border p-3 sm:grid-cols-2">
+        <div>
+          <div className="mb-1 text-sm font-medium">Page theme</div>
+          <select value={theme} onChange={(e) => setTheme(e.target.value)} className="h-10 w-full rounded-md border bg-background px-2 text-sm">
+            {Object.entries(TG_THEMES).map(([k, t]) => (
+              <option key={k} value={k}>{t.label}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <div className="mb-1 text-sm font-medium">Background animation</div>
+          <select value={bgAnimation} onChange={(e) => setBgAnimation(e.target.value)} className="h-10 w-full rounded-md border bg-background px-2 text-sm">
+            {TG_ANIMATIONS.map((a) => (
+              <option key={a.key} value={a.key}>{a.label}</option>
+            ))}
+          </select>
         </div>
       </div>
 

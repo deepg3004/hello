@@ -216,6 +216,8 @@ export async function publishChannelAction(data: {
   autoRenewal: boolean;
   /** ISO datetime — drives the public-page countdown / limited-time offer. */
   offerEndsAt?: string | null;
+  theme?: string;
+  bgAnimation?: string;
 }): Promise<ActionResult<{ slug: string; pageUrl: string }>> {
   const user = await authUser();
   if (!user) return { ok: false, message: "Not signed in" };
@@ -251,6 +253,8 @@ export async function publishChannelAction(data: {
     category: group.category ?? "General",
     auto_renewal: data.autoRenewal,
     offer_ends_at: data.offerEndsAt ?? null,
+    theme: data.theme ?? "purple",
+    bg_animation: data.bgAnimation ?? "none",
   };
 
   if (pageId) {
@@ -379,6 +383,8 @@ export async function getChannelPlansAction(groupId: string): Promise<
     published: boolean;
     pageUrl: string | null;
     offerEndsAt: string | null;
+    theme: string;
+    bgAnimation: string;
     plans: EditablePlan[];
   }>
 > {
@@ -404,8 +410,10 @@ export async function getChannelPlansAction(groupId: string): Promise<
       : Promise.resolve({ data: null as { slug: string; status: string; page_config: Record<string, unknown> | null } | null }),
   ]);
 
-  const offerEndsAt =
-    ((pageRow?.page_config as Record<string, unknown> | null)?.offer_ends_at as string | null) ?? null;
+  const cfg = (pageRow?.page_config as Record<string, unknown> | null) ?? null;
+  const offerEndsAt = (cfg?.offer_ends_at as string | null) ?? null;
+  const theme = (cfg?.theme as string) ?? "purple";
+  const bgAnimation = (cfg?.bg_animation as string) ?? "none";
 
   const plans: EditablePlan[] = ((plansRaw ?? []) as Array<{
     name: string;
@@ -433,6 +441,8 @@ export async function getChannelPlansAction(groupId: string): Promise<
       published: pageRow?.status === "published",
       pageUrl: pageRow?.slug ? `${APP_URL}/p/${pageRow.slug}` : null,
       offerEndsAt,
+      theme,
+      bgAnimation,
       plans,
     },
   };

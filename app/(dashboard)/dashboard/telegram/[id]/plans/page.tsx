@@ -24,6 +24,8 @@ export default async function EditPlansPage({ params }: { params: { id: string }
       initialAutoRenewal={res.data.autoRenewal}
       initialPublished={res.data.published}
       initialOfferEndsAt={res.data.offerEndsAt}
+      initialTheme={res.data.theme}
+      initialBgAnimation={res.data.bgAnimation}
       pageUrl={res.data.pageUrl}
     />
   );

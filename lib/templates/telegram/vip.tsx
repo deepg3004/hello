@@ -82,6 +82,8 @@ const Render: TemplateRender = ({ values, pageId, slug, product, products, isPre
     category={readField(values, "category", "")}
     active_members={readField(values, "active_members", undefined)}
     offer_ends_at={readField(values, "offer_ends_at", null)}
+    theme_key={readField(values, "theme", "purple")}
+    bg_animation={readField(values, "bg_animation", "none")}
   />
 );
 
