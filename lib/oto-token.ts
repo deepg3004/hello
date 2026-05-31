@@ -18,6 +18,11 @@ export interface OtoPayload {
   page_id: string;
   slug: string;
   exp: number; // unix seconds
+  /** Random token id — recorded in oto_token_consumed so a cookie can only
+   *  be redeemed once. Older tokens minted before this field existed will
+   *  fail verifyOtoToken() and the buyer is asked to refresh — acceptable
+   *  given the 15-minute TTL. */
+  jti: string;
 }
 
 function getSecret(): string {
@@ -42,10 +47,13 @@ function b64urlDecode(s: string): Buffer {
   return Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/") + pad, "base64");
 }
 
-export function signOtoToken(payload: Omit<OtoPayload, "exp">): string {
+export function signOtoToken(
+  payload: Omit<OtoPayload, "exp" | "jti">,
+): string {
   const full: OtoPayload = {
     ...payload,
     exp: Math.floor(Date.now() / 1000) + OTO_TTL_SECONDS,
+    jti: crypto.randomBytes(16).toString("hex"),
   };
   const body = b64url(JSON.stringify(full));
   const sig = b64url(
@@ -81,5 +89,6 @@ export function verifyOtoToken(token: string): OtoPayload | null {
   }
   if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) return null;
   if (!payload.order_id || !payload.page_id || !payload.slug) return null;
+  if (!payload.jti || payload.jti.length < 16) return null;
   return payload;
 }
