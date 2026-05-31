@@ -55,8 +55,9 @@ export function TelegramListClient({
     setTimeout(() => setCopied(null), 1500);
   }
 
-  // STATE A — not connected
-  if (!connected) {
+  // STATE A — only when there are NO channels yet. Existing channels/pages
+  // stay visible even if the Telegram account is later disconnected.
+  if (!connected && channels.length === 0) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
@@ -88,13 +89,21 @@ export function TelegramListClient({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 rounded-full border bg-muted/30 px-3 py-1.5 text-sm">
-          <Send className="h-4 w-4 text-[#0088cc]" />
-          <span className="font-medium">{username ? `@${username}` : "Telegram"} connected</span>
-          <button onClick={disconnect} className="ml-1 text-xs text-muted-foreground hover:underline">
-            Disconnect
-          </button>
-        </div>
+        {connected ? (
+          <div className="flex items-center gap-2 rounded-full border bg-muted/30 px-3 py-1.5 text-sm">
+            <Send className="h-4 w-4 text-[#0088cc]" />
+            <span className="font-medium">{username ? `@${username}` : "Telegram"} connected</span>
+            <button onClick={disconnect} className="ml-1 text-xs text-muted-foreground hover:underline">
+              Disconnect
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm text-amber-800">
+            <Send className="h-4 w-4" />
+            <span className="font-medium">Telegram not connected</span>
+            <Link href="/dashboard/telegram/setup" className="ml-1 text-xs underline">Reconnect</Link>
+          </div>
+        )}
         <Button asChild>
           <Link href="/dashboard/telegram/setup">
             <Plus className="mr-2 h-4 w-4" /> Add channel

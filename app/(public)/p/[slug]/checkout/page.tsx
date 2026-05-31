@@ -4,6 +4,7 @@ import { ArrowLeft, Check, Lock } from "lucide-react";
 
 import { CheckoutForm } from "@/components/pages/CheckoutForm";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { tgTheme } from "@/lib/telegram-themes";
 import { formatINR } from "@/lib/utils";
 
 export const metadata = { title: "Checkout" };
@@ -50,6 +51,8 @@ export default async function CheckoutPage({
 
   const cfg = (page.page_config ?? {}) as Record<string, unknown>;
   const groupName = String(cfg.group_name ?? page.title);
+  // Match the public page's theme (background + accent).
+  const theme = tgTheme(cfg.theme as string | undefined);
 
   // Plan no longer available (e.g. a stale link after the seller edited plans).
   if (!product || !product.active || product.page_id !== page.id) {
@@ -77,13 +80,7 @@ export default async function CheckoutPage({
     .slice(0, 6);
 
   return (
-    <div
-      className="min-h-screen"
-      style={{
-        background:
-          "radial-gradient(1200px 600px at 50% -10%, #4c1d95 0%, #2e1065 45%, #1a0733 100%)",
-      }}
-    >
+    <div className="min-h-screen" style={{ background: theme.bg }}>
       <div className="mx-auto max-w-4xl px-4 py-10 md:py-14">
         <Link href={`/p/${page.slug}`} className="inline-flex items-center gap-1 text-sm text-zinc-300 hover:text-white">
           <ArrowLeft className="h-4 w-4" /> Back to plans
@@ -91,10 +88,10 @@ export default async function CheckoutPage({
 
         <div className="mt-5 grid gap-5 lg:grid-cols-2">
           {/* Order summary */}
-          <div className="rounded-2xl border border-white/10 bg-[#15151f] p-6 text-zinc-100 shadow-2xl md:p-8">
+          <div className="rounded-2xl border border-white/10 bg-black/30 p-6 text-zinc-100 shadow-2xl md:p-8">
             <h2 className="text-[11px] font-bold uppercase tracking-widest text-zinc-400">Order summary</h2>
             <div className="mt-3 flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#0088cc] text-sm font-semibold text-white">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-semibold text-white" style={{ backgroundColor: theme.accent }}>
                 {product.image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={product.image_url} alt={groupName} className="h-full w-full object-cover" />
@@ -147,7 +144,7 @@ export default async function CheckoutPage({
               productImage={product.image_url}
               price={price}
               currency={product.currency}
-              primaryColor="#0088cc"
+              primaryColor={theme.accent}
             />
           </div>
         </div>
