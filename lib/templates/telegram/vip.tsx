@@ -62,9 +62,10 @@ const definition: TemplateDefinition = {
   ],
 };
 
-const Render: TemplateRender = ({ values, pageId, product, products, isPreview, bumpRuntime }) => (
+const Render: TemplateRender = ({ values, pageId, slug, product, products, isPreview, bumpRuntime }) => (
   <TelegramVipPage
     pageId={pageId}
+    slug={slug}
     product={product}
     products={products}
     isPreview={isPreview}

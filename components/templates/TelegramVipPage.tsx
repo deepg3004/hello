@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, ExternalLink, Lock, Send, Star } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Check, ExternalLink, Lock, Send, Star } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { CheckoutForm } from "@/components/pages/CheckoutForm";
 import { StickyCheckoutBar } from "./shared/StickyCheckoutBar";
 import type { BaseTemplateProps, TemplateProduct } from "./shared/types";
 
@@ -126,6 +126,18 @@ export function TelegramVipPage(props: TelegramVipPageProps) {
     tiers.find((t) => t.id === selectedTierId) ?? tiers[0] ?? null;
   const price = selectedTier?.price ?? 0;
   const stickyPriceLabel = price ? inr(price) : "Join";
+
+  // Carry a coupon from /p/<slug>?coupon=CODE into the dedicated checkout page.
+  const [couponParam, setCouponParam] = useState("");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const c = new URLSearchParams(window.location.search).get("coupon");
+    if (c) setCouponParam(c);
+  }, []);
+  const checkoutHref = (id: string) =>
+    `/p/${props.slug ?? ""}/checkout?product=${id}${
+      couponParam ? `&coupon=${encodeURIComponent(couponParam)}` : ""
+    }`;
 
   return (
     <div
@@ -253,27 +265,25 @@ export function TelegramVipPage(props: TelegramVipPageProps) {
                   })}
                 </div>
 
-                {/* Checkout for the selected plan */}
-                <div className="mt-5 rounded-xl bg-white p-4 text-zinc-900">
-                  {props.pageId && selectedTier && !props.isPreview ? (
-                    <CheckoutForm
-                      key={selectedTier.id}
-                      pageId={props.pageId}
-                      productId={selectedTier.id}
-                      productName={selectedTier.name}
-                      productDescription={selectedTier.description}
-                      productImage={selectedTier.image_url}
-                      price={Number(selectedTier.price)}
-                      currency={selectedTier.currency}
-                      orderBump={
-                        props.bumpRuntime ? { ...props.bumpRuntime, ready: true } : undefined
-                      }
-                    />
+                {/* Continue to the dedicated checkout page */}
+                <div className="mt-6">
+                  {props.isPreview ? (
+                    <div className="rounded-lg border border-dashed border-white/20 p-4 text-center text-sm text-white/60">
+                      Checkout opens on the live page.
+                    </div>
+                  ) : selectedTier && props.slug ? (
+                    <Button
+                      asChild
+                      className="w-full bg-[#0088cc] py-6 text-base font-semibold text-white hover:bg-[#0099e0]"
+                    >
+                      <Link href={checkoutHref(selectedTier.id)}>
+                        Continue to checkout · {inr(price)}
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Link>
+                    </Button>
                   ) : (
-                    <p className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-4 text-center text-sm text-zinc-500">
-                      {props.isPreview
-                        ? "Checkout form renders on the live page."
-                        : "Attach a product to this page to enable checkout."}
+                    <p className="rounded-lg border border-dashed border-white/20 p-4 text-center text-sm text-white/60">
+                      Select a plan to continue.
                     </p>
                   )}
                 </div>

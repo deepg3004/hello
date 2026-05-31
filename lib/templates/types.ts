@@ -75,6 +75,8 @@ export interface TemplateRenderProps {
   values: Record<string, unknown>;
   /** Present once the page is saved. Used for analytics / checkout. */
   pageId?: string;
+  /** Page slug — used to build links such as the dedicated checkout page. */
+  slug?: string;
   /** Pre-fetched product for payment templates (lowest sort_order). */
   product?: {
     id: string;

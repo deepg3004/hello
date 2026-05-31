@@ -235,6 +235,7 @@ export default async function PublicPage({
       <template.Render
         values={values}
         pageId={page.id}
+        slug={page.slug}
         product={product}
         products={tierList}
         bumpRuntime={bumpRuntime}

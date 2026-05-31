@@ -53,6 +53,8 @@ export type BumpRuntime = (PageBumpConfig & { ready: true }) | null;
 
 export interface BaseTemplateProps {
   pageId?: string;
+  /** Page slug — used to build links like the dedicated checkout page. */
+  slug?: string;
   product?: TemplateProduct | null;
   /** All active products attached to the page. Tiered templates
    *  (TelegramVipPage with Monthly/Yearly/Lifetime) render this as a picker.
