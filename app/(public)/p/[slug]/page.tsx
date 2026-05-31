@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -76,7 +76,10 @@ async function loadPage(slug: string) {
     )
     .eq("slug", slug)
     .single<PageRow>();
-  if (!page || page.status !== "published") return null;
+  if (!page) return null;
+  // Page exists but is unpublished/paused → signal the caller to bounce the
+  // visitor to the main site (instead of showing a draft).
+  if (page.status !== "published") return { unpublished: true as const };
 
   // Load all active products for the page, ordered as the seller arranged.
   // Single-product pages just see one row; tiered pages (Telegram VIP with
@@ -112,7 +115,7 @@ export async function generateMetadata({
   params: { slug: string };
 }): Promise<Metadata> {
   const result = await loadPage(params.slug);
-  if (!result) {
+  if (!result || "unpublished" in result) {
     return { title: params.slug };
   }
   const { page } = result;
@@ -134,6 +137,11 @@ export default async function PublicPage({
 }) {
   if (!params.slug) notFound();
   const result = await loadPage(params.slug);
+
+  // Unpublished/paused page → bounce to the main site.
+  if (result && "unpublished" in result) {
+    redirect(process.env.NEXT_PUBLIC_APP_URL ?? "/");
+  }
 
   if (!result) {
     return (

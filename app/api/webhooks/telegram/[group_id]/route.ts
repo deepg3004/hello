@@ -102,19 +102,36 @@ export async function POST(
     JOIN_STATUSES.includes(oldStatus) && LEAVE_STATUSES.includes(newStatus);
 
   if (joined) {
-    // Find the most recent INVITED membership for this group without a
-    // telegram_user_id yet (within 30 min) and bind it.
-    const cutoff = new Date(Date.now() - 30 * 60_000).toISOString();
-    const { data: pending } = await admin
-      .from("telegram_memberships")
-      .select("id, expires_at")
-      .eq("telegram_group_id", group.id)
-      .eq("status", "invited")
-      .is("telegram_user_id", null)
-      .gte("invited_at", cutoff)
-      .order("invited_at", { ascending: false })
-      .limit(1);
-    const pendingId = pending?.[0]?.id;
+    // Bind the joining user to their invited membership. Prefer matching on
+    // the exact one-time invite_link they used (reliable, time-independent);
+    // fall back to the most recent still-invited row (7-day window).
+    const usedLink = evt.invite_link?.invite_link;
+    let pendingId: string | undefined;
+
+    if (usedLink) {
+      const { data: byLink } = await admin
+        .from("telegram_memberships")
+        .select("id")
+        .eq("telegram_group_id", group.id)
+        .eq("invite_link", usedLink)
+        .order("invited_at", { ascending: false })
+        .limit(1);
+      pendingId = byLink?.[0]?.id;
+    }
+
+    if (!pendingId) {
+      const cutoff = new Date(Date.now() - 7 * 86_400_000).toISOString();
+      const { data: pending } = await admin
+        .from("telegram_memberships")
+        .select("id")
+        .eq("telegram_group_id", group.id)
+        .eq("status", "invited")
+        .is("telegram_user_id", null)
+        .gte("invited_at", cutoff)
+        .order("invited_at", { ascending: false })
+        .limit(1);
+      pendingId = pending?.[0]?.id;
+    }
 
     if (pendingId) {
       await admin
