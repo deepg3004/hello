@@ -39,6 +39,9 @@ yarn-error.log*
 .env.production.local
 .env.production.bak
 .env*.bak
+# Catch-all for any .env.production variant (snapshots, dated backups, etc.) —
+# these are copies of the live secrets and must NEVER be committed.
+.env.production.*
 !.env.example
 
 # vercel
