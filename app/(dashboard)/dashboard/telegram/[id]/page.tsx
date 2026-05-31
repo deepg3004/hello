@@ -3,9 +3,10 @@ import { notFound, redirect } from "next/navigation";
 import {
   ArrowLeft,
   ExternalLink,
+  Eye,
   IndianRupee,
+  TrendingDown,
   TrendingUp,
-  UserMinus,
   Users,
 } from "lucide-react";
 
@@ -22,24 +23,28 @@ import {
 } from "@/components/ui/table";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import {
-  PublicPageCard,
-  type PublicPlan,
-} from "@/components/dashboard/telegram/PublicPageCard";
+  RevenueByDayChart,
+  MembersByPlanChart,
+} from "@/components/dashboard/telegram/ChannelCharts";
 import {
   TelegramMembersClient,
   type MemberRow,
 } from "@/components/dashboard/telegram/TelegramMembersClient";
+import { getChannelDashboardAction } from "@/actions/telegram-channels";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { cn, formatDate, formatINR } from "@/lib/utils";
 
-export const metadata = { title: "Telegram group" };
+export const metadata = { title: "Telegram channel" };
 
-// orders.amount is stored in rupees (decimal). formatINR expects paise, so
-// scale up — same convention as components/dashboard/TransactionsClient.tsx.
 const rupees = (n: number) => formatINR(n * 100);
+const maskEmail = (e: string) =>
+  e.replace(/^(.)(.*)(@.*)$/, (_m, a: string, _b: string, c: string) => `${a}***${c}`);
 
-export default async function TelegramGroupDetailPage({
+const TABS = ["overview", "members", "transactions", "insights", "settings"] as const;
+type Tab = (typeof TABS)[number];
+
+export default async function TelegramChannelPage({
   params,
   searchParams,
 }: {
@@ -52,131 +57,35 @@ export default async function TelegramGroupDetailPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const admin = createAdminClient();
+  const res = await getChannelDashboardAction(params.id);
+  if (!res.ok || !res.data) notFound();
+  const { group, plans, stats } = res.data;
+  const groupName = group.group_name ?? "Channel";
 
-  const { data: groupRaw } = await admin
-    .from("telegram_vip_groups")
-    .select(
-      "id, group_name, group_id, bot_username, access_duration_days, auto_renewal_enabled, active_members, user_id, page_id, pages(title, slug)",
-    )
-    .eq("id", params.id)
-    .maybeSingle();
+  const tab: Tab = TABS.includes(searchParams.tab as Tab)
+    ? (searchParams.tab as Tab)
+    : "overview";
 
-  // Ownership guard — a seller may only view their own group.
-  if (!groupRaw || (groupRaw as { user_id: string }).user_id !== user.id) {
-    notFound();
-  }
-
-  const group = groupRaw as unknown as {
-    id: string;
-    group_name: string | null;
-    group_id: string;
-    bot_username: string | null;
-    access_duration_days: number | null;
-    auto_renewal_enabled: boolean | null;
-    active_members: number | null;
-    page_id: string | null;
-    pages:
-      | { title: string; slug: string }
-      | { title: string; slug: string }[]
-      | null;
-  };
-  const page = Array.isArray(group.pages) ? group.pages[0] : group.pages;
-  const groupName = group.group_name ?? group.group_id;
-
-  // Memberships for this group (disambiguate to the new telegram_group_id FK
-  // that the lifecycle code writes — see admin/telegram/page.tsx).
-  const { data: memsRaw } = await admin
-    .from("telegram_memberships")
-    .select(
-      "id, buyer_email, telegram_user_id, status, joined_at, expires_at, invited_at, order_id",
-    )
-    .eq("telegram_group_id", params.id)
-    .order("invited_at", { ascending: false })
-    .limit(1000);
-
-  const mems = (memsRaw ?? []) as unknown as Array<{
-    id: string;
-    buyer_email: string;
-    telegram_user_id: string | null;
-    status: string;
-    joined_at: string | null;
-    expires_at: string | null;
-    invited_at: string | null;
-    order_id: string | null;
-  }>;
-
-  // Orders that granted these memberships → revenue + recent transactions.
-  const orderIds = Array.from(
-    new Set(mems.map((m) => m.order_id).filter(Boolean)),
-  ) as string[];
-
-  let orders: Array<{
-    id: string;
-    amount: number;
-    status: string;
-    buyer_email: string;
-    buyer_name: string | null;
-    created_at: string;
-  }> = [];
-  if (orderIds.length > 0) {
-    const { data: ordersRaw } = await admin
-      .from("orders")
-      .select("id, amount, status, buyer_email, buyer_name, created_at")
-      .in("id", orderIds)
-      .order("created_at", { ascending: false });
-    orders = (ordersRaw ?? []) as unknown as typeof orders;
-  }
-
-  // Active plans on the linked page → shown in the public-page card.
-  let plans: PublicPlan[] = [];
-  if (group.page_id) {
-    const { data: prodRaw } = await admin
-      .from("products")
-      .select("id, display_label, name, price, subscription_days, sort_order")
-      .eq("page_id", group.page_id)
-      .eq("active", true)
-      .order("sort_order", { ascending: true });
-    plans = ((prodRaw ?? []) as unknown as Array<{
-      id: string;
-      display_label: string | null;
-      name: string | null;
-      price: number;
-      subscription_days: number | null;
-    }>).map((p) => ({
-      id: p.id,
-      label: p.display_label ?? p.name ?? "Plan",
-      price: Number(p.price ?? 0),
-      subscription_days: p.subscription_days,
+  // Member list only needed for the Members tab.
+  let memberRows: MemberRow[] = [];
+  if (tab === "members") {
+    const admin = createAdminClient();
+    const { data: memsRaw } = await admin
+      .from("telegram_memberships")
+      .select("id, buyer_email, telegram_user_id, status, joined_at, expires_at, invited_at")
+      .eq("telegram_group_id", params.id)
+      .order("invited_at", { ascending: false })
+      .limit(1000);
+    memberRows = ((memsRaw ?? []) as MemberRow[]).map((m) => ({
+      id: m.id,
+      buyer_email: m.buyer_email,
+      telegram_user_id: m.telegram_user_id,
+      status: m.status,
+      joined_at: m.joined_at,
+      expires_at: m.expires_at,
+      invited_at: m.invited_at,
     }));
   }
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io";
-  const publicUrl = page ? `${appUrl}/p/${page.slug}` : null;
-
-  const paid = orders.filter((o) => o.status === "paid");
-  const revenue = paid.reduce((acc, o) => acc + Number(o.amount ?? 0), 0);
-  const totalSubs = mems.length;
-  const activeCount = mems.filter((m) => m.status === "active").length;
-  const expiredCount = mems.filter((m) => m.status === "expired").length;
-  const recent = paid.slice(0, 5);
-
-  const tab = searchParams.tab === "members" ? "members" : "overview";
-
-  const memberRows: MemberRow[] = mems.map((m) => ({
-    id: m.id,
-    buyer_email: m.buyer_email,
-    telegram_user_id: m.telegram_user_id,
-    status: m.status,
-    joined_at: m.joined_at,
-    expires_at: m.expires_at,
-    invited_at: m.invited_at,
-  }));
-
-  const tabs = [
-    { key: "overview", label: "Overview" },
-    { key: "members", label: `Members (${activeCount})` },
-  ] as const;
 
   return (
     <div className="space-y-6">
@@ -184,26 +93,27 @@ export default async function TelegramGroupDetailPage({
       <div className="space-y-3">
         <Button asChild variant="ghost" size="sm" className="-ml-2 h-8">
           <Link href="/dashboard/telegram">
-            <ArrowLeft className="mr-1 h-4 w-4" /> All Telegram groups
+            <ArrowLeft className="mr-1 h-4 w-4" /> All channels
           </Link>
         </Button>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-sora font-semibold tracking-tight">
-              {groupName}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {group.bot_username ? `@${group.bot_username} · ` : ""}
-              {group.access_duration_days === 0 || group.access_duration_days == null
-                ? "Lifetime access"
-                : `${group.access_duration_days}-day access`}
-              {group.auto_renewal_enabled ? " · Renewals on" : ""}
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#0088cc] text-sm font-semibold text-white">
+              {groupName.slice(0, 2).toUpperCase()}
+            </div>
+            <div>
+              <h1 className="text-2xl font-sora font-semibold tracking-tight">{groupName}</h1>
+              <p className="text-sm text-muted-foreground">
+                {group.channel_username ? `@${group.channel_username} · ` : ""}
+                {group.channel_type ?? "channel"}
+                {group.setup_complete ? " · Live" : " · Draft"}
+              </p>
+            </div>
           </div>
-          {page && (
+          {group.pageUrl && (
             <Button asChild variant="outline">
-              <Link href={`/p/${page.slug}`} target="_blank">
-                <ExternalLink className="mr-2 h-4 w-4" /> View page
+              <Link href={group.pageUrl} target="_blank">
+                <ExternalLink className="mr-2 h-4 w-4" /> View public page
               </Link>
             </Button>
           )}
@@ -211,123 +121,176 @@ export default async function TelegramGroupDetailPage({
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b">
-        {tabs.map((t) => (
+      <div className="flex gap-1 overflow-x-auto border-b">
+        {TABS.map((t) => (
           <Link
-            key={t.key}
-            href={`/dashboard/telegram/${group.id}?tab=${t.key}`}
+            key={t}
+            href={`/dashboard/telegram/${group.id}?tab=${t}`}
             className={cn(
-              "border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-              tab === t.key
+              "shrink-0 border-b-2 px-3 py-2 text-sm font-medium capitalize transition-colors",
+              tab === t
                 ? "border-foreground text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
-            {t.label}
+            {t}
           </Link>
         ))}
       </div>
 
-      {tab === "overview" ? (
+      {tab === "overview" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <MetricCard
-              label="Total subscriptions"
-              value={totalSubs.toLocaleString("en-IN")}
-              icon={Users}
-              accentColor="indigo"
-            />
-            <MetricCard
-              label="Revenue"
-              value={rupees(revenue)}
-              hint="Paid orders"
-              icon={IndianRupee}
-              accentColor="emerald"
-            />
-            <MetricCard
-              label="Active members"
-              value={activeCount.toLocaleString("en-IN")}
-              icon={TrendingUp}
-              accentColor="emerald"
-            />
-            <MetricCard
-              label="Expired"
-              value={expiredCount.toLocaleString("en-IN")}
-              icon={UserMinus}
-              accentColor="amber"
-            />
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+            <MetricCard label="Page views" value={stats.totalPageViews.toLocaleString("en-IN")} icon={Eye} accentColor="indigo" />
+            <MetricCard label="Total sales" value={rupees(stats.totalSales)} icon={IndianRupee} accentColor="emerald" />
+            <MetricCard label="Subscriptions" value={stats.totalSubscriptions.toLocaleString("en-IN")} icon={Users} accentColor="indigo" />
+            <MetricCard label="Active members" value={stats.activeMembers.toLocaleString("en-IN")} icon={TrendingUp} accentColor="emerald" />
+            <MetricCard label="Churn (30d)" value={`${stats.churnRate}%`} icon={TrendingDown} accentColor="amber" />
           </div>
 
-          {publicUrl ? (
-            <PublicPageCard url={publicUrl} plans={plans} />
-          ) : (
+          <Card>
+            <CardHeader><CardTitle className="text-base">Revenue over time</CardTitle></CardHeader>
+            <CardContent><RevenueByDayChart data={stats.salesByDay} /></CardContent>
+          </Card>
+
+          <div className="grid gap-6 lg:grid-cols-2">
             <Card>
-              <CardContent className="flex flex-col items-start gap-3 py-6">
-                <div>
-                  <CardTitle className="text-base">No public page linked</CardTitle>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Link a payment page to this group so buyers can subscribe and
-                    get auto-invited.
-                  </p>
-                </div>
-                <Button asChild variant="outline" size="sm">
-                  <Link href="/dashboard/telegram/setup">Link a page</Link>
-                </Button>
+              <CardHeader><CardTitle className="text-base">Top members</CardTitle></CardHeader>
+              <CardContent className="p-0">
+                {stats.topMembers.length === 0 ? (
+                  <p className="px-6 py-8 text-center text-sm text-muted-foreground">No paying members yet.</p>
+                ) : (
+                  <ul className="divide-y">
+                    {stats.topMembers.map((m, i) => (
+                      <li key={i} className="flex items-center justify-between px-6 py-3 text-sm">
+                        <span>{maskEmail(m.buyer_email)}</span>
+                        <span className="font-medium">{rupees(m.amount)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </CardContent>
             </Card>
-          )}
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base">Recent transactions</CardTitle>
-              <Button asChild variant="ghost" size="sm">
-                <Link href="/dashboard/transactions">View all</Link>
-              </Button>
-            </CardHeader>
-            <CardContent className="overflow-x-auto p-0">
-              {recent.length === 0 ? (
-                <p className="px-6 py-10 text-center text-sm text-muted-foreground">
-                  No paid transactions for this group yet.
-                </p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Buyer</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {recent.map((o) => (
-                      <TableRow key={o.id}>
-                        <TableCell>
-                          <div className="font-medium">
-                            {o.buyer_name ?? o.buyer_email}
-                          </div>
-                          {o.buyer_name && (
-                            <div className="text-xs text-muted-foreground">
-                              {o.buyer_email}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {formatDate(o.created_at)}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {rupees(Number(o.amount ?? 0))}
-                        </TableCell>
-                      </TableRow>
+            <Card>
+              <CardHeader><CardTitle className="text-base">Recent transactions</CardTitle></CardHeader>
+              <CardContent className="p-0">
+                {stats.recentTransactions.length === 0 ? (
+                  <p className="px-6 py-8 text-center text-sm text-muted-foreground">No transactions yet.</p>
+                ) : (
+                  <ul className="divide-y">
+                    {stats.recentTransactions.map((t, i) => (
+                      <li key={i} className="flex items-center justify-between px-6 py-3 text-sm">
+                        <span>{maskEmail(t.buyer_email)}<span className="ml-2 text-xs text-muted-foreground">{t.plan ?? ""}</span></span>
+                        <span className="font-medium">{rupees(t.amount)}</span>
+                      </li>
                     ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <PlansPerformance plans={plans} />
         </div>
-      ) : (
+      )}
+
+      {tab === "members" && (
         <TelegramMembersClient rows={memberRows} groupName={groupName} />
       )}
+
+      {tab === "transactions" && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-base">Recent transactions</CardTitle>
+            <Button asChild variant="ghost" size="sm"><Link href="/dashboard/transactions">View all</Link></Button>
+          </CardHeader>
+          <CardContent className="overflow-x-auto p-0">
+            {stats.recentTransactions.length === 0 ? (
+              <p className="px-6 py-10 text-center text-sm text-muted-foreground">No transactions yet.</p>
+            ) : (
+              <Table>
+                <TableHeader><TableRow><TableHead>Buyer</TableHead><TableHead>Plan</TableHead><TableHead>Date</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {stats.recentTransactions.map((t, i) => (
+                    <TableRow key={i}>
+                      <TableCell>{maskEmail(t.buyer_email)}</TableCell>
+                      <TableCell className="text-muted-foreground">{t.plan ?? "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">{formatDate(t.created_at)}</TableCell>
+                      <TableCell className="text-right font-medium">{rupees(t.amount)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {tab === "insights" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <MetricCard label="Subscriptions" value={stats.totalSubscriptions.toLocaleString("en-IN")} accentColor="indigo" />
+            <MetricCard label="Total sales" value={rupees(stats.totalSales)} accentColor="emerald" />
+            <MetricCard label="Active" value={stats.activeMembers.toLocaleString("en-IN")} accentColor="emerald" />
+            <MetricCard label="Page views" value={stats.totalPageViews.toLocaleString("en-IN")} accentColor="indigo" />
+          </div>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card>
+              <CardHeader><CardTitle className="text-base">Sales by day</CardTitle></CardHeader>
+              <CardContent><RevenueByDayChart data={stats.salesByDay} /></CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle className="text-base">Subscribers by plan</CardTitle></CardHeader>
+              <CardContent><MembersByPlanChart data={stats.membersByPlan} /></CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {tab === "settings" && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <SettingLink href="/dashboard/telegram/setup" title="Plans & page" desc="Re-run setup to edit plans, page details, and logo." />
+          <SettingLink href="/dashboard/coupons" title="Coupons" desc="Create discount codes for this channel's page." />
+          <SettingLink href="/dashboard/settings/notifications" title="Automated emails" desc="Welcome, reminder, and expiry emails." />
+          <SettingLink href="/dashboard/settings/tax-billing" title="GST & invoices" desc="Tax settings applied to each sale." />
+        </div>
+      )}
     </div>
+  );
+}
+
+function PlansPerformance({
+  plans,
+}: {
+  plans: Array<{ id: string; name: string; price: number; duration_label: string; subscriber_count: number; revenue: number }>;
+}) {
+  if (plans.length === 0) return null;
+  const max = Math.max(1, ...plans.map((p) => p.subscriber_count));
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">Plan performance</CardTitle></CardHeader>
+      <CardContent className="space-y-3">
+        {plans.map((p) => (
+          <div key={p.id} className="space-y-1">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">{p.name} <span className="text-xs text-muted-foreground">· {p.duration_label} · {rupees(p.price)}</span></span>
+              <span className="text-muted-foreground">{p.subscriber_count} subs · {rupees(p.revenue)}</span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-muted">
+              <div className="h-2 rounded-full bg-indigo-500" style={{ width: `${(p.subscriber_count / max) * 100}%` }} />
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SettingLink({ href, title, desc }: { href: string; title: string; desc: string }) {
+  return (
+    <Link href={href} className="rounded-lg border p-4 transition-colors hover:bg-muted/40">
+      <div className="font-medium">{title}</div>
+      <div className="mt-1 text-sm text-muted-foreground">{desc}</div>
+    </Link>
   );
 }
