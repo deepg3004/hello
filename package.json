@@ -29,6 +29,7 @@
     "@radix-ui/react-toast": "^1.2.15",
     "@supabase/ssr": "^0.5.1",
     "@supabase/supabase-js": "^2.45.4",
+    "big-integer": "^1.6.52",
     "bullmq": "^5.77.6",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
@@ -46,6 +47,7 @@
     "resend": "^4.0.0",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
+    "telegram": "^2.26.22",
     "tsx": "^4.22.3",
     "zod": "^3.25.76"
   },
