@@ -1,10 +1,9 @@
 import { redirect } from "next/navigation";
 
-import { SetupWizard } from "@/components/dashboard/telegram/SetupWizard";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { ConnectFlow } from "@/components/dashboard/telegram/ConnectFlow";
 import { createClient } from "@/lib/supabase/server";
 
-export const metadata = { title: "Telegram VIP setup" };
+export const metadata = { title: "Connect Telegram" };
 
 export default async function TelegramSetupPage() {
   const supabase = createClient();
@@ -13,31 +12,20 @@ export default async function TelegramSetupPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const admin = createAdminClient();
-  const { data: pages } = await admin
-    .from("pages")
-    .select("id, title, template_id")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+  const commissionPercent = Number(process.env.PLATFORM_COMMISSION_PERCENT ?? 5);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-sora font-semibold tracking-tight">
-          Telegram VIP setup
+          Connect Telegram
         </h1>
         <p className="text-sm text-muted-foreground">
-          Hook up a bot + group so every buyer gets a one-time invite + auto-removal on expiry.
+          Log in with Telegram, pick a channel, set your plans, and publish a
+          paid subscription page — in a few steps.
         </p>
       </div>
-      <SetupWizard
-        pages={(pages ?? []).map((p) => ({
-          id: p.id,
-          title: p.title,
-          template_id: p.template_id ?? "",
-        }))}
-        appUrl={process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io"}
-      />
+      <ConnectFlow commissionPercent={commissionPercent} />
     </div>
   );
 }
