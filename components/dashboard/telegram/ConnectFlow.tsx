@@ -34,6 +34,7 @@ type ChannelType = "channel" | "supergroup" | "group";
 
 interface TgChannel {
   id: string;
+  accessHash?: string;
   title: string;
   type: ChannelType;
   username?: string;
@@ -254,7 +255,7 @@ export function ConnectFlow({ commissionPercent }: { commissionPercent: number }
       const addRes = await fetch("/api/telegram/user/add-bot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId: selected.id, channelType: selected.type }),
+        body: JSON.stringify({ chatId: selected.id, channelType: selected.type, accessHash: selected.accessHash }),
       });
       const addJson = await addRes.json();
       if (!addRes.ok || !addJson.ok) throw new Error(addJson.message ?? "Couldn't add the bot");

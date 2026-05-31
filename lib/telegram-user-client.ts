@@ -235,6 +235,7 @@ export async function persistTelegramSession(
 
 export interface TgChannel {
   id: string; // numeric MTProto id (as string)
+  accessHash?: string; // required to address a channel from a fresh session
   title: string;
   type: "channel" | "supergroup" | "group";
   username?: string;
@@ -260,6 +261,7 @@ export async function getUserChannels(invoxUserId: string): Promise<TgChannel[]>
         if (!entity.creator && !entity.adminRights) continue; // admin only
         channels.push({
           id: String(entity.id),
+          accessHash: entity.accessHash?.toString(),
           title: entity.title ?? "Unnamed",
           type: entity.broadcast ? "channel" : "supergroup",
           username: entity.username ?? undefined,
@@ -295,26 +297,51 @@ export async function addBotToChannel(
   invoxUserId: string,
   chatId: string,
   channelType: "channel" | "supergroup" | "group",
+  accessHash?: string,
 ): Promise<{ ok: boolean; message?: string }> {
   if (!BOT_USERNAME) {
     return { ok: false, message: "TELEGRAM_BOT_USERNAME is not configured." };
   }
   const client = await connectedClientFor(invoxUserId);
+  const ignore = (e: unknown, marker: string): void => {
+    const m = e instanceof Error ? e.message : String(e);
+    if (!m.includes(marker)) throw e;
+  };
   try {
-    const entity = await client.getEntity(bigInt(chatId));
-    await client.invoke(
-      new Api.channels.InviteToChannel({
-        channel: entity,
-        users: [BOT_USERNAME],
-      }),
-    );
+    // Basic groups (Api.Chat) have no access_hash and use a different API.
+    if (channelType === "group") {
+      try {
+        await client.invoke(
+          new Api.messages.AddChatUser({
+            chatId: bigInt(chatId),
+            userId: BOT_USERNAME,
+            fwdLimit: 50,
+          }),
+        );
+      } catch (e) {
+        ignore(e, "USER_ALREADY_PARTICIPANT");
+      }
+      return { ok: true };
+    }
+
+    // Channels / supergroups: address directly via (id, access_hash) so we
+    // never hang resolving a bare id from a fresh session (was Error: TIMEOUT).
+    const channel = new Api.InputChannel({
+      channelId: bigInt(chatId),
+      accessHash: bigInt(accessHash ?? "0"),
+    });
+    try {
+      await client.invoke(
+        new Api.channels.InviteToChannel({ channel, users: [BOT_USERNAME] }),
+      );
+    } catch (e) {
+      ignore(e, "USER_ALREADY_PARTICIPANT");
+    }
     await client.invoke(
       new Api.channels.EditAdmin({
-        channel: entity,
+        channel,
         userId: BOT_USERNAME,
         adminRights: new Api.ChatAdminRights({
-          // banUsers covers restricting/removing members (there is no separate
-          // restrictMembers flag in MTProto ChatAdminRights).
           inviteUsers: true,
           banUsers: true,
           deleteMessages: true,
@@ -327,7 +354,6 @@ export async function addBotToChannel(
     return { ok: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes("USER_ALREADY_PARTICIPANT")) return { ok: true };
     return { ok: false, message: msg };
   } finally {
     await client.disconnect();

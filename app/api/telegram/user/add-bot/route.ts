@@ -16,14 +16,14 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: { chatId?: string; channelType?: string };
+  let body: { chatId?: string; channelType?: string; accessHash?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { chatId } = body;
+  const { chatId, accessHash } = body;
   const channelType = body.channelType as ChannelType | undefined;
   if (!chatId || !channelType || !TYPES.includes(channelType)) {
     return NextResponse.json(
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await addBotToChannel(user.id, chatId, channelType);
+    const result = await addBotToChannel(user.id, chatId, channelType, accessHash);
     return NextResponse.json(result, { status: result.ok ? 200 : 502 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
