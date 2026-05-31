@@ -359,6 +359,14 @@ export async function publishChannelAction(data: {
     })
     .eq("id", group.id);
 
+  // Link the page BACK to the group — issueInviteForOrder reads
+  // pages.telegram_group_id to mint the invite. Without this, invites are
+  // silently skipped and no membership row is created.
+  await admin
+    .from("pages")
+    .update({ telegram_group_id: group.id })
+    .eq("id", pageId);
+
   revalidatePath("/dashboard/telegram");
   return { ok: true, data: { slug, pageUrl: `${APP_URL}/p/${slug}` } };
 }
@@ -571,26 +579,35 @@ export async function getChannelDashboardAction(
     order_id: string | null;
   }>;
 
-  // Orders that funded these memberships → revenue + recent transactions.
-  const orderIds = Array.from(
-    new Set(mems.map((m) => m.order_id).filter(Boolean)),
-  ) as string[];
-  let orders: Array<{
+  // Sales from PAID orders on the page directly — robust, independent of
+  // whether the membership/invite flow has completed.
+  let paid: Array<{
     id: string;
     amount: number;
-    status: string;
     buyer_email: string;
+    buyer_name: string | null;
     created_at: string;
+    product_id: string | null;
   }> = [];
-  if (orderIds.length) {
+  if (pageId) {
     const { data: ordersRaw } = await admin
       .from("orders")
-      .select("id, amount, status, buyer_email, created_at")
-      .in("id", orderIds);
-    orders = (ordersRaw ?? []) as typeof orders;
+      .select("id, amount, buyer_email, buyer_name, created_at, product_id")
+      .eq("page_id", pageId)
+      .eq("status", "paid")
+      .order("created_at", { ascending: false })
+      .limit(500);
+    paid = (ordersRaw ?? []) as typeof paid;
   }
-  const paid = orders.filter((o) => o.status === "paid");
-  const paidById = new Map(paid.map((o) => [o.id, o]));
+
+  // product_id -> plan name, for per-plan revenue + transaction labels.
+  const planNameByProduct = new Map<string, string>(
+    ((plansRaw ?? []) as Array<{ name: string; product_id: string | null }>)
+      .filter((p) => p.product_id)
+      .map((p) => [p.product_id as string, p.name]),
+  );
+  const planOf = (pid: string | null): string =>
+    (pid && planNameByProduct.get(pid)) || "Plan";
 
   const totalSales = paid.reduce((a, o) => a + Number(o.amount ?? 0), 0);
   const activeMembers = mems.filter((m) => m.status === "active").length;
@@ -603,7 +620,7 @@ export async function getChannelDashboardAction(
   const churnDenom = activeMembers + removed30;
   const churnRate = churnDenom > 0 ? Math.round((removed30 / churnDenom) * 100) : 0;
 
-  // Sales by day (last 30 days).
+  // Sales by day.
   const byDay = new Map<string, { amount: number; count: number }>();
   for (const o of paid) {
     const day = o.created_at.slice(0, 10);
@@ -616,28 +633,25 @@ export async function getChannelDashboardAction(
     .map(([date, v]) => ({ date, ...v }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  // Top members by amount paid.
-  const memByEmail = new Map<string, { amount: number; joined_at: string | null }>();
-  for (const m of mems) {
-    const ord = m.order_id ? paidById.get(m.order_id) : undefined;
-    const amt = ord ? Number(ord.amount ?? 0) : 0;
-    const cur = memByEmail.get(m.buyer_email) ?? { amount: 0, joined_at: m.joined_at };
-    cur.amount += amt;
-    memByEmail.set(m.buyer_email, cur);
+  // Top buyers by amount paid.
+  const byEmail = new Map<string, { amount: number; joined_at: string | null }>();
+  for (const o of paid) {
+    const cur = byEmail.get(o.buyer_email) ?? { amount: 0, joined_at: o.created_at };
+    cur.amount += Number(o.amount ?? 0);
+    byEmail.set(o.buyer_email, cur);
   }
-  const topMembers = Array.from(memByEmail.entries())
+  const topMembers = Array.from(byEmail.entries())
     .map(([buyer_email, v]) => ({ buyer_email, amount: v.amount, joined_at: v.joined_at }))
     .sort((a, b) => b.amount - a.amount)
     .slice(0, 5);
 
-  // Members + revenue by plan.
+  // Revenue + count by plan.
   const byPlan = new Map<string, { count: number; revenue: number }>();
-  for (const m of mems) {
-    const key = m.plan_name ?? "Unknown";
-    const ord = m.order_id ? paidById.get(m.order_id) : undefined;
+  for (const o of paid) {
+    const key = planOf(o.product_id);
     const cur = byPlan.get(key) ?? { count: 0, revenue: 0 };
     cur.count += 1;
-    cur.revenue += ord ? Number(ord.amount ?? 0) : 0;
+    cur.revenue += Number(o.amount ?? 0);
     byPlan.set(key, cur);
   }
   const membersByPlan = Array.from(byPlan.entries()).map(([plan_name, v]) => ({
@@ -645,18 +659,12 @@ export async function getChannelDashboardAction(
     ...v,
   }));
 
-  const recentTransactions = paid
-    .sort((a, b) => b.created_at.localeCompare(a.created_at))
-    .slice(0, 5)
-    .map((o) => {
-      const mem = mems.find((m) => m.order_id === o.id);
-      return {
-        buyer_email: o.buyer_email,
-        plan: mem?.plan_name ?? null,
-        amount: Number(o.amount ?? 0),
-        created_at: o.created_at,
-      };
-    });
+  const recentTransactions = paid.slice(0, 5).map((o) => ({
+    buyer_email: o.buyer_email,
+    plan: planOf(o.product_id),
+    amount: Number(o.amount ?? 0),
+    created_at: o.created_at,
+  }));
 
   const plans = ((plansRaw ?? []) as Array<{
     id: string;
@@ -693,7 +701,7 @@ export async function getChannelDashboardAction(
       stats: {
         totalPageViews: Number(group.total_page_views ?? 0) || (viewCount ?? 0),
         totalSales,
-        totalSubscriptions: mems.length,
+        totalSubscriptions: paid.length,
         activeMembers,
         churnRate,
         recentTransactions,
