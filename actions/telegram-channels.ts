@@ -18,6 +18,19 @@ const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? "";
 const BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME ?? "";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io";
 
+/**
+ * Convert a raw MTProto chat id to the Bot-API "marked" chat id the bot needs
+ * for getChat / createChatInviteLink / kick: channels & supergroups are
+ * -100<id>, basic groups are -<id>.
+ */
+function botApiChatId(
+  mtprotoId: string,
+  type: "channel" | "supergroup" | "group",
+): string {
+  const id = mtprotoId.replace(/^-?(100)?/, "");
+  return type === "group" ? `-${id}` : `-100${id}`;
+}
+
 async function authUser() {
   const supabase = createClient();
   const {
@@ -87,6 +100,8 @@ export async function saveChannelSetupAction(data: {
     group_id: data.chatId,
     group_name: data.chatTitle,
     telegram_chat_id: numericChatId,
+    // Bot-API marked chat id (-100… for channels) — used to mint invite links.
+    group_chat_id: botApiChatId(data.chatId, data.channelType),
     channel_type: data.channelType,
     channel_username: data.chatUsername ?? null,
     total_member_count: data.memberCount ?? 0,
