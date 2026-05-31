@@ -22,6 +22,10 @@ import {
 } from "@/components/ui/table";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import {
+  PublicPageCard,
+  type PublicPlan,
+} from "@/components/dashboard/telegram/PublicPageCard";
+import {
   TelegramMembersClient,
   type MemberRow,
 } from "@/components/dashboard/telegram/TelegramMembersClient";
@@ -123,6 +127,32 @@ export default async function TelegramGroupDetailPage({
       .order("created_at", { ascending: false });
     orders = (ordersRaw ?? []) as unknown as typeof orders;
   }
+
+  // Active plans on the linked page → shown in the public-page card.
+  let plans: PublicPlan[] = [];
+  if (group.page_id) {
+    const { data: prodRaw } = await admin
+      .from("products")
+      .select("id, display_label, name, price, subscription_days, sort_order")
+      .eq("page_id", group.page_id)
+      .eq("active", true)
+      .order("sort_order", { ascending: true });
+    plans = ((prodRaw ?? []) as unknown as Array<{
+      id: string;
+      display_label: string | null;
+      name: string | null;
+      price: number;
+      subscription_days: number | null;
+    }>).map((p) => ({
+      id: p.id,
+      label: p.display_label ?? p.name ?? "Plan",
+      price: Number(p.price ?? 0),
+      subscription_days: p.subscription_days,
+    }));
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io";
+  const publicUrl = page ? `${appUrl}/p/${page.slug}` : null;
 
   const paid = orders.filter((o) => o.status === "paid");
   const revenue = paid.reduce((acc, o) => acc + Number(o.amount ?? 0), 0);
@@ -227,6 +257,25 @@ export default async function TelegramGroupDetailPage({
               accentColor="amber"
             />
           </div>
+
+          {publicUrl ? (
+            <PublicPageCard url={publicUrl} plans={plans} />
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-start gap-3 py-6">
+                <div>
+                  <CardTitle className="text-base">No public page linked</CardTitle>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Link a payment page to this group so buyers can subscribe and
+                    get auto-invited.
+                  </p>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/dashboard/telegram/setup">Link a page</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
