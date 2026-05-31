@@ -9,13 +9,17 @@ import { NextResponse, type NextRequest } from "next/server";
 import { type EmailOtpType } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
+import { safeNext } from "@/lib/safe-redirect";
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const tokenHash = url.searchParams.get("token_hash");
   const type = url.searchParams.get("type") as EmailOtpType | null;
-  const next = url.searchParams.get("next") ?? "/dashboard";
+  // Sanitise next= — block absolute URLs, protocol-relative URLs, etc.
+  // Without this an attacker can craft /login?next=https://evil/ and turn
+  // a successful login into an off-platform redirect.
+  const next = safeNext(url.searchParams.get("next"));
 
   const redirect = new URL(next, url.origin);
 

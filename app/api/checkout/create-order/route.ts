@@ -177,6 +177,15 @@ export async function POST(request: Request) {
     couponTotalLimit = cRow?.total_limit ?? null;
     couponPerCustomerLimit = cRow?.per_customer_limit ?? null;
 
+    // SECURITY / FIXME (audit #4 — coupon race on max_uses=1):
+    // reserveCoupon() uses Redis INCR + DECR which is *not* atomic with the
+    // order INSERT below. Two concurrent buyers can both pass the reserve
+    // check, both create orders, and both consume a coupon whose total_limit
+    // is 1. settleCoupon() in verify-payment partially mitigates by guarding
+    // its UPDATE, but the duplicate order rows are still persisted. Proper
+    // fix: pull `for update` lock on the coupon row inside the same
+    // transaction as the order insert, or use a Postgres advisory lock keyed
+    // on coupon_id. Needs a small Supabase RPC — deferred to its own change.
     const reserved = await reserveCoupon(
       couponId,
       couponTotalLimit,
@@ -188,14 +197,20 @@ export async function POST(request: Request) {
     }
   }
 
-  const baseNet = Math.max(0, grossAmount - discountAmount);
+  // Everything below is computed in paise integers to avoid floating-point
+  // drift on the ledger. The previous implementation rounded in rupees three
+  // separate times so seller_amount + platform_commission could be off the
+  // gross by a paisa or two — small per order, but compounding.
+  const grossPaise = Math.round(grossAmount * 100);
+  const discountPaise = Math.round(discountAmount * 100);
+  const baseNetPaise = Math.max(0, grossPaise - discountPaise);
 
   // 3b. Bump — server-validate the price against the seller's product. We
   // never trust the client-supplied bump_amount; instead we read the product
   // and use its price (allowing optional client override only when it's
   // strictly less, never more — i.e. seller's discount).
   let bumpProduct: { id: string; user_id: string; name: string; price: number } | null = null;
-  let bumpAmount = 0;
+  let bumpPaise = 0;
   if (bump_accepted && bump_product_id) {
     const { data: bp } = await admin
       .from("products")
@@ -212,13 +227,16 @@ export async function POST(request: Request) {
       name: bp.name,
       price: Number(bp.price ?? 0),
     };
-    const clientBump = Number(bump_amount_in ?? bumpProduct.price);
-    bumpAmount = Math.min(clientBump, bumpProduct.price);
-    if (!Number.isFinite(bumpAmount) || bumpAmount <= 0) {
-      bumpAmount = bumpProduct.price;
+    const bumpProductPaise = Math.round(bumpProduct.price * 100);
+    const clientBumpPaise = Math.round(Number(bump_amount_in ?? bumpProduct.price) * 100);
+    bumpPaise = Math.min(clientBumpPaise, bumpProductPaise);
+    if (!Number.isFinite(bumpPaise) || bumpPaise <= 0) {
+      bumpPaise = bumpProductPaise;
     }
   }
-  const netAmount = baseNet + bumpAmount;
+  const amountPaise = baseNetPaise + bumpPaise;
+  const netAmount = amountPaise / 100;
+  const bumpAmount = bumpPaise / 100;
 
   // 4. Seller — lookup plan to determine effective commission
   const { data: seller } = await admin
@@ -234,11 +252,12 @@ export async function POST(request: Request) {
   const defaultPct = Number(process.env.PLATFORM_COMMISSION_PERCENT ?? 5);
   const planKey = (seller.subscription_plan ?? "free") as PlanKey;
   const commissionPct = effectiveCommissionPercent(planKey, defaultPct);
-  const commissionAmount = Math.round(((netAmount * commissionPct) / 100) * 100) / 100;
-  const sellerAmount = Math.round((netAmount - commissionAmount) * 100) / 100;
-
-  const amountPaise = Math.round(netAmount * 100);
-  const sellerAmountPaise = Math.round(sellerAmount * 100);
+  // Commission rounded once, in paise. Seller share is the exact remainder
+  // so commission + seller = amount with zero drift.
+  const commissionPaise = Math.round((amountPaise * commissionPct) / 100);
+  const sellerAmountPaise = amountPaise - commissionPaise;
+  const commissionAmount = commissionPaise / 100;
+  const sellerAmount = sellerAmountPaise / 100;
 
   // 5. Allocate an internal order id up front so Razorpay's `receipt` and
   //    our DB row share it (and so we can pass it through `notes`).
@@ -277,8 +296,13 @@ export async function POST(request: Request) {
     })) as unknown as { id: string; amount: number | string };
   } catch (err) {
     if (couponId) await releaseCoupon(couponId, buyer_email);
-    const message = err instanceof Error ? err.message : "Razorpay error";
-    return NextResponse.json({ error: message }, { status: 502 });
+    // Log the real gateway error server-side; never surface its text to the
+    // browser (it can leak account IDs, internal flags, etc.).
+    console.error("[create-order] razorpay createOrder failed", err);
+    return NextResponse.json(
+      { error: "Payment gateway is temporarily unavailable. Please try again." },
+      { status: 502 },
+    );
   }
 
   // 7. Persist a pending order
@@ -320,9 +344,9 @@ export async function POST(request: Request) {
   // 7b. If bump accepted, insert the bump as a separate child order row
   // (source='bump', parent_order_id=main). Shares the same Razorpay order id
   // so the buyer makes a single payment.
-  if (bumpAmount > 0 && bumpProduct) {
-    const bumpCommission =
-      Math.round(((bumpAmount * commissionPct) / 100) * 100) / 100;
+  if (bumpPaise > 0 && bumpProduct) {
+    const bumpCommissionPaise = Math.round((bumpPaise * commissionPct) / 100);
+    const bumpSellerPaise = bumpPaise - bumpCommissionPaise;
     await admin.from("orders").insert({
       page_id,
       seller_user_id: page.user_id,
@@ -332,9 +356,9 @@ export async function POST(request: Request) {
       buyer_email,
       buyer_name: buyer_name ?? null,
       buyer_phone: buyer_phone ?? null,
-      amount: bumpAmount,
-      platform_commission: bumpCommission,
-      seller_amount: bumpAmount - bumpCommission,
+      amount: bumpPaise / 100,
+      platform_commission: bumpCommissionPaise / 100,
+      seller_amount: bumpSellerPaise / 100,
       currency,
       status: "pending",
       payment_gateway: "razorpay",

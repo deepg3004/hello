@@ -254,6 +254,12 @@ export async function POST(request: Request) {
   // 5d*. Affiliate attribution — read the ref_<slug> cookie set by
   //      /api/affiliate/track-click and, if it matches the page's active
   //      program, mint an affiliate_payouts row in 'pending' state.
+  // SECURITY / FIXME (audit #17 — affiliate refund flow):
+  // Affiliate commission is minted here on payment.captured but there is no
+  // matching reversal when the parent order is later refunded. The refund
+  // handler at actions/transactions.ts:refundOrderAction must also mark the
+  // matching affiliate_payouts row 'reversed' (or insert a negating row).
+  // Deferred — pairs with the refund-reversal decision tracked above.
   try {
     if (order.page_id) {
       const { data: pageRow } = await admin

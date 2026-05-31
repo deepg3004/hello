@@ -8,6 +8,8 @@
 //
 // Gated by CRON_SECRET.
 
+import crypto from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -16,8 +18,11 @@ import { processPayoutJob } from "@/lib/payouts";
 function authed(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
-  const provided = request.headers.get("x-cron-secret");
-  return provided === secret;
+  const provided = request.headers.get("x-cron-secret") ?? "";
+  const a = Buffer.from(provided);
+  const b = Buffer.from(secret);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 }
 
 async function run(request: Request) {

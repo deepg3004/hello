@@ -34,6 +34,20 @@ export async function POST() {
 
   const admin = createAdminClient();
 
+  // Single-use enforcement — claim the jti BEFORE we do any work. PK conflict
+  // on oto_token_consumed means a previous request already redeemed this
+  // exact cookie; we must reject so a buyer can't replay the OTO offer and
+  // create unlimited child orders against the same parent.
+  const { error: claimErr } = await admin
+    .from("oto_token_consumed")
+    .insert({ jti: payload.jti, parent_order_id: payload.order_id });
+  if (claimErr) {
+    return NextResponse.json(
+      { error: "This offer has already been redeemed." },
+      { status: 409 },
+    );
+  }
+
   // Load parent order + page + OTO config.
   const { data: parent } = await admin
     .from("orders")
@@ -92,10 +106,12 @@ export async function POST() {
   const defaultPct = Number(process.env.PLATFORM_COMMISSION_PERCENT ?? 5);
   const planKey = (seller.subscription_plan ?? "free") as PlanKey;
   const commissionPct = effectiveCommissionPercent(planKey, defaultPct);
-  const commission = Math.round(((priceOverride * commissionPct) / 100) * 100) / 100;
-  const sellerAmount = Math.round((priceOverride - commission) * 100) / 100;
+  // Compute the split in paise so commission + seller_amount = amount exactly.
   const amountPaise = Math.round(priceOverride * 100);
-  const sellerPaise = Math.round(sellerAmount * 100);
+  const commissionPaise = Math.round((amountPaise * commissionPct) / 100);
+  const sellerPaise = amountPaise - commissionPaise;
+  const commission = commissionPaise / 100;
+  const sellerAmount = sellerPaise / 100;
 
   const otoOrderId = crypto.randomUUID();
   let razorpayOrder: { id: string };
@@ -125,8 +141,9 @@ export async function POST() {
           : undefined,
     })) as unknown as { id: string };
   } catch (e) {
+    console.error("[create-oto-order] razorpay createOrder failed", e);
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Razorpay error" },
+      { error: "Payment gateway is temporarily unavailable. Please try again." },
       { status: 502 },
     );
   }

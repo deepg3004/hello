@@ -6,9 +6,16 @@
 // to the most recent `invited` membership row for the same group within a
 // 30-min window — that's our best signal that this user is "the buyer".
 
+import crypto from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+
+function timingSafeStringEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
 
 interface TelegramUser {
   id: number;
@@ -44,6 +51,35 @@ export async function POST(
   request: Request,
   { params }: { params: { group_id: string } },
 ) {
+  const admin = createAdminClient();
+
+  // Resolve the group + its stored secret token BEFORE parsing the body so
+  // an attacker can't churn DB lookups by spamming bad JSON. Telegram does
+  // not sign webhook bodies — the only auth signal is the
+  // `X-Telegram-Bot-Api-Secret-Token` header it echoes back to us, which
+  // we minted server-side in saveTelegramSetupAction.
+  const { data: group } = await admin
+    .from("telegram_vip_groups")
+    .select("id, group_chat_id, group_id, user_id, webhook_secret_token")
+    .eq("id", params.group_id)
+    .single();
+  if (!group) {
+    return NextResponse.json({ ok: true, skipped: "unknown group" });
+  }
+
+  const presented =
+    request.headers.get("x-telegram-bot-api-secret-token") ?? "";
+  const expected = group.webhook_secret_token ?? "";
+  // Reject if we never recorded a secret (group set up before this fix —
+  // re-run the wizard to rotate) or if the presented one doesn't match.
+  if (
+    !expected ||
+    presented.length !== expected.length ||
+    !timingSafeStringEqual(presented, expected)
+  ) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
   let body: TelegramUpdate;
   try {
     body = (await request.json()) as TelegramUpdate;
@@ -54,18 +90,6 @@ export async function POST(
   const evt = body.chat_member ?? body.my_chat_member;
   if (!evt || evt.new_chat_member.user.is_bot) {
     return NextResponse.json({ ok: true, skipped: "no relevant event" });
-  }
-
-  const admin = createAdminClient();
-
-  // Verify this webhook actually targets a real vip group we own.
-  const { data: group } = await admin
-    .from("telegram_vip_groups")
-    .select("id, group_chat_id, group_id, user_id")
-    .eq("id", params.group_id)
-    .single();
-  if (!group) {
-    return NextResponse.json({ ok: true, skipped: "unknown group" });
   }
 
   const tgUserId = String(evt.new_chat_member.user.id);

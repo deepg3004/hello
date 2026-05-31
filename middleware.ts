@@ -10,6 +10,7 @@ import {
   variantCookieName,
 } from "@/lib/ab";
 import { appHostPrefix, isPlatformOwnHost } from "@/lib/domains";
+import { safeNext } from "@/lib/safe-redirect";
 
 const AUTH_ROUTES = ["/login", "/signup", "/forgot-password"];
 const PROTECTED_PREFIXES = ["/dashboard", "/admin"];
@@ -326,7 +327,10 @@ export async function middleware(request: NextRequest) {
   if (!user && isProtected) {
     const redirect = request.nextUrl.clone();
     redirect.pathname = "/login";
-    redirect.searchParams.set("next", pathname);
+    // Sanitised — middleware-built `pathname` is always a relative path on
+    // our own host, but defence-in-depth means the login form / callback
+    // can trust this value without re-checking.
+    redirect.searchParams.set("next", safeNext(pathname));
     return NextResponse.redirect(redirect);
   }
 

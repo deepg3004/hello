@@ -35,7 +35,17 @@ function verifySvixSignature(
   signatureHeader: string | null,
 ): boolean {
   const secret = process.env.RESEND_WEBHOOK_SECRET;
-  if (!secret) return true; // dev fallback — no secret configured, accept
+  if (!secret) {
+    // Prod must always have the secret. Dev/staging can opt-in to accept
+    // unsigned events for local testing only.
+    if (process.env.NODE_ENV === "production") {
+      console.error(
+        "[resend-webhook] RESEND_WEBHOOK_SECRET missing in production",
+      );
+      return false;
+    }
+    return true;
+  }
   if (!msgId || !timestamp || !signatureHeader) return false;
 
   // Svix signs `${msgId}.${timestamp}.${body}` with the base64 secret.
