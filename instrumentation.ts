@@ -1,10 +1,14 @@
 // Next.js 14 instrumentation hook — runs once on Node.js server startup.
-// We use it to spin up background workers (BullMQ).
+// Used only for fail-fast env validation.
 //
-// Webpack will try to statically follow any `import("…")` from this file —
-// which pulls puppeteer/bullmq into the edge bundle and breaks the build.
-// To dodge that we resolve the queue module *at runtime* using
-// `eval("require")`, which webpack can't see.
+// NOTE: BullMQ workers are deliberately NOT booted here. `invoxai-app` runs in
+// PM2 cluster mode (multiple instances), so booting workers in-process would
+// make every queued job run once per instance — duplicate invoices, emails,
+// payouts, etc. All queue workers live in the dedicated single fork-mode
+// `invoxai-workers` process (workers/index.ts, see ecosystem.config.js).
+// The old in-process boot also never actually worked: the runtime
+// `require("./lib/queues/invoices")` resolved relative to .next/server and
+// always threw MODULE_NOT_FOUND, spamming app.err.log on every boot.
 
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
@@ -21,21 +25,5 @@ export async function register(): Promise<void> {
     console.error("[instrumentation] env validation failed", e);
     // Re-throw so PM2 marks the process unhealthy; don't accept traffic.
     throw e;
-  }
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const req = eval("require") as (m: string) => unknown;
-    const invoices = req("./lib/queues/invoices") as {
-      bootInvoiceWorker?: () => Promise<void>;
-    };
-    if (invoices.bootInvoiceWorker) await invoices.bootInvoiceWorker();
-
-    const recovery = req("./lib/queues/recovery") as {
-      bootRecoveryWorker?: () => Promise<void>;
-    };
-    if (recovery.bootRecoveryWorker) await recovery.bootRecoveryWorker();
-  } catch (e) {
-    console.error("[instrumentation] worker boot failed", e);
   }
 }
