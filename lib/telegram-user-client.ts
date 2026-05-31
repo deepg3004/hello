@@ -9,12 +9,25 @@
  * before it touches the DB. A session grants full access to that Telegram
  * account, so treat telegram_user_sessions.session_string as a top secret.
  */
+import WebSocket from "ws";
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions";
 import { Api } from "telegram";
+import { ConnectionTCPFull } from "telegram/network";
 import { computeCheck } from "telegram/Password";
 import { LogLevel } from "telegram/extensions/Logger";
 import bigInt from "big-integer";
+
+// GramJS 2.26 eagerly requires a global WebSocket at client construction even
+// when using the raw-TCP transport. Node 20 has no global WebSocket, so it
+// throws "Node.js 20 detected without native WebSocket support". Polyfill it
+// with `ws`. (We still force ConnectionTCPFull for the actual transport.)
+{
+  const g = globalThis as { WebSocket?: unknown };
+  if (typeof g.WebSocket === "undefined") {
+    g.WebSocket = WebSocket as unknown;
+  }
+}
 
 import { decryptValue, encryptValue } from "@/lib/admin/vault";
 import { getRedis } from "@/lib/redis";
@@ -41,6 +54,11 @@ function makeClient(sessionString = ""): TelegramClient {
     API_ID,
     API_HASH,
     {
+      // Force raw TCP. GramJS 2.26 otherwise tries a WebSocket transport, which
+      // throws "Node.js 20 detected without native WebSocket support" / hangs
+      // (Error: TIMEOUT) on this server. TCP to Telegram DCs :443 is reachable.
+      connection: ConnectionTCPFull,
+      useWSS: false,
       connectionRetries: 3,
       timeout: 15,
       deviceModel: "InvoxAI Platform",
