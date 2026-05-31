@@ -258,6 +258,20 @@ export function CheckoutForm(props: CheckoutFormProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Auto-apply a coupon passed via ?coupon=CODE — the shareable discount link.
+  // The discounted total then shows immediately without the buyer typing it.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const code = new URLSearchParams(window.location.search).get("coupon");
+    if (code && !coupon) {
+      setCouponInput(code);
+      setCouponOpen(true);
+      void applyCoupon(code);
+    }
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Fire-and-forget pre-capture on email blur once the user types a valid
   // address. The server is idempotent, so accidental double-fires are fine.
   function maybePreCapture() {
@@ -294,8 +308,8 @@ export function CheckoutForm(props: CheckoutFormProps) {
     }).catch(() => undefined);
   }
 
-  async function applyCoupon() {
-    const code = couponInput.trim();
+  async function applyCoupon(codeArg?: string) {
+    const code = (codeArg ?? couponInput).trim();
     if (!code) return;
     setApplyingCoupon(true);
     setCouponError(null);
@@ -770,7 +784,7 @@ export function CheckoutForm(props: CheckoutFormProps) {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={applyCoupon}
+                    onClick={() => applyCoupon()}
                     disabled={applyingCoupon || !couponInput.trim()}
                   >
                     {applyingCoupon ? (
