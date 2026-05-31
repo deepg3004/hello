@@ -30,6 +30,8 @@ export default async function TelegramListPage() {
         "id, group_name, group_id, channel_type, channel_username, logo_url, active_members, total_member_count, setup_complete, auto_page_id, page_id",
       )
       .eq("user_id", user.id)
+      // Only show set-up (bot-connected, published) channels — hide drafts.
+      .eq("setup_complete", true)
       .order("created_at", { ascending: false }),
   ]);
 

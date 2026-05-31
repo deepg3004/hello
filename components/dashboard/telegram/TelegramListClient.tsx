@@ -7,6 +7,7 @@ import {
   BarChart3,
   Check,
   Copy,
+  Pencil,
   Plus,
   Send,
   Users,
@@ -168,6 +169,9 @@ export function TelegramListClient({
                 <div className="flex gap-2">
                   <Button asChild variant="outline" size="sm" className="flex-1">
                     <Link href={`/dashboard/telegram/${c.id}`}><BarChart3 className="mr-1 h-4 w-4" /> Dashboard</Link>
+                  </Button>
+                  <Button asChild variant="outline" size="sm" className="flex-1">
+                    <Link href={`/dashboard/telegram/${c.id}/plans`}><Pencil className="mr-1 h-4 w-4" /> Edit plans</Link>
                   </Button>
                   <Button asChild variant="outline" size="sm" className="flex-1">
                     <Link href={`/dashboard/telegram/${c.id}?tab=members`}><Users className="mr-1 h-4 w-4" /> Members</Link>

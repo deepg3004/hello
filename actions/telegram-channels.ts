@@ -340,6 +340,110 @@ export async function publishChannelAction(data: {
   return { ok: true, data: { slug, pageUrl: `${APP_URL}/p/${slug}` } };
 }
 
+// ── Plan editor (existing channels) ─────────────────────────────────────────
+
+export interface EditablePlan {
+  name: string;
+  description: string | null;
+  price: number;
+  originalPrice: number | null;
+  durationDays: number;
+  durationLabel: string;
+  isPopular: boolean;
+}
+
+/** Load a channel's current plans + publish state for the editor. */
+export async function getChannelPlansAction(groupId: string): Promise<
+  ActionResult<{
+    groupName: string;
+    autoRenewal: boolean;
+    published: boolean;
+    pageUrl: string | null;
+    plans: EditablePlan[];
+  }>
+> {
+  const user = await authUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+  const admin = createAdminClient();
+
+  const { data: group } = await admin
+    .from("telegram_vip_groups")
+    .select("id, user_id, group_name, page_name, auto_renewal_enabled, auto_page_id")
+    .eq("id", groupId)
+    .maybeSingle();
+  if (!group || group.user_id !== user.id) return { ok: false, message: "Channel not found" };
+
+  const [{ data: plansRaw }, { data: pageRow }] = await Promise.all([
+    admin
+      .from("telegram_subscription_plans")
+      .select("name, description, price, original_price, duration_days, duration_label, is_popular")
+      .eq("group_id", groupId)
+      .order("sort_order", { ascending: true }),
+    group.auto_page_id
+      ? admin.from("pages").select("slug, status").eq("id", group.auto_page_id).maybeSingle()
+      : Promise.resolve({ data: null as { slug: string; status: string } | null }),
+  ]);
+
+  const plans: EditablePlan[] = ((plansRaw ?? []) as Array<{
+    name: string;
+    description: string | null;
+    price: number;
+    original_price: number | null;
+    duration_days: number;
+    duration_label: string;
+    is_popular: boolean;
+  }>).map((p) => ({
+    name: p.name,
+    description: p.description,
+    price: Number(p.price),
+    originalPrice: p.original_price != null ? Number(p.original_price) : null,
+    durationDays: p.duration_days,
+    durationLabel: p.duration_label,
+    isPopular: p.is_popular,
+  }));
+
+  return {
+    ok: true,
+    data: {
+      groupName: group.page_name ?? group.group_name ?? "Channel",
+      autoRenewal: !!group.auto_renewal_enabled,
+      published: pageRow?.status === "published",
+      pageUrl: pageRow?.slug ? `${APP_URL}/p/${pageRow.slug}` : null,
+      plans,
+    },
+  };
+}
+
+/** Publish / unpublish a channel's public page (pauses new subscriptions). */
+export async function setChannelPublishedAction(
+  groupId: string,
+  published: boolean,
+): Promise<ActionResult> {
+  const user = await authUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+  const admin = createAdminClient();
+
+  const { data: group } = await admin
+    .from("telegram_vip_groups")
+    .select("id, user_id, auto_page_id")
+    .eq("id", groupId)
+    .maybeSingle();
+  if (!group || group.user_id !== user.id) return { ok: false, message: "Channel not found" };
+  if (!group.auto_page_id) return { ok: false, message: "No public page to update." };
+
+  const { error } = await admin
+    .from("pages")
+    .update({
+      status: published ? "published" : "paused",
+      published_at: published ? new Date().toISOString() : null,
+    })
+    .eq("id", group.auto_page_id);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/dashboard/telegram");
+  return { ok: true };
+}
+
 // ── Dashboard data ────────────────────────────────────────────────────────
 
 export interface ChannelDashboardData {

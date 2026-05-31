@@ -249,7 +249,7 @@ export default async function TelegramChannelPage({
 
       {tab === "settings" && (
         <div className="grid gap-4 sm:grid-cols-2">
-          <SettingLink href="/dashboard/telegram/setup" title="Plans & page" desc="Re-run setup to edit plans, page details, and logo." />
+          <SettingLink href={`/dashboard/telegram/${group.id}/plans`} title="Edit plans & publish" desc="Edit prices, discounts, durations, most-popular tag; publish/unpublish." />
           <SettingLink href="/dashboard/coupons" title="Coupons" desc="Create discount codes for this channel's page." />
           <SettingLink href="/dashboard/settings/notifications" title="Automated emails" desc="Welcome, reminder, and expiry emails." />
           <SettingLink href="/dashboard/settings/tax-billing" title="GST & invoices" desc="Tax settings applied to each sale." />
