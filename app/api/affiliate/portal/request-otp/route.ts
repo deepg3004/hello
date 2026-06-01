@@ -15,6 +15,7 @@ import {
   hashPortalOtp,
 } from "@/lib/affiliate";
 import { sendEmail } from "@/lib/email";
+import { SHELL } from "@/lib/emails/layout";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 const OTP_TTL_MS = 10 * 60 * 1000;
@@ -101,12 +102,15 @@ export async function POST(request: Request) {
         to: email,
         role: "seller",
         subject: `Your InvoxAI affiliate code: ${otp}`,
-        html: `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;padding:16px">
-          <h2 style="margin:0 0 12px;font-size:18px">Your portal login code</h2>
-          <p style="margin:0 0 12px">Enter this code on the affiliate portal:</p>
+        html: SHELL(
+          `
+          <h2 style="margin:0 0 12px;font-size:20px">Your portal login code</h2>
+          <p style="margin:0 0 12px;line-height:1.5">Enter this code on the affiliate portal:</p>
           <p style="margin:0 0 12px;font-size:28px;letter-spacing:6px;font-weight:700;font-family:ui-monospace,Menlo,Consolas,monospace">${otp}</p>
           <p style="margin:0;color:#71717a;font-size:12px">Expires in 10 minutes. If you didn't ask for this, ignore the email.</p>
-        </div>`,
+        `,
+          { preheader: `Your affiliate login code is ${otp}.` },
+        ),
       });
     } catch (e) {
       console.error("[affiliate-otp] email send failed", e);
