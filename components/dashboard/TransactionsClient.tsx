@@ -190,9 +190,24 @@ export function TransactionsClient({
     triggerCsvDownload(result.csv, result.filename ?? "transactions.csv");
   }
 
-  async function onRefund(orderId: string) {
+  async function onRefund(orderId: string, fullAmount: number) {
+    // Prompt for the amount — full by default; a smaller value = partial refund.
+    const input = window.prompt(
+      `Refund amount in ₹ (full = ${fullAmount}). Enter a smaller amount for a partial refund.`,
+      String(fullAmount),
+    );
+    if (input == null) return; // cancelled
+    const amount = Number(input.trim());
+    if (!Number.isFinite(amount) || amount <= 0 || amount > fullAmount) {
+      toast({
+        title: "Invalid amount",
+        description: `Enter a value between 1 and ${fullAmount}.`,
+        variant: "destructive",
+      });
+      return;
+    }
     setRefundingId(orderId);
-    const r = await refundOrderAction(orderId);
+    const r = await refundOrderAction(orderId, amount);
     setRefundingId(null);
     if (!r.ok) {
       toast({
@@ -202,7 +217,9 @@ export function TransactionsClient({
       });
       return;
     }
-    toast({ title: "Order marked refunded" });
+    toast({
+      title: amount < fullAmount ? "Partial refund issued" : "Order refunded",
+    });
   }
 
   const fromX = Math.min((page - 1) * PAGE_SIZE + 1, filtered.length);
@@ -500,7 +517,7 @@ function ExpandableRow({
   open: boolean;
   onToggle: () => void;
   isAdmin: boolean;
-  onRefund: (id: string) => void;
+  onRefund: (id: string, amount: number) => void;
   refunding: boolean;
 }) {
   // Left accent border on the expanded panel — colour matches the order's
@@ -648,23 +665,25 @@ function ExpandableRow({
                     </a>
                   </Button>
                 )}
-                {isAdmin && row.status === "paid" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRefund(row.id);
-                    }}
-                    disabled={refunding}
-                    className="ml-auto border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                  >
-                    {refunding && (
-                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                    )}
-                    Refund
-                  </Button>
-                )}
+                {isAdmin &&
+                  (row.status === "paid" ||
+                    row.status === "partially_refunded") && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRefund(row.id, Number(row.amount));
+                      }}
+                      disabled={refunding}
+                      className="ml-auto border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                    >
+                      {refunding && (
+                        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                      )}
+                      {row.status === "partially_refunded" ? "Refund more" : "Refund"}
+                    </Button>
+                  )}
               </div>
             </div>
           </td>

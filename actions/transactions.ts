@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getRazorpay } from "@/lib/razorpay";
+import { refundReversal } from "@/lib/pricing";
 
 export interface TransactionsFilter {
   from?: string;     // ISO date
@@ -163,7 +164,10 @@ export interface RefundResult {
  * see app/api/webhooks/razorpay/subscription for the subscription path,
  * and a future product decision for partial-refund UX.
  */
-export async function refundOrderAction(orderId: string): Promise<RefundResult> {
+export async function refundOrderAction(
+  orderId: string,
+  amountRupees?: number,
+): Promise<RefundResult> {
   const supabase = createClient();
   const {
     data: { user },
@@ -191,7 +195,7 @@ export async function refundOrderAction(orderId: string): Promise<RefundResult> 
   if (loadErr || !order) {
     return { ok: false, message: "Order not found" };
   }
-  if (order.status !== "paid") {
+  if (order.status !== "paid" && order.status !== "partially_refunded") {
     return {
       ok: false,
       message: `Order is ${order.status} — only paid orders can be refunded`,
@@ -204,12 +208,51 @@ export async function refundOrderAction(orderId: string): Promise<RefundResult> 
     };
   }
 
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const gross = Number(order.amount);
+  const requestedPartial =
+    typeof amountRupees === "number" && round2(amountRupees) < gross;
+  // A "partial-capable" run is either an explicit partial amount OR refunding
+  // an order that's already partially refunded. These need the migration-037
+  // refunded_amount column; a plain full refund of a `paid` order does NOT, so
+  // that path stays byte-for-byte compatible (safe before the migration).
+  const partialPath = requestedPartial || order.status === "partially_refunded";
+
+  let prevRefunded = 0;
+  let refundAmt = gross;
+  if (partialPath) {
+    const { data: rr, error: rrErr } = await admin
+      .from("orders")
+      .select("refunded_amount")
+      .eq("id", orderId)
+      .maybeSingle();
+    if (rrErr) {
+      return {
+        ok: false,
+        message:
+          "Partial refunds need migration 037 applied (orders.refunded_amount).",
+      };
+    }
+    prevRefunded = Number(rr?.refunded_amount ?? 0);
+    const remaining = round2(gross - prevRefunded);
+    if (remaining <= 0) {
+      return { ok: false, message: "Order is already fully refunded." };
+    }
+    refundAmt = requestedPartial ? round2(amountRupees!) : remaining;
+    if (refundAmt <= 0 || refundAmt > remaining) {
+      return {
+        ok: false,
+        message: `Enter an amount between ₹1 and ₹${remaining}.`,
+      };
+    }
+  }
+
   // ── Razorpay refund — surface failures BEFORE touching our ledger ───────
   let refundId: string;
   try {
     const razorpay = getRazorpay();
     const refund = await razorpay.payments.refund(order.gateway_payment_id, {
-      amount: Math.round(Number(order.amount) * 100), // paise
+      amount: Math.round(refundAmt * 100), // paise
       speed: "normal",
       notes: { invoxai_order_id: orderId, invoxai_initiator: user.id },
     });
@@ -220,51 +263,103 @@ export async function refundOrderAction(orderId: string): Promise<RefundResult> 
     return { ok: false, message };
   }
 
-  // ── Flip status — guarded so a concurrent admin click can't double-flip
-  const { data: updatedRows } = await admin
-    .from("orders")
-    .update({
-      status: "refunded",
-      refund_id: refundId,
-      refunded_at: new Date().toISOString(),
-    })
-    .eq("id", orderId)
-    .eq("status", "paid")
-    .select("id");
-  if (!updatedRows || updatedRows.length === 0) {
-    // Someone else got there first (or refund webhook ran). The Razorpay
-    // refund is real but our ledger already shows reversed — exit cleanly.
+  const now = new Date().toISOString();
+
+  if (!partialPath) {
+    // ── Full refund of a `paid` order — legacy path, unchanged ──────────────
+    const { data: updatedRows } = await admin
+      .from("orders")
+      .update({ status: "refunded", refund_id: refundId, refunded_at: now })
+      .eq("id", orderId)
+      .eq("status", "paid")
+      .select("id");
+    if (!updatedRows || updatedRows.length === 0) {
+      return { ok: true, refund_id: refundId };
+    }
+    await admin.from("transactions").insert([
+      {
+        user_id: order.seller_user_id,
+        order_id: orderId,
+        type: "refund",
+        amount: -Number(order.seller_amount),
+        status: "completed",
+        reference_id: refundId,
+        notes: `Refund ${refundId} — sale reversal`,
+      },
+      {
+        user_id: order.seller_user_id,
+        order_id: orderId,
+        type: "refund_commission",
+        amount: Number(order.platform_commission),
+        status: "completed",
+        reference_id: refundId,
+        notes: `Refund ${refundId} — commission give-back`,
+      },
+    ]);
+    await admin
+      .from("affiliate_payouts")
+      .update({ status: "reversed", reversed_at: now })
+      .eq("order_id", orderId)
+      .in("status", ["pending", "paid"]);
     return { ok: true, refund_id: refundId };
   }
 
-  // ── Negate the ledger so seller balance + platform commission unwind ────
+  // ── Partial path ─────────────────────────────────────────────────────────
+  const newRefunded = round2(prevRefunded + refundAmt);
+  const fully = newRefunded >= gross - 0.005;
+  const newStatus = fully ? "refunded" : "partially_refunded";
+  const { sellerReversal, commissionGiveback } = refundReversal(
+    gross,
+    Number(order.seller_amount),
+    Number(order.platform_commission),
+    refundAmt,
+  );
+
+  // Guarded so a concurrent click can't double-apply.
+  const { data: updatedRows } = await admin
+    .from("orders")
+    .update({
+      status: newStatus,
+      refunded_amount: newRefunded,
+      refund_id: refundId,
+      refunded_at: now,
+    })
+    .eq("id", orderId)
+    .in("status", ["paid", "partially_refunded"])
+    .select("id");
+  if (!updatedRows || updatedRows.length === 0) {
+    return { ok: true, refund_id: refundId };
+  }
+
   await admin.from("transactions").insert([
     {
       user_id: order.seller_user_id,
       order_id: orderId,
       type: "refund",
-      amount: -Number(order.seller_amount),
+      amount: -sellerReversal,
       status: "completed",
       reference_id: refundId,
-      notes: `Refund ${refundId} — sale reversal`,
+      notes: `Refund ${refundId} — ₹${refundAmt} ${fully ? "(final)" : "partial"} reversal`,
     },
     {
       user_id: order.seller_user_id,
       order_id: orderId,
       type: "refund_commission",
-      amount: Number(order.platform_commission),
+      amount: commissionGiveback,
       status: "completed",
       reference_id: refundId,
-      notes: `Refund ${refundId} — commission give-back`,
+      notes: `Refund ${refundId} — commission give-back (₹${refundAmt})`,
     },
   ]);
 
-  // ── Affiliate clawback — mark any pending/paid commission as reversed ──
-  await admin
-    .from("affiliate_payouts")
-    .update({ status: "reversed", reversed_at: new Date().toISOString() })
-    .eq("order_id", orderId)
-    .in("status", ["pending", "paid"]);
+  // Affiliate clawback only once the order is fully refunded.
+  if (fully) {
+    await admin
+      .from("affiliate_payouts")
+      .update({ status: "reversed", reversed_at: now })
+      .eq("order_id", orderId)
+      .in("status", ["pending", "paid"]);
+  }
 
   return { ok: true, refund_id: refundId };
 }

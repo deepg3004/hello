@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { computeDiscount } from "@/lib/pricing";
+import { computeDiscount, refundReversal } from "@/lib/pricing";
 
 describe("computeDiscount", () => {
   it("applies a percentage discount", () => {
@@ -30,5 +30,36 @@ describe("computeDiscount", () => {
   it("returns 0 for a 0% / 0-value discount", () => {
     expect(computeDiscount("percentage", 0, 1000, null)).toBe(0);
     expect(computeDiscount("fixed", 0, 1000, null)).toBe(0);
+  });
+});
+
+describe("refundReversal", () => {
+  it("reverses the full split on a full refund", () => {
+    // gross 1000, seller 900, commission 100, refund 1000 → all of it
+    expect(refundReversal(1000, 900, 100, 1000)).toEqual({
+      fraction: 1,
+      sellerReversal: 900,
+      commissionGiveback: 100,
+    });
+  });
+
+  it("reverses proportionally on a partial refund", () => {
+    // refund 250 of 1000 = 25% → seller 225, commission 25
+    expect(refundReversal(1000, 900, 100, 250)).toEqual({
+      fraction: 0.25,
+      sellerReversal: 225,
+      commissionGiveback: 25,
+    });
+  });
+
+  it("rounds to 2 decimals", () => {
+    const r = refundReversal(999, 899.1, 99.9, 333);
+    expect(r.sellerReversal).toBe(299.7);
+    expect(r.commissionGiveback).toBe(33.3);
+  });
+
+  it("clamps fraction at 1 and handles zero gross", () => {
+    expect(refundReversal(1000, 900, 100, 5000).fraction).toBe(1);
+    expect(refundReversal(0, 0, 0, 100).fraction).toBe(1);
   });
 });
