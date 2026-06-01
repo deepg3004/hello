@@ -30,11 +30,16 @@ export function safeNext(
   if (!candidate.startsWith("/")) return fallback;
   if (candidate.startsWith("//") || candidate.startsWith("/\\")) return fallback;
   if (candidate.includes("\\")) return fallback;
-  // Block obvious bounce loops.
+  // Block obvious bounce loops. Prefixes that already end in "/" (e.g.
+  // "/auth/") match any sub-path directly; others match the exact path or a
+  // "/"- or "?"-delimited sub-path so "/loginhelp" is NOT treated as "/login".
   for (const p of BAD_PREFIXES) {
-    if (candidate === p || candidate.startsWith(p + "/") || candidate.startsWith(p + "?")) {
-      return fallback;
-    }
+    const matches = p.endsWith("/")
+      ? candidate.startsWith(p)
+      : candidate === p ||
+        candidate.startsWith(p + "/") ||
+        candidate.startsWith(p + "?");
+    if (matches) return fallback;
   }
   return candidate;
 }
