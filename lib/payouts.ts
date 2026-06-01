@@ -216,15 +216,15 @@ async function notifyPayoutInitiatedLocal(
       .single();
     if (!profile) return;
 
-    const { sendEmail } = await import("@/lib/email");
-    const subject = `Payout initiated — ₹${amount.toLocaleString("en-IN")}`;
-    const body = `Hi ${profile.full_name ?? ""},\n\nYour payout of ₹${amount.toLocaleString("en-IN")} has been initiated. It will land in your bank account in 2–4 hours.\n\n— InvoxAI`;
-    await sendEmail({
+    const { enqueueEmail } = await import("@/lib/queues/email");
+    await enqueueEmail({
+      template: "payout_initiated",
       to: profile.email,
-      subject,
-      html: `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#18181b">${body
-        .replace(/\n/g, "<br/>")
-        .replace(/&/g, "&amp;")}</div>`,
+      data: {
+        seller_name: profile.full_name,
+        amount,
+        bank_last4: (profile.bank_account_number ?? "").slice(-4) || null,
+      },
     });
 
     // WhatsApp via the preference-aware trigger (respects toggles + verified

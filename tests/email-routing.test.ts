@@ -17,7 +17,9 @@ const ALL_TEMPLATES: TemplateKey[] = [
   "kyc_rejected",
   "abandoned_recovery_1",
   "abandoned_recovery_2",
+  "payout_initiated",
   "payout_completed",
+  "payout_failed",
   "lead_notification",
 ];
 

@@ -13,9 +13,7 @@ import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyWebhookSignature } from "@/lib/razorpay";
-import { sendEmail } from "@/lib/email";
 import { sendEmail as sendTemplate } from "@/lib/emails/send";
-import { SHELL, escapeHtml } from "@/lib/emails/layout";
 
 interface PayoutEntity {
   id: string;
@@ -159,18 +157,10 @@ async function notifyFailed(userId: string, amount: number, reason: string) {
       .eq("id", userId)
       .single();
     if (!profile) return;
-    await sendEmail({
-      to: profile.email,
-      role: "seller",
-      subject: `Payout failed — please retry`,
-      html: SHELL(
-        `
-        <h2 style="margin:0 0 12px;font-size:20px">Payout failed</h2>
-        <p style="margin:0 0 12px;line-height:1.5">Hi ${escapeHtml(profile.full_name ?? "")},</p>
-        <p style="margin:0 0 12px;line-height:1.5">Your payout of <strong>₹${amount.toLocaleString("en-IN")}</strong> failed (${escapeHtml(reason)}). The amount has been returned to your available balance — please request again or contact support.</p>
-      `,
-        { preheader: `Your ₹${amount.toLocaleString("en-IN")} payout failed — funds returned.` },
-      ),
+    await sendTemplate("payout_failed", profile.email, {
+      seller_name: profile.full_name,
+      amount,
+      reason,
     });
   } catch (e) {
     console.error("[payout-webhook] notifyFailed failed", e);

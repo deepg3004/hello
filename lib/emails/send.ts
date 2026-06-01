@@ -40,9 +40,17 @@ import {
   type AbandonedRecovery2Data,
 } from "./templates/abandoned-recovery-2";
 import {
+  payoutInitiatedEmail,
+  type PayoutInitiatedData,
+} from "./templates/payout-initiated";
+import {
   payoutCompletedEmail,
   type PayoutCompletedData,
 } from "./templates/payout-completed";
+import {
+  payoutFailedEmail,
+  type PayoutFailedData,
+} from "./templates/payout-failed";
 import {
   leadNotificationEmail,
   type LeadNotificationData,
@@ -65,7 +73,9 @@ export interface TemplateDataMap {
   kyc_rejected: KycRejectedData;
   abandoned_recovery_1: RecoveryHero;
   abandoned_recovery_2: AbandonedRecovery2Data;
+  payout_initiated: PayoutInitiatedData;
   payout_completed: PayoutCompletedData;
+  payout_failed: PayoutFailedData;
   lead_notification: LeadNotificationData;
 }
 
@@ -167,8 +177,12 @@ function render<K extends TemplateKey>(
       return abandonedRecovery1Email(data as RecoveryHero);
     case "abandoned_recovery_2":
       return abandonedRecovery2Email(data as AbandonedRecovery2Data);
+    case "payout_initiated":
+      return payoutInitiatedEmail(data as PayoutInitiatedData);
     case "payout_completed":
       return payoutCompletedEmail(data as PayoutCompletedData);
+    case "payout_failed":
+      return payoutFailedEmail(data as PayoutFailedData);
     case "lead_notification":
       return leadNotificationEmail(data as LeadNotificationData);
     default: {

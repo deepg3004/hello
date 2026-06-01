@@ -43,7 +43,9 @@ export type TemplateKey =
   | "kyc_rejected"
   | "abandoned_recovery_1"
   | "abandoned_recovery_2"
+  | "payout_initiated"
   | "payout_completed"
+  | "payout_failed"
   | "lead_notification";
 
 // Each template leaves from an audience-appropriate Gmail mailbox (when the
@@ -58,6 +60,8 @@ export const TEMPLATE_ROLE: Record<TemplateKey, MailboxRole> = {
   kyc_rejected: "kyc",
   abandoned_recovery_1: "buyer",
   abandoned_recovery_2: "buyer",
+  payout_initiated: "seller",
   payout_completed: "seller",
+  payout_failed: "seller",
   lead_notification: "seller",
 };

@@ -172,6 +172,36 @@ export async function rejectPayoutAction(
     details: { reason },
   });
 
+  // Email the seller that the payout was returned (best-effort).
+  try {
+    const { data: p } = await admin
+      .from("payouts")
+      .select("user_id, amount")
+      .eq("id", payoutId)
+      .single();
+    if (p?.user_id) {
+      const { data: prof } = await admin
+        .from("user_profiles")
+        .select("email, full_name")
+        .eq("id", p.user_id)
+        .single();
+      if (prof?.email) {
+        const { enqueueEmail } = await import("@/lib/queues/email");
+        await enqueueEmail({
+          template: "payout_failed",
+          to: prof.email,
+          data: {
+            seller_name: prof.full_name,
+            amount: Number(p.amount ?? 0),
+            reason: reason || "Rejected by admin",
+          },
+        });
+      }
+    }
+  } catch {
+    /* best-effort */
+  }
+
   revalidatePath("/admin/payouts");
   return { ok: true };
 }
@@ -221,6 +251,30 @@ export async function markPayoutCompletedAction(
     target_id: payoutId,
     details: { utr },
   });
+
+  // Email the seller their payout receipt (best-effort).
+  try {
+    const { data: prof } = await admin
+      .from("user_profiles")
+      .select("email, full_name, bank_account_number")
+      .eq("id", payout.user_id)
+      .single();
+    if (prof?.email) {
+      const { enqueueEmail } = await import("@/lib/queues/email");
+      await enqueueEmail({
+        template: "payout_completed",
+        to: prof.email,
+        data: {
+          seller_name: prof.full_name,
+          amount: Number(payout.amount ?? 0),
+          bank_last4: (prof.bank_account_number ?? "").slice(-4) || null,
+          utr: utr || null,
+        },
+      });
+    }
+  } catch {
+    /* best-effort — never block the payout on email */
+  }
 
   revalidatePath("/admin/payouts");
   return { ok: true };
