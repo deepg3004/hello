@@ -2,7 +2,15 @@
 // import from client components and unit tests. The actual SMTP transport lives
 // in ./smtp.ts and the template renderers in ./send.ts.
 
-export type MailboxRole = "kyc" | "seller" | "buyer" | "support" | "noreply";
+export type MailboxRole =
+  | "kyc"
+  | "seller"
+  | "buyer"
+  | "support"
+  | "noreply"
+  | "onboarding"
+  | "billing"
+  | "legal";
 
 export const MAILBOX_ROLES: MailboxRole[] = [
   "kyc",
@@ -10,6 +18,9 @@ export const MAILBOX_ROLES: MailboxRole[] = [
   "buyer",
   "support",
   "noreply",
+  "onboarding",
+  "billing",
+  "legal",
 ];
 
 export type MailboxField = "user" | "pass" | "from_name" | "reply_to";
@@ -37,10 +48,10 @@ export type TemplateKey =
 // Each template leaves from an audience-appropriate Gmail mailbox (when the
 // admin has configured it). Unconfigured roles fall back to Resend.
 export const TEMPLATE_ROLE: Record<TemplateKey, MailboxRole> = {
-  order_confirmation: "buyer",
-  payment_failed: "buyer",
-  welcome: "seller",
-  subscription_renewal: "buyer",
+  order_confirmation: "billing",
+  payment_failed: "billing",
+  welcome: "onboarding",
+  subscription_renewal: "billing",
   kyc_approved: "kyc",
   kyc_rejected: "kyc",
   abandoned_recovery_1: "buyer",

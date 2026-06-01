@@ -29,7 +29,7 @@ describe("smtpKey", () => {
 });
 
 describe("MAILBOX_ROLES", () => {
-  it("contains the five distinct audience mailboxes", () => {
+  it("contains the distinct audience mailboxes", () => {
     expect(new Set(MAILBOX_ROLES).size).toBe(MAILBOX_ROLES.length);
     expect(MAILBOX_ROLES).toEqual([
       "kyc",
@@ -37,6 +37,9 @@ describe("MAILBOX_ROLES", () => {
       "buyer",
       "support",
       "noreply",
+      "onboarding",
+      "billing",
+      "legal",
     ]);
   });
 });
@@ -52,10 +55,14 @@ describe("TEMPLATE_ROLE", () => {
     expect(Object.keys(TEMPLATE_ROLE).sort()).toEqual([...ALL_TEMPLATES].sort());
   });
 
-  it("routes KYC mail to kyc and money mail to seller/buyer", () => {
+  it("routes KYC, onboarding, billing and seller mail to their mailboxes", () => {
     expect(TEMPLATE_ROLE.kyc_approved).toBe("kyc");
     expect(TEMPLATE_ROLE.kyc_rejected).toBe("kyc");
+    expect(TEMPLATE_ROLE.welcome).toBe("onboarding");
+    expect(TEMPLATE_ROLE.order_confirmation).toBe("billing");
+    expect(TEMPLATE_ROLE.payment_failed).toBe("billing");
+    expect(TEMPLATE_ROLE.subscription_renewal).toBe("billing");
     expect(TEMPLATE_ROLE.payout_completed).toBe("seller");
-    expect(TEMPLATE_ROLE.order_confirmation).toBe("buyer");
+    expect(TEMPLATE_ROLE.lead_notification).toBe("seller");
   });
 });
