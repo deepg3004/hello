@@ -22,6 +22,7 @@ import { FormBuilderTab } from "./FormBuilderTab";
 import { ConversionTab } from "./ConversionTab";
 import { useToast } from "@/hooks/use-toast";
 import { updatePageAction, type UpdatePageInput } from "@/actions/pages";
+import { publicPagePath } from "@/lib/page-url";
 import type { FormConfig, LeadMagnetMeta } from "@/lib/leads";
 import type { CountdownConfig, ExitIntentConfig } from "@/lib/conversion";
 import type { OrderBumpConfig, OtoConfig } from "@/lib/upsells";
@@ -157,12 +158,12 @@ export function PageEditorTabs({ initial }: { initial: ExistingPage }) {
               <>
                 {" · "}
                 <a
-                  href={`/p/${slug}`}
+                  href={publicPagePath(initial.type, slug, initial.template_id)}
                   target="_blank"
                   rel="noreferrer"
                   className="underline"
                 >
-                  /p/{slug}
+                  {publicPagePath(initial.type, slug, initial.template_id)}
                 </a>
               </>
             )}

@@ -30,6 +30,8 @@ import { useToast } from "@/hooks/use-toast";
 interface PageActionsMenuProps {
   pageId: string;
   pageSlug: string;
+  /** Type-aware public path (/p, /tg or /ln). Falls back to /p/{slug}. */
+  pagePath?: string;
   flagged: boolean;
   status: string;
 }
@@ -37,6 +39,7 @@ interface PageActionsMenuProps {
 export function PageActionsMenu({
   pageId,
   pageSlug,
+  pagePath,
   flagged,
   status,
 }: PageActionsMenuProps) {
@@ -82,7 +85,7 @@ export function PageActionsMenu({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuItem asChild>
-            <a href={`/p/${pageSlug}`} target="_blank" rel="noreferrer">Preview</a>
+            <a href={pagePath ?? `/p/${pageSlug}`} target="_blank" rel="noreferrer">Preview</a>
           </DropdownMenuItem>
           {flagged ? (
             <DropdownMenuItem

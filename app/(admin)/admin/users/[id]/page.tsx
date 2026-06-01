@@ -21,6 +21,7 @@ import {
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { UserActions } from "@/components/admin/UserActions";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { publicPagePath } from "@/lib/page-url";
 import { PLANS } from "@/lib/plans";
 import { cn, formatDate, formatDateTime, formatINR } from "@/lib/utils";
 
@@ -82,7 +83,7 @@ export default async function AdminUserDetailPage({
     admin
       .from("pages")
       .select(
-        "id, title, slug, status, type, view_count, total_revenue, created_at",
+        "id, title, slug, status, type, template_id, view_count, total_revenue, created_at",
       )
       .eq("user_id", params.id)
       .order("created_at", { ascending: false }),
@@ -427,14 +428,14 @@ export default async function AdminUserDetailPage({
                       >
                         <td className="px-4 py-3">
                           <Link
-                            href={`/p/${p.slug}`}
+                            href={publicPagePath(p.type, p.slug, (p as { template_id?: string | null }).template_id)}
                             target="_blank"
                             className="font-medium text-foreground hover:text-primary hover:underline"
                           >
                             {p.title}
                           </Link>
                           <div className="text-xs text-muted-foreground">
-                            /p/{p.slug}
+                            {publicPagePath(p.type, p.slug, (p as { template_id?: string | null }).template_id)}
                           </div>
                         </td>
                         <td className="px-4 py-3">

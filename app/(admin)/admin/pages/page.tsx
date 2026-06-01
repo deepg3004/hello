@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { PageActionsMenu } from "@/components/admin/PageActionsMenu";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { publicPagePath } from "@/lib/page-url";
 import { formatINR } from "@/lib/utils";
 
 export const metadata = { title: "Admin · Pages" };
@@ -22,7 +23,7 @@ export default async function AdminPagesPage() {
   const { data: rowsRaw } = await admin
     .from("pages")
     .select(
-      "id, title, slug, type, status, view_count, conversion_count, total_revenue, flagged_at, flag_reason, created_at, user_id, user_profiles!pages_user_id_fkey(full_name, email)",
+      "id, title, slug, type, template_id, status, view_count, conversion_count, total_revenue, flagged_at, flag_reason, created_at, user_id, user_profiles!pages_user_id_fkey(full_name, email)",
     )
     .order("created_at", { ascending: false })
     .limit(500);
@@ -32,6 +33,7 @@ export default async function AdminPagesPage() {
     title: string;
     slug: string;
     type: string;
+    template_id: string | null;
     status: string;
     view_count: number;
     conversion_count: number;
@@ -81,7 +83,7 @@ export default async function AdminPagesPage() {
                     <TableRow key={r.id}>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Link href={`/p/${r.slug}`} target="_blank" className="font-medium hover:underline">
+                          <Link href={publicPagePath(r.type, r.slug, r.template_id)} target="_blank" className="font-medium hover:underline">
                             {r.title}
                           </Link>
                           {r.flagged_at && (
@@ -90,7 +92,7 @@ export default async function AdminPagesPage() {
                             </Badge>
                           )}
                         </div>
-                        <div className="text-xs text-muted-foreground">/p/{r.slug}</div>
+                        <div className="text-xs text-muted-foreground">{publicPagePath(r.type, r.slug, r.template_id)}</div>
                       </TableCell>
                       <TableCell>
                         <Link href={`/admin/users/${r.user_id}`} className="hover:underline">
@@ -116,6 +118,7 @@ export default async function AdminPagesPage() {
                         <PageActionsMenu
                           pageId={r.id}
                           pageSlug={r.slug}
+                          pagePath={publicPagePath(r.type, r.slug, r.template_id)}
                           flagged={!!r.flagged_at}
                           status={r.status}
                         />
