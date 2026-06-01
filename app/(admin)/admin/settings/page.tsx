@@ -217,10 +217,13 @@ export default async function AdminPlatformSettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Email envelope</CardTitle>
+          <CardTitle className="text-base">
+            Email envelope (Resend fallback)
+          </CardTitle>
           <CardDescription>
-            From / reply-to applied to every transactional email. Override the
-            env-var defaults on a per-environment basis.
+            From / reply-to used only when a mailbox isn&apos;t configured under{" "}
+            <strong>Admin → Email</strong> and the send falls back to Resend.
+            Per-audience Gmail mailboxes are managed there.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

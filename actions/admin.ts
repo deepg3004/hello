@@ -7,6 +7,11 @@ import { encryptValue, decryptValue, vaultConfigured } from "@/lib/admin/vault";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PLANS, type PlanKey } from "@/lib/plans";
 import { notifyKyc } from "@/lib/notifications/events";
+import {
+  sendViaSmtp,
+  MAILBOX_ROLES,
+  type MailboxRole,
+} from "@/lib/emails/smtp";
 
 export interface AdminResult {
   ok: boolean;
@@ -669,4 +674,63 @@ export async function revealCredentialAction(key: string): Promise<AdminResult> 
   });
 
   return { ok: true, value: plaintext };
+}
+
+/**
+ * Send a test email through a mailbox role's Gmail SMTP config, to the admin's
+ * own address. No Resend fallback — the point is to prove the Gmail credentials
+ * actually work, so SMTP errors (bad app password, 2FA off) surface verbatim.
+ */
+export async function sendTestEmailAction(
+  role: MailboxRole,
+): Promise<AdminResult> {
+  let adminId: string;
+  try {
+    adminId = await requireAdmin();
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+
+  if (!MAILBOX_ROLES.includes(role)) {
+    return { ok: false, message: "Unknown mailbox" };
+  }
+
+  const admin = createAdminClient();
+  const { data: userRes, error: userErr } =
+    await admin.auth.admin.getUserById(adminId);
+  const to = userRes?.user?.email;
+  if (userErr || !to) {
+    return { ok: false, message: "Couldn't resolve your admin email" };
+  }
+
+  const res = await sendViaSmtp({
+    role,
+    to,
+    subject: `InvoxAI SMTP test — ${role} mailbox`,
+    html: `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#18181b">
+      <h2 style="margin:0 0 12px;font-size:18px">SMTP test successful ✅</h2>
+      <p style="margin:0 0 12px">This is a test email from the <strong>${role}</strong> mailbox. If you can read it, the Gmail address and app password are working.</p>
+      <p style="margin:0;color:#71717a;font-size:12px">Sent from Admin → Email.</p>
+    </div>`,
+    text: `SMTP test successful. This is a test email from the ${role} mailbox.`,
+  });
+
+  await writeAuditLog({
+    admin_id: adminId,
+    action: "email.test_sent",
+    target_type: "platform_setting",
+    target_id: `smtp_${role}`,
+    details: { ok: res.ok, skipped: res.skipped ?? false },
+  });
+
+  if (res.skipped) {
+    return {
+      ok: false,
+      message: "This mailbox isn't configured — set a Gmail address and app password first.",
+    };
+  }
+  if (!res.ok) {
+    return { ok: false, message: res.message ?? "SMTP send failed" };
+  }
+  return { ok: true, message: `Test email sent to ${to}` };
 }

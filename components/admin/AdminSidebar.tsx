@@ -9,6 +9,7 @@ import {
   KeyRound,
   LayoutDashboard,
   LifeBuoy,
+  Mail,
   ScrollText,
   Send,
   ShieldCheck,
@@ -79,6 +80,7 @@ export function AdminSidebar({
       label: "System",
       items: [
         { href: "/admin/learn", label: "Creator Academy", Icon: GraduationCap },
+        { href: "/admin/email", label: "Email", Icon: Mail },
         { href: "/admin/credentials", label: "Credentials", Icon: KeyRound },
         { href: "/admin/settings", label: "Platform Settings", Icon: Sliders },
         { href: "/admin/audit-logs", label: "Audit Logs", Icon: ScrollText },

@@ -139,6 +139,7 @@ async function notifyCompleted(userId: string, amount: number, utr?: string) {
     if (!profile) return;
     await sendEmail({
       to: profile.email,
+      role: "seller",
       subject: `Payout settled — ₹${amount.toLocaleString("en-IN")}`,
       html: `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#18181b">Hi ${
         profile.full_name ?? ""
@@ -162,6 +163,7 @@ async function notifyFailed(userId: string, amount: number, reason: string) {
     if (!profile) return;
     await sendEmail({
       to: profile.email,
+      role: "seller",
       subject: `Payout failed — please retry`,
       html: `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#18181b">Hi ${
         profile.full_name ?? ""

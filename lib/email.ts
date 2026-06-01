@@ -6,6 +6,8 @@
 
 import { Resend } from "resend";
 
+import { sendViaSmtp, type MailboxRole } from "@/lib/emails/smtp";
+
 let cached: Resend | null = null;
 
 function getResend(): Resend | null {
@@ -31,6 +33,9 @@ export interface SendArgs {
   /** Resend tags — used by the open-tracking webhook to disambiguate which
    *  recovery email a `email.opened` event belongs to. */
   tags?: Array<{ name: string; value: string }>;
+  /** Which Gmail mailbox to send from (defaults to the noreply fallback).
+   *  Sends carrying open-tracking `tags` bypass SMTP to keep Resend tracking. */
+  role?: MailboxRole;
 }
 
 export interface SendResult {
@@ -41,6 +46,27 @@ export interface SendResult {
 }
 
 export async function sendEmail(args: SendArgs): Promise<SendResult> {
+  // Gmail SMTP first — unless the send carries open-tracking tags (recovery),
+  // which must go through Resend to keep the `email.opened` webhook working.
+  if (!args.tags?.length) {
+    const smtp = await sendViaSmtp({
+      role: args.role ?? "noreply",
+      to: args.to,
+      subject: args.subject,
+      html: args.html,
+      text: args.text,
+      replyTo: args.reply_to,
+    });
+    if (smtp.ok) return { ok: true, id: smtp.id };
+    if (!smtp.skipped) {
+      console.warn("[email] SMTP send failed, falling back to Resend", {
+        to: args.to,
+        subject: args.subject,
+        message: smtp.message,
+      });
+    }
+  }
+
   const resend = getResend();
   if (!resend) {
     console.warn("[email] RESEND_API_KEY not set — skipping send", {

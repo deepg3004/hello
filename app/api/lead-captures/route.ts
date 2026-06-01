@@ -183,7 +183,7 @@ export async function POST(request: Request) {
       pageTitle: page.title,
     });
     sideEffects.push(
-      sendEmail({ to: email, subject: tpl.subject, html: tpl.html }).then(async (r) => {
+      sendEmail({ to: email, role: "buyer", subject: tpl.subject, html: tpl.html }).then(async (r) => {
         if (r.ok) {
           await admin
             .from("lead_captures")
@@ -202,7 +202,7 @@ export async function POST(request: Request) {
       downloadUrl,
     });
     sideEffects.push(
-      sendEmail({ to: email, subject: tpl.subject, html: tpl.html }).then(async (r) => {
+      sendEmail({ to: email, role: "buyer", subject: tpl.subject, html: tpl.html }).then(async (r) => {
         if (r.ok) {
           await admin
             .from("lead_captures")
@@ -225,7 +225,7 @@ export async function POST(request: Request) {
       crmUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io"}/dashboard/leads`,
     });
     sideEffects.push(
-      sendEmail({ to: seller.email, subject: tpl.subject, html: tpl.html }),
+      sendEmail({ to: seller.email, role: "seller", subject: tpl.subject, html: tpl.html }),
     );
   }
 

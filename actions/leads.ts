@@ -150,6 +150,7 @@ export async function sendManualEmailAction(
   }
   const r = await sendEmail({
     to: lead.email,
+    role: "buyer",
     subject: subject.trim(),
     html: `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;white-space:pre-wrap;color:#18181b">${body
       .replace(/&/g, "&amp;")
@@ -186,6 +187,7 @@ export async function broadcastEmailAction(
   for (const row of rows ?? []) {
     const r = await sendEmail({
       to: row.email,
+      role: "buyer",
       subject: subject.trim(),
       html,
     });

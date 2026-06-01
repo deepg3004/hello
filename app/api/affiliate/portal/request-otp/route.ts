@@ -99,6 +99,7 @@ export async function POST(request: Request) {
     try {
       await sendEmail({
         to: email,
+        role: "seller",
         subject: `Your InvoxAI affiliate code: ${otp}`,
         html: `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;padding:16px">
           <h2 style="margin:0 0 12px;font-size:18px">Your portal login code</h2>

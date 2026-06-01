@@ -43,18 +43,10 @@ import {
   leadNotificationEmail,
   type LeadNotificationData,
 } from "./templates/lead-notification";
+import { sendViaSmtp } from "./smtp";
+import { TEMPLATE_ROLE, type TemplateKey } from "./routing";
 
-export type TemplateKey =
-  | "order_confirmation"
-  | "payment_failed"
-  | "welcome"
-  | "subscription_renewal"
-  | "kyc_approved"
-  | "kyc_rejected"
-  | "abandoned_recovery_1"
-  | "abandoned_recovery_2"
-  | "payout_completed"
-  | "lead_notification";
+export type { TemplateKey };
 
 // Strongly-typed map so callers get a compile error when they pass the
 // wrong data shape for a template.
@@ -92,6 +84,29 @@ export async function sendEmail<K extends TemplateKey>(
   options: SendOptions = {},
 ): Promise<SendResult> {
   const built = render(template, data);
+
+  // Gmail SMTP first — from the audience-appropriate mailbox. We skip SMTP when
+  // the send carries Resend open-tracking tags (cart recovery) so that the
+  // `email.opened` webhook keeps working; those go through Resend below.
+  if (!options.tags?.length) {
+    const smtp = await sendViaSmtp({
+      role: TEMPLATE_ROLE[template],
+      to,
+      subject: built.subject,
+      html: built.html,
+      replyTo: options.reply_to,
+    });
+    if (smtp.ok) return { ok: true, id: smtp.id };
+    if (!smtp.skipped) {
+      // Configured but failed — log and fall through to Resend as a backstop.
+      console.warn("[email] SMTP send failed, falling back to Resend", {
+        to,
+        template,
+        message: smtp.message,
+      });
+    }
+  }
+
   const envelope = await getEmailEnvelope();
   const resend = getResend();
   if (!resend) {

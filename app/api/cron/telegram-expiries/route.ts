@@ -117,7 +117,7 @@ async function run() {
         daysLeft: 3,
         renewUrl,
       });
-      const r = await sendEmail({ to: m.buyer_email, subject: tpl.subject, html: tpl.html });
+      const r = await sendEmail({ to: m.buyer_email, role: "buyer", subject: tpl.subject, html: tpl.html });
       if (r.ok) {
         await admin
           .from("telegram_memberships")
@@ -139,7 +139,7 @@ async function run() {
         daysLeft: 1,
         renewUrl,
       });
-      const r = await sendEmail({ to: m.buyer_email, subject: tpl.subject, html: tpl.html });
+      const r = await sendEmail({ to: m.buyer_email, role: "buyer", subject: tpl.subject, html: tpl.html });
       if (r.ok) {
         await admin
           .from("telegram_memberships")
@@ -171,7 +171,7 @@ async function run() {
         groupName: group.group_name ?? undefined,
         renewUrl,
       });
-      await sendEmail({ to: m.buyer_email, subject: tpl.subject, html: tpl.html });
+      await sendEmail({ to: m.buyer_email, role: "buyer", subject: tpl.subject, html: tpl.html });
 
       // Decrement active_members.
       const { data: g2 } = await admin
