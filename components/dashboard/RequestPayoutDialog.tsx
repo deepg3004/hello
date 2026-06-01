@@ -6,6 +6,8 @@ import { Loader2 } from "lucide-react";
 import { requestPayoutAction } from "@/actions/payouts";
 import { MIN_PAYOUT_AMOUNT } from "@/lib/payouts/constants";
 import { Button } from "@/components/ui/button";
+// MIN_PAYOUT_AMOUNT is the compile-time fallback; the live platform minimum
+// is read from settings server-side and passed in via `minPayout`.
 import {
   Dialog,
   DialogContent,
@@ -19,7 +21,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 
-export function RequestPayoutDialog({ available }: { available: number }) {
+export function RequestPayoutDialog({
+  available,
+  minPayout = MIN_PAYOUT_AMOUNT,
+}: {
+  available: number;
+  minPayout?: number;
+}) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState<string>("");
@@ -53,7 +61,7 @@ export function RequestPayoutDialog({ available }: { available: number }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button disabled={available < MIN_PAYOUT_AMOUNT}>
+        <Button disabled={available < minPayout}>
           Request payout
         </Button>
       </DialogTrigger>
@@ -61,7 +69,7 @@ export function RequestPayoutDialog({ available }: { available: number }) {
         <DialogHeader>
           <DialogTitle>Request a payout</DialogTitle>
           <DialogDescription>
-            Minimum ₹{MIN_PAYOUT_AMOUNT}. You have ₹
+            Minimum ₹{minPayout.toLocaleString("en-IN")}. You have ₹
             {available.toLocaleString("en-IN")} available.
           </DialogDescription>
         </DialogHeader>
@@ -69,11 +77,11 @@ export function RequestPayoutDialog({ available }: { available: number }) {
           <Label>Amount (INR)</Label>
           <Input
             type="number"
-            min={MIN_PAYOUT_AMOUNT}
+            min={minPayout}
             max={available}
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            placeholder={String(MIN_PAYOUT_AMOUNT)}
+            placeholder={String(minPayout)}
           />
         </div>
         <DialogFooter>

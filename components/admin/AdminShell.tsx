@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
+import type { Branding } from "@/lib/settings";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { AdminSidebar } from "./AdminSidebar";
 import { AdminTopbar, type AdminTopbarProfile } from "./AdminTopbar";
@@ -11,10 +12,16 @@ interface AdminShellProps {
   profile: AdminTopbarProfile;
   /** Pending KYC submissions count — passed from layout for the sidebar badge. */
   kycPending: number;
+  branding: Branding;
   children: ReactNode;
 }
 
-export function AdminShell({ profile, kycPending, children }: AdminShellProps) {
+export function AdminShell({
+  profile,
+  kycPending,
+  branding,
+  children,
+}: AdminShellProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -26,6 +33,7 @@ export function AdminShell({ profile, kycPending, children }: AdminShellProps) {
           pathname={pathname}
           profile={profile}
           kycPending={kycPending}
+          branding={branding}
         />
       </aside>
 
@@ -40,6 +48,7 @@ export function AdminShell({ profile, kycPending, children }: AdminShellProps) {
             pathname={pathname}
             profile={profile}
             kycPending={kycPending}
+            branding={branding}
             onNavigate={() => setOpen(false)}
           />
         </SheetContent>

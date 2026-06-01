@@ -13,7 +13,7 @@ import { PayoutSettingsForm } from "@/components/dashboard/PayoutSettingsForm";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { maskLast4 } from "@/lib/kyc/surepass";
-import { MIN_PAYOUT_AMOUNT } from "@/lib/payouts";
+import { getMinPayoutAmount } from "@/lib/settings";
 
 export const metadata = { title: "Payout settings" };
 
@@ -39,7 +39,8 @@ export default async function PayoutSettingsPage() {
     | "razorpay"
     | "cashfree"
     | "manual";
-  const threshold = Number(profile?.payout_min_threshold ?? MIN_PAYOUT_AMOUNT);
+  const platformMin = await getMinPayoutAmount();
+  const threshold = Number(profile?.payout_min_threshold ?? platformMin);
 
   return (
     <div className="space-y-6">

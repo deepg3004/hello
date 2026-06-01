@@ -4,6 +4,7 @@ import { AdminShell } from "@/components/admin/AdminShell";
 import type { AdminTopbarProfile } from "@/components/admin/AdminTopbar";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { getBranding } from "@/lib/settings";
 
 export default async function AdminLayout({
   children,
@@ -45,10 +46,13 @@ export default async function AdminLayout({
     email: profile.email ?? user.email ?? "",
   };
 
+  const branding = await getBranding();
+
   return (
     <AdminShell
       profile={topbarProfile}
       kycPending={kycPending ?? 0}
+      branding={branding}
     >
       {children}
     </AdminShell>

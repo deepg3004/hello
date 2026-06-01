@@ -24,6 +24,7 @@ import { signOutAction } from "@/actions/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { PLANS, type PlanKey } from "@/lib/plans";
+import type { Branding } from "@/lib/settings";
 import { cn, truncate } from "@/lib/utils";
 
 import type { TopbarProfile } from "./Topbar";
@@ -62,10 +63,16 @@ const NAV_ACCOUNT: NavItem[] = [
 interface SidebarProps {
   pathname: string;
   profile: TopbarProfile;
+  branding: Branding;
   onNavigate?: () => void;
 }
 
-export function Sidebar({ pathname, profile, onNavigate }: SidebarProps) {
+export function Sidebar({
+  pathname,
+  profile,
+  branding,
+  onNavigate,
+}: SidebarProps) {
   const plan = ((profile.subscription_plan ?? "free") as PlanKey) in PLANS
     ? (profile.subscription_plan as PlanKey)
     : "free";
@@ -85,8 +92,17 @@ export function Sidebar({ pathname, profile, onNavigate }: SidebarProps) {
           "after:bg-gradient-to-r after:from-transparent after:via-[#7C3AED]/40 after:to-transparent",
         )}
       >
-        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-gradient shadow-sm shadow-black/40">
-          <Zap className="h-4 w-4 text-white" strokeWidth={2.5} />
+        <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-md bg-brand-gradient shadow-sm shadow-black/40">
+          {branding.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={branding.logoUrl}
+              alt={branding.name}
+              className="h-full w-full object-contain"
+            />
+          ) : (
+            <Zap className="h-4 w-4 text-white" strokeWidth={2.5} />
+          )}
         </span>
         <div className="leading-tight">
           <Link
@@ -94,7 +110,7 @@ export function Sidebar({ pathname, profile, onNavigate }: SidebarProps) {
             onClick={onNavigate}
             className="block font-sora text-base font-semibold tracking-tight text-white"
           >
-            InvoxAI
+            {branding.name}
           </Link>
           <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--sidebar-fg))]/50">
             Seller Dashboard

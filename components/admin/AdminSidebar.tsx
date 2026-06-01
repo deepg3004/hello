@@ -17,6 +17,7 @@ import {
   Wallet,
 } from "lucide-react";
 
+import type { Branding } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
 import type { AdminTopbarProfile } from "./AdminTopbar";
@@ -39,6 +40,7 @@ interface AdminSidebarProps {
   profile: AdminTopbarProfile;
   /** Number of KYC submissions awaiting review — drives the red badge. */
   kycPending: number;
+  branding: Branding;
   onNavigate?: () => void;
 }
 
@@ -46,6 +48,7 @@ export function AdminSidebar({
   pathname,
   profile,
   kycPending,
+  branding,
   onNavigate,
 }: AdminSidebarProps) {
   const groups: NavGroup[] = [
@@ -106,7 +109,7 @@ export function AdminSidebar({
             onClick={onNavigate}
             className="block font-sora text-base font-semibold tracking-tight text-white"
           >
-            InvoxAI
+            {branding.name}
           </Link>
           <p className="text-[10px] uppercase tracking-wider text-amber-300/70">
             Admin Console

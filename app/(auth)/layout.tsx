@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BarChart3, CreditCard, Send, Sparkles, Zap } from "lucide-react";
 
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { getBranding } from "@/lib/settings";
 
 const HIGHLIGHTS = [
   {
@@ -21,11 +22,12 @@ const HIGHLIGHTS = [
   },
 ];
 
-export default function AuthLayout({
+export default async function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const branding = await getBranding();
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr] xl:grid-cols-2">
       {/* ── Left: branded showcase panel (desktop only) ──────────────── */}
@@ -49,10 +51,21 @@ export default function AuthLayout({
 
         {/* Brand mark */}
         <Link href="/" className="relative z-10 inline-flex items-center gap-2.5 w-fit">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 ring-1 ring-inset ring-white/25 backdrop-blur">
-            <Zap className="h-5 w-5 text-white" strokeWidth={2.5} />
+          <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-white/15 ring-1 ring-inset ring-white/25 backdrop-blur">
+            {branding.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={branding.logoUrl}
+                alt={branding.name}
+                className="h-full w-full object-contain"
+              />
+            ) : (
+              <Zap className="h-5 w-5 text-white" strokeWidth={2.5} />
+            )}
           </span>
-          <span className="font-sora text-lg font-semibold tracking-tight">InvoxAI</span>
+          <span className="font-sora text-lg font-semibold tracking-tight">
+            {branding.name}
+          </span>
         </Link>
 
         {/* Headline + highlights */}

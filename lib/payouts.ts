@@ -140,9 +140,11 @@ export async function requestPayout(
     };
   }
 
+  const { getMinPayoutAmount } = await import("@/lib/settings");
+  const platformMin = await getMinPayoutAmount();
   const sellerMin = Math.max(
-    MIN_PAYOUT_AMOUNT,
-    Number(profile.payout_min_threshold ?? MIN_PAYOUT_AMOUNT),
+    platformMin,
+    Number(profile.payout_min_threshold ?? platformMin),
   );
   if (input.amountRupees < sellerMin) {
     return {

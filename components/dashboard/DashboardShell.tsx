@@ -5,16 +5,22 @@ import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 
+import type { Branding } from "@/lib/settings";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Sidebar } from "./Sidebar";
 import { Topbar, type TopbarProfile } from "./Topbar";
 
 interface DashboardShellProps {
   profile: TopbarProfile;
+  branding: Branding;
   children: ReactNode;
 }
 
-export function DashboardShell({ profile, children }: DashboardShellProps) {
+export function DashboardShell({
+  profile,
+  branding,
+  children,
+}: DashboardShellProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const showPastDue = profile.subscription_status === "past_due";
@@ -47,7 +53,7 @@ export function DashboardShell({ profile, children }: DashboardShellProps) {
           showPastDue && "top-9", // make room for the banner so nothing overlaps
         )}
       >
-        <Sidebar pathname={pathname} profile={profile} />
+        <Sidebar pathname={pathname} profile={profile} branding={branding} />
       </aside>
 
       {/* ── Mobile sidebar as a slide-in Sheet ──────────────────────── */}
@@ -59,6 +65,7 @@ export function DashboardShell({ profile, children }: DashboardShellProps) {
           <Sidebar
             pathname={pathname}
             profile={profile}
+            branding={branding}
             onNavigate={() => setMobileOpen(false)}
           />
         </SheetContent>

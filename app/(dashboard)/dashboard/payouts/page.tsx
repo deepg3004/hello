@@ -14,6 +14,8 @@ import { RequestPayoutDialog } from "@/components/dashboard/RequestPayoutDialog"
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { calculateAvailableBalance } from "@/lib/payouts";
+import { getMinPayoutAmount } from "@/lib/settings";
 import { cn, formatDate, formatINR } from "@/lib/utils";
 
 export const metadata = { title: "Payouts" };
@@ -29,18 +31,13 @@ export default async function PayoutsPage() {
 
   const admin = createAdminClient();
 
-  const [{ data: profile }, { data: paidOrders }, { data: payouts }] =
+  const [{ data: profile }, { data: payouts }, balance, minPayout] =
     await Promise.all([
       admin
         .from("user_profiles")
         .select("kyc_level, bank_verified, payouts_enabled")
         .eq("id", user.id)
         .single(),
-      admin
-        .from("orders")
-        .select("seller_amount")
-        .eq("seller_user_id", user.id)
-        .eq("status", "paid"),
       admin
         .from("payouts")
         .select(
@@ -49,25 +46,21 @@ export default async function PayoutsPage() {
         .eq("user_id", user.id)
         .order("initiated_at", { ascending: false })
         .limit(100),
+      // Authoritative balance — the SAME math the server uses when actually
+      // requesting a payout (3-day chargeback hold + pending/processing
+      // reservation). Computing it here too keeps the displayed "available"
+      // honest so the seller never sees a number the request then rejects.
+      calculateAvailableBalance(user.id),
+      getMinPayoutAmount(),
     ]);
 
-  const gross = (paidOrders ?? []).reduce(
-    (acc, r) => acc + Number(r.seller_amount ?? 0),
-    0,
-  );
-  const reserved = (payouts ?? [])
-    .filter((p) => ["queued", "processing", "completed"].includes(p.status))
-    .reduce((acc, p) => acc + Number(p.amount ?? 0), 0);
-  const available = Math.max(0, gross - reserved);
+  const available = balance.available_balance;
+  const pendingClearance = balance.pending_clearance;
+  const inFlight = balance.in_flight;
+  const totalPaid = balance.total_paid_out;
 
   const kycComplete =
     !!profile?.bank_verified && (profile?.kyc_level ?? 0) >= 2;
-  const totalPaid = (payouts ?? [])
-    .filter((p) => p.status === "completed")
-    .reduce((acc, p) => acc + Number(p.amount ?? 0), 0);
-  const inFlight = (payouts ?? [])
-    .filter((p) => p.status === "queued" || p.status === "processing")
-    .reduce((acc, p) => acc + Number(p.amount ?? 0), 0);
 
   return (
     <div className="space-y-6">
@@ -83,7 +76,9 @@ export default async function PayoutsPage() {
             withdrawn.
           </p>
         </div>
-        {kycComplete && <RequestPayoutDialog available={available} />}
+        {kycComplete && (
+          <RequestPayoutDialog available={available} minPayout={minPayout} />
+        )}
       </div>
 
       {/* ── KYC-incomplete banner (full-width, amber) ────────────────── */}
@@ -129,10 +124,10 @@ export default async function PayoutsPage() {
         />
         <MetricCard
           label="Pending clearance"
-          value={rupees(inFlight)}
+          value={rupees(pendingClearance + inFlight)}
           icon={Clock}
           accentColor="amber"
-          hint="Queued or processing"
+          hint="Clearing or in-flight payout"
         />
         <MetricCard
           label="Total paid out"

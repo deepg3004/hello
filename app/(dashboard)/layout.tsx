@@ -5,6 +5,7 @@ import type { TopbarProfile } from "@/components/dashboard/Topbar";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isMaintenanceOn } from "@/lib/maintenance";
+import { getBranding } from "@/lib/settings";
 
 export default async function DashboardLayout({
   children,
@@ -31,6 +32,8 @@ export default async function DashboardLayout({
     redirect("/maintenance");
   }
 
+  const branding = await getBranding();
+
   const profile: TopbarProfile = {
     full_name: profileRow?.full_name ?? null,
     email: profileRow?.email ?? user.email ?? "",
@@ -39,5 +42,9 @@ export default async function DashboardLayout({
     subscription_status: profileRow?.subscription_status ?? "inactive",
   };
 
-  return <DashboardShell profile={profile}>{children}</DashboardShell>;
+  return (
+    <DashboardShell profile={profile} branding={branding}>
+      {children}
+    </DashboardShell>
+  );
 }
