@@ -70,7 +70,8 @@ export default async function AdminPlatformSettingsPage() {
         <CardHeader>
           <CardTitle className="text-base">Identity</CardTitle>
           <CardDescription>
-            Brand name + logo shown on the maintenance page and in every email.
+            Brand name + logo shown across the site — landing page, login,
+            seller + admin sidebars, and the maintenance page.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

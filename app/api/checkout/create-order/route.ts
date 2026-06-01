@@ -21,7 +21,8 @@ import {
   releaseCoupon,
   validateCoupon,
 } from "@/lib/coupons";
-import { effectiveCommissionPercent, type PlanKey } from "@/lib/plans";
+import { resolveCommissionPercent, type PlanKey } from "@/lib/plans";
+import { getCommissionConfig } from "@/lib/settings";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
@@ -266,9 +267,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Seller missing" }, { status: 404 });
   }
 
-  const defaultPct = Number(process.env.PLATFORM_COMMISSION_PERCENT ?? 5);
+  const { defaultPercent, perPlan } = await getCommissionConfig();
   const planKey = (seller.subscription_plan ?? "free") as PlanKey;
-  const commissionPct = effectiveCommissionPercent(planKey, defaultPct);
+  const commissionPct = resolveCommissionPercent(
+    planKey,
+    defaultPercent,
+    perPlan,
+  );
   // Commission rounded once, in paise. Seller share is the exact remainder
   // so commission + seller = amount with zero drift.
   const commissionPaise = Math.round((amountPaise * commissionPct) / 100);

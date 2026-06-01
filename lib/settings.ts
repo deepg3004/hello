@@ -92,3 +92,48 @@ export async function getPayoutHoldDays(): Promise<number> {
   const n = Number(raw);
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : CHARGEBACK_HOLD_DAYS;
 }
+
+export interface CommissionConfig {
+  /** Platform default commission %, used when a plan has no override. */
+  defaultPercent: number;
+  /** Admin per-plan absolute-percent overrides, or null when unset/invalid. */
+  perPlan: Record<string, number> | null;
+}
+
+/**
+ * Resolve the commission knobs an order-creation route needs: the platform
+ * default (`platform_commission_percent`, falling back to the env var then 5)
+ * and the per-plan override map (`commission_per_plan`, a JSON object of
+ * planKey → absolute percent). Pair with lib/plans.resolveCommissionPercent().
+ */
+export async function getCommissionConfig(): Promise<CommissionConfig> {
+  const s = await getSettings({
+    platform_commission_percent: "",
+    commission_per_plan: "",
+  });
+
+  const dbDefault = Number(s.platform_commission_percent);
+  const defaultPercent =
+    Number.isFinite(dbDefault) && dbDefault >= 0
+      ? dbDefault
+      : Number(process.env.PLATFORM_COMMISSION_PERCENT ?? 5);
+
+  let perPlan: Record<string, number> | null = null;
+  if (s.commission_per_plan) {
+    try {
+      const parsed = JSON.parse(s.commission_per_plan) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        const map: Record<string, number> = {};
+        for (const [k, v] of Object.entries(parsed)) {
+          const n = Number(v);
+          if (Number.isFinite(n)) map[k] = n;
+        }
+        if (Object.keys(map).length > 0) perPlan = map;
+      }
+    } catch {
+      perPlan = null; // malformed JSON — fall back to compiled discounts
+    }
+  }
+
+  return { defaultPercent, perPlan };
+}

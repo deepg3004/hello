@@ -2,6 +2,9 @@ import { redirect } from "next/navigation";
 
 import { ConnectFlow } from "@/components/dashboard/telegram/ConnectFlow";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveCommissionPercent, type PlanKey } from "@/lib/plans";
+import { getCommissionConfig } from "@/lib/settings";
 
 export const metadata = { title: "Connect Telegram" };
 
@@ -12,7 +15,20 @@ export default async function TelegramSetupPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const commissionPercent = Number(process.env.PLATFORM_COMMISSION_PERCENT ?? 5);
+  // Show the seller their plan-accurate commission, resolved through the same
+  // admin settings the checkout routes use — not a hardcoded env default.
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("user_profiles")
+    .select("subscription_plan")
+    .eq("id", user.id)
+    .single();
+  const { defaultPercent, perPlan } = await getCommissionConfig();
+  const commissionPercent = resolveCommissionPercent(
+    (profile?.subscription_plan ?? "free") as PlanKey,
+    defaultPercent,
+    perPlan,
+  );
 
   return (
     <div className="space-y-6">

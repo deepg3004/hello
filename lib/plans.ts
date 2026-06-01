@@ -171,3 +171,22 @@ export function effectiveCommissionPercent(
   const discount = PLANS[plan].commission_discount ?? 0;
   return Math.max(0, platformDefaultPercent - discount);
 }
+
+/**
+ * Resolve the commission percent actually charged, honouring the admin's
+ * per-plan override map when it has an entry for this plan. Map values are
+ * ABSOLUTE percents (e.g. {"pro": 3.5}); anything missing/invalid falls back
+ * to the plan's compiled-in discount via effectiveCommissionPercent(). Pure
+ * so it stays unit-testable and free of the settings/DB dependency.
+ */
+export function resolveCommissionPercent(
+  plan: PlanKey,
+  platformDefaultPercent: number,
+  perPlanMap?: Record<string, number> | null,
+): number {
+  const override = perPlanMap?.[plan];
+  if (typeof override === "number" && Number.isFinite(override)) {
+    return Math.min(100, Math.max(0, override));
+  }
+  return effectiveCommissionPercent(plan, platformDefaultPercent);
+}

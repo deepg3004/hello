@@ -12,7 +12,8 @@ import { nanoid } from "nanoid";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createOrder } from "@/lib/razorpay";
 import { verifyOtoToken, OTO_COOKIE_NAME } from "@/lib/oto-token";
-import { effectiveCommissionPercent, type PlanKey } from "@/lib/plans";
+import { resolveCommissionPercent, type PlanKey } from "@/lib/plans";
+import { getCommissionConfig } from "@/lib/settings";
 
 interface OtoConfig {
   enabled?: boolean;
@@ -103,9 +104,13 @@ export async function POST() {
   if (!seller) {
     return NextResponse.json({ error: "Seller missing" }, { status: 404 });
   }
-  const defaultPct = Number(process.env.PLATFORM_COMMISSION_PERCENT ?? 5);
+  const { defaultPercent, perPlan } = await getCommissionConfig();
   const planKey = (seller.subscription_plan ?? "free") as PlanKey;
-  const commissionPct = effectiveCommissionPercent(planKey, defaultPct);
+  const commissionPct = resolveCommissionPercent(
+    planKey,
+    defaultPercent,
+    perPlan,
+  );
   // Compute the split in paise so commission + seller_amount = amount exactly.
   const amountPaise = Math.round(priceOverride * 100);
   const commissionPaise = Math.round((amountPaise * commissionPct) / 100);

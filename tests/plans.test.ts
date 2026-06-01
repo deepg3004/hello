@@ -5,6 +5,7 @@ import {
   effectiveCommissionPercent,
   minimumPlanForFeature,
   planHasFeature,
+  resolveCommissionPercent,
 } from "@/lib/plans";
 
 describe("effectiveCommissionPercent", () => {
@@ -18,6 +19,25 @@ describe("effectiveCommissionPercent", () => {
   });
   it("never returns a negative commission", () => {
     expect(effectiveCommissionPercent("business", 1)).toBe(0);
+  });
+});
+
+describe("resolveCommissionPercent", () => {
+  it("uses the admin per-plan override when present (absolute %)", () => {
+    const map = { free: 5, starter: 4.5, pro: 3.5, business: 2.5 };
+    expect(resolveCommissionPercent("pro", 5, map)).toBe(3.5);
+    expect(resolveCommissionPercent("business", 5, map)).toBe(2.5);
+  });
+  it("falls back to the compiled discount when no map / no entry", () => {
+    expect(resolveCommissionPercent("business", 5, null)).toBe(3); // 5 - 2
+    expect(resolveCommissionPercent("business", 5, { free: 5 })).toBe(3);
+  });
+  it("clamps overrides to [0, 100]", () => {
+    expect(resolveCommissionPercent("pro", 5, { pro: -2 })).toBe(0);
+    expect(resolveCommissionPercent("pro", 5, { pro: 250 })).toBe(100);
+  });
+  it("ignores a non-finite override and falls back", () => {
+    expect(resolveCommissionPercent("free", 5, { free: NaN })).toBe(5);
   });
 });
 
