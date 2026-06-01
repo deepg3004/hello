@@ -66,7 +66,7 @@ export default async function AdminKycQueuePage() {
   const { data } = await admin
     .from("kyc_submissions")
     .select(
-      "id, user_id, level, status, pan_number, pan_name, pan_verified_at, bank_verified_at, selfie_url, id_document_url, risk_flags, rejection_reason, created_at, user_profiles(full_name, email, phone, bank_account_number, bank_ifsc, bank_holder_name)",
+      "id, user_id, level, status, pan_number, pan_name, pan_verified_at, bank_verified_at, selfie_url, id_document_url, risk_flags, rejection_reason, created_at, user_profiles!kyc_submissions_user_id_fkey(full_name, email, phone, bank_account_number, bank_ifsc, bank_holder_name)",
     )
     .order("created_at", { ascending: false })
     .limit(500);
