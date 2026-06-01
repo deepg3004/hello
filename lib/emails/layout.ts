@@ -1,5 +1,10 @@
 // Shared HTML shell + tiny utilities every template uses. Pure functions —
 // safe to import on the server only (escapeHtml is fine anywhere).
+//
+// One premium shell drives the look of EVERY transactional email: a dark
+// branded header (logo or wordmark), an accent stripe, roomy typography, a
+// pill CTA button, and a muted footer. Update the design here → all templates
+// (receipts, KYC, payouts, recovery, lead, Telegram …) update together.
 
 export function escapeHtml(s: string): string {
   return s
@@ -11,41 +16,63 @@ export function escapeHtml(s: string): string {
 }
 
 export interface ShellOptions {
+  /** Hidden inbox-preview text (Gmail/Outlook list view). */
   preheader?: string;
-  /** Brand name used in the masthead. */
+  /** Brand name shown in the masthead. */
   brandName?: string;
+  /** Optional logo URL — renders an <img> instead of the wordmark. */
+  brandLogoUrl?: string | null;
+  /** Footer support address, surfaced as a mailto link. */
+  supportEmail?: string;
 }
+
+// Brand accent (matches the app's purple→cyan brand gradient). Email clients
+// that drop the gradient fall back to the solid first colour.
+const ACCENT = "#6D28D9";
+const ACCENT_GRADIENT = "linear-gradient(90deg,#6D28D9 0%,#7C3AED 45%,#06B6D4 100%)";
+const HEADER_BG = "#0E0E10";
 
 export function SHELL(inner: string, opts: ShellOptions = {}): string {
   const preheader = opts.preheader ?? "";
   const brand = opts.brandName ?? "InvoxAI";
-  // The preheader span uses inline CSS that hides it from the rendered email
-  // body but lets it leak into the Gmail / Outlook list-view preview.
+  const support = opts.supportEmail ?? "support@invoxai.io";
+  const masthead = opts.brandLogoUrl
+    ? `<img src="${opts.brandLogoUrl}" alt="${escapeHtml(brand)}" height="26" style="display:block;height:26px;max-height:26px;width:auto;border:0" />`
+    : `<span style="font-size:18px;font-weight:700;letter-spacing:0.3px;color:#ffffff">${escapeHtml(brand)}</span>`;
+
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="color-scheme" content="light only" />
   <title>${escapeHtml(brand)}</title>
 </head>
-<body style="margin:0;padding:24px 0;background:#f4f4f5;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#18181b">
-  ${preheader ? `<span style="display:none;visibility:hidden;opacity:0;height:0;width:0;overflow:hidden;font-size:1px;color:#f4f4f5">${escapeHtml(preheader)}</span>` : ""}
-  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse">
+<body style="margin:0;padding:0;background:#f1f1f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#18181b;-webkit-font-smoothing:antialiased">
+  ${preheader ? `<span style="display:none!important;visibility:hidden;opacity:0;height:0;width:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#f1f1f4">${escapeHtml(preheader)}</span>` : ""}
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background:#f1f1f4">
     <tr>
-      <td align="center">
-        <table role="presentation" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;border-collapse:collapse;background:#ffffff;border:1px solid #e4e4e7;border-radius:12px;overflow:hidden">
+      <td align="center" style="padding:32px 16px">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="max-width:600px;width:100%;border-collapse:collapse;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e7e7ec">
+          <!-- accent stripe -->
+          <tr><td style="height:4px;line-height:4px;font-size:0;background:${ACCENT};background-image:${ACCENT_GRADIENT}">&nbsp;</td></tr>
+          <!-- masthead -->
           <tr>
-            <td style="padding:18px 22px;border-bottom:1px solid #f4f4f5;font-size:14px;font-weight:700;letter-spacing:0.4px;color:#18181b">${escapeHtml(brand)}</td>
+            <td style="padding:22px 32px;background:${HEADER_BG}">${masthead}</td>
           </tr>
+          <!-- body -->
           <tr>
-            <td style="padding:22px;font-size:14px;line-height:1.55;color:#27272a">${inner}</td>
+            <td style="padding:32px;font-size:15px;line-height:1.6;color:#27272a">${inner}</td>
           </tr>
+          <!-- footer -->
           <tr>
-            <td style="padding:14px 22px;border-top:1px solid #f4f4f5;font-size:11px;color:#71717a;background:#fafafa">
-              Sent by ${escapeHtml(brand)} · A SaaS for creators &amp; sellers
+            <td style="padding:22px 32px;border-top:1px solid #f0f0f3;background:#fafafa;font-size:12px;line-height:1.6;color:#8a8a94">
+              <p style="margin:0 0 4px">Sent by <strong style="color:#52525b">${escapeHtml(brand)}</strong> — the all-in-one creator commerce platform.</p>
+              <p style="margin:0">Need help? Email <a href="mailto:${escapeHtml(support)}" style="color:${ACCENT};text-decoration:none">${escapeHtml(support)}</a>.</p>
             </td>
           </tr>
         </table>
+        <p style="margin:16px 0 0;font-size:11px;color:#b4b4be">© ${escapeHtml(brand)}. All rights reserved.</p>
       </td>
     </tr>
   </table>
@@ -53,12 +80,16 @@ export function SHELL(inner: string, opts: ShellOptions = {}): string {
 </html>`;
 }
 
-export function ctaButton(href: string, label: string, color = "#0a0a0a"): string {
-  return `<p style="margin:0 0 12px"><a href="${href}" style="display:inline-block;background:${color};color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600">${escapeHtml(label)}</a></p>`;
+export function ctaButton(href: string, label: string, color = ACCENT): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 14px;border-collapse:separate">
+    <tr><td style="border-radius:10px;background:${color}">
+      <a href="${href}" style="display:inline-block;padding:13px 26px;border-radius:10px;background:${color};color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;letter-spacing:0.2px">${escapeHtml(label)}</a>
+    </td></tr>
+  </table>`;
 }
 
 export function kvRow(label: string, value: string): string {
-  return `<tr><td style="padding:6px 12px 6px 0;color:#71717a">${escapeHtml(label)}</td><td style="padding:6px 0">${value}</td></tr>`;
+  return `<tr><td style="padding:7px 16px 7px 0;color:#8a8a94;white-space:nowrap;vertical-align:top">${escapeHtml(label)}</td><td style="padding:7px 0;color:#27272a;text-align:right">${value}</td></tr>`;
 }
 
 export const APP_URL =
