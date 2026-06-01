@@ -96,6 +96,21 @@ function LoginInner() {
     }
 
     const next = safeNext(params.get("next"));
+
+    // If the account has a verified 2FA factor, Supabase reports the session
+    // as aal1 with a required nextLevel of aal2 — send them through the code
+    // challenge. Fails open (proceeds normally) on any error or when no factor.
+    try {
+      const { data: aal } =
+        await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (aal && aal.nextLevel === "aal2" && aal.currentLevel !== "aal2") {
+        router.push(`/mfa?next=${encodeURIComponent(next)}`);
+        return;
+      }
+    } catch {
+      /* fail open — never block login on the MFA check */
+    }
+
     router.push(next);
     router.refresh();
   }

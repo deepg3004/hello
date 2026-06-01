@@ -14,6 +14,7 @@ import {
   ProfileSettingsForm,
   PasswordChangeForm,
 } from "@/components/dashboard/ProfileSettingsForm";
+import { TwoFactorSettings } from "@/components/dashboard/TwoFactorSettings";
 
 export const metadata = { title: "Settings" };
 
@@ -142,6 +143,18 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent>
           <PasswordChangeForm />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Two-factor authentication</CardTitle>
+          <CardDescription>
+            Add an authenticator-app code to your login for extra security.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <TwoFactorSettings />
         </CardContent>
       </Card>
     </div>
