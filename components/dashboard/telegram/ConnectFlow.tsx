@@ -25,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ImageInput } from "@/components/ui/ImageInput";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
@@ -536,8 +537,8 @@ export function ConnectFlow({ commissionPercent }: { commissionPercent: number }
                 <textarea className="min-h-[110px] w-full rounded-md border bg-background px-3 py-2 text-sm" maxLength={2000} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Tell subscribers what they'll get inside your channel…" />
               </div>
               <div className="space-y-2">
-                <Label>Logo URL <span className="text-xs text-muted-foreground">(optional)</span></Label>
-                <Input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://…/logo.png" />
+                <Label>Logo <span className="text-xs text-muted-foreground">(optional — paste a URL or upload)</span></Label>
+                <ImageInput value={logoUrl} onChange={setLogoUrl} />
               </div>
               <div className="flex justify-between">
                 <Button variant="ghost" onClick={() => setStep(2)}>Back</Button>

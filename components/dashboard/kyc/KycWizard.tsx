@@ -9,6 +9,7 @@ import {
   Check,
   CreditCard,
   FileText,
+  Link2 as LinkIcon,
   Loader2,
   RefreshCcw,
   ShieldCheck,
@@ -20,6 +21,7 @@ import {
   aadhaarStartAction,
   aadhaarVerifyAction,
   resetMyKycAction,
+  setKycDocumentUrlAction,
   submitBankVerificationAction,
   submitManualKycAction,
   submitPanVerificationAction,
@@ -674,28 +676,46 @@ function MiniUpload({
     router.refresh();
   }
 
+  async function pasteUrl() {
+    const url = window.prompt(`Paste an image URL for "${label}"`);
+    if (!url) return;
+    setBusy(true);
+    const r = await setKycDocumentUrlAction(documentType, url);
+    setBusy(false);
+    if (!r.ok) {
+      toast({ title: "Couldn't save URL", description: r.message, variant: "destructive" });
+      return;
+    }
+    setUploaded(true);
+    toast({ title: `${label} saved` });
+    router.refresh();
+  }
+
   return (
-    <button
-      type="button"
-      onClick={() => ref.current?.click()}
-      disabled={busy}
+    <div
       className={cn(
-        "flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-xs transition",
+        "flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs transition",
         uploaded
           ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
-          : "border-border bg-card hover:border-primary/40",
+          : "border-border bg-card",
       )}
     >
       <input ref={ref} type="file" accept="image/*,application/pdf" className="hidden" onChange={onFile} />
       <span className="font-medium">{label}</span>
-      {busy ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-      ) : uploaded ? (
-        <Check className="h-3.5 w-3.5" />
-      ) : (
-        <Upload className="h-3.5 w-3.5 text-muted-foreground" />
-      )}
-    </button>
+      <span className="flex items-center gap-1.5">
+        {busy ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : uploaded ? (
+          <Check className="h-3.5 w-3.5" />
+        ) : null}
+        <button type="button" onClick={() => ref.current?.click()} disabled={busy} className="rounded p-1 hover:bg-muted" title="Upload file">
+          <Upload className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
+        <button type="button" onClick={pasteUrl} disabled={busy} className="rounded p-1 hover:bg-muted" title="Paste image URL">
+          <LinkIcon className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
+      </span>
+    </div>
   );
 }
 

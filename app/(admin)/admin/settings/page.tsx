@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/card";
 import { SettingNumberInput } from "@/components/admin/SettingNumberInput";
 import { SettingTextInput } from "@/components/admin/SettingTextInput";
+import { SettingImageInput } from "@/components/admin/SettingImageInput";
 import { SettingToggle } from "@/components/admin/SettingToggle";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -77,12 +78,11 @@ export default async function AdminPlatformSettingsPage() {
             label="Platform name"
             initialValue={get("platform_name", "InvoxAI")}
           />
-          <SettingTextInput
+          <SettingImageInput
             storageKey="platform_logo_url"
-            label="Logo URL"
-            description="Public HTTPS URL to a PNG or SVG (transparent background recommended)."
+            label="Brand logo"
+            description="Paste an image URL or upload a PNG/SVG (transparent background recommended)."
             initialValue={get("platform_logo_url")}
-            placeholder="https://cdn.invoxai.io/logo.svg"
           />
         </CardContent>
       </Card>

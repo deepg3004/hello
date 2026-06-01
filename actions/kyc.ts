@@ -612,6 +612,35 @@ export async function uploadKycDocumentAction(formData: FormData): Promise<Actio
   return { ok: true, data: { path } };
 }
 
+/**
+ * Set a KYC document slot to an externally-hosted image URL (the "paste a URL
+ * instead of uploading" path). The admin viewer signs storage paths but returns
+ * full http(s) URLs as-is, so a pasted link previews fine.
+ */
+export async function setKycDocumentUrlAction(
+  docType: DocumentType,
+  url: string,
+): Promise<ActionResult> {
+  const user = await getAuthedUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+  if (!(docType in DOC_COLUMN)) return { ok: false, message: "Unknown document type" };
+  const clean = url.trim();
+  if (!/^https?:\/\/.+/i.test(clean)) {
+    return { ok: false, message: "Enter a valid http(s) image URL" };
+  }
+
+  const admin = createAdminClient();
+  await ensureSubmission(admin, user.id);
+  const { error } = await admin
+    .from("kyc_submissions")
+    .update({ [DOC_COLUMN[docType]]: clean })
+    .eq("user_id", user.id);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/dashboard/kyc");
+  return { ok: true };
+}
+
 // ----------------------------------------------------------------------------
 // Aadhaar OTP (Level 3)
 // ----------------------------------------------------------------------------
