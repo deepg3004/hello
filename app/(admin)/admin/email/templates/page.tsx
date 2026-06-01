@@ -1,31 +1,19 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
+import { EmailTemplatesManager } from "@/components/admin/EmailTemplatesManager";
 import {
-  EmailTemplateGallery,
-  type GalleryItem,
-} from "@/components/admin/EmailTemplateGallery";
-import { EMAIL_CATALOG } from "@/lib/emails/catalog";
+  listEmailTemplatesAction,
+  type TemplateListItem,
+} from "@/actions/email-templates";
 import { primeEmailBranding } from "@/lib/emails/branding";
 
 export const metadata = { title: "Admin · Email templates" };
 
 export default async function EmailTemplatesPage() {
-  // Make the previews use the live brand name + logo.
   await primeEmailBranding(true);
-
-  const items: GalleryItem[] = EMAIL_CATALOG.map((t) => {
-    const built = t.render();
-    return {
-      key: t.key,
-      label: t.label,
-      audience: t.audience,
-      live: t.live,
-      description: t.description,
-      subject: built.subject,
-      html: built.html,
-    };
-  });
+  const res = await listEmailTemplatesAction();
+  const items = (res.ok ? (res.data as TemplateListItem[]) : []) ?? [];
 
   return (
     <div className="space-y-6">
@@ -41,14 +29,14 @@ export default async function EmailTemplatesPage() {
           Email templates
         </h1>
         <p className="text-sm text-muted-foreground">
-          Preview every transactional email exactly as buyers and sellers
-          receive it — rendered with sample data and your live brand. “Live”
-          templates are wired to real events; “Sample only” exist but aren&apos;t
-          triggered yet.
+          Preview, edit, and create the emails your platform sends — rendered
+          with your live brand. Editing a built-in template replaces the email
+          sent for that event; “Reset to default” reverts to the original.
+          Custom templates can be sent on demand or broadcast.
         </p>
       </div>
 
-      <EmailTemplateGallery items={items} />
+      <EmailTemplatesManager initial={items} />
     </div>
   );
 }

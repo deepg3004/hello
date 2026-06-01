@@ -13,7 +13,8 @@
 // =============================================================================
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendEmail, recoveryEmail1, recoveryEmail2 } from "@/lib/email";
+import { sendEmail } from "@/lib/email";
+import { renderEmail } from "@/lib/emails/render";
 import { sendWhatsApp, WA_TEMPLATES } from "@/lib/twilio";
 
 interface AbandonedRow {
@@ -116,7 +117,7 @@ export async function runSendRecoveryEmail1(abandonedId: string): Promise<void> 
   if (!bundle) return;
 
   const url = recoveryUrl(bundle.slug, row.recovery_token);
-  const tpl = recoveryEmail1({
+  const tpl = await renderEmail("recovery_1", {
     buyerName: row.buyer_name,
     sellerName: bundle.seller_name,
     productName: bundle.product_name,
@@ -229,7 +230,7 @@ export async function runSendRecoveryEmail2(abandonedId: string): Promise<void> 
   }
 
   const url = recoveryUrl(bundle.slug, row.recovery_token);
-  const tpl = recoveryEmail2({
+  const tpl = await renderEmail("recovery_2", {
     buyerName: row.buyer_name,
     sellerName: bundle.seller_name,
     productName: bundle.product_name,

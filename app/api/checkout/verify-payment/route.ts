@@ -425,7 +425,8 @@ export async function POST(request: Request) {
   //     public /api/orders/:id/invoice redirect — it generates inline if the
   //     worker hasn't caught up. The email itself goes out immediately.
   try {
-    const { sendEmail, saleConfirmationEmail } = await import("@/lib/email");
+    const { sendEmail } = await import("@/lib/email");
+    const { renderEmail } = await import("@/lib/emails/render");
     const { data: prod } = order.product_id
       ? await admin
           .from("products")
@@ -440,7 +441,7 @@ export async function POST(request: Request) {
       .single<{ legal_business_name: string | null; full_name: string | null }>();
     const baseUrl =
       process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io";
-    const tpl = saleConfirmationEmail({
+    const tpl = await renderEmail("sale_receipt", {
       buyerName: order.buyer_name,
       sellerLegalName:
         sellerForReceipt?.legal_business_name ??
@@ -532,7 +533,8 @@ export async function POST(request: Request) {
     const { issueInviteForOrder } = await import("@/actions/telegram");
     const inviteResult = await issueInviteForOrder(order_id);
     if (inviteResult.ok && "invite_link" in inviteResult) {
-      const { inviteEmail, sendEmail } = await import("@/lib/email");
+      const { sendEmail } = await import("@/lib/email");
+      const { renderEmail } = await import("@/lib/emails/render");
       const { data: page } = await admin
         .from("pages")
         .select("telegram_group_id, telegram_vip_groups(group_name)")
@@ -541,7 +543,7 @@ export async function POST(request: Request) {
       type Joined = { group_name: string | null };
       const groupRel = (page as unknown as { telegram_vip_groups: Joined | Joined[] | null } | null)?.telegram_vip_groups;
       const groupName = (Array.isArray(groupRel) ? groupRel[0]?.group_name : groupRel?.group_name) ?? undefined;
-      const tpl = inviteEmail({
+      const tpl = await renderEmail("telegram_invite", {
         buyerName: order.buyer_name ?? undefined,
         groupName,
         inviteLink: inviteResult.invite_link,

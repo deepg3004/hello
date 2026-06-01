@@ -6,55 +6,20 @@
 // Server-only.
 
 import { getEmailEnvelope, getResend } from "./resend";
-import {
-  orderConfirmationEmail,
-  type OrderConfirmationData,
-} from "./templates/order-confirmation";
-import {
-  paymentFailedEmail,
-  type PaymentFailedData,
-} from "./templates/payment-failed";
-import { welcomeEmail, type WelcomeData } from "./templates/welcome";
-import {
-  subscriptionRenewalEmail,
-  type SubscriptionRenewalData,
-} from "./templates/subscription-renewal";
-import {
-  kycReceivedEmail,
-  type KycReceivedData,
-} from "./templates/kyc-received";
-import {
-  kycApprovedEmail,
-  type KycApprovedData,
-} from "./templates/kyc-approved";
-import {
-  kycRejectedEmail,
-  type KycRejectedData,
-} from "./templates/kyc-rejected";
-import {
-  abandonedRecovery1Email,
-  type RecoveryHero,
-} from "./templates/abandoned-recovery-1";
-import {
-  abandonedRecovery2Email,
-  type AbandonedRecovery2Data,
-} from "./templates/abandoned-recovery-2";
-import {
-  payoutInitiatedEmail,
-  type PayoutInitiatedData,
-} from "./templates/payout-initiated";
-import {
-  payoutCompletedEmail,
-  type PayoutCompletedData,
-} from "./templates/payout-completed";
-import {
-  payoutFailedEmail,
-  type PayoutFailedData,
-} from "./templates/payout-failed";
-import {
-  leadNotificationEmail,
-  type LeadNotificationData,
-} from "./templates/lead-notification";
+import type { OrderConfirmationData } from "./templates/order-confirmation";
+import type { PaymentFailedData } from "./templates/payment-failed";
+import type { WelcomeData } from "./templates/welcome";
+import type { SubscriptionRenewalData } from "./templates/subscription-renewal";
+import type { KycReceivedData } from "./templates/kyc-received";
+import type { KycApprovedData } from "./templates/kyc-approved";
+import type { KycRejectedData } from "./templates/kyc-rejected";
+import type { RecoveryHero } from "./templates/abandoned-recovery-1";
+import type { AbandonedRecovery2Data } from "./templates/abandoned-recovery-2";
+import type { PayoutInitiatedData } from "./templates/payout-initiated";
+import type { PayoutCompletedData } from "./templates/payout-completed";
+import type { PayoutFailedData } from "./templates/payout-failed";
+import type { LeadNotificationData } from "./templates/lead-notification";
+import { renderEmail } from "./render";
 import { sendViaSmtp, getAdminBcc } from "./smtp";
 import { primeEmailBranding } from "./branding";
 import { TEMPLATE_ROLE, type TemplateKey } from "./routing";
@@ -102,7 +67,9 @@ export async function sendEmail<K extends TemplateKey>(
   // Refresh brand (name + logo) before rendering — TTL-guarded, so admin
   // changes show up within ~5 min without a restart.
   await primeEmailBranding();
-  const built = render(template, data);
+  // renderEmail applies an admin override (email_templates CMS) if one exists,
+  // else the built-in code template.
+  const built = await renderEmail(template, data as Record<string, unknown>);
 
   // Gmail SMTP first — from the audience-appropriate mailbox. We skip SMTP when
   // the send carries Resend open-tracking tags (cart recovery) so that the
@@ -154,40 +121,3 @@ export async function sendEmail<K extends TemplateKey>(
   }
 }
 
-function render<K extends TemplateKey>(
-  template: K,
-  data: TemplateDataMap[K],
-): { subject: string; html: string } {
-  switch (template) {
-    case "order_confirmation":
-      return orderConfirmationEmail(data as OrderConfirmationData);
-    case "payment_failed":
-      return paymentFailedEmail(data as PaymentFailedData);
-    case "welcome":
-      return welcomeEmail(data as WelcomeData);
-    case "subscription_renewal":
-      return subscriptionRenewalEmail(data as SubscriptionRenewalData);
-    case "kyc_received":
-      return kycReceivedEmail(data as KycReceivedData);
-    case "kyc_approved":
-      return kycApprovedEmail(data as KycApprovedData);
-    case "kyc_rejected":
-      return kycRejectedEmail(data as KycRejectedData);
-    case "abandoned_recovery_1":
-      return abandonedRecovery1Email(data as RecoveryHero);
-    case "abandoned_recovery_2":
-      return abandonedRecovery2Email(data as AbandonedRecovery2Data);
-    case "payout_initiated":
-      return payoutInitiatedEmail(data as PayoutInitiatedData);
-    case "payout_completed":
-      return payoutCompletedEmail(data as PayoutCompletedData);
-    case "payout_failed":
-      return payoutFailedEmail(data as PayoutFailedData);
-    case "lead_notification":
-      return leadNotificationEmail(data as LeadNotificationData);
-    default: {
-      const _exhaustive: never = template;
-      throw new Error(`Unknown template: ${String(_exhaustive)}`);
-    }
-  }
-}

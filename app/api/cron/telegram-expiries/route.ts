@@ -18,7 +18,8 @@ import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { kickMember } from "@/lib/telegram";
-import { expiryEmail, reminderEmail, sendEmail } from "@/lib/email";
+import { sendEmail } from "@/lib/email";
+import { renderEmail } from "@/lib/emails/render";
 
 export const dynamic = "force-dynamic";
 
@@ -112,7 +113,7 @@ async function run() {
       expires <= in3d &&
       expires > in1d
     ) {
-      const tpl = reminderEmail({
+      const tpl = await renderEmail("telegram_reminder", {
         groupName: group.group_name ?? undefined,
         daysLeft: 3,
         renewUrl,
@@ -134,7 +135,7 @@ async function run() {
       expires <= in1d &&
       expires > now
     ) {
-      const tpl = reminderEmail({
+      const tpl = await renderEmail("telegram_reminder", {
         groupName: group.group_name ?? undefined,
         daysLeft: 1,
         renewUrl,
@@ -167,7 +168,7 @@ async function run() {
         .update({ status: "expired", removed_at: now.toISOString() })
         .eq("id", m.id);
 
-      const tpl = expiryEmail({
+      const tpl = await renderEmail("telegram_expiry", {
         groupName: group.group_name ?? undefined,
         renewUrl,
       });

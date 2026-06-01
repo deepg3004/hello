@@ -20,12 +20,8 @@ import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
-import {
-  confirmationEmail,
-  leadMagnetDeliveryEmail,
-  newLeadNotificationEmail,
-  sendEmail,
-} from "@/lib/email";
+import { sendEmail } from "@/lib/email";
+import { renderEmail } from "@/lib/emails/render";
 import {
   normalizeTags,
   resolvedFormConfig,
@@ -176,7 +172,7 @@ export async function POST(request: Request) {
 
   // 5a. Confirmation email to the lead.
   if (cfg.confirmation_email_enabled) {
-    const tpl = confirmationEmail({
+    const tpl = await renderEmail("lead_confirmation", {
       leadName: name ?? undefined,
       subject: cfg.confirmation_email_subject,
       body: cfg.confirmation_email_body,
@@ -196,7 +192,7 @@ export async function POST(request: Request) {
 
   // 5b. Lead magnet delivery.
   if (downloadUrl) {
-    const tpl = leadMagnetDeliveryEmail({
+    const tpl = await renderEmail("lead_magnet", {
       leadName: name ?? undefined,
       pageTitle: page.title,
       downloadUrl,
@@ -215,7 +211,7 @@ export async function POST(request: Request) {
 
   // 5c. Seller notification.
   if (cfg.notify_seller && seller?.email) {
-    const tpl = newLeadNotificationEmail({
+    const tpl = await renderEmail("lead_alert", {
       sellerName: seller.full_name ?? undefined,
       leadName: name ?? undefined,
       leadEmail: email,
