@@ -38,6 +38,7 @@ export type TemplateKey =
   | "payment_failed"
   | "welcome"
   | "subscription_renewal"
+  | "kyc_received"
   | "kyc_approved"
   | "kyc_rejected"
   | "abandoned_recovery_1"
@@ -52,6 +53,7 @@ export const TEMPLATE_ROLE: Record<TemplateKey, MailboxRole> = {
   payment_failed: "billing",
   welcome: "onboarding",
   subscription_renewal: "billing",
+  kyc_received: "kyc",
   kyc_approved: "kyc",
   kyc_rejected: "kyc",
   abandoned_recovery_1: "buyer",

@@ -20,6 +20,10 @@ import {
   type SubscriptionRenewalData,
 } from "./templates/subscription-renewal";
 import {
+  kycReceivedEmail,
+  type KycReceivedData,
+} from "./templates/kyc-received";
+import {
   kycApprovedEmail,
   type KycApprovedData,
 } from "./templates/kyc-approved";
@@ -55,6 +59,7 @@ export interface TemplateDataMap {
   payment_failed: PaymentFailedData;
   welcome: WelcomeData;
   subscription_renewal: SubscriptionRenewalData;
+  kyc_received: KycReceivedData;
   kyc_approved: KycApprovedData;
   kyc_rejected: KycRejectedData;
   abandoned_recovery_1: RecoveryHero;
@@ -148,6 +153,8 @@ function render<K extends TemplateKey>(
       return welcomeEmail(data as WelcomeData);
     case "subscription_renewal":
       return subscriptionRenewalEmail(data as SubscriptionRenewalData);
+    case "kyc_received":
+      return kycReceivedEmail(data as KycReceivedData);
     case "kyc_approved":
       return kycApprovedEmail(data as KycApprovedData);
     case "kyc_rejected":

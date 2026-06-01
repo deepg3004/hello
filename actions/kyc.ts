@@ -516,6 +516,26 @@ export async function submitBankVerificationAction(
     !!latest?.selfie_url,
   );
 
+  // Confirm the submission to the seller's inbox (best-effort).
+  try {
+    const { data: me } = await admin
+      .from("user_profiles")
+      .select("full_name, email")
+      .eq("id", user.id)
+      .single();
+    const to = (me?.email as string | null) ?? user.email ?? null;
+    if (to) {
+      const { enqueueEmail } = await import("@/lib/queues/email");
+      await enqueueEmail({
+        template: "kyc_received",
+        to,
+        data: { seller_name: (me?.full_name as string | null) ?? null, manual: false },
+      });
+    }
+  } catch {
+    /* best-effort — never block KYC on email */
+  }
+
   return {
     ok: true,
     data: { returned_name: returnedName, similarity },

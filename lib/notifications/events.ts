@@ -220,6 +220,51 @@ export async function notifyKyc(
     },
     db,
   );
+
+  // Email the seller too — the bell is in-app only. Best-effort: a mail
+  // failure must never break the KYC flow.
+  try {
+    const { data: prof } = await db
+      .from("user_profiles")
+      .select("full_name, email, kyc_level")
+      .eq("id", o.userId)
+      .single();
+    const to = (prof?.email as string | null) ?? null;
+    const name = (prof?.full_name as string | null) ?? null;
+    if (to) {
+      const { enqueueEmail } = await import("@/lib/queues/email");
+      if (o.kind === "approved") {
+        const level = (Number(prof?.kyc_level) || 2) as 1 | 2 | 3;
+        await enqueueEmail({
+          template: "kyc_approved",
+          to,
+          data: { seller_name: name, level },
+        });
+      } else if (o.kind === "rejected" || o.kind === "rekyc") {
+        await enqueueEmail({
+          template: "kyc_rejected",
+          to,
+          data: {
+            seller_name: name,
+            reason:
+              o.reason ??
+              (o.kind === "rekyc"
+                ? "Re-verification is required to keep payouts enabled."
+                : null),
+          },
+        });
+      } else if (o.kind === "flagged") {
+        // Submitted but needs manual review — confirm receipt to the seller.
+        await enqueueEmail({
+          template: "kyc_received",
+          to,
+          data: { seller_name: name, manual: true },
+        });
+      }
+    }
+  } catch {
+    /* best-effort */
+  }
 }
 
 // ── 7. New Telegram join ────────────────────────────────────────────────────

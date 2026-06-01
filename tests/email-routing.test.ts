@@ -12,6 +12,7 @@ const ALL_TEMPLATES: TemplateKey[] = [
   "payment_failed",
   "welcome",
   "subscription_renewal",
+  "kyc_received",
   "kyc_approved",
   "kyc_rejected",
   "abandoned_recovery_1",

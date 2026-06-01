@@ -61,6 +61,18 @@ export async function signUpAction(input: SignUpInput): Promise<ActionResult> {
     }
   }
 
+  // Welcome email to the new seller (best-effort — never block signup).
+  try {
+    const { enqueueEmail } = await import("@/lib/queues/email");
+    await enqueueEmail({
+      template: "welcome",
+      to: input.email,
+      data: { seller_name: input.fullName },
+    });
+  } catch {
+    /* best-effort */
+  }
+
   // When email confirmation is on, session is null until they click the link.
   const needsEmailConfirmation = !data.session;
   return { ok: true, needsEmailConfirmation };
