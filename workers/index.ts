@@ -51,6 +51,13 @@ async function main(): Promise<void> {
   }
 
   console.log("[workers] starting…");
+  // Prime email branding (platform name + logo) for queued sends.
+  try {
+    const { primeEmailBranding } = await import("@/lib/emails/branding");
+    await primeEmailBranding(true);
+  } catch {
+    /* non-fatal — emails fall back to default branding */
+  }
   await Promise.all([
     bootInvoiceWorker(),
     bootRecoveryWorker(),

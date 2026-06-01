@@ -26,4 +26,10 @@ export async function register(): Promise<void> {
     // Re-throw so PM2 marks the process unhealthy; don't accept traffic.
     throw e;
   }
+
+  // Prime email branding (platform name + logo) so transactional emails carry
+  // the live brand. Fire-and-forget — never block or fail startup on it.
+  void import("./lib/emails/branding")
+    .then((m) => m.primeEmailBranding(true))
+    .catch(() => {});
 }

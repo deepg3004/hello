@@ -48,6 +48,7 @@ import {
   type LeadNotificationData,
 } from "./templates/lead-notification";
 import { sendViaSmtp, getAdminBcc } from "./smtp";
+import { primeEmailBranding } from "./branding";
 import { TEMPLATE_ROLE, type TemplateKey } from "./routing";
 
 export type { TemplateKey };
@@ -88,6 +89,9 @@ export async function sendEmail<K extends TemplateKey>(
   data: TemplateDataMap[K],
   options: SendOptions = {},
 ): Promise<SendResult> {
+  // Refresh brand (name + logo) before rendering — TTL-guarded, so admin
+  // changes show up within ~5 min without a restart.
+  await primeEmailBranding();
   const built = render(template, data);
 
   // Gmail SMTP first — from the audience-appropriate mailbox. We skip SMTP when

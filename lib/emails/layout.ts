@@ -32,12 +32,37 @@ const ACCENT = "#6D28D9";
 const ACCENT_GRADIENT = "linear-gradient(90deg,#6D28D9 0%,#7C3AED 45%,#06B6D4 100%)";
 const HEADER_BG = "#0E0E10";
 
+// ── Admin-set branding (platform name + logo + support email) ────────────────
+// Primed once per process from platform_settings (see ./branding.ts), so every
+// SHELL render picks up the live brand without threading it through each
+// template. Falls back to InvoxAI defaults until primed.
+interface EmailBrand {
+  name: string;
+  logoUrl: string | null;
+  supportEmail: string;
+}
+let _emailBrand: EmailBrand | null = null;
+
+export function setEmailBranding(b: {
+  name?: string | null;
+  logoUrl?: string | null;
+  supportEmail?: string | null;
+}): void {
+  _emailBrand = {
+    name: (b.name ?? "").trim() || "InvoxAI",
+    logoUrl: (b.logoUrl ?? "").trim() || null,
+    supportEmail: (b.supportEmail ?? "").trim() || "support@invoxai.io",
+  };
+}
+
 export function SHELL(inner: string, opts: ShellOptions = {}): string {
   const preheader = opts.preheader ?? "";
-  const brand = opts.brandName ?? "InvoxAI";
-  const support = opts.supportEmail ?? "support@invoxai.io";
-  const masthead = opts.brandLogoUrl
-    ? `<img src="${opts.brandLogoUrl}" alt="${escapeHtml(brand)}" height="26" style="display:block;height:26px;max-height:26px;width:auto;border:0" />`
+  const brand = opts.brandName ?? _emailBrand?.name ?? "InvoxAI";
+  const logoUrl = opts.brandLogoUrl ?? _emailBrand?.logoUrl ?? null;
+  const support =
+    opts.supportEmail ?? _emailBrand?.supportEmail ?? "support@invoxai.io";
+  const masthead = logoUrl
+    ? `<img src="${logoUrl}" alt="${escapeHtml(brand)}" height="28" style="display:block;height:28px;max-height:28px;width:auto;border:0;outline:none;text-decoration:none" />`
     : `<span style="font-size:18px;font-weight:700;letter-spacing:0.3px;color:#ffffff">${escapeHtml(brand)}</span>`;
 
   return `<!doctype html>

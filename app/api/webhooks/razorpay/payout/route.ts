@@ -14,6 +14,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyWebhookSignature } from "@/lib/razorpay";
 import { sendEmail } from "@/lib/email";
+import { sendEmail as sendTemplate } from "@/lib/emails/send";
 import { SHELL, escapeHtml } from "@/lib/emails/layout";
 
 interface PayoutEntity {
@@ -138,19 +139,11 @@ async function notifyCompleted(userId: string, amount: number, utr?: string) {
       .eq("id", userId)
       .single();
     if (!profile) return;
-    await sendEmail({
-      to: profile.email,
-      role: "seller",
-      subject: `Payout settled — ₹${amount.toLocaleString("en-IN")}`,
-      html: SHELL(
-        `
-        <h2 style="margin:0 0 12px;font-size:20px">Payout settled 💸</h2>
-        <p style="margin:0 0 12px;line-height:1.5">Hi ${escapeHtml(profile.full_name ?? "")},</p>
-        <p style="margin:0 0 12px;line-height:1.5">Your payout of <strong>₹${amount.toLocaleString("en-IN")}</strong> has been credited to your bank.</p>
-        ${utr ? `<p style="margin:0;color:#71717a;font-size:13px">UTR: <code>${escapeHtml(utr)}</code></p>` : ""}
-      `,
-        { preheader: `₹${amount.toLocaleString("en-IN")} credited to your bank.` },
-      ),
+    // Proper templated payout receipt (premium shell + amount/UTR breakdown).
+    await sendTemplate("payout_completed", profile.email, {
+      seller_name: profile.full_name,
+      amount,
+      utr: utr ?? null,
     });
   } catch (e) {
     console.error("[payout-webhook] notifyCompleted failed", e);
