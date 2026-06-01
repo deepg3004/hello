@@ -145,7 +145,11 @@ export function AdminTopbar({ profile, onMenuClick }: AdminTopbarProps) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href="/dashboard">Back to seller dashboard</Link>
+              {/* Absolute so it crosses from admin.invoxai.io → app.invoxai.io
+                  (relative /dashboard would mis-route under the admin host). */}
+              <a href={`${process.env.NEXT_PUBLIC_APP_URL || ""}/dashboard`}>
+                Back to seller dashboard
+              </a>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <a href="https://app.invoxai.io" target="_blank" rel="noreferrer">
