@@ -103,7 +103,7 @@ export default async function TelegramListPage() {
       memberCount: Number(g.total_member_count ?? 0),
       revenue: pageId ? revByPage.get(pageId) ?? 0 : 0,
       setupComplete: !!g.setup_complete,
-      pageUrl: slug ? `${appUrl}/p/${slug}` : null,
+      pageUrl: slug ? `${appUrl}/tg/${slug}` : null,
       plans: plansByGroup.get(g.id) ?? [],
     };
   });

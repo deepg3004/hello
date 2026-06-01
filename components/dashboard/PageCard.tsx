@@ -23,6 +23,7 @@ import {
   togglePagePublishAction,
 } from "@/actions/pages";
 import { Button } from "@/components/ui/button";
+import { publicPagePath } from "@/lib/page-url";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -144,7 +145,7 @@ export function PageCard({ page }: { page: PageCardData }) {
   }
 
   async function copyLink() {
-    const url = `${window.location.origin}/p/${page.slug}`;
+    const url = `${window.location.origin}${publicPagePath(page.type, page.slug, page.template_id)}`;
     try {
       await navigator.clipboard.writeText(url);
       toast({ title: "Link copied", description: url });
