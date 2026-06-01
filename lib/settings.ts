@@ -11,7 +11,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { MIN_PAYOUT_AMOUNT } from "@/lib/payouts/constants";
+import { MIN_PAYOUT_AMOUNT, CHARGEBACK_HOLD_DAYS } from "@/lib/payouts/constants";
 
 /** Read a single setting value, falling back when missing/unreadable. */
 export async function getSetting(
@@ -78,4 +78,17 @@ export async function getMinPayoutAmount(): Promise<number> {
   const raw = await getSetting("min_payout_amount", "");
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : MIN_PAYOUT_AMOUNT;
+}
+
+/**
+ * How many days a paid order is held before it becomes payable (chargeback
+ * buffer). Admin-editable via `payout_hold_days`; falls back to the compiled
+ * default. **0 is allowed** (release immediately) — only a missing/invalid
+ * value falls back to the default.
+ */
+export async function getPayoutHoldDays(): Promise<number> {
+  const raw = await getSetting("payout_hold_days", "");
+  if (raw === "") return CHARGEBACK_HOLD_DAYS;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : CHARGEBACK_HOLD_DAYS;
 }

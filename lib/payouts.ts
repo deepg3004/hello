@@ -44,9 +44,9 @@ export async function calculateAvailableBalance(
   userId: string,
 ): Promise<AvailableBalance> {
   const admin = createAdminClient();
-  const cutoff = new Date(
-    Date.now() - CHARGEBACK_HOLD_DAYS * 86_400_000,
-  ).toISOString();
+  const { getPayoutHoldDays } = await import("@/lib/settings");
+  const holdDays = await getPayoutHoldDays();
+  const cutoff = new Date(Date.now() - holdDays * 86_400_000).toISOString();
 
   const [{ data: clearedOrders }, { data: holdingOrders }, { data: payouts }] =
     await Promise.all([

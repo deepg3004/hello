@@ -34,6 +34,7 @@ const KEYS = [
   "platform_commission_percent",
   "commission_per_plan",
   "min_payout_amount",
+  "payout_hold_days",
   "kyc_l3_gmv_threshold",
   "support_email",
   "support_telegram_url",
@@ -147,6 +148,13 @@ export default async function AdminPlatformSettingsPage() {
             description="Lowest amount a seller can withdraw in a single request."
             initialValue={get("min_payout_amount", "500")}
             suffix="INR"
+          />
+          <SettingNumberInput
+            storageKey="payout_hold_days"
+            label="Payout clearance hold"
+            description="Days a paid order is held as a chargeback buffer before it becomes withdrawable. Set 0 to release funds immediately."
+            initialValue={get("payout_hold_days", "3")}
+            suffix="days"
           />
         </CardContent>
       </Card>
