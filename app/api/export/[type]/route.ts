@@ -7,21 +7,13 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { toCsv } from "@/lib/csv";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_ROWS = 10_000;
 type ExportType = "orders" | "customers" | "leads";
-
-/** RFC-4180-ish CSV: quote every field, double internal quotes. */
-function toCsv(headers: string[], rows: (string | number | null)[][]): string {
-  const esc = (v: string | number | null) =>
-    `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const lines = [headers.map(esc).join(",")];
-  for (const r of rows) lines.push(r.map(esc).join(","));
-  return lines.join("\r\n");
-}
 
 export async function GET(
   _req: Request,

@@ -14,6 +14,9 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getRedis } from "@/lib/redis";
+import { computeDiscount } from "@/lib/pricing";
+
+export { computeDiscount };
 
 export interface CouponValidationOk {
   valid: true;
@@ -34,21 +37,6 @@ export type CouponValidationResult = CouponValidationOk | CouponValidationFail;
 
 function nowIso(): string {
   return new Date().toISOString();
-}
-
-/** Compute the rupee discount for an order amount. */
-export function computeDiscount(
-  discountType: "percentage" | "fixed",
-  discountValue: number,
-  amount: number,
-  maxDiscount: number | null,
-): number {
-  let discount =
-    discountType === "percentage"
-      ? Math.round(((amount * discountValue) / 100) * 100) / 100
-      : discountValue;
-  if (maxDiscount != null) discount = Math.min(discount, maxDiscount);
-  return Math.min(discount, amount); // never discount more than the amount itself
 }
 
 /**

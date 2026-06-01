@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isValidGstin, isValidPhone } from "@/lib/validators";
 
 interface Result {
   ok: boolean;
@@ -15,9 +16,6 @@ export interface ProfileInput {
   phone?: string;
   gstin?: string;
 }
-
-// GSTIN: 2-digit state + 10-char PAN + entity + 'Z' + checksum (15 chars).
-const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 
 /**
  * Update the seller's own profile (name / phone / GSTIN). Scoped to the
@@ -35,12 +33,12 @@ export async function updateProfileAction(input: ProfileInput): Promise<Result> 
   if (full_name.length > 80) return { ok: false, message: "Name is too long" };
 
   const phone = input.phone?.trim() || null;
-  if (phone && !/^[+0-9 ()-]{6,20}$/.test(phone)) {
+  if (phone && !isValidPhone(phone)) {
     return { ok: false, message: "Enter a valid phone number" };
   }
 
   const gstin = input.gstin?.trim().toUpperCase() || null;
-  if (gstin && !GSTIN_RE.test(gstin)) {
+  if (gstin && !isValidGstin(gstin)) {
     return { ok: false, message: "That doesn't look like a valid 15-character GSTIN" };
   }
 
