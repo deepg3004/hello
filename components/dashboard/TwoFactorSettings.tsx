@@ -56,7 +56,10 @@ export function TwoFactorSettings() {
 
     const { data, error } = await supabase.auth.mfa.enroll({
       factorType: "totp",
-      friendlyName: `Authenticator ${new Date().getFullYear()}`,
+      // `issuer` is what authenticator apps show as the account name — without
+      // it Supabase defaults to the request host (e.g. "localhost").
+      issuer: "InvoxAI",
+      friendlyName: `InvoxAI · ${new Date().toISOString().slice(0, 10)}`,
     });
     setBusy(false);
     if (error || !data) {
