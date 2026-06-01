@@ -31,6 +31,35 @@ export default async function KycPage() {
       .maybeSingle(),
   ]);
 
+  // Manual-submission doc slots live in migration 036. Fetch them in an
+  // isolated query so a missing column (before the migration is applied) just
+  // yields nulls instead of breaking the whole page.
+  const manualDocs = {
+    panFront: false,
+    panBack: false,
+    aadhaarFront: false,
+    aadhaarBack: false,
+    bankStatement: false,
+    cancelCheque: false,
+  };
+  let aadhaarOnFile = false;
+  const { data: md } = await admin
+    .from("kyc_submissions")
+    .select(
+      "pan_front_url, pan_back_url, aadhaar_front_url, aadhaar_back_url, bank_statement_url, cancel_cheque_url, aadhaar_number",
+    )
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (md) {
+    manualDocs.panFront = !!md.pan_front_url;
+    manualDocs.panBack = !!md.pan_back_url;
+    manualDocs.aadhaarFront = !!md.aadhaar_front_url;
+    manualDocs.aadhaarBack = !!md.aadhaar_back_url;
+    manualDocs.bankStatement = !!md.bank_statement_url;
+    manualDocs.cancelCheque = !!md.cancel_cheque_url;
+    aadhaarOnFile = !!md.aadhaar_number;
+  }
+
   const initial: KycInitial = {
     email: profile?.email ?? user.email ?? "",
     phone: profile?.phone ?? null,
@@ -52,6 +81,8 @@ export default async function KycPage() {
     riskFlags: Array.isArray(submission?.risk_flags)
       ? (submission!.risk_flags as string[])
       : [],
+    manualDocs,
+    aadhaarOnFile,
   };
 
   return (

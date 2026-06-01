@@ -51,6 +51,14 @@ export interface KycReviewItem {
   bank_account_number: string | null;
   bank_ifsc: string | null;
   bank_holder_name: string | null;
+  // Manual-submission extras (migration 036; signed URLs).
+  aadhaar_number?: string | null;
+  pan_front_url?: string | null;
+  pan_back_url?: string | null;
+  aadhaar_front_url?: string | null;
+  aadhaar_back_url?: string | null;
+  bank_statement_url?: string | null;
+  cancel_cheque_url?: string | null;
 }
 
 interface KycReviewClientProps {
@@ -92,8 +100,16 @@ function initials(s: string): string {
     .join("");
 }
 
+function firstNonEmptyTab(items: KycReviewItem[]): KycReviewStatus {
+  const order: KycReviewStatus[] = ["pending", "under_review", "approved", "rejected"];
+  for (const s of order) if (items.some((i) => i.status === s)) return s;
+  return "pending";
+}
+
 export function KycReviewClient({ items }: KycReviewClientProps) {
-  const [tab, setTab] = useState<KycReviewStatus>("pending");
+  // Land on the first tab that actually has rows so a manual submission sitting
+  // in "Under Review" isn't missed behind an empty "Pending" tab.
+  const [tab, setTab] = useState<KycReviewStatus>(() => firstNonEmptyTab(items));
 
   const grouped = useMemo(() => {
     const out: Record<KycReviewStatus, KycReviewItem[]> = {
@@ -452,6 +468,9 @@ function ReviewPanel({ item }: { item: KycReviewItem }) {
             <Fact k="Holder" v={item.bank_holder_name ?? "—"} />
             <Fact k="Account" v={item.bank_account_number ?? "—"} mono />
             <Fact k="IFSC" v={item.bank_ifsc ?? "—"} mono />
+            {item.aadhaar_number && (
+              <Fact k="Aadhaar" v={item.aadhaar_number} mono />
+            )}
             <Fact
               k="Verified"
               v={item.bank_verified_at ? "Yes" : "Pending"}
@@ -460,20 +479,31 @@ function ReviewPanel({ item }: { item: KycReviewItem }) {
           </FactBlock>
         </div>
 
-        {/* Document previews */}
-        <div className="grid gap-4 md:grid-cols-2">
-          {item.selfie_url && (
-            <DocPreview url={item.selfie_url} label="Selfie photo" />
-          )}
-          {item.id_document_url && (
-            <DocPreview url={item.id_document_url} label="ID document" />
-          )}
-          {!item.selfie_url && !item.id_document_url && (
-            <p className="md:col-span-2 rounded-lg border border-dashed bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
-              No document uploads on file for this submission.
-            </p>
-          )}
-        </div>
+        {/* Document previews (automated + manual-submission images) */}
+        {(() => {
+          const docs = [
+            { url: item.selfie_url, label: "Selfie photo" },
+            { url: item.id_document_url, label: "ID document" },
+            { url: item.pan_front_url, label: "PAN — front" },
+            { url: item.pan_back_url, label: "PAN — back" },
+            { url: item.aadhaar_front_url, label: "Aadhaar — front" },
+            { url: item.aadhaar_back_url, label: "Aadhaar — back" },
+            { url: item.bank_statement_url, label: "Bank statement" },
+            { url: item.cancel_cheque_url, label: "Cancelled cheque" },
+          ].filter((d) => !!d.url) as { url: string; label: string }[];
+          return (
+            <div className="grid gap-4 md:grid-cols-2">
+              {docs.map((d) => (
+                <DocPreview key={d.label} url={d.url} label={d.label} />
+              ))}
+              {docs.length === 0 && (
+                <p className="md:col-span-2 rounded-lg border border-dashed bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
+                  No document uploads on file for this submission.
+                </p>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Footer — approve / reject actions */}

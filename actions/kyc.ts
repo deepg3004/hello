@@ -233,6 +233,7 @@ export async function submitManualKycAction(input: {
   account_number: string;
   ifsc: string;
   bank_holder_name: string;
+  aadhaar_number?: string;
 }): Promise<ActionResult> {
   const user = await getAuthedUser();
   if (!user) return { ok: false, message: "Not signed in" };
@@ -242,6 +243,7 @@ export async function submitManualKycAction(input: {
   const account = input.account_number.replace(/\s+/g, "");
   const panName = input.pan_name.trim();
   const holder = input.bank_holder_name.trim();
+  const aadhaar = (input.aadhaar_number ?? "").replace(/\D/g, "");
 
   if (!PAN_RE.test(pan)) {
     return { ok: false, message: "Invalid PAN format (5 letters + 4 digits + 1 letter)." };
@@ -252,6 +254,9 @@ export async function submitManualKycAction(input: {
   }
   if (!IFSC_RE.test(ifsc)) return { ok: false, message: "Invalid IFSC code." };
   if (!holder) return { ok: false, message: "Enter the bank account holder name." };
+  if (aadhaar && aadhaar.length !== 12) {
+    return { ok: false, message: "Aadhaar number should be 12 digits." };
+  }
 
   const admin = createAdminClient();
   const submission = await ensureSubmission(admin, user.id);
@@ -284,6 +289,18 @@ export async function submitManualKycAction(input: {
       bank_holder_name: holder,
     })
     .eq("id", user.id);
+
+  // Aadhaar number is stored best-effort — the column ships in migration 036,
+  // so a missing column (pre-migration) must not fail the whole submission.
+  if (aadhaar) {
+    const { error: aadhaarErr } = await admin
+      .from("kyc_submissions")
+      .update({ aadhaar_number: aadhaar })
+      .eq("user_id", user.id);
+    if (aadhaarErr) {
+      // Swallow — likely the column doesn't exist yet. Submission still stands.
+    }
+  }
 
   await logVerification(admin, user.id, submissionId, {
     kind: "pan",
@@ -470,13 +487,30 @@ export async function submitBankVerificationAction(
 // Documents (selfie / ID / GST / business reg)
 // ----------------------------------------------------------------------------
 
-export type DocumentType = "selfie" | "id_document" | "gst_certificate" | "business_registration";
+export type DocumentType =
+  | "selfie"
+  | "id_document"
+  | "gst_certificate"
+  | "business_registration"
+  | "pan_front"
+  | "pan_back"
+  | "aadhaar_front"
+  | "aadhaar_back"
+  | "bank_statement"
+  | "cancel_cheque";
 
 const DOC_COLUMN: Record<DocumentType, string> = {
   selfie: "selfie_url",
   id_document: "id_document_url",
   gst_certificate: "gst_certificate_url",
   business_registration: "business_registration_url",
+  // Manual-submission document slots (migration 036).
+  pan_front: "pan_front_url",
+  pan_back: "pan_back_url",
+  aadhaar_front: "aadhaar_front_url",
+  aadhaar_back: "aadhaar_back_url",
+  bank_statement: "bank_statement_url",
+  cancel_cheque: "cancel_cheque_url",
 };
 
 export async function uploadKycDocumentAction(formData: FormData): Promise<ActionResult> {

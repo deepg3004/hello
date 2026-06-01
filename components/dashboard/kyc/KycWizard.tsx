@@ -47,6 +47,16 @@ export interface KycInitial {
   status: "pending" | "approved" | "rejected" | "under_review";
   rejectionReason: string | null;
   riskFlags: string[];
+  /** Manual-submission document slots (migration 036). */
+  manualDocs: {
+    panFront: boolean;
+    panBack: boolean;
+    aadhaarFront: boolean;
+    aadhaarBack: boolean;
+    bankStatement: boolean;
+    cancelCheque: boolean;
+  };
+  aadhaarOnFile: boolean;
 }
 
 interface KycWizardProps {
@@ -446,6 +456,7 @@ function ManualKycForm({ initial }: { initial: KycInitial }) {
   const [open, setOpen] = useState(false);
   const [pan, setPan] = useState("");
   const [panName, setPanName] = useState(initial.panName ?? "");
+  const [aadhaar, setAadhaar] = useState("");
   const [account, setAccount] = useState("");
   const [ifsc, setIfsc] = useState("");
   const [holder, setHolder] = useState("");
@@ -456,6 +467,7 @@ function ManualKycForm({ initial }: { initial: KycInitial }) {
     const r = await submitManualKycAction({
       pan_number: pan,
       pan_name: panName,
+      aadhaar_number: aadhaar,
       account_number: account,
       ifsc,
       bank_holder_name: holder,
@@ -467,6 +479,19 @@ function ManualKycForm({ initial }: { initial: KycInitial }) {
     }
     toast({ title: "Submitted for review", description: r.message });
     router.refresh();
+  }
+
+  // Once a manual submission is in, don't keep offering the form — show status.
+  const alreadySubmitted =
+    initial.status === "under_review" ||
+    initial.riskFlags.includes("manual_submission");
+  if (alreadySubmitted) {
+    return (
+      <div className="mt-2 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+        <RefreshCcw className="h-3.5 w-3.5 shrink-0" />
+        Submitted for manual review — our team is verifying your details.
+      </div>
+    );
   }
 
   if (!open) {
@@ -500,6 +525,10 @@ function ManualKycForm({ initial }: { initial: KycInitial }) {
           <Input value={panName} onChange={(e) => setPanName(e.target.value)} placeholder="As printed on PAN" />
         </div>
         <div className="space-y-1.5">
+          <Label className="text-xs">Aadhaar number (optional)</Label>
+          <Input value={aadhaar} onChange={(e) => setAadhaar(e.target.value.replace(/\D/g, "").slice(0, 12))} placeholder="12-digit Aadhaar" maxLength={12} className="font-mono" inputMode="numeric" />
+        </div>
+        <div className="space-y-1.5">
           <Label className="text-xs">Bank account number</Label>
           <Input value={account} onChange={(e) => setAccount(e.target.value.replace(/\D/g, ""))} placeholder="123456789012" className="font-mono" />
         </div>
@@ -512,10 +541,84 @@ function ManualKycForm({ initial }: { initial: KycInitial }) {
           <Input value={holder} onChange={(e) => setHolder(e.target.value)} placeholder="As per bank records" />
         </div>
       </div>
+
+      {/* Document images for manual review */}
+      <div className="space-y-2 border-t border-border pt-3">
+        <p className="text-xs font-medium text-foreground">Upload supporting images</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <MiniUpload label="PAN — front" documentType="pan_front" done={initial.manualDocs.panFront} />
+          <MiniUpload label="PAN — back" documentType="pan_back" done={initial.manualDocs.panBack} />
+          <MiniUpload label="Aadhaar — front" documentType="aadhaar_front" done={initial.manualDocs.aadhaarFront} />
+          <MiniUpload label="Aadhaar — back" documentType="aadhaar_back" done={initial.manualDocs.aadhaarBack} />
+          <MiniUpload label="Bank statement" documentType="bank_statement" done={initial.manualDocs.bankStatement} />
+          <MiniUpload label="Cancelled cheque" documentType="cancel_cheque" done={initial.manualDocs.cancelCheque} />
+        </div>
+      </div>
+
       <PrimaryButton onClick={submit} disabled={busy || !valid} busy={busy}>
         Submit for manual review
       </PrimaryButton>
     </div>
+  );
+}
+
+/** Compact single-file uploader for the manual KYC document slots. */
+function MiniUpload({
+  label,
+  documentType,
+  done,
+}: {
+  label: string;
+  documentType: DocumentType;
+  done: boolean;
+}) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const ref = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [uploaded, setUploaded] = useState(done);
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setBusy(true);
+    const fd = new FormData();
+    fd.append("documentType", documentType);
+    fd.append("file", f);
+    const r = await uploadKycDocumentAction(fd);
+    setBusy(false);
+    if (ref.current) ref.current.value = "";
+    if (!r.ok) {
+      toast({ title: "Upload failed", description: r.message, variant: "destructive" });
+      return;
+    }
+    setUploaded(true);
+    toast({ title: `${label} uploaded` });
+    router.refresh();
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => ref.current?.click()}
+      disabled={busy}
+      className={cn(
+        "flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-xs transition",
+        uploaded
+          ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+          : "border-border bg-card hover:border-primary/40",
+      )}
+    >
+      <input ref={ref} type="file" accept="image/*,application/pdf" className="hidden" onChange={onFile} />
+      <span className="font-medium">{label}</span>
+      {busy ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : uploaded ? (
+        <Check className="h-3.5 w-3.5" />
+      ) : (
+        <Upload className="h-3.5 w-3.5 text-muted-foreground" />
+      )}
+    </button>
   );
 }
 

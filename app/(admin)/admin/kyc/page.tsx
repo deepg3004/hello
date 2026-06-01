@@ -73,6 +73,22 @@ export default async function AdminKycQueuePage() {
 
   const raw = (data ?? []) as unknown as RawKycRow[];
 
+  // Manual-submission doc columns ship in migration 036 — fetch them in an
+  // isolated query so a missing column can't break the whole queue.
+  const extrasById = new Map<string, Record<string, string | null>>();
+  {
+    const { data: extras } = await admin
+      .from("kyc_submissions")
+      .select(
+        "id, aadhaar_number, pan_front_url, pan_back_url, aadhaar_front_url, aadhaar_back_url, bank_statement_url, cancel_cheque_url",
+      )
+      .order("created_at", { ascending: false })
+      .limit(500);
+    for (const e of extras ?? []) {
+      extrasById.set(e.id as string, e as Record<string, string | null>);
+    }
+  }
+
   // Concurrently sign storage URLs + flatten the profile join. Limited to
   // the most recent 500 submissions so signing isn't unbounded.
   const items: KycReviewItem[] = await Promise.all(
@@ -80,11 +96,34 @@ export default async function AdminKycQueuePage() {
       const profile = Array.isArray(r.user_profiles)
         ? r.user_profiles[0]
         : r.user_profiles;
-      const [selfie_url, id_document_url] = await Promise.all([
+      const ex = extrasById.get(r.id) ?? {};
+      const [
+        selfie_url,
+        id_document_url,
+        pan_front_url,
+        pan_back_url,
+        aadhaar_front_url,
+        aadhaar_back_url,
+        bank_statement_url,
+        cancel_cheque_url,
+      ] = await Promise.all([
         signed(admin, r.selfie_url),
         signed(admin, r.id_document_url),
+        signed(admin, ex.pan_front_url ?? null),
+        signed(admin, ex.pan_back_url ?? null),
+        signed(admin, ex.aadhaar_front_url ?? null),
+        signed(admin, ex.aadhaar_back_url ?? null),
+        signed(admin, ex.bank_statement_url ?? null),
+        signed(admin, ex.cancel_cheque_url ?? null),
       ]);
       return {
+        aadhaar_number: (ex.aadhaar_number as string) ?? null,
+        pan_front_url,
+        pan_back_url,
+        aadhaar_front_url,
+        aadhaar_back_url,
+        bank_statement_url,
+        cancel_cheque_url,
         id: r.id,
         user_id: r.user_id,
         level: r.level,
