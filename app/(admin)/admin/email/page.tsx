@@ -1,4 +1,5 @@
-import { AlertTriangle, Mail, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, Eye, Mail, ShieldCheck } from "lucide-react";
 
 import {
   Card,
@@ -119,15 +120,24 @@ export default async function AdminEmailPage() {
   return (
     <div className="space-y-6">
       {/* ── Header ───────────────────────────────────────────────── */}
-      <div>
-        <h1 className="font-sora text-2xl font-semibold tracking-tight">
-          Email
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Send transactional email from your own Gmail mailboxes. Each audience
-          gets its own branded address — buyers, sellers, KYC, support. Any
-          mailbox you leave empty falls back to Resend automatically.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-sora text-2xl font-semibold tracking-tight">
+            Email
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Send transactional email from your own Gmail mailboxes. Each
+            audience gets its own branded address — buyers, sellers, KYC,
+            support. Any mailbox you leave empty falls back to Resend.
+          </p>
+        </div>
+        <Link
+          href="/admin/email/templates"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium transition hover:bg-muted"
+        >
+          <Eye className="h-4 w-4" />
+          Preview all templates
+        </Link>
       </div>
 
       {/* ── Vault status banner ──────────────────────────────────── */}
