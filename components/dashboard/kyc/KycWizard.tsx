@@ -146,7 +146,12 @@ function OverallStatus({ initial }: { initial: KycInitial }) {
       </div>
     );
   }
-  if (initial.status === "under_review") {
+  // (Reached only after the rejected-status check above returns.)
+  const awaitingManual =
+    initial.riskFlags.includes("manual_submission") &&
+    initial.status !== "approved" &&
+    initial.kycLevel < 2;
+  if (initial.status === "under_review" || awaitingManual) {
     return (
       <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
         <RefreshCcw className="mt-0.5 h-4 w-4 shrink-0" />

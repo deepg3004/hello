@@ -268,14 +268,16 @@ export async function submitManualKycAction(input: {
   riskFlags.add("manual_submission");
 
   // Store the details but DO NOT set pan_verified/bank_verified — an admin
-  // approves via the KYC queue / manual-verify control.
+  // approves via the KYC queue / manual-verify control. Status is "pending"
+  // so it lands in the admin's PRIMARY review queue (the default tab); the
+  // `manual_submission` flag marks it as needing hands-on verification.
   await admin
     .from("kyc_submissions")
     .update({
       pan_number: pan,
       pan_name: panName,
       level: 2,
-      status: "under_review",
+      status: "pending",
       risk_flags: Array.from(riskFlags),
     })
     .eq("user_id", user.id);

@@ -76,7 +76,7 @@ export default async function AdminKycQueuePage() {
   // Manual-submission doc columns ship in migration 036 — fetch them in an
   // isolated query so a missing column can't break the whole queue.
   const extrasById = new Map<string, Record<string, string | null>>();
-  {
+  try {
     const { data: extras } = await admin
       .from("kyc_submissions")
       .select(
@@ -87,6 +87,8 @@ export default async function AdminKycQueuePage() {
     for (const e of extras ?? []) {
       extrasById.set(e.id as string, e as Record<string, string | null>);
     }
+  } catch {
+    // Columns ship in migration 036; ignore until it's applied.
   }
 
   // Concurrently sign storage URLs + flatten the profile join. Limited to
