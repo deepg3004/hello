@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, ExternalLink, Menu, ShieldCheck } from "lucide-react";
+import { ExternalLink, Menu, ShieldCheck } from "lucide-react";
 
 import { signOutAction } from "@/actions/auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -15,6 +15,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { cn } from "@/lib/utils";
 
 export interface AdminTopbarProfile {
@@ -25,7 +27,6 @@ export interface AdminTopbarProfile {
 interface AdminTopbarProps {
   profile: AdminTopbarProfile;
   onMenuClick: () => void;
-  notificationCount?: number;
 }
 
 // Path → friendly page title for the topbar heading
@@ -51,11 +52,7 @@ function deriveTitle(pathname: string): string {
   return key ? key[0]!.toUpperCase() + key.slice(1) : "Admin";
 }
 
-export function AdminTopbar({
-  profile,
-  onMenuClick,
-  notificationCount = 0,
-}: AdminTopbarProps) {
+export function AdminTopbar({ profile, onMenuClick }: AdminTopbarProps) {
   const pathname = usePathname();
   const title = deriveTitle(pathname);
   const initials = makeInitials(profile.full_name ?? profile.email);
@@ -63,8 +60,8 @@ export function AdminTopbar({
   return (
     <header
       className={cn(
-        "sticky top-0 z-20 flex h-16 items-center justify-between gap-3",
-        "border-b border-border bg-white/95 px-4 backdrop-blur md:px-6",
+        "glass sticky top-0 z-20 flex h-16 items-center justify-between gap-3",
+        "border-b px-4 md:px-6",
       )}
     >
       {/* Left: hamburger (mobile) + page title */}
@@ -113,24 +110,9 @@ export function AdminTopbar({
           </a>
         </Button>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={`Notifications (${notificationCount})`}
-          className="relative text-muted-foreground hover:text-foreground"
-        >
-          <Bell className="h-4 w-4" />
-          {notificationCount > 0 && (
-            <span
-              className={cn(
-                "absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center",
-                "rounded-full bg-rose-500 px-1 text-[10px] font-semibold text-white",
-              )}
-            >
-              {notificationCount > 9 ? "9+" : notificationCount}
-            </span>
-          )}
-        </Button>
+        <ThemeToggle />
+
+        <NotificationBell accent="amber" />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

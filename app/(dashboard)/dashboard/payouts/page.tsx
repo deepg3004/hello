@@ -77,10 +77,8 @@ export default async function PayoutsPage() {
         style={{ animationDelay: "0ms" }}
       >
         <div>
-          <h1 className="font-sora text-2xl font-semibold tracking-tight">
-            Payouts
-          </h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="page-title">Payouts</h1>
+          <p className="page-subtitle">
             Your share of every paid order, minus what you&apos;ve already
             withdrawn.
           </p>
@@ -147,13 +145,11 @@ export default async function PayoutsPage() {
 
       {/* ── Payout history table ─────────────────────────────────────── */}
       <div
-        className="overflow-hidden rounded-xl border border-border bg-white shadow-sm animate-in-up"
+        className="card-surface overflow-hidden animate-in-up"
         style={{ animationDelay: "200ms" }}
       >
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <h2 className="font-sora text-base font-semibold tracking-tight">
-            Payout history
-          </h2>
+          <h2 className="section-title">Payout history</h2>
           <span className="text-xs text-muted-foreground">
             Showing last {Math.min((payouts ?? []).length, 100)} payouts
           </span>
@@ -218,10 +214,7 @@ function Th({
 }) {
   return (
     <th
-      className={cn(
-        "px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground",
-        className,
-      )}
+      className={cn("th-label px-4 py-3", className)}
     >
       {children}
     </th>
@@ -231,7 +224,7 @@ function Th({
 function EmptyPayouts({ kycComplete }: { kycComplete: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-50 to-indigo-100/60 ring-1 ring-inset ring-indigo-200/70">
         <Inbox className="h-5 w-5 text-indigo-600" />
       </div>
       <div>

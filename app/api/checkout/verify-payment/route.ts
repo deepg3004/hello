@@ -10,6 +10,7 @@ import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyPayment } from "@/lib/razorpay";
+import { notifyPaymentReceived } from "@/lib/notifications/events";
 import { settleCoupon } from "@/lib/coupons";
 import { getRedis } from "@/lib/redis";
 import {
@@ -102,7 +103,7 @@ export async function POST(request: Request) {
   //    transition refunded/cancelled rows back to paid. Pairs with the
   //    short-circuit at L65 (already-paid → idempotent return).
   const paidAt = new Date().toISOString();
-  await admin
+  const { data: paidRows } = await admin
     .from("orders")
     .update({
       status: "paid",
@@ -112,7 +113,13 @@ export async function POST(request: Request) {
       exp_variant: expVariant,
     })
     .eq("id", order_id)
-    .eq("status", "pending");
+    .eq("status", "pending")
+    .select("id");
+  // True only when THIS call performed the pending→paid transition. The
+  // payment webhook makes the same guarded transition, so gating the in-app
+  // notification on the rowcount means the bell fires exactly once whichever
+  // path wins the race.
+  const didTransition = !!paidRows && paidRows.length > 0;
 
   // 1b. AB conversion counters — best-effort. Revenue tracked in paise so we
   //     don't lose paisa-level precision when summing.
@@ -354,6 +361,21 @@ export async function POST(request: Request) {
     });
   } catch (e) {
     console.error("[verify-payment] notifyNewSale dispatch failed", e);
+  }
+
+  // 5e². In-app bell — seller + admins. Gated on the transition above so it
+  //      fires once across the verify-payment + webhook paths. Best-effort.
+  if (didTransition) {
+    await notifyPaymentReceived(
+      {
+        sellerId: order.seller_user_id,
+        amountRupees: Number(order.amount),
+        buyer: order.buyer_name ?? order.buyer_email,
+        pageId: order.page_id,
+        orderId: order.id,
+      },
+      admin,
+    );
   }
 
   // 5f. Enqueue invoice generation. The job runs in the background BullMQ

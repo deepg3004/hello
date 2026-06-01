@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -117,6 +117,13 @@ export function TransactionsClient({
   const { toast } = useToast();
   const [filter, setFilter] = useState(initialFilter);
   const [page, setPage] = useState(1);
+
+  // Prefill the buyer search when arriving from the global command palette
+  // (/dashboard/transactions?q=...).
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) setFilter((f) => ({ ...f, search: q }));
+  }, []);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [refundingId, setRefundingId] = useState<string | null>(null);
@@ -204,11 +211,11 @@ export function TransactionsClient({
   return (
     <div className="space-y-4">
       {/* ── Filter bar ─────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
+      <div className="card-surface p-4">
         <div className="flex flex-wrap items-end gap-3">
           {/* From */}
           <div className="space-y-1">
-            <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <Label className="th-label">
               From
             </Label>
             <Input
@@ -223,7 +230,7 @@ export function TransactionsClient({
           </div>
           {/* To */}
           <div className="space-y-1">
-            <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <Label className="th-label">
               To
             </Label>
             <Input
@@ -238,7 +245,7 @@ export function TransactionsClient({
           </div>
           {/* Status */}
           <div className="space-y-1">
-            <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <Label className="th-label">
               Status
             </Label>
             <Select
@@ -263,7 +270,7 @@ export function TransactionsClient({
           </div>
           {/* Page */}
           <div className="space-y-1">
-            <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <Label className="th-label">
               Page
             </Label>
             <Select
@@ -288,7 +295,7 @@ export function TransactionsClient({
           </div>
           {/* Search */}
           <div className="min-w-[220px] flex-1 space-y-1">
-            <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <Label className="th-label">
               Search buyer
             </Label>
             <div className="relative">
@@ -348,7 +355,7 @@ export function TransactionsClient({
       </div>
 
       {/* ── Table ────────────────────────────────────────────────────── */}
-      <div className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
+      <div className="card-surface overflow-hidden">
         {pageRows.length === 0 ? (
           <EmptyTable filtered={!!anyFilterActive} />
         ) : (
@@ -454,10 +461,7 @@ function Th({
 }) {
   return (
     <th
-      className={cn(
-        "px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground",
-        className,
-      )}
+      className={cn("th-label px-4 py-3", className)}
     >
       {srOnly ? <span className="sr-only">{children}</span> : children}
     </th>
@@ -467,7 +471,7 @@ function Th({
 function EmptyTable({ filtered }: { filtered: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-50 to-indigo-100/60 ring-1 ring-inset ring-indigo-200/70">
         <Inbox className="h-5 w-5 text-indigo-600" />
       </div>
       <div>
@@ -678,7 +682,7 @@ function DetailBlock({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-white p-3">
+    <div className="rounded-lg border border-border bg-card p-3">
       <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
         {label}
       </p>

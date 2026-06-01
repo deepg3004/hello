@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { ThemeProvider, NO_FLASH_SCRIPT } from "@/components/theme/ThemeProvider";
 
 export const metadata: Metadata = {
   title: {
@@ -22,12 +23,13 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* No-flash theme: set .dark before first paint to avoid a flash. */}
+        <script dangerouslySetInnerHTML={{ __html: NO_FLASH_SCRIPT }} />
         {/*
-          Google Fonts — Sora (display) + DM Sans (body).
-          Preconnect first so the actual stylesheet request goes out on a
-          warm TCP+TLS connection. globals.css also @imports the same URL as
-          a defensive fallback when this head tag is stripped (e.g. error
-          pages that don't run the root layout).
+          Google Fonts — Inter (UI). Preconnect first so the stylesheet
+          request goes out on a warm TCP+TLS connection. globals.css also
+          @imports the same URL as a defensive fallback when this head tag is
+          stripped (e.g. error pages that don't run the root layout).
         */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
@@ -37,12 +39,14 @@ export default function RootLayout({
         />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
         />
       </head>
       <body className="min-h-screen bg-background font-sans antialiased">
-        {children}
-        <Toaster />
+        <ThemeProvider>
+          {children}
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

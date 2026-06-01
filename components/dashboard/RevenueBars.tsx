@@ -58,19 +58,22 @@ export function RevenueBars({ rows }: RevenueBarsProps) {
                 href={`/p/${r.slug}`}
                 target="_blank"
                 rel="noreferrer"
-                className="truncate font-medium text-foreground hover:text-primary hover:underline"
+                className="flex min-w-0 items-center gap-2 font-medium text-foreground hover:text-primary"
                 title={r.title}
               >
-                {truncate(r.title, 22)}
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold tabular-nums text-muted-foreground">
+                  {i + 1}
+                </span>
+                <span className="truncate hover:underline">{truncate(r.title, 20)}</span>
               </Link>
-              <span className="shrink-0 font-mono text-xs font-semibold text-foreground">
+              <span className="shrink-0 font-mono text-xs font-semibold tabular-nums text-foreground">
                 ₹{r.total_revenue.toLocaleString("en-IN")}
               </span>
             </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-indigo-50">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
                 className={cn(
-                  "h-full rounded-full bg-indigo-500",
+                  "h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500",
                   "transition-[width] duration-700 ease-out",
                 )}
                 style={{

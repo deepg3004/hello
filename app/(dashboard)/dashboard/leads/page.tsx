@@ -4,6 +4,7 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { LeadsTable, type LeadRow } from "@/components/dashboard/leads/LeadsTable";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { ExportCsvButton } from "@/components/dashboard/ExportCsvButton";
 
 export const metadata = { title: "Leads" };
 
@@ -79,11 +80,14 @@ export default async function LeadsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-sora font-semibold tracking-tight">Leads</h1>
-        <p className="text-sm text-muted-foreground">
-          Every email captured by your landing and lead-magnet pages.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-sora font-semibold tracking-tight">Leads</h1>
+          <p className="text-sm text-muted-foreground">
+            Every email captured by your landing and lead-magnet pages.
+          </p>
+        </div>
+        <ExportCsvButton type="leads" />
       </div>
 
       <div className="grid grid-cols-3 gap-4">

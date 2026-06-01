@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   CreditCard,
   FileText,
+  GraduationCap,
   Handshake,
   LayoutDashboard,
   LineChart,
@@ -42,6 +43,7 @@ const NAV_MAIN: NavItem[] = [
   { href: "/dashboard/transactions", label: "Transactions", Icon: CreditCard },
   { href: "/dashboard/customers", label: "Customers", Icon: Users },
   { href: "/dashboard/leads", label: "Leads", Icon: Magnet },
+  { href: "/dashboard/learn", label: "Learn", Icon: GraduationCap },
 ];
 
 const NAV_GROWTH: NavItem[] = [
@@ -72,7 +74,7 @@ export function Sidebar({ pathname, profile, onNavigate }: SidebarProps) {
 
   return (
     <div
-      className="flex h-full flex-col bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-fg))]"
+      className="flex h-full flex-col border-r border-[hsl(var(--sidebar-border))] bg-gradient-to-b from-[hsl(var(--sidebar-bg))] to-[hsl(222_47%_6%)] text-[hsl(var(--sidebar-fg))]"
     >
       {/* ── Logo block ───────────────────────────────────────────────── */}
       <div
@@ -80,10 +82,10 @@ export function Sidebar({ pathname, profile, onNavigate }: SidebarProps) {
           "relative flex h-16 shrink-0 items-center gap-2.5 px-5",
           // Subtle gradient hairline border below the logo block
           "after:absolute after:inset-x-4 after:bottom-0 after:h-px",
-          "after:bg-gradient-to-r after:from-transparent after:via-indigo-500/40 after:to-transparent",
+          "after:bg-gradient-to-r after:from-transparent after:via-[#7C3AED]/40 after:to-transparent",
         )}
       >
-        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 shadow-sm shadow-indigo-900/40">
+        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-gradient shadow-sm shadow-black/40">
           <Zap className="h-4 w-4 text-white" strokeWidth={2.5} />
         </span>
         <div className="leading-tight">
@@ -135,7 +137,7 @@ export function Sidebar({ pathname, profile, onNavigate }: SidebarProps) {
       {/* ── Upgrade CTA card (free / starter only) ───────────────────── */}
       {showUpgrade && (
         <div className="px-3 pt-2">
-          <div className="rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 p-3 text-white shadow-lg shadow-indigo-900/30">
+          <div className="rounded-xl bg-brand-gradient p-3 text-white shadow-lg shadow-black/30">
             <div className="flex items-center justify-between">
               <span className="inline-flex items-center gap-1 rounded-md bg-white/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
                 <Sparkles className="h-3 w-3" />
@@ -151,7 +153,7 @@ export function Sidebar({ pathname, profile, onNavigate }: SidebarProps) {
             <Button
               asChild
               size="sm"
-              className="mt-3 w-full bg-white text-indigo-700 hover:bg-white/90"
+              className="mt-3 w-full bg-none bg-white text-[#7C3AED] hover:bg-white/90"
             >
               <Link href="/dashboard/upgrade" onClick={onNavigate}>
                 Upgrade
@@ -175,7 +177,7 @@ export function Sidebar({ pathname, profile, onNavigate }: SidebarProps) {
               alt={profile.full_name ?? profile.email}
             />
           ) : null}
-          <AvatarFallback className="bg-indigo-600 text-xs text-white">
+          <AvatarFallback className="bg-[#7C3AED] text-xs text-white">
             {makeInitials(profile.full_name ?? profile.email)}
           </AvatarFallback>
         </Avatar>

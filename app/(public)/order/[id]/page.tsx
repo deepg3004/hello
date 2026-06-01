@@ -180,7 +180,7 @@ export default async function OrderConfirmationPage({
             {pageSlug && (
               <Button
                 asChild
-                className="mt-3 bg-rose-600 text-white hover:bg-rose-700"
+                className="mt-3 bg-none bg-rose-600 text-white hover:bg-rose-700"
               >
                 <Link href={`/p/${pageSlug}`}>
                   <RotateCcw className="mr-2 h-4 w-4" />

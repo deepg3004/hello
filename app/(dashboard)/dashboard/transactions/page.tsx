@@ -7,6 +7,7 @@ import {
 } from "@/components/dashboard/TransactionsClient";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { ExportCsvButton } from "@/components/dashboard/ExportCsvButton";
 
 export const metadata = { title: "Transactions" };
 
@@ -100,11 +101,14 @@ export default async function TransactionsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-sora font-semibold tracking-tight">Transactions</h1>
-        <p className="text-sm text-muted-foreground">
-          Every order ever placed on your pages.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-sora font-semibold tracking-tight">Transactions</h1>
+          <p className="text-sm text-muted-foreground">
+            Every order ever placed on your pages.
+          </p>
+        </div>
+        <ExportCsvButton type="orders" />
       </div>
       <TransactionsClient
         rows={rows}

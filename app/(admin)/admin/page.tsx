@@ -280,13 +280,13 @@ function ActiveSubscribersCard({
 }) {
   const total = starter + pro + business;
   return (
-    <div className="rounded-xl border border-border bg-white p-5 shadow-sm transition-shadow duration-200 hover:shadow-md">
+    <div className="card-surface p-5 transition-shadow duration-200 hover:shadow-card-md">
       <div className="flex items-center gap-3">
         <span
           aria-hidden
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-50"
+          className="tile-amber flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
         >
-          <Users className="h-4 w-4 text-amber-600" strokeWidth={2.25} />
+          <Users className="h-4 w-4" strokeWidth={2.25} />
         </span>
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           Active Subscribers
@@ -330,7 +330,7 @@ function SubscriptionBreakdown({
   const total = order.reduce((a, k) => a + activeByPlan[k], 0);
 
   return (
-    <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
+    <div className="card-surface p-5">
       <div className="mb-1 flex items-center justify-between">
         <h2 className="font-sora text-base font-semibold tracking-tight">
           Subscription breakdown
@@ -416,7 +416,7 @@ type AuditRow = {
 
 function AuditTimeline({ rows }: { rows: AuditRow[] }) {
   return (
-    <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
+    <div className="card-surface p-5">
       <div className="flex items-center justify-between">
         <h2 className="font-sora text-base font-semibold tracking-tight">
           Recent admin activity
@@ -453,7 +453,7 @@ function AuditTimeline({ rows }: { rows: AuditRow[] }) {
               <li key={r.id} className="relative pl-5 text-sm">
                 <span
                   aria-hidden
-                  className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-indigo-500 shadow-sm"
+                  className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-indigo-500 shadow-sm"
                 />
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">

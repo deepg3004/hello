@@ -127,7 +127,7 @@ export function CredentialField({
   );
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-border bg-white p-4 transition hover:border-indigo-200 hover:shadow-sm md:flex-row md:items-center">
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 transition hover:border-primary/30 hover:shadow-sm md:flex-row md:items-center">
       {/* ── Left: lock icon + label + description ─────────────────── */}
       <div className="flex min-w-0 flex-1 items-start gap-3">
         <span

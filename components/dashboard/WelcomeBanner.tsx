@@ -50,26 +50,14 @@ export function WelcomeBanner({ name, progress, next, steps = [] }: Props) {
   const firstName = (name ?? "").trim().split(/\s+/)[0] || "there";
 
   return (
-    <div
-      className={[
-        "animate-in-up relative overflow-hidden rounded-2xl",
-        "bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700",
-        "p-6 text-white shadow-lg shadow-indigo-900/20",
-      ].join(" ")}
-    >
-      {/* Decorative ambient blob — purely cosmetic, doesn't block clicks */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-3xl"
-      />
-
+    <div className="card-surface animate-in-up relative overflow-hidden p-6">
       {/* Close X */}
       <button
         type="button"
         onClick={dismiss}
         disabled={pending}
         aria-label="Dismiss welcome banner"
-        className="absolute right-3 top-3 rounded-md p-1 text-white/70 transition hover:bg-white/15 hover:text-white disabled:opacity-50"
+        className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground transition hover:bg-secondary hover:text-foreground disabled:opacity-50"
       >
         <X className="h-4 w-4" />
       </button>
@@ -77,55 +65,57 @@ export function WelcomeBanner({ name, progress, next, steps = [] }: Props) {
       <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
         {/* Left — copy + progress + checklist chips */}
         <div className="min-w-0 flex-1">
-          <h2 className="font-sora text-2xl font-semibold leading-tight tracking-tight text-white">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Get started
+          </p>
+          <h2 className="mt-1.5 text-2xl font-semibold leading-tight tracking-tight text-foreground">
             Welcome to InvoxAI, {firstName}! <span aria-hidden>👋</span>
           </h2>
-          <p className="mt-1 text-sm text-white/80">
+          <p className="mt-1 text-sm text-muted-foreground">
             Complete your setup to start accepting payments.
           </p>
 
-          {/* Progress bar — white/30 track + white fill */}
+          {/* Progress — #111 fill on #D9D7D2 track (theme tokens) */}
           <div className="mt-4 max-w-md">
-            <div className="flex items-center justify-between text-[11px] font-medium text-white/80">
+            <div className="flex items-center justify-between text-[12px] font-medium text-foreground">
               <span>You&apos;re {progress}% set up</span>
-              {progress >= 100 && <span>All done</span>}
+              {progress >= 100 && <span className="text-muted-foreground">All done</span>}
             </div>
             <div
               role="progressbar"
               aria-valuenow={progress}
               aria-valuemin={0}
               aria-valuemax={100}
-              className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-border"
+              className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full"
+              style={{ backgroundColor: "hsl(var(--progress-track))" }}
             >
               <div
-                className="h-full rounded-full transition-[width] duration-500 ease-out"
+                className="h-full rounded-full transition-[width] duration-700 ease-out"
                 style={{
-                  backgroundColor: "hsl(220 30% 15%)",
                   width: `${Math.max(0, Math.min(100, progress))}%`,
+                  backgroundColor: "hsl(var(--progress-fill))",
                 }}
               />
             </div>
           </div>
 
-          {/* Checklist chips — done ones get a check + opacity, pending ones
-              get a tiny outlined circle. Hidden when no steps are passed. */}
+          {/* Checklist chips — done = filled, pending = outlined dot */}
           {steps.length > 0 && (
             <ul className="mt-4 flex flex-wrap items-center gap-2">
               {steps.map((s, i) => (
                 <li
                   key={i}
                   className={[
-                    "inline-flex items-center gap-1.5 rounded-full",
-                    "px-2.5 py-1 text-[11px] font-medium",
+                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium",
                     s.done
-                      ? "bg-white/20 text-white"
-                      : "bg-white/10 text-white/70",
+                      ? "border-transparent bg-secondary text-foreground"
+                      : "border-border text-muted-foreground",
                   ].join(" ")}
                 >
                   {s.done ? (
                     <Check className="h-3 w-3" />
                   ) : (
-                    <span className="block h-2.5 w-2.5 rounded-full border border-white/60" />
+                    <span className="block h-2.5 w-2.5 rounded-full border border-muted-foreground/50" />
                   )}
                   {s.label}
                 </li>
@@ -134,14 +124,10 @@ export function WelcomeBanner({ name, progress, next, steps = [] }: Props) {
           )}
         </div>
 
-        {/* Right — primary CTA */}
+        {/* Right — charcoal-black CTA */}
         {next && (
           <div className="shrink-0 md:self-end">
-            <Button
-              asChild
-              size="lg"
-              className="bg-white font-medium text-indigo-700 shadow-md hover:bg-white/90"
-            >
+            <Button asChild size="lg">
               <Link href={next.href}>
                 {next.label}
                 <ArrowRight className="ml-2 h-4 w-4" />

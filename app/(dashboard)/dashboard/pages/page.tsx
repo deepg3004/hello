@@ -144,10 +144,10 @@ export default async function PagesListPage() {
 function ZeroState() {
   return (
     <div
-      className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-white px-6 py-16 text-center animate-in-up"
+      className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-card px-6 py-16 text-center animate-in-up"
       style={{ animationDelay: "100ms" }}
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-50 to-indigo-100/60 ring-1 ring-inset ring-indigo-200/70">
         <FileText className="h-5 w-5 text-indigo-600" />
       </div>
       <h2 className="font-sora text-lg font-semibold">No pages yet</h2>

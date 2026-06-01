@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { CustomersClient, type Customer } from "@/components/dashboard/CustomersClient";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { ExportCsvButton } from "@/components/dashboard/ExportCsvButton";
 
 export const metadata = { title: "Customers" };
 
@@ -76,13 +77,19 @@ export default async function CustomersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="animate-in-up" style={{ animationDelay: "0ms" }}>
-        <h1 className="font-sora text-2xl font-semibold tracking-tight">
-          Customers
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Everyone who&apos;s ever bought from you. Sorted by total spent.
-        </p>
+      <div
+        className="animate-in-up flex flex-wrap items-start justify-between gap-3"
+        style={{ animationDelay: "0ms" }}
+      >
+        <div>
+          <h1 className="font-sora text-2xl font-semibold tracking-tight">
+            Customers
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Everyone who&apos;s ever bought from you. Sorted by total spent.
+          </p>
+        </div>
+        <ExportCsvButton type="customers" />
       </div>
       <div className="animate-in-up" style={{ animationDelay: "100ms" }}>
         <CustomersClient customers={customers} />

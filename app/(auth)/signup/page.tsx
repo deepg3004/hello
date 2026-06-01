@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, Zap } from "lucide-react";
 
 import { signUpAction } from "@/actions/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -129,9 +129,12 @@ export default function SignupPage() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Create your InvoxAI account</CardTitle>
+    <Card className="glass shadow-card-lg">
+      <CardHeader className="items-center text-center">
+        <span className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-gradient shadow-glow">
+          <Zap className="h-5 w-5 text-white" strokeWidth={2.5} />
+        </span>
+        <CardTitle className="font-sora text-xl">Create your InvoxAI account</CardTitle>
         <CardDescription>
           Start taking payments in minutes. No setup fee.
         </CardDescription>

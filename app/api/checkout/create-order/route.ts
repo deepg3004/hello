@@ -22,6 +22,7 @@ import {
   validateCoupon,
 } from "@/lib/coupons";
 import { effectiveCommissionPercent, type PlanKey } from "@/lib/plans";
+import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   let body: {
@@ -57,6 +58,10 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
+
+  // Rate limit checkout-order creation per IP to blunt card-testing / abuse.
+  const rl = await rateLimit(`order:${clientIp(request)}`, 30, 10 * 60);
+  if (!rl.ok) return tooManyRequests(rl.retryAfter);
 
   const {
     page_id,

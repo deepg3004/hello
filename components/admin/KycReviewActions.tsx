@@ -2,9 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, X } from "lucide-react";
+import { Check, Loader2, RotateCcw, X } from "lucide-react";
 
-import { approveKycAction, rejectKycAction } from "@/actions/admin";
+import {
+  approveKycAction,
+  rejectKycAction,
+  requestReKycAction,
+} from "@/actions/admin";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,8 +24,9 @@ import { useToast } from "@/hooks/use-toast";
 export function KycReviewActions({ submissionId }: { submissionId: string }) {
   const router = useRouter();
   const { toast } = useToast();
-  const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
+  const [busy, setBusy] = useState<"approve" | "reject" | "rekyc" | null>(null);
   const [reason, setReason] = useState("");
+  const [rekycReason, setRekycReason] = useState("");
 
   async function approve() {
     if (!confirm("Approve this KYC and unlock payouts?")) return;
@@ -46,6 +51,19 @@ export function KycReviewActions({ submissionId }: { submissionId: string }) {
     }
     toast({ title: "KYC rejected" });
     setReason("");
+    router.refresh();
+  }
+
+  async function requestReKyc() {
+    setBusy("rekyc");
+    const r = await requestReKycAction(submissionId, rekycReason);
+    setBusy(null);
+    if (!r.ok) {
+      toast({ title: "Re-KYC failed", description: r.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Re-KYC requested", description: "The seller has been notified to re-verify." });
+    setRekycReason("");
     router.refresh();
   }
 
@@ -84,6 +102,40 @@ export function KycReviewActions({ submissionId }: { submissionId: string }) {
             >
               {busy === "reject" && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
               Reject
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button size="sm" variant="outline">
+            <RotateCcw className="mr-2 h-3.5 w-3.5" />
+            Request re-KYC
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Request re-verification</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This closes the current submission, resets the seller&apos;s
+            verification + disables payouts, and asks them to complete KYC
+            again. They&apos;ll be notified with your reason.
+          </p>
+          <Textarea
+            rows={3}
+            value={rekycReason}
+            onChange={(e) => setRekycReason(e.target.value)}
+            placeholder="Why does this seller need to re-verify?"
+          />
+          <DialogFooter>
+            <Button
+              onClick={requestReKyc}
+              disabled={busy === "rekyc" || !rekycReason.trim()}
+            >
+              {busy === "rekyc" && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+              Request re-KYC
             </Button>
           </DialogFooter>
         </DialogContent>

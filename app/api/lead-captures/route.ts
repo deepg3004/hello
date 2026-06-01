@@ -19,6 +19,7 @@
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import {
   confirmationEmail,
   leadMagnetDeliveryEmail,
@@ -57,6 +58,10 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
+
+  // Rate limit: 30 per minute per IP — blunts lead-form spam (audit #13).
+  const rl = await rateLimit(`lead:${clientIp(request)}`, 30, 60);
+  if (!rl.ok) return tooManyRequests(rl.retryAfter);
   const { page_id, name, email, phone, source, utm, custom_fields } = body;
   if (!page_id || !email || !EMAIL_RE.test(email)) {
     return NextResponse.json(

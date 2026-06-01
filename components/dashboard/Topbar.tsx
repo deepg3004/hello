@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, ChevronRight, Menu, Search, User2 } from "lucide-react";
+import { ChevronRight, Menu, User2 } from "lucide-react";
 
 import { signOutAction } from "@/actions/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -15,6 +15,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { cn } from "@/lib/utils";
 
 // Re-exported so existing imports (DashboardShell, dashboard/layout.tsx) keep
@@ -30,8 +33,6 @@ export interface TopbarProfile {
 interface TopbarProps {
   profile: TopbarProfile;
   onMenuClick: () => void;
-  /** Wired later — for now the bell shows 0 and the dot stays hidden. */
-  notificationCount?: number;
 }
 
 // Map first path segment after /dashboard to a friendly section name.
@@ -42,6 +43,7 @@ const SECTION_NAMES: Record<string, string> = {
   transactions: "Transactions",
   customers: "Customers",
   leads: "Leads",
+  learn: "Learn",
   coupons: "Coupons",
   affiliates: "Affiliates",
   analytics: "Recovery",
@@ -67,11 +69,7 @@ function capitalize(s: string): string {
   return s ? s[0]!.toUpperCase() + s.slice(1) : "Dashboard";
 }
 
-export function Topbar({
-  profile,
-  onMenuClick,
-  notificationCount = 0,
-}: TopbarProps) {
+export function Topbar({ profile, onMenuClick }: TopbarProps) {
   const pathname = usePathname();
   const section = deriveSection(pathname);
   const initials = makeInitials(profile.full_name ?? profile.email);
@@ -79,8 +77,8 @@ export function Topbar({
   return (
     <header
       className={cn(
-        "sticky top-0 z-20 flex h-16 items-center justify-between gap-3",
-        "border-b border-border bg-white/95 px-4 backdrop-blur md:px-6",
+        "glass sticky top-0 z-20 flex h-16 items-center justify-between gap-3",
+        "border-b px-4 md:px-6",
       )}
     >
       {/* Left: hamburger (mobile) / breadcrumb (desktop) */}
@@ -123,34 +121,11 @@ export function Topbar({
 
       {/* Right: search · notifications · avatar */}
       <div className="flex items-center gap-1.5">
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Search"
-          className="text-muted-foreground hover:text-foreground"
-          // Modal wiring lands later — keep the affordance visible meanwhile.
-        >
-          <Search className="h-4 w-4" />
-        </Button>
+        <GlobalSearch />
 
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={`Notifications (${notificationCount})`}
-          className="relative text-muted-foreground hover:text-foreground"
-        >
-          <Bell className="h-4 w-4" />
-          {notificationCount > 0 && (
-            <span
-              className={cn(
-                "absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center",
-                "rounded-full bg-rose-500 px-1 text-[10px] font-semibold text-white",
-              )}
-            >
-              {notificationCount > 9 ? "9+" : notificationCount}
-            </span>
-          )}
-        </Button>
+        <ThemeToggle />
+
+        <NotificationBell accent="indigo" />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

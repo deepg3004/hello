@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   CreditCard,
   FileText,
+  GraduationCap,
   KeyRound,
   LayoutDashboard,
   LifeBuoy,
@@ -74,6 +75,7 @@ export function AdminSidebar({
     {
       label: "System",
       items: [
+        { href: "/admin/learn", label: "Creator Academy", Icon: GraduationCap },
         { href: "/admin/credentials", label: "Credentials", Icon: KeyRound },
         { href: "/admin/settings", label: "Platform Settings", Icon: Sliders },
         { href: "/admin/audit-logs", label: "Audit Logs", Icon: ScrollText },

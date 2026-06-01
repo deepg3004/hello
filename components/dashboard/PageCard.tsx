@@ -160,8 +160,7 @@ export function PageCard({ page }: { page: PageCardData }) {
   return (
     <div
       className={cn(
-        "group flex flex-col overflow-hidden rounded-xl border border-border bg-white shadow-sm",
-        "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
+        "card-surface card-surface-hover group flex flex-col overflow-hidden",
       )}
     >
       {/* Coloured 10px band — instant visual tag for the page type */}
@@ -408,7 +407,7 @@ export function CreatePageTile({ disabled }: { disabled?: boolean }) {
       href={disabled ? "/dashboard/upgrade" : "/dashboard/pages/new"}
       className={cn(
         "group flex min-h-[260px] flex-col items-center justify-center gap-2 rounded-xl",
-        "border-2 border-dashed border-border bg-white/60 p-6 text-center transition",
+        "border-2 border-dashed border-border bg-card/60 p-6 text-center transition",
         "hover:border-primary hover:bg-indigo-50/40",
       )}
     >

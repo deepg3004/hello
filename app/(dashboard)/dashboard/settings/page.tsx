@@ -10,6 +10,10 @@ import {
 } from "@/components/ui/card";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import {
+  ProfileSettingsForm,
+  PasswordChangeForm,
+} from "@/components/dashboard/ProfileSettingsForm";
 
 export const metadata = { title: "Settings" };
 
@@ -24,7 +28,7 @@ export default async function SettingsPage() {
   const { data: profile } = await admin
     .from("user_profiles")
     .select(
-      "full_name, email, phone, kyc_level, bank_verified, pan_verified, gstin, business_slug:full_name, razorpay_linked_account_id",
+      "full_name, email, phone, kyc_level, bank_verified, pan_verified, gstin, razorpay_linked_account_id",
     )
     .eq("id", user.id)
     .single();
@@ -41,13 +45,22 @@ export default async function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Profile</CardTitle>
-          <CardDescription>What customers and we see.</CardDescription>
+          <CardDescription>
+            Your name, phone, and GSTIN — used on invoices and the dashboard.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-1 text-sm">
-          <Row k="Full name" v={profile?.full_name ?? "—"} />
-          <Row k="Email" v={profile?.email ?? user.email ?? ""} />
-          <Row k="Phone" v={profile?.phone ?? "—"} />
-          <Row k="GSTIN" v={profile?.gstin ?? "—"} />
+        <CardContent className="space-y-4">
+          <ProfileSettingsForm
+            initialName={profile?.full_name ?? ""}
+            initialPhone={profile?.phone ?? ""}
+            initialGstin={profile?.gstin ?? ""}
+          />
+          <div className="border-t pt-3 text-sm">
+            <Row k="Email" v={profile?.email ?? user.email ?? ""} />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Email changes aren&apos;t self-serve yet — contact support.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
@@ -122,19 +135,13 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">More settings</CardTitle>
-          <CardDescription>Editor + KYC form ships next prompt.</CardDescription>
+          <CardTitle className="text-base">Password</CardTitle>
+          <CardDescription>
+            Change the password you use to sign in.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          For now you can{" "}
-          <Link href="/dashboard/upgrade" className="underline">
-            manage your plan
-          </Link>{" "}
-          and{" "}
-          <Link href="/dashboard/payouts" className="underline">
-            view payouts
-          </Link>
-          .
+        <CardContent>
+          <PasswordChangeForm />
         </CardContent>
       </Card>
     </div>

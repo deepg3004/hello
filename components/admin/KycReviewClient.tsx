@@ -146,7 +146,7 @@ export function KycReviewClient({ items }: KycReviewClientProps) {
                 value={t.value}
                 className={cn(
                   "rounded-lg border border-transparent px-3 py-1.5 text-sm",
-                  "data-[state=active]:border-border data-[state=active]:bg-white",
+                  "data-[state=active]:border-border data-[state=active]:bg-card",
                   "data-[state=active]:font-semibold data-[state=active]:shadow-sm",
                 )}
               >
@@ -172,7 +172,7 @@ export function KycReviewClient({ items }: KycReviewClientProps) {
       {/* ── Split layout — queue on left, document viewer on right ── */}
       <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
         {/* LEFT — queue list */}
-        <div className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
+        <div className="card-surface overflow-hidden">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Queue
@@ -200,7 +200,7 @@ export function KycReviewClient({ items }: KycReviewClientProps) {
         </div>
 
         {/* RIGHT — document viewer */}
-        <div className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
+        <div className="card-surface overflow-hidden">
           {selected ? (
             <ReviewPanel item={selected} />
           ) : (
@@ -417,7 +417,7 @@ function ReviewPanel({ item }: { item: KycReviewItem }) {
                 {item.risk_flags.map((flag, i) => (
                   <li
                     key={i}
-                    className="inline-flex items-center rounded-full border border-rose-300 bg-white px-2 py-0.5 text-[11px] font-medium text-rose-700"
+                    className="inline-flex items-center rounded-full border border-rose-300 bg-card px-2 py-0.5 text-[11px] font-medium text-rose-700 dark:border-rose-500/40 dark:text-rose-300"
                   >
                     {flag}
                   </li>

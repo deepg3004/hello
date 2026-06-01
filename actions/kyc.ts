@@ -15,6 +15,7 @@ import {
 } from "@/lib/kyc/surepass";
 import { nameSimilarity } from "@/lib/kyc/fuzzy";
 import { writeAuditLog } from "@/lib/admin/audit";
+import { notifyKyc } from "@/lib/notifications/events";
 
 export interface ActionResult {
   ok: boolean;
@@ -200,6 +201,10 @@ export async function submitPanVerificationAction(
       target_id: submissionId ?? undefined,
       details: { flag: "duplicate_pan" },
     });
+    await notifyKyc(
+      { userId: user.id, kind: "flagged", flags: ["duplicate_pan"] },
+      admin,
+    );
   }
 
   // Persist PAN on the profile too.
@@ -332,6 +337,11 @@ export async function submitBankVerificationAction(
   revalidatePath("/dashboard/kyc");
 
   if (flagged) {
+    const flags = [
+      dupeFlag ? "duplicate_bank_account" : null,
+      panName && !nameMatchOk ? "name_mismatch" : null,
+    ].filter((f): f is string => !!f);
+    await notifyKyc({ userId: user.id, kind: "flagged", flags }, admin);
     return {
       ok: true,
       data: { returned_name: returnedName, similarity, duplicate: dupeFlag },

@@ -19,7 +19,7 @@ export function AdminShell({ profile, kycPending, children }: AdminShellProps) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="app-canvas min-h-screen bg-background">
       {/* Desktop fixed sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 md:flex">
         <AdminSidebar

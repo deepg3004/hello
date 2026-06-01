@@ -61,16 +61,27 @@ const GROUP_BY_STATUS: Record<
   unverified: "badge-info",
 };
 
+const DOT_BY_GROUP: Record<string, string> = {
+  "badge-success": "dot-success",
+  "badge-pending": "dot-pending",
+  "badge-failed": "dot-failed",
+  "badge-info": "dot-info",
+};
+
 export function StatusBadge({ status, className }: StatusBadgeProps) {
   const group = GROUP_BY_STATUS[status] ?? "badge-info";
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize",
+        "inline-flex items-center gap-1.5 rounded-full py-0.5 pl-2 pr-2.5 text-xs font-medium capitalize",
         group,
         className,
       )}
     >
+      <span
+        aria-hidden
+        className={cn("h-1.5 w-1.5 shrink-0 rounded-full", DOT_BY_GROUP[group])}
+      />
       {status.replace(/_/g, " ")}
     </span>
   );

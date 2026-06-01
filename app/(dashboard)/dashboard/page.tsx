@@ -138,12 +138,8 @@ export default async function DashboardOverview() {
         className="animate-in-up"
         style={{ animationDelay: "50ms" }}
       >
-        <h1 className="font-sora text-2xl font-semibold tracking-tight">
-          Overview
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          A snapshot of your store this month.
-        </p>
+        <h1 className="page-title">Overview</h1>
+        <p className="page-subtitle">A snapshot of your store this month.</p>
       </div>
 
       {/* ── 2. Metrics grid ──────────────────────────────────────────── */}
@@ -192,11 +188,9 @@ export default async function DashboardOverview() {
         style={{ animationDelay: "200ms" }}
       >
         {/* LEFT — Recent transactions (2/3 width) */}
-        <div className="rounded-xl border border-border bg-white shadow-sm lg:col-span-2">
+        <div className="card-surface overflow-hidden lg:col-span-2">
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
-            <h2 className="font-sora text-base font-semibold tracking-tight">
-              Recent Transactions
-            </h2>
+            <h2 className="section-title">Recent Transactions</h2>
             <Link
               href="/dashboard/transactions"
               className="text-sm font-medium text-primary hover:underline"
@@ -212,19 +206,19 @@ export default async function DashboardOverview() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <TableHead className="th-label">
                       Buyer
                     </TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <TableHead className="th-label">
                       Page
                     </TableHead>
-                    <TableHead className="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <TableHead className="text-right th-label">
                       Amount
                     </TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <TableHead className="th-label">
                       Status
                     </TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <TableHead className="th-label">
                       Date
                     </TableHead>
                   </TableRow>
@@ -268,10 +262,8 @@ export default async function DashboardOverview() {
         </div>
 
         {/* RIGHT — Top pages (1/3 width) */}
-        <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
-          <h2 className="font-sora text-base font-semibold tracking-tight">
-            Top Pages by Revenue
-          </h2>
+        <div className="card-surface p-5">
+          <h2 className="section-title">Top Pages by Revenue</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
             Sorted by lifetime revenue
           </p>
@@ -297,10 +289,8 @@ export default async function DashboardOverview() {
           style={{ animationDelay: "300ms" }}
         >
           <div className="mb-4">
-            <h2 className="font-sora text-base font-semibold tracking-tight">
-              Quick start
-            </h2>
-            <p className="text-sm text-muted-foreground">
+            <h2 className="section-title">Quick start</h2>
+            <p className="page-subtitle">
               Create your first page to start collecting payments.
             </p>
           </div>
@@ -338,8 +328,8 @@ export default async function DashboardOverview() {
 function EmptyTransactions() {
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50">
-        <Inbox className="h-5 w-5 text-indigo-600" />
+      <div className="tile-indigo flex h-12 w-12 items-center justify-center rounded-full">
+        <Inbox className="h-5 w-5" />
       </div>
       <div>
         <p className="font-medium text-foreground">No transactions yet</p>
@@ -356,13 +346,12 @@ function EmptyTransactions() {
 
 type QuickActionAccent = "indigo" | "amber" | "emerald";
 
-const QUICK_ACCENT: Record<
-  QuickActionAccent,
-  { circle: string; icon: string }
-> = {
-  indigo: { circle: "bg-indigo-50", icon: "text-indigo-600" },
-  amber: { circle: "bg-amber-50", icon: "text-amber-600" },
-  emerald: { circle: "bg-emerald-50", icon: "text-emerald-600" },
+// Reuse the shared dark-aware tile utilities (globals.css) — gradient + ring +
+// icon colour all come from one class.
+const QUICK_TILE: Record<QuickActionAccent, string> = {
+  indigo: "tile-indigo",
+  amber: "tile-amber",
+  emerald: "tile-emerald",
 };
 
 function QuickAction({
@@ -378,17 +367,17 @@ function QuickAction({
   title: string;
   description: string;
 }) {
-  const a = QUICK_ACCENT[accent];
+  const tile = QUICK_TILE[accent];
   return (
     <Link
       href={href}
-      className="group flex items-start gap-4 rounded-xl border border-border bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md"
+      className="card-surface card-surface-hover group flex items-start gap-4 p-5 hover:border-primary/30"
     >
       <span
         aria-hidden
-        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${a.circle}`}
+        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${tile}`}
       >
-        <Icon className={`h-5 w-5 ${a.icon}`} strokeWidth={2} />
+        <Icon className="h-5 w-5" strokeWidth={2} />
       </span>
       <div className="min-w-0 flex-1">
         <h3 className="font-sora text-sm font-semibold text-foreground transition-colors group-hover:text-primary">

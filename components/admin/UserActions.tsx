@@ -7,6 +7,7 @@ import { Loader2, Copy } from "lucide-react";
 import {
   addAdminNoteAction,
   changeUserPlanAction,
+  manualVerifyKycAction,
   restoreUserAction,
   sendPasswordResetLinkAction,
   suspendUserAction,
@@ -38,6 +39,8 @@ interface UserActionsProps {
   userEmail: string;
   currentPlan: string;
   suspended: boolean;
+  /** Whether this seller is currently KYC-verified (drives the toggle label). */
+  kycVerified: boolean;
 }
 
 export function UserActions({
@@ -45,6 +48,7 @@ export function UserActions({
   userEmail,
   currentPlan,
   suspended,
+  kycVerified,
 }: UserActionsProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -52,7 +56,26 @@ export function UserActions({
   const [newPlan, setNewPlan] = useState<PlanKey>(currentPlan as PlanKey);
   const [suspendReason, setSuspendReason] = useState("");
   const [note, setNote] = useState("");
+  const [kycNote, setKycNote] = useState("");
   const [resetLink, setResetLink] = useState<string | null>(null);
+
+  async function manualKyc(revoke: boolean) {
+    setBusy("kyc");
+    const r = await manualVerifyKycAction(userId, { revoke, note: kycNote });
+    setBusy(null);
+    if (!r.ok) {
+      toast({ title: "Couldn't update KYC", description: r.message, variant: "destructive" });
+      return;
+    }
+    setKycNote("");
+    toast({
+      title: revoke ? "Verification revoked" : "KYC manually verified",
+      description: revoke
+        ? "Payouts disabled until the seller re-verifies."
+        : "Payouts unlocked for this seller.",
+    });
+    router.refresh();
+  }
 
   async function changePlan() {
     setBusy("plan");
@@ -145,6 +168,50 @@ export function UserActions({
             <Button onClick={changePlan} disabled={busy === "plan"}>
               {busy === "plan" && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
               Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual KYC verify / revoke */}
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm">
+            {kycVerified ? "Revoke KYC" : "Verify KYC manually"}
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {kycVerified ? "Revoke verification" : "Manually verify KYC"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              {kycVerified
+                ? "Resets PAN, bank, and KYC level and disables payouts. The seller will need to verify again."
+                : "Marks PAN + bank verified, sets KYC level 2, and enables payouts — without the automated checks. Use for sellers verified offline or stuck in the flow."}
+            </p>
+            <Label>Note (internal — saved to the audit log)</Label>
+            <Textarea
+              rows={3}
+              value={kycNote}
+              onChange={(e) => setKycNote(e.target.value)}
+              placeholder={
+                kycVerified
+                  ? "e.g. Chargeback risk — pulling verification"
+                  : "e.g. Verified PAN + bank proof over email"
+              }
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant={kycVerified ? "destructive" : "default"}
+              onClick={() => manualKyc(kycVerified)}
+              disabled={busy === "kyc"}
+            >
+              {busy === "kyc" && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+              {kycVerified ? "Revoke verification" : "Verify & enable payouts"}
             </Button>
           </DialogFooter>
         </DialogContent>

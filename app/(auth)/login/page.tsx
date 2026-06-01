@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, Zap } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -119,9 +119,12 @@ function LoginInner() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Log in to InvoxAI</CardTitle>
+    <Card className="glass shadow-card-lg">
+      <CardHeader className="items-center text-center">
+        <span className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-gradient shadow-glow">
+          <Zap className="h-5 w-5 text-white" strokeWidth={2.5} />
+        </span>
+        <CardTitle className="font-sora text-xl">Log in to InvoxAI</CardTitle>
         <CardDescription>
           Welcome back. Enter your details to continue.
         </CardDescription>

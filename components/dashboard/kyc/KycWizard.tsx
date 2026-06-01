@@ -199,9 +199,9 @@ function Stepper({
                 active === s.key
                   ? "border-primary bg-primary text-primary-foreground shadow-sm"
                   : s.done
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
                     : s.available
-                      ? "border-border bg-white text-foreground"
+                      ? "border-border bg-card text-foreground"
                       : "border-border bg-muted text-muted-foreground",
               )}
             >
@@ -234,7 +234,7 @@ function Stepper({
                     : s.done
                       ? "border-emerald-500 bg-emerald-500 text-white"
                       : s.available
-                        ? "border-border bg-white text-muted-foreground"
+                        ? "border-border bg-card text-muted-foreground"
                         : "border-border bg-muted text-muted-foreground/50",
                 )}
                 aria-current={isActive ? "step" : undefined}
@@ -650,10 +650,10 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-border bg-white p-6 shadow-sm">
+    <section className="card-surface p-6">
       <header className="mb-4 flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-50 to-indigo-100/60 text-indigo-600 ring-1 ring-inset ring-indigo-200/70">
             <Icon className="h-4 w-4" />
           </span>
           <div className="min-w-0">

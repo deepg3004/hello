@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Download, Mail, Phone, Search, ShoppingBag } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -80,6 +80,12 @@ export function CustomersClient({ customers }: { customers: Customer[] }) {
   const [search, setSearch] = useState("");
   const [active, setActive] = useState<Customer | null>(null);
 
+  // Prefill from the global command palette (/dashboard/customers?q=...).
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) setSearch(q);
+  }, []);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return customers;
@@ -131,7 +137,7 @@ export function CustomersClient({ customers }: { customers: Customer[] }) {
   return (
     <>
       {/* ── Search + export ──────────────────────────────────────────── */}
-      <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
+      <div className="card-surface p-4">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[220px] flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -155,7 +161,7 @@ export function CustomersClient({ customers }: { customers: Customer[] }) {
       </div>
 
       {/* ── Customer list — table on lg+, card stack on smaller ──────── */}
-      <div className="mt-4 overflow-hidden rounded-xl border border-border bg-white shadow-sm">
+      <div className="card-surface mt-4 overflow-hidden">
         {filtered.length === 0 ? (
           <EmptyState search={search} />
         ) : (
@@ -230,7 +236,7 @@ export function CustomersClient({ customers }: { customers: Customer[] }) {
         open={!!active}
         onOpenChange={(open) => !open && setActive(null)}
       >
-        <SheetContent className="w-full bg-white sm:max-w-md">
+        <SheetContent className="w-full bg-card sm:max-w-md">
           {active && <CustomerDetail customer={active} />}
         </SheetContent>
       </Sheet>
@@ -243,7 +249,7 @@ export function CustomersClient({ customers }: { customers: Customer[] }) {
 function EmptyState({ search }: { search: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-50 to-indigo-100/60 ring-1 ring-inset ring-indigo-200/70">
         <ShoppingBag className="h-5 w-5 text-indigo-600" />
       </div>
       <div>
@@ -339,7 +345,7 @@ function CustomerDetail({ customer }: { customer: Customer }) {
           {customer.orders.map((o) => (
             <li
               key={o.id}
-              className="flex items-start justify-between gap-3 rounded-lg border border-border bg-white p-3 text-sm"
+              className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card p-3 text-sm"
             >
               <div className="min-w-0">
                 <div className="truncate font-medium">

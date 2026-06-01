@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getTemplate } from "@/lib/templates/registry";
 import { isValidSlug, slugify } from "@/lib/templates/utils";
 import { PLANS, type PlanKey } from "@/lib/plans";
+import { notifyPageCreated } from "@/lib/notifications/events";
 
 export interface CreatePageInput {
   type: "payment" | "landing" | "lead_magnet";
@@ -120,6 +121,18 @@ export async function createPageAction(
       console.warn("[createPageAction] product insert failed", productErr);
     }
   }
+
+  // In-app bell — seller + admins. Best-effort.
+  await notifyPageCreated(
+    {
+      sellerId: user.id,
+      pageId: data.id,
+      title: input.title,
+      type: input.type,
+      published: !!input.publish,
+    },
+    admin,
+  );
 
   revalidatePath(`/p/${data.slug}`);
   return { ok: true, pageId: data.id, slug: data.slug };

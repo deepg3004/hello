@@ -20,12 +20,12 @@ const config: Config = {
     extend: {
       // ── Typography ────────────────────────────────────────────────────
       fontFamily: {
-        sora: ["Sora", "sans-serif"],
-        dm: ["DM Sans", "sans-serif"],
-        // Keep `font-sans` as the default app font (DM Sans) so utility
-        // classes already in the codebase continue to render with the new
-        // body face rather than the browser default.
-        sans: ["DM Sans", "system-ui", "sans-serif"],
+        // Premium-monochrome look uses Inter throughout. `sora`/`dm` are kept
+        // as aliases pointing at Inter so existing font-sora/font-dm classes
+        // shift over without touching every call site.
+        sora: ["Inter", "system-ui", "sans-serif"],
+        dm: ["Inter", "system-ui", "sans-serif"],
+        sans: ["Inter", "system-ui", "sans-serif"],
       },
 
       // ── Colors ────────────────────────────────────────────────────────
@@ -74,12 +74,32 @@ const config: Config = {
         "brand-emerald": "hsl(var(--brand-emerald))",
         "brand-rose": "hsl(var(--brand-rose))",
         "brand-slate": "hsl(var(--brand-slate))",
+        "brand-violet": "hsl(var(--brand-violet))",
       },
 
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        xl: "calc(var(--radius) + 4px)",
+        "2xl": "calc(var(--radius) + 8px)",
+      },
+
+      // ── Elevation — soft, layered shadows for a premium SaaS finish.
+      //    Tuned on a near-black ink (16,24,40) so they read as depth, not
+      //    grey haze, on the warm-ivory surfaces. Use shadow-card on resting
+      //    panels, shadow-card-md on hover, shadow-card-lg on overlays/heroes.
+      boxShadow: {
+        // Ultra-soft, almost-invisible elevation per the premium-monochrome spec.
+        card: "0 1px 2px 0 rgb(0 0 0 / 0.04), 0 4px 12px 0 rgb(0 0 0 / 0.03)",
+        "card-md":
+          "0 1px 2px 0 rgb(0 0 0 / 0.05), 0 8px 24px -8px rgb(0 0 0 / 0.10)",
+        "card-lg":
+          "0 12px 40px -12px rgb(0 0 0 / 0.14), 0 4px 12px -6px rgb(0 0 0 / 0.06)",
+        "ring-card": "0 0 0 1px rgb(0 0 0 / 0.05)",
+        // Brand glow — soft indigo halo for premium CTAs / hovered tiles.
+        glow: "0 0 0 1px hsl(var(--glow-indigo) / 0.25), 0 8px 28px -6px hsl(var(--glow-indigo) / 0.35)",
+        "glow-amber": "0 0 0 1px rgb(245 158 11 / 0.25), 0 8px 28px -6px rgb(245 158 11 / 0.35)",
       },
 
       // ── Keyframes ─────────────────────────────────────────────────────
@@ -107,6 +127,26 @@ const config: Config = {
           from: { transform: "rotate(0deg)" },
           to:   { transform: "rotate(360deg)" },
         },
+        // Gentle vertical float for ambient/hero ornaments
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%":      { transform: "translateY(-6px)" },
+        },
+        // Drifting brand gradient (used with bg-[length:200%_200%])
+        "gradient-drift": {
+          "0%, 100%": { backgroundPosition: "0% 50%" },
+          "50%":      { backgroundPosition: "100% 50%" },
+        },
+        // Breathing glow for live/active indicators
+        "glow-pulse": {
+          "0%, 100%": { boxShadow: "0 0 0 0 hsl(var(--glow-indigo) / 0.45)" },
+          "50%":      { boxShadow: "0 0 0 6px hsl(var(--glow-indigo) / 0)" },
+        },
+        // Scale + fade entry for cards/modals
+        "fade-in-scale": {
+          from: { opacity: "0", transform: "scale(0.97)" },
+          to:   { opacity: "1", transform: "scale(1)" },
+        },
       },
 
       animation: {
@@ -115,6 +155,10 @@ const config: Config = {
         shimmer:          "shimmer 1.6s linear infinite",
         "pulse-slow":     "pulse-slow 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         "spin-slow":      "spin-slow 2s linear infinite",
+        float:            "float 5s ease-in-out infinite",
+        "gradient-drift": "gradient-drift 8s ease-in-out infinite",
+        "glow-pulse":     "glow-pulse 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "fade-in-scale":  "fade-in-scale 0.35s cubic-bezier(0.16, 1, 0.3, 1) both",
       },
     },
   },

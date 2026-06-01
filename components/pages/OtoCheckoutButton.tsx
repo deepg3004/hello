@@ -129,7 +129,7 @@ export function OtoCheckoutButton({ ctaText, declineText }: OtoCheckoutButtonPro
   return (
     <Button
       size="lg"
-      className="w-full bg-amber-500 text-zinc-950 hover:bg-amber-400"
+      className="w-full bg-none bg-amber-500 text-zinc-950 hover:bg-amber-400"
       onClick={accept}
       disabled={busy || !ready}
       aria-label={declineText ? `${ctaText} (or ${declineText})` : ctaText}

@@ -197,17 +197,27 @@ export async function releaseCoupon(
 
 /**
  * Atomically increment usage_count for a coupon. Returns true if the
- * increment happened, false if the coupon just got depleted (raced).
+ * increment happened, false if the coupon was already at its limit.
  *
- * The trick: rely on a single update that requires the count to be strictly
- * less than total_limit — if total_limit is NULL we treat it as unlimited.
- * Postgrest doesn't support OR in updates well, so we issue the unlimited
- * path first and the bounded path only when needed.
+ * Uses the `increment_coupon_usage` RPC (migration 035) which gates AND
+ * increments in a single row-locked UPDATE — the only way to make the cap
+ * hold under concurrency. (The previous read-then-write path had a lost-update
+ * race that could redeem a total_limit=1 coupon twice.)
+ *
+ * Falls back to the older guarded update if the RPC isn't deployed yet, so
+ * this is safe to ship before the migration is applied.
  */
 export async function settleCoupon(coupon_id: string): Promise<boolean> {
   const admin = createAdminClient();
 
-  // Get total_limit + current usage with one round-trip.
+  const { data, error } = await admin.rpc("increment_coupon_usage", {
+    p_coupon_id: coupon_id,
+  });
+
+  if (!error) return data === true;
+
+  // ── Fallback (RPC not yet deployed) ──────────────────────────────────────
+  // Not race-proof, but preserves behaviour until migration 035 is applied.
   const { data: row } = await admin
     .from("coupons")
     .select("total_limit, usage_count")
@@ -218,7 +228,6 @@ export async function settleCoupon(coupon_id: string): Promise<boolean> {
   const current = Number(row.usage_count ?? 0);
   const limit = row.total_limit == null ? null : Number(row.total_limit);
 
-  // Unlimited — just increment.
   if (limit === null) {
     await admin
       .from("coupons")
@@ -227,10 +236,6 @@ export async function settleCoupon(coupon_id: string): Promise<boolean> {
     return true;
   }
 
-  // Bounded — atomic gate via select-then-update guarded by usage_count.
-  // Postgrest .lt() inside an update is a server-side WHERE, so this is one
-  // SQL statement and either matches a row (we incremented) or matches zero
-  // (coupon was depleted by another buyer in the meantime).
   const { data: updated } = await admin
     .from("coupons")
     .update({ usage_count: current + 1 })

@@ -15,6 +15,7 @@ import {
   hashPortalOtp,
 } from "@/lib/affiliate";
 import { sendEmail } from "@/lib/email";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const COOLDOWN_MS = 60 * 1000;
@@ -49,6 +50,11 @@ export async function POST(request: Request) {
   if (!email || !EMAIL_RE.test(email)) {
     return NextResponse.json({ error: "Valid email required" }, { status: 400 });
   }
+
+  // Rate limit: 10 per 15min per (email, ip) — audit #12/#13.
+  const ip = clientIp(request) ?? "unknown";
+  const rl = await rateLimit(`otp:${email}:${ip}`, 10, 15 * 60);
+  if (!rl.ok) return tooManyRequests(rl.retryAfter);
 
   const admin = createAdminClient();
 

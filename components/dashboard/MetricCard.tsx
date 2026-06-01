@@ -24,28 +24,15 @@ export interface MetricCardProps {
   className?: string;
 }
 
-// Centralised palette so a new accent only needs one row added here and
-// everything (circle bg, icon colour) picks it up consistently.
-const ACCENT_CLASSES: Record<
-  MetricAccent,
-  { circle: string; icon: string }
-> = {
-  indigo: {
-    circle: "bg-indigo-50",
-    icon: "text-indigo-600",
-  },
-  emerald: {
-    circle: "bg-emerald-50",
-    icon: "text-emerald-600",
-  },
-  amber: {
-    circle: "bg-amber-50",
-    icon: "text-amber-600",
-  },
-  rose: {
-    circle: "bg-rose-50",
-    icon: "text-rose-600",
-  },
+// Premium-monochrome look: every metric icon uses the neutral tile (charcoal
+// glyph on a soft neutral fill). The `accentColor` prop is kept for API
+// compatibility but no longer paints the tile a different hue — the palette is
+// intentionally monochrome, with meaning carried by the trend chip instead.
+const ACCENT_TILE: Record<MetricAccent, string> = {
+  indigo: "tile-neutral",
+  emerald: "tile-neutral",
+  amber: "tile-neutral",
+  rose: "tile-neutral",
 };
 
 export function MetricCard({
@@ -57,36 +44,36 @@ export function MetricCard({
   accentColor = "indigo",
   className,
 }: MetricCardProps) {
-  const accent = ACCENT_CLASSES[accentColor];
+  const tile = ACCENT_TILE[accentColor];
 
   return (
     <div
       className={cn(
-        "rounded-xl border border-border bg-card p-5 shadow-sm",
-        "transition-shadow duration-200 hover:shadow-md",
+        "group relative overflow-hidden rounded-xl border border-border bg-card p-5 shadow-card",
+        "transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-card-md",
         className,
       )}
     >
-      {/* Top row: 36px tinted circle (when icon supplied) + uppercase label */}
+      {/* Top row: 40px gradient icon tile (when icon supplied) + label */}
       <div className="flex items-center gap-3">
         {Icon && (
           <span
             aria-hidden
             className={cn(
-              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
-              accent.circle,
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105",
+              tile,
             )}
           >
-            <Icon className={cn("h-4 w-4", accent.icon)} strokeWidth={2.25} />
+            <Icon className="h-[18px] w-[18px]" strokeWidth={2.25} />
           </span>
         )}
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {label}
         </p>
       </div>
 
       {/* Middle: value */}
-      <div className="mt-3 font-sora text-2xl font-bold tracking-tight text-foreground">
+      <div className="mt-3 font-sora text-[1.7rem] font-bold leading-none tracking-tight tabular-nums text-foreground">
         {value}
       </div>
 
@@ -96,10 +83,10 @@ export function MetricCard({
           {trend && (
             <span
               className={cn(
-                "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 font-medium",
+                "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 font-semibold ring-1 ring-inset",
                 trend.direction === "up"
-                  ? "bg-emerald-50 text-emerald-700"
-                  : "bg-rose-50 text-rose-700",
+                  ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-400/20"
+                  : "bg-rose-50 text-rose-700 ring-rose-600/20 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-400/20",
               )}
             >
               {trend.direction === "up" ? (

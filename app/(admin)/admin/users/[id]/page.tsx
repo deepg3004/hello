@@ -157,6 +157,9 @@ export default async function AdminUserDetailPage({
           userEmail={profile.email}
           currentPlan={profile.subscription_plan ?? "free"}
           suspended={!!profile.suspended_at}
+          kycVerified={
+            !!profile.payouts_enabled || Number(profile.kyc_level ?? 0) >= 2
+          }
         />
       </div>
 
@@ -181,7 +184,7 @@ export default async function AdminUserDetailPage({
       >
         {/* LEFT — profile summary card */}
         <aside className="space-y-4">
-          <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
+          <div className="card-surface p-5">
             <h2 className="font-sora text-base font-semibold tracking-tight">
               Profile
             </h2>
@@ -244,7 +247,7 @@ export default async function AdminUserDetailPage({
           </div>
 
           {/* Admin notes side card */}
-          <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
+          <div className="card-surface p-5">
             <div className="flex items-center justify-between">
               <h2 className="font-sora text-base font-semibold tracking-tight">
                 Admin notes
@@ -671,7 +674,7 @@ function DataTab({
       value={value}
       className={cn(
         "rounded-lg border border-transparent px-3 py-1.5 text-sm",
-        "data-[state=active]:border-border data-[state=active]:bg-white",
+        "data-[state=active]:border-border data-[state=active]:bg-card",
         "data-[state=active]:font-semibold data-[state=active]:shadow-sm",
       )}
     >
@@ -693,7 +696,7 @@ function DataCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
+    <div className="card-surface overflow-hidden">
       <div className="flex items-center justify-between border-b border-border px-5 py-4">
         <h2 className="font-sora text-base font-semibold tracking-tight">
           {title}

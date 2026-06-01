@@ -1,77 +1,119 @@
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  /* ════════════════════════════════════════════════════════════════════
+     PREMIUM MONOCHROME palette — warm cream surfaces, charcoal ink, ultra
+     light borders, near-invisible shadows. Black CTA buttons. Purple / cyan
+     / gold appear ONLY as restrained accents. (Linear + Stripe vibe.)
+     ════════════════════════════════════════════════════════════════════ */
   :root {
-    /* Brand colors */
-    --brand-indigo: 243 75% 59%;      /* #4F46E5 */
-    --brand-indigo-light: 243 75% 95%; /* soft indigo bg */
-    --brand-amber: 37 92% 55%;         /* #F59E0B */
-    --brand-emerald: 158 64% 40%;      /* #10B981 */
-    --brand-rose: 0 84% 60%;           /* #EF4444 */
-    --brand-slate: 222 47% 8%;         /* #0E1117 sidebar */
+    /* Brand-accent palette (used sparingly: glows, badges, focus, links) */
+    --brand-purple: 262 83% 58%;       /* #7C3AED */
+    --brand-cyan:   189 94% 43%;       /* #06B6D4 */
+    --brand-gold:   48 96% 53%;        /* #FACC15 */
+    --brand-violet: 262 83% 58%;       /* alias kept for existing usages */
+    /* Legacy aliases repointed so old utility usages don't break */
+    --brand-indigo: 262 83% 58%;
+    --brand-indigo-light: 262 60% 95%;
+    --brand-amber: 48 96% 53%;
+    --brand-emerald: 158 64% 40%;
+    --brand-rose: 0 84% 60%;
+    --brand-slate: 240 5% 9%;
 
-    /* shadcn tokens — light mode */
-    --background: 60 33% 97%;         /* #FAFAF5 warm ivory */
-    --foreground: 222 47% 11%;
-    --card: 45 40% 99%;
-    --card-foreground: 222 47% 11%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 243 75% 59%;            /* indigo */
+    /* shadcn tokens — light */
+    --background: 48 65% 95%;          /* #FBF8EC warm cream */
+    --foreground: 240 2% 10%;          /* #181819 charcoal */
+    --card: 60 11% 98%;                /* #FBFBFA surface */
+    --card-foreground: 240 2% 10%;
+    --popover: 60 11% 98%;
+    --popover-foreground: 240 2% 10%;
+    --primary: 240 5% 7%;              /* #121214 charcoal-black CTA */
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 16% 93%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 55 25% 94%;
-    --muted-foreground: 220 10% 46%;
-    --accent: 243 75% 95%;
-    --accent-foreground: 243 75% 40%;
-    --destructive: 0 84% 60%;
+    --secondary: 45 14% 95%;           /* #F3F2EF soft neutral */
+    --secondary-foreground: 240 2% 10%;
+    --muted: 45 14% 95%;
+    --muted-foreground: 60 0% 44%;     /* #717170 */
+    --accent: 45 14% 93%;              /* neutral hover */
+    --accent-foreground: 240 2% 10%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 60 14% 89%;
-    --input: 60 14% 89%;
-    --ring: 243 75% 59%;
-    --radius: 0.625rem;
+    --border: 43 11% 88%;              /* #E4E2DD ultra-light */
+    --input: 43 11% 88%;
+    --ring: 262 83% 58%;               /* purple focus accent */
+    --radius: 0.875rem;                /* 14px cards */
 
-    /* Progress bar fill — deep ink for premium contrast on warm surfaces */
-    --progress-fill: 220 30% 15%;
+    /* Progress — #111 fill on #D9D7D2 track */
+    --progress-fill: 0 0% 7%;
+    --progress-track: 43 8% 84%;
 
-    /* Custom semantic tokens */
-    --sidebar-bg: 222 47% 8%;
-    --sidebar-fg: 220 16% 85%;
-    --sidebar-active-bg: 243 75% 59%;
+    /* Sidebar — charcoal rail, purple active accent */
+    --sidebar-bg: 240 5% 8%;
+    --sidebar-fg: 0 0% 78%;
+    --sidebar-active-bg: 262 83% 58%;
     --sidebar-active-fg: 0 0% 100%;
-    --sidebar-hover-bg: 222 30% 14%;
-    --sidebar-border: 222 30% 14%;
-    --metric-bg: 0 0% 100%;
-    --metric-shadow: 220 14% 88%;
+    --sidebar-hover-bg: 240 4% 14%;
+    --sidebar-border: 240 4% 14%;
+    --metric-bg: 60 11% 98%;
+    --metric-shadow: 43 11% 88%;
+
+    /* Accent gradient (purple→cyan) for brand-showcase moments only */
+    --brand-gradient: linear-gradient(120deg, hsl(262 83% 58%), hsl(248 84% 60%));
+    --glow-indigo: 262 83% 58%;        /* var name kept; now purple */
+    /* Glass surface */
+    --glass-bg: 60 11% 98%;
+    --glass-alpha: 0.7;
+    /* Ambient glow tints — purple/cyan, very subtle */
+    --aurora-1: 262 83% 58%;
+    --aurora-2: 248 84% 60%;
+    --aurora-3: 189 94% 43%;
   }
 
   .dark {
-    --background: 222 47% 8%;
-    --foreground: 220 16% 92%;
-    --card: 222 40% 11%;
-    --card-foreground: 220 16% 92%;
-    --popover: 222 40% 11%;
-    --popover-foreground: 220 16% 92%;
-    --primary: 243 75% 65%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 222 30% 16%;
-    --secondary-foreground: 220 16% 92%;
-    --muted: 222 30% 16%;
-    --muted-foreground: 220 10% 56%;
-    --accent: 243 40% 20%;
-    --accent-foreground: 243 75% 75%;
-    --destructive: 0 72% 51%;
+    /* Neutral charcoal canvas (not blue) — the monochrome look inverted.
+       CTA buttons flip to near-white with charcoal text (Vercel/Linear dark). */
+    --background: 240 5% 6%;           /* #0E0E0F */
+    --foreground: 0 0% 95%;
+    --card: 240 4% 9%;                 /* #161617 elevated */
+    --card-foreground: 0 0% 95%;
+    --popover: 240 4% 10%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 0 0% 98%;               /* near-white CTA */
+    --primary-foreground: 240 6% 8%;
+    --secondary: 240 4% 14%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 240 4% 14%;
+    --muted-foreground: 0 0% 62%;
+    --accent: 240 4% 16%;
+    --accent-foreground: 0 0% 95%;
+    --destructive: 0 72% 55%;
     --destructive-foreground: 0 0% 100%;
-    --border: 222 30% 18%;
-    --input: 222 30% 18%;
-    --ring: 243 75% 65%;
-    --sidebar-bg: 222 47% 5%;
-    --sidebar-border: 222 30% 10%;
+    --border: 240 4% 18%;
+    --input: 240 4% 18%;
+    --ring: 262 83% 64%;               /* purple focus accent */
+
+    /* Sidebar — even darker than the canvas */
+    --sidebar-bg: 240 6% 4%;
+    --sidebar-fg: 0 0% 72%;
+    --sidebar-active-bg: 262 83% 60%;
+    --sidebar-hover-bg: 240 4% 13%;
+    --sidebar-border: 240 4% 12%;
+    --metric-bg: 240 4% 9%;
+
+    --progress-fill: 0 0% 96%;
+    --progress-track: 240 4% 20%;
+
+    /* Accent gradient + glow — purple, tuned for dark */
+    --brand-gradient: linear-gradient(120deg, hsl(262 83% 64%), hsl(248 84% 66%));
+    --glow-indigo: 262 83% 64%;
+    --glass-bg: 240 4% 10%;
+    --glass-alpha: 0.62;
+    --aurora-1: 262 83% 58%;
+    --aurora-2: 248 84% 60%;
+    --aurora-3: 189 90% 45%;
   }
 }
 
@@ -79,51 +121,170 @@
   * { @apply border-border; }
   body {
     @apply bg-background text-foreground;
-    font-family: 'DM Sans', sans-serif;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1, "cv11" 1;
+    letter-spacing: -0.011em;
     -webkit-font-smoothing: antialiased;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Sora', sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
     font-weight: 600;
+    letter-spacing: -0.02em;
   }
 }
 
-/* Scrollbar */
+/* Scrollbar — thin, unobtrusive, only visible on hover-capable surfaces */
 @layer utilities {
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { @apply bg-border rounded-full; }
-  ::-webkit-scrollbar-thumb:hover { @apply bg-muted-foreground; }
+  ::-webkit-scrollbar-thumb { @apply rounded-full bg-border; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-muted-foreground/50; }
+  * { scrollbar-width: thin; scrollbar-color: hsl(var(--border)) transparent; }
+
+  /* Tabular numerals — keeps currency/metric columns from jittering */
+  .tabular-nums { font-variant-numeric: tabular-nums; }
 }
 
-/* Sidebar link base */
 @layer components {
+  /* ── Sidebar links ──────────────────────────────────────────────── */
   .sidebar-link {
-    @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
+    @apply relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
            text-[hsl(var(--sidebar-fg))] transition-all duration-150
            hover:bg-[hsl(var(--sidebar-hover-bg))] hover:text-white;
   }
   .sidebar-link.active {
     @apply bg-[hsl(var(--sidebar-active-bg))] text-[hsl(var(--sidebar-active-fg))]
-           shadow-sm shadow-indigo-900/30;
+           shadow-sm shadow-indigo-950/40;
   }
-  /* Metric card */
+  /* A crisp accent rail on the active row's left edge — the small detail
+     that reads as "considered" rather than "templated". */
+  .sidebar-link.active::before {
+    content: "";
+    @apply absolute -left-1 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-white/90;
+  }
+
+  /* ── Surfaces ───────────────────────────────────────────────────────
+     One elevation language for every dashboard panel: warm card surface,
+     hairline border, soft layered shadow. `card-surface-hover` adds the
+     lift used on interactive/clickable panels. */
+  .card-surface {
+    @apply rounded-xl border border-border bg-card shadow-card;
+  }
+  .card-surface-hover {
+    @apply transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-md;
+  }
+
+  /* Metric card — surface + hover lift */
   .metric-card {
-    @apply bg-white rounded-xl border border-border p-5 shadow-sm
-           hover:shadow-md transition-shadow duration-200;
+    @apply rounded-xl border border-border bg-card p-5 shadow-card
+           transition-all duration-200 hover:shadow-card-md;
   }
-  /* Status badges */
-  .badge-success { @apply bg-emerald-50 text-emerald-700 border border-emerald-200; }
-  .badge-pending { @apply bg-amber-50 text-amber-700 border border-amber-200; }
-  .badge-failed  { @apply bg-rose-50 text-rose-700 border border-rose-200; }
-  .badge-info    { @apply bg-indigo-50 text-indigo-700 border border-indigo-200; }
-  /* Page entry animation */
+
+  /* ── Status badges — soft tint + inset ring (crisper than a border) ── */
+  .badge-success { @apply bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-400/20; }
+  .badge-pending { @apply bg-amber-50  text-amber-700  ring-1 ring-inset ring-amber-600/20  dark:bg-amber-500/10  dark:text-amber-300  dark:ring-amber-400/20; }
+  .badge-failed  { @apply bg-rose-50   text-rose-700   ring-1 ring-inset ring-rose-600/20   dark:bg-rose-500/10   dark:text-rose-300   dark:ring-rose-400/20; }
+  .badge-info    { @apply bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 dark:bg-indigo-500/10 dark:text-indigo-300 dark:ring-indigo-400/20; }
+  /* Matching dot colours, keyed off the same four groups */
+  .dot-success { @apply bg-emerald-500; }
+  .dot-pending { @apply bg-amber-500; }
+  .dot-failed  { @apply bg-rose-500; }
+  .dot-info    { @apply bg-indigo-500; }
+
+  /* ── Typography helpers — keep headings identical across every page ── */
+  .page-title    { @apply font-sora text-2xl font-semibold tracking-tight text-foreground; }
+  .page-subtitle { @apply text-sm text-muted-foreground; }
+  .section-title { @apply font-sora text-base font-semibold tracking-tight text-foreground; }
+  /* Uppercase micro-label used for table headers and stat captions */
+  .th-label { @apply text-[11px] font-semibold uppercase tracking-wider text-muted-foreground; }
+
+  /* Page entry animation — `both` so the element stays hidden through its
+     stagger delay instead of flashing the final state first. */
   .animate-in-up {
-    animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: slideInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
   @keyframes slideInUp {
-    from { opacity: 0; transform: translateY(10px); }
+    from { opacity: 0; transform: translateY(12px); }
     to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Premium "Elevated Ivory" vocabulary ─────────────────────────────
+     Frosted-glass surface for sticky chrome, dropdowns, and overlays. Sits
+     on a translucent tint of the card colour so it reads through whatever
+     scrolls beneath it. Dark-aware via the --glass-* tokens. */
+  .glass {
+    background-color: hsl(var(--glass-bg) / var(--glass-alpha));
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    backdrop-filter: blur(16px) saturate(160%);
+    @apply border-border/70 ring-1 ring-inset ring-white/5;
+  }
+
+  /* Brand gradient helpers (indigo→violet, theme-aware). */
+  .bg-brand-gradient { background-image: var(--brand-gradient); }
+  .text-gradient {
+    background-image: var(--brand-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Soft gradient accent tiles — the "considered" icon chip used on metrics,
+     nav, empty states. Reuse instead of hand-rolling the gradient+ring. */
+  .tile-indigo  { @apply bg-gradient-to-br from-indigo-50  to-indigo-100/60  text-indigo-600  ring-1 ring-inset ring-indigo-200/70  dark:from-indigo-500/15  dark:to-indigo-500/5  dark:text-indigo-300  dark:ring-indigo-400/20; }
+  .tile-violet  { @apply bg-gradient-to-br from-violet-50  to-violet-100/60  text-violet-600  ring-1 ring-inset ring-violet-200/70  dark:from-violet-500/15  dark:to-violet-500/5  dark:text-violet-300  dark:ring-violet-400/20; }
+  .tile-emerald { @apply bg-gradient-to-br from-emerald-50 to-emerald-100/60 text-emerald-600 ring-1 ring-inset ring-emerald-200/70 dark:from-emerald-500/15 dark:to-emerald-500/5 dark:text-emerald-300 dark:ring-emerald-400/20; }
+  .tile-amber   { @apply bg-gradient-to-br from-amber-50   to-amber-100/60   text-amber-600   ring-1 ring-inset ring-amber-200/70   dark:from-amber-500/15   dark:to-amber-500/5   dark:text-amber-300   dark:ring-amber-400/20; }
+  .tile-rose    { @apply bg-gradient-to-br from-rose-50    to-rose-100/60    text-rose-600    ring-1 ring-inset ring-rose-200/70    dark:from-rose-500/15    dark:to-rose-500/5    dark:text-rose-300    dark:ring-rose-400/20; }
+  /* Monochrome tile — the default for the premium look: charcoal glyph on a
+     soft neutral fill with a hairline ring. Use for stat/metric icons. */
+  .tile-neutral { @apply bg-secondary text-foreground ring-1 ring-inset ring-border; }
+
+  /* Ambient aurora backdrop — fixed, soft brand glows behind a page. Used on
+     auth/marketing surfaces; subtle enough to sit under content. */
+  .aurora-bg { position: relative; isolation: isolate; }
+  .aurora-bg::before {
+    content: "";
+    @apply pointer-events-none absolute inset-0 -z-10;
+    background:
+      radial-gradient(38rem 30rem at 8% -6%, hsl(var(--aurora-1) / 0.28), transparent 62%),
+      radial-gradient(36rem 28rem at 98% 8%, hsl(var(--aurora-2) / 0.24), transparent 62%),
+      radial-gradient(34rem 28rem at 50% 112%, hsl(var(--aurora-3) / 0.18), transparent 60%);
+  }
+  /* Faint grid overlay for engineered depth — masked to fade at the edges. */
+  .grid-overlay::after {
+    content: "";
+    @apply pointer-events-none absolute inset-0 -z-10;
+    background-image:
+      linear-gradient(to right, hsl(var(--foreground) / 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--foreground) / 0.05) 1px, transparent 1px);
+    background-size: 38px 38px;
+    -webkit-mask-image: radial-gradient(ellipse at 50% 0%, black 30%, transparent 75%);
+    mask-image: radial-gradient(ellipse at 50% 0%, black 30%, transparent 75%);
+  }
+}
+
+@layer utilities {
+  /* Staggered entry — children animate in sequence. Pair with .animate-in-up
+     and set --d via inline style, or use these presets. */
+  .delay-1 { animation-delay: 60ms; }
+  .delay-2 { animation-delay: 120ms; }
+  .delay-3 { animation-delay: 180ms; }
+  .delay-4 { animation-delay: 240ms; }
+  .delay-5 { animation-delay: 300ms; }
+  .delay-6 { animation-delay: 360ms; }
+
+  /* Hover-glow for premium CTAs / interactive tiles. */
+  .hover-glow { @apply transition-shadow duration-300 hover:shadow-glow; }
+
+  /* App canvas — a faint brand wash at the very top of the dashboard/admin
+     background. Adds depth behind the chrome without distracting from dense
+     content below. Subtle by design. */
+  .app-canvas { position: relative; }
+  .app-canvas::before {
+    content: "";
+    @apply pointer-events-none fixed inset-x-0 top-0 -z-10 h-72;
+    background:
+      radial-gradient(50rem 18rem at 50% -12%, hsl(var(--aurora-1) / 0.10), transparent 70%),
+      radial-gradient(40rem 16rem at 88% -8%, hsl(var(--aurora-2) / 0.08), transparent 72%);
   }
 }

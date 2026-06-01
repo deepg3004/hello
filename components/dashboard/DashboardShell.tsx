@@ -20,7 +20,7 @@ export function DashboardShell({ profile, children }: DashboardShellProps) {
   const showPastDue = profile.subscription_status === "past_due";
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="app-canvas min-h-screen bg-background">
       {/* Past-due banner — full width, sits ABOVE the topbar so even with
           sticky topbar it's the first thing the seller sees. Inlined here
           instead of the old PastDueBanner component. */}
@@ -70,7 +70,9 @@ export function DashboardShell({ profile, children }: DashboardShellProps) {
           profile={profile}
           onMenuClick={() => setMobileOpen(true)}
         />
-        <main className="px-4 py-6 md:px-8 md:py-8">{children}</main>
+        <main className="px-4 py-6 md:px-8 md:py-8">
+          <div className="mx-auto w-full max-w-screen-2xl">{children}</div>
+        </main>
       </div>
     </div>
   );

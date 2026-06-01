@@ -11,6 +11,7 @@ import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyTelegramJoin } from "@/lib/notifications/events";
 
 function timingSafeStringEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -165,6 +166,18 @@ export async function POST(
       .from("telegram_vip_groups")
       .update({ active_members: Number(g2?.active_members ?? 0) + 1 })
       .eq("id", group.id);
+
+    // In-app bell — seller + admins. Best-effort.
+    await notifyTelegramJoin(
+      {
+        groupId: group.id,
+        sellerId: group.user_id,
+        buyerLabel: evt.new_chat_member.user.username
+          ? `@${evt.new_chat_member.user.username}`
+          : evt.new_chat_member.user.first_name ?? null,
+      },
+      admin,
+    );
 
     return NextResponse.json({ ok: true, event: "joined" });
   }

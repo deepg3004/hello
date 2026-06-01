@@ -139,7 +139,7 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
   return (
     <div className="space-y-4">
       {/* ── Filter bar ──────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
+      <div className="card-surface p-4">
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[220px] flex-1 space-y-1">
             <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -256,7 +256,7 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
       </div>
 
       {/* ── Table ──────────────────────────────────────────────────── */}
-      <div className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
+      <div className="card-surface overflow-hidden">
         {filtered.length === 0 ? (
           <EmptyState filtered={anyFilter} />
         ) : (

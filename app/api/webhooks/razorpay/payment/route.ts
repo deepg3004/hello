@@ -18,6 +18,7 @@ import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyWebhookSignature } from "@/lib/razorpay";
+import { notifyPaymentReceived } from "@/lib/notifications/events";
 
 interface PaymentEntity {
   id: string;
@@ -168,6 +169,18 @@ export async function POST(request: Request) {
         .eq("buyer_email", order.buyer_email)
         .eq("page_id", order.page_id)
         .eq("status", "active");
+
+      // In-app bell — seller + admins. Best-effort; never blocks the webhook.
+      await notifyPaymentReceived(
+        {
+          sellerId: order.seller_user_id,
+          amountRupees: Number(order.amount),
+          buyer: order.buyer_email,
+          pageId: order.page_id,
+          orderId: order.id,
+        },
+        admin,
+      );
       break;
     }
 
