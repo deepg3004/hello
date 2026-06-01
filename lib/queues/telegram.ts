@@ -37,7 +37,7 @@ export async function enqueueKickMember(membershipId: string): Promise<boolean> 
   await global.__invoxaiTgQueue.add(
     "kickMember",
     { membership_id: membershipId },
-    { jobId: `kick:${membershipId}` },
+    { jobId: `kick__${membershipId}` },
   );
   return true;
 }
@@ -50,7 +50,7 @@ export async function enqueueSendInviteLink(orderId: string): Promise<boolean> {
   await global.__invoxaiTgQueue.add(
     "sendInviteLink",
     { order_id: orderId },
-    { jobId: `invite:${orderId}` },
+    { jobId: `invite__${orderId}` },
   );
   return true;
 }

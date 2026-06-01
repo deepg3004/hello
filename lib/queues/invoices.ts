@@ -70,7 +70,7 @@ export async function enqueueInvoiceJob(orderId: string): Promise<boolean> {
     await queue.add(
       "generate",
       { order_id: orderId },
-      { jobId: `invoice:${orderId}` }, // dedup
+      { jobId: `invoice__${orderId}` }, // dedup (BullMQ forbids ':' in jobId)
     );
     return true;
   }

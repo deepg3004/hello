@@ -61,7 +61,7 @@ export async function enqueuePayout(payoutId: string): Promise<boolean> {
   await global.__invoxaiPayoutQueue.add(
     "process",
     { payout_id: payoutId },
-    { jobId: `payout:${payoutId}` }, // dedup
+    { jobId: `payout__${payoutId}` }, // dedup (BullMQ forbids ':' in jobId)
   );
   return true;
 }
