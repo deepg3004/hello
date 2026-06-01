@@ -222,6 +222,99 @@ export async function submitPanVerificationAction(
 }
 
 // ----------------------------------------------------------------------------
+// Manual KYC submission — fallback when automated verification (Surepass) is
+// unavailable or fails. Captures PAN + bank details and queues the submission
+// for an admin to verify by hand (no auto-verify flags are set here).
+// ----------------------------------------------------------------------------
+
+export async function submitManualKycAction(input: {
+  pan_number: string;
+  pan_name: string;
+  account_number: string;
+  ifsc: string;
+  bank_holder_name: string;
+}): Promise<ActionResult> {
+  const user = await getAuthedUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+
+  const pan = input.pan_number.trim().toUpperCase();
+  const ifsc = input.ifsc.trim().toUpperCase();
+  const account = input.account_number.replace(/\s+/g, "");
+  const panName = input.pan_name.trim();
+  const holder = input.bank_holder_name.trim();
+
+  if (!PAN_RE.test(pan)) {
+    return { ok: false, message: "Invalid PAN format (5 letters + 4 digits + 1 letter)." };
+  }
+  if (!panName) return { ok: false, message: "Enter the name printed on your PAN card." };
+  if (!/^[0-9]{6,18}$/.test(account)) {
+    return { ok: false, message: "Account number should be 6–18 digits." };
+  }
+  if (!IFSC_RE.test(ifsc)) return { ok: false, message: "Invalid IFSC code." };
+  if (!holder) return { ok: false, message: "Enter the bank account holder name." };
+
+  const admin = createAdminClient();
+  const submission = await ensureSubmission(admin, user.id);
+  const submissionId = submission?.id ?? null;
+
+  const riskFlags = Array.isArray(submission?.risk_flags)
+    ? new Set(submission!.risk_flags as string[])
+    : new Set<string>();
+  riskFlags.add("manual_submission");
+
+  // Store the details but DO NOT set pan_verified/bank_verified — an admin
+  // approves via the KYC queue / manual-verify control.
+  await admin
+    .from("kyc_submissions")
+    .update({
+      pan_number: pan,
+      pan_name: panName,
+      level: 2,
+      status: "under_review",
+      risk_flags: Array.from(riskFlags),
+    })
+    .eq("user_id", user.id);
+
+  await admin
+    .from("user_profiles")
+    .update({
+      pan_number: pan,
+      bank_account_number: account,
+      bank_ifsc: ifsc,
+      bank_holder_name: holder,
+    })
+    .eq("id", user.id);
+
+  await logVerification(admin, user.id, submissionId, {
+    kind: "pan",
+    request_summary: { pan: maskLast4(pan), manual: true },
+    response_summary: { manual: true },
+    success: false,
+    error_message: "Manual submission — pending admin review",
+  });
+
+  await writeAuditLog({
+    admin_id: user.id,
+    action: "kyc.manual_submission",
+    target_type: "kyc_submission",
+    target_id: submissionId ?? undefined,
+    details: { pan: maskLast4(pan) },
+  });
+
+  await notifyKyc(
+    { userId: user.id, kind: "flagged", flags: ["manual_submission"] },
+    admin,
+  );
+
+  revalidatePath("/dashboard/kyc");
+  revalidatePath("/admin/kyc");
+  return {
+    ok: true,
+    message: "Submitted for manual review. We'll verify within 1–2 business days.",
+  };
+}
+
+// ----------------------------------------------------------------------------
 // Bank (penny drop + fuzzy match against PAN name)
 // ----------------------------------------------------------------------------
 

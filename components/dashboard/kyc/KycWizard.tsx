@@ -20,6 +20,7 @@ import {
   aadhaarStartAction,
   aadhaarVerifyAction,
   submitBankVerificationAction,
+  submitManualKycAction,
   submitPanVerificationAction,
   uploadKycDocumentAction,
   type DocumentType,
@@ -426,9 +427,95 @@ function PanForm({ initial }: { initial: KycInitial }) {
           >
             Verify PAN
           </PrimaryButton>
+
+          <ManualKycForm initial={initial} />
         </>
       )}
     </SectionCard>
+  );
+}
+
+/**
+ * Fallback when instant verification is unavailable (e.g. Surepass not
+ * configured) or keeps failing. Collects PAN + bank details and queues the
+ * whole thing for manual admin review — no automated checks are run.
+ */
+function ManualKycForm({ initial }: { initial: KycInitial }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [pan, setPan] = useState("");
+  const [panName, setPanName] = useState(initial.panName ?? "");
+  const [account, setAccount] = useState("");
+  const [ifsc, setIfsc] = useState("");
+  const [holder, setHolder] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    setBusy(true);
+    const r = await submitManualKycAction({
+      pan_number: pan,
+      pan_name: panName,
+      account_number: account,
+      ifsc,
+      bank_holder_name: holder,
+    });
+    setBusy(false);
+    if (!r.ok) {
+      toast({ title: "Couldn't submit", description: r.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Submitted for review", description: r.message });
+    router.refresh();
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-1 text-left text-xs font-medium text-primary underline-offset-2 hover:underline"
+      >
+        Can&apos;t verify automatically? Submit for manual review →
+      </button>
+    );
+  }
+
+  const valid =
+    pan.length === 10 && panName.trim() && account.length >= 6 && ifsc.length === 11 && holder.trim();
+
+  return (
+    <div className="mt-3 space-y-3 rounded-lg border border-border bg-secondary/40 p-3">
+      <p className="text-xs text-muted-foreground">
+        Enter your details exactly as on your PAN card and bank passbook. Our team
+        verifies manually within 1–2 business days.
+      </p>
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label className="text-xs">PAN number</Label>
+          <Input value={pan} onChange={(e) => setPan(e.target.value.toUpperCase())} placeholder="ABCDE1234F" maxLength={10} className="font-mono uppercase" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Name on PAN</Label>
+          <Input value={panName} onChange={(e) => setPanName(e.target.value)} placeholder="As printed on PAN" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Bank account number</Label>
+          <Input value={account} onChange={(e) => setAccount(e.target.value.replace(/\D/g, ""))} placeholder="123456789012" className="font-mono" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">IFSC code</Label>
+          <Input value={ifsc} onChange={(e) => setIfsc(e.target.value.toUpperCase())} placeholder="HDFC0001234" maxLength={11} className="font-mono uppercase" />
+        </div>
+        <div className="space-y-1.5 md:col-span-2">
+          <Label className="text-xs">Account holder name</Label>
+          <Input value={holder} onChange={(e) => setHolder(e.target.value)} placeholder="As per bank records" />
+        </div>
+      </div>
+      <PrimaryButton onClick={submit} disabled={busy || !valid} busy={busy}>
+        Submit for manual review
+      </PrimaryButton>
+    </div>
   );
 }
 
