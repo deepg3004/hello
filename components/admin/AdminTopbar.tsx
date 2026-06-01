@@ -100,10 +100,10 @@ export function AdminTopbar({ profile, onMenuClick }: AdminTopbarProps) {
           className="hidden gap-1.5 md:inline-flex"
         >
           <a
-            href="https://hello.invoxai.io"
+            href="https://app.invoxai.io"
             target="_blank"
             rel="noreferrer"
-            title="Open hello.invoxai.io in a new tab"
+            title="Open app.invoxai.io in a new tab"
           >
             <ExternalLink className="h-3.5 w-3.5" />
             View User Site
@@ -148,7 +148,7 @@ export function AdminTopbar({ profile, onMenuClick }: AdminTopbarProps) {
               <Link href="/dashboard">Back to seller dashboard</Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <a href="https://hello.invoxai.io" target="_blank" rel="noreferrer">
+              <a href="https://app.invoxai.io" target="_blank" rel="noreferrer">
                 View user site
               </a>
             </DropdownMenuItem>

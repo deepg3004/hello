@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import QRCode from "qrcode";
 import { Check, Loader2, ShieldCheck, Trash2 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
@@ -67,8 +68,21 @@ export function TwoFactorSettings() {
       return;
     }
     setFactorId(data.id);
-    setQr(data.totp.qr_code);
     setSecret(data.totp.secret);
+    // Build our own otpauth URI so the authenticator shows ONLY the brand name
+    // (Supabase's default QR labels the account with the user's email). The
+    // TOTP secret is identical, so verification is unaffected, and we render
+    // the QR locally — the secret never leaves the browser.
+    const issuer = "InvoxAI";
+    const uri =
+      `otpauth://totp/${encodeURIComponent(issuer)}?secret=${data.totp.secret}` +
+      `&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
+    try {
+      const dataUrl = await QRCode.toDataURL(uri, { margin: 1, width: 200 });
+      setQr(dataUrl);
+    } catch {
+      setQr(data.totp.qr_code); // fall back to Supabase's QR if local render fails
+    }
     setEnrolling(true);
   }
 

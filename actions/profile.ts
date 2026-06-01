@@ -53,3 +53,27 @@ export async function updateProfileAction(input: ProfileInput): Promise<Result> 
   revalidatePath("/dashboard");
   return { ok: true };
 }
+
+/** Save just the phone number (used by the KYC Basics step). Session-scoped. */
+export async function updatePhoneAction(phoneRaw: string): Promise<Result> {
+  const supabase = createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+
+  const phone = phoneRaw.trim();
+  if (!isValidPhone(phone)) {
+    return { ok: false, message: "Enter a valid phone number" };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("user_profiles")
+    .update({ phone })
+    .eq("id", user.id);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/dashboard/kyc");
+  return { ok: true };
+}

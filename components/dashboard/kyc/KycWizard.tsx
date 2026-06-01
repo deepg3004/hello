@@ -19,12 +19,14 @@ import {
 import {
   aadhaarStartAction,
   aadhaarVerifyAction,
+  resetMyKycAction,
   submitBankVerificationAction,
   submitManualKycAction,
   submitPanVerificationAction,
   uploadKycDocumentAction,
   type DocumentType,
 } from "@/actions/kyc";
+import { updatePhoneAction } from "@/actions/profile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -114,6 +116,10 @@ export function KycWizard({ initial }: KycWizardProps) {
       {/* Top-level status banner (rejected / under-review / approved) */}
       <OverallStatus initial={initial} />
 
+      {/* Start-over — only before approval, so a seller can clear a stuck or
+          mistaken submission and re-do it. */}
+      {initial.kycLevel < 2 && <ResetKycButton />}
+
       <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)]">
         {/* ── Vertical stepper (desktop) / horizontal tabs (mobile) ── */}
         <Stepper steps={steps} active={active} onPick={setActive} />
@@ -125,6 +131,35 @@ export function KycWizard({ initial }: KycWizardProps) {
           {active === "advanced" && <AdvancedStep initial={initial} />}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Start-over (reset my KYC) ───────────────────────────────────────────
+function ResetKycButton() {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+
+  async function reset() {
+    if (!confirm("Clear your current KYC details and start over?")) return;
+    setBusy(true);
+    const r = await resetMyKycAction();
+    setBusy(false);
+    if (!r.ok) {
+      toast({ title: "Couldn't reset", description: r.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "KYC reset", description: "Start fresh below." });
+    router.refresh();
+  }
+
+  return (
+    <div className="flex justify-end">
+      <Button variant="ghost" size="sm" onClick={reset} disabled={busy} className="text-muted-foreground">
+        {busy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCcw className="mr-1.5 h-3.5 w-3.5" />}
+        Start over
+      </Button>
     </div>
   );
 }
@@ -316,17 +351,54 @@ function StepNumber({
 // ── Step bodies ────────────────────────────────────────────────────────
 
 function BasicsStep({ initial }: { initial: KycInitial }) {
+  const router = useRouter();
+  const { toast } = useToast();
   const emailOk = initial.emailConfirmed;
   const phoneOk = !!initial.phone;
+  const [phone, setPhone] = useState(initial.phone ?? "");
+  const [busy, setBusy] = useState(false);
+
+  async function savePhone() {
+    setBusy(true);
+    const r = await updatePhoneAction(phone);
+    setBusy(false);
+    if (!r.ok) {
+      toast({ title: "Couldn't save phone", description: r.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Phone saved" });
+    router.refresh();
+  }
+
   return (
     <SectionCard
       icon={User2}
       title="Basics"
-      subtitle="Auto-completed when you sign up + confirm your email."
+      subtitle="Confirm your email and add a contact phone number."
       status={emailOk && phoneOk ? "verified" : "required"}
     >
       <Row label="Email confirmed" ok={emailOk} value={initial.email} />
-      <Row label="Phone on file" ok={phoneOk} value={initial.phone ?? "—"} />
+      {phoneOk ? (
+        <Row label="Phone on file" ok value={initial.phone ?? "—"} />
+      ) : (
+        <div className="space-y-1.5 pt-1">
+          <Label className="text-xs">Phone number</Label>
+          <div className="flex gap-2">
+            <Input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+91 98765 43210"
+              inputMode="tel"
+            />
+            <PrimaryButton onClick={savePhone} disabled={busy || phone.trim().length < 6} busy={busy}>
+              Save
+            </PrimaryButton>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Required before you can start the Standard step.
+          </p>
+        </div>
+      )}
     </SectionCard>
   );
 }

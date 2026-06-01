@@ -333,6 +333,44 @@ export async function submitManualKycAction(input: {
   };
 }
 
+/**
+ * Let a seller wipe their own in-progress KYC and start fresh. Clears the
+ * submission row + resets the profile verification flags. Refused once KYC is
+ * actually approved (kyc_level >= 2) — an approved seller must go through admin
+ * re-KYC, not self-reset, so payouts can't be silently un-verified.
+ */
+export async function resetMyKycAction(): Promise<ActionResult> {
+  const user = await getAuthedUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("user_profiles")
+    .select("kyc_level")
+    .eq("id", user.id)
+    .single();
+  if (Number(profile?.kyc_level ?? 0) >= 2) {
+    return {
+      ok: false,
+      message: "Your KYC is already approved — contact support to make changes.",
+    };
+  }
+
+  await admin.from("kyc_submissions").delete().eq("user_id", user.id);
+  await admin
+    .from("user_profiles")
+    .update({
+      kyc_level: 0,
+      pan_verified: false,
+      bank_verified: false,
+      payouts_enabled: false,
+    })
+    .eq("id", user.id);
+
+  revalidatePath("/dashboard/kyc");
+  return { ok: true, message: "KYC reset — you can start over." };
+}
+
 // ----------------------------------------------------------------------------
 // Bank (penny drop + fuzzy match against PAN name)
 // ----------------------------------------------------------------------------
