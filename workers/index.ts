@@ -26,6 +26,16 @@ loadEnv({ path: path.join(process.cwd(), ".env.production") });
 loadEnv({ path: path.join(process.cwd(), ".env.local") });
 loadEnv({ path: path.join(process.cwd(), ".env") });
 
+// @supabase/supabase-js (>=2.106) eagerly constructs a RealtimeClient that
+// needs a global WebSocket. Next provides one in the app runtime, but this
+// standalone worker runs under tsx with none — so every createAdminClient()
+// (recovery, invoices, queued email, …) throws "Node.js 20 without native
+// WebSocket". Polyfill it from `ws` before any Supabase client is built.
+import WS from "ws";
+if (!(globalThis as { WebSocket?: unknown }).WebSocket) {
+  (globalThis as { WebSocket?: unknown }).WebSocket = WS;
+}
+
 import { bootInvoiceWorker } from "@/lib/queues/invoices";
 import { bootRecoveryWorker } from "@/lib/queues/recovery";
 import { bootEmailWorker } from "@/lib/queues/email";
