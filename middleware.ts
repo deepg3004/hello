@@ -214,6 +214,7 @@ export async function middleware(request: NextRequest) {
         pathname.startsWith("/signup") ||
         pathname.startsWith("/forgot-password") ||
         pathname.startsWith("/reset-password") ||
+        pathname.startsWith("/verify-phone") ||
         pathname.startsWith("/auth/");
       const isPublic =
         pathname.startsWith("/p/") ||
@@ -246,6 +247,7 @@ export async function middleware(request: NextRequest) {
         pathname.startsWith("/signup") ||
         pathname.startsWith("/forgot-password") ||
         pathname.startsWith("/reset-password") ||
+        pathname.startsWith("/verify-phone") ||
         pathname.startsWith("/auth/");
       const isSubdomainRoute = pathname.startsWith("/seller-host/");
       const isMaintenance = pathname === "/maintenance";

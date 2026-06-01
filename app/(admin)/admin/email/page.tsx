@@ -95,9 +95,10 @@ const ROLES: RoleDef[] = [
 
 // All smtp_* keys we need to bulk-read.
 const FIELDS = ["user", "pass", "from_name", "reply_to"] as const;
-const ALL_KEYS = ROLES.flatMap((r) =>
-  FIELDS.map((f) => smtpKey(r.role, f)),
-);
+const ALL_KEYS = [
+  "email_admin_bcc",
+  ...ROLES.flatMap((r) => FIELDS.map((f) => smtpKey(r.role, f))),
+];
 
 export default async function AdminEmailPage() {
   const admin = createAdminClient();
@@ -171,6 +172,26 @@ export default async function AdminEmailPage() {
         the same <code className="font-mono">INVOXAI_VAULT_KEY</code> to decrypt
         these passwords.
       </div>
+
+      {/* ── Admin BCC ────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Admin copy (BCC)</CardTitle>
+          <CardDescription>
+            Silently BCC a copy of every email the platform sends to this inbox.
+            Leave blank to disable. (Supabase auth emails — signup/reset — are
+            sent by Supabase and aren&apos;t included.)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SettingTextInput
+            storageKey="email_admin_bcc"
+            label="BCC address"
+            initialValue={get("email_admin_bcc")}
+            placeholder="sadmin@invoxai.io"
+          />
+        </CardContent>
+      </Card>
 
       {/* ── Per-mailbox cards ────────────────────────────────────── */}
       {ROLES.map((def) => {

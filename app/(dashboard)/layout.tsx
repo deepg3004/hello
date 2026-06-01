@@ -22,7 +22,7 @@ export default async function DashboardLayout({
   const { data: profileRow } = await admin
     .from("user_profiles")
     .select(
-      "id, full_name, email, avatar_url, subscription_plan, subscription_status, is_admin",
+      "id, full_name, email, avatar_url, subscription_plan, subscription_status, is_admin, phone_verified",
     )
     .eq("id", user.id)
     .single();
@@ -30,6 +30,13 @@ export default async function DashboardLayout({
   // Maintenance gate — admins bypass so they can flip the flag back off.
   if (!profileRow?.is_admin && (await isMaintenanceOn())) {
     redirect("/maintenance");
+  }
+
+  // Phone-verification gate — new sellers must verify their number before the
+  // dashboard unlocks. Admins bypass; existing users are grandfathered (the
+  // migration backfills phone_verified=true) so only fresh signups are gated.
+  if (!profileRow?.is_admin && profileRow?.phone_verified === false) {
+    redirect("/verify-phone");
   }
 
   const branding = await getBranding();

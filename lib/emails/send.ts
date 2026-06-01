@@ -43,7 +43,7 @@ import {
   leadNotificationEmail,
   type LeadNotificationData,
 } from "./templates/lead-notification";
-import { sendViaSmtp } from "./smtp";
+import { sendViaSmtp, getAdminBcc } from "./smtp";
 import { TEMPLATE_ROLE, type TemplateKey } from "./routing";
 
 export type { TemplateKey };
@@ -117,10 +117,12 @@ export async function sendEmail<K extends TemplateKey>(
     });
     return { ok: true, skipped: true };
   }
+  const bcc = await getAdminBcc();
   try {
     const res = await resend.emails.send({
       from: envelope.from,
       to,
+      bcc: bcc && bcc !== to ? bcc : undefined,
       subject: built.subject,
       html: built.html,
       replyTo: options.reply_to ?? envelope.reply_to,

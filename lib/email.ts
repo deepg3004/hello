@@ -6,7 +6,7 @@
 
 import { Resend } from "resend";
 
-import { sendViaSmtp, type MailboxRole } from "@/lib/emails/smtp";
+import { sendViaSmtp, getAdminBcc, type MailboxRole } from "@/lib/emails/smtp";
 
 let cached: Resend | null = null;
 
@@ -75,10 +75,12 @@ export async function sendEmail(args: SendArgs): Promise<SendResult> {
     });
     return { ok: true, skipped: true };
   }
+  const bcc = await getAdminBcc();
   try {
     const res = await resend.emails.send({
       from: fromAddr(),
       to: args.to,
+      bcc: bcc && bcc !== args.to ? bcc : undefined,
       subject: args.subject,
       html: args.html,
       text: args.text,
