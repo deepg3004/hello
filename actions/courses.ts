@@ -1,14 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { nanoid } from "nanoid";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { slugify } from "@/lib/templates/utils";
 
 interface Result {
   ok: boolean;
   message?: string;
   id?: string;
+  salesPath?: string;
 }
 
 async function currentUserId(): Promise<string | null> {
@@ -68,6 +71,142 @@ async function nextSort(
     .limit(1)
     .maybeSingle();
   return (data?.sort_order ?? -1) + 1;
+}
+
+async function uniqueSlug(
+  admin: ReturnType<typeof createAdminClient>,
+  base: string,
+): Promise<string> {
+  const seed = slugify(base) || `course-${nanoid(6).toLowerCase()}`;
+  let candidate = seed;
+  for (let i = 0; i < 5; i++) {
+    const { data } = await admin
+      .from("pages")
+      .select("id")
+      .eq("slug", candidate)
+      .maybeSingle();
+    if (!data) return candidate;
+    candidate = `${seed}-${nanoid(4).toLowerCase()}`;
+  }
+  return `${seed}-${nanoid(8).toLowerCase()}`;
+}
+
+/**
+ * One-click "make sellable": create (or update) a published Course Sales Page
+ * + product for the course, link it via courses.product_id. Purchase→enrollment
+ * then works automatically (lib/courses.createEnrollmentForOrder).
+ */
+export async function makeCourseSellableAction(input: {
+  courseId: string;
+  price: number;
+  originalPrice?: number | null;
+}): Promise<Result> {
+  const userId = await currentUserId();
+  if (!userId) return { ok: false, message: "Not signed in" };
+  const admin = createAdminClient();
+  if (!(await ownedCourseId(admin, userId, { courseId: input.courseId }))) {
+    return { ok: false, message: "Not found" };
+  }
+
+  const price = Math.round(Number(input.price));
+  if (!Number.isFinite(price) || price <= 0) {
+    return { ok: false, message: "Enter a price greater than 0." };
+  }
+  const original =
+    input.originalPrice != null && Number(input.originalPrice) > price
+      ? Math.round(Number(input.originalPrice))
+      : null;
+
+  const { data: course } = await admin
+    .from("courses")
+    .select("title, description, thumbnail_url, product_id")
+    .eq("id", input.courseId)
+    .single();
+  if (!course) return { ok: false, message: "Not found" };
+
+  // Already linked → just update the product price + ensure the page is live.
+  if (course.product_id) {
+    await admin
+      .from("products")
+      .update({ price, original_price: original, active: true })
+      .eq("id", course.product_id);
+    const { data: prod } = await admin
+      .from("products")
+      .select("page_id")
+      .eq("id", course.product_id)
+      .single();
+    let salesPath: string | undefined;
+    if (prod?.page_id) {
+      await admin.from("pages").update({ status: "published" }).eq("id", prod.page_id);
+      const { data: pg } = await admin
+        .from("pages")
+        .select("slug")
+        .eq("id", prod.page_id)
+        .single();
+      if (pg?.slug) salesPath = `/p/${pg.slug}`;
+    }
+    revalidatePath(`/dashboard/courses/${input.courseId}`);
+    return { ok: true, salesPath };
+  }
+
+  // Create the sales page (Course Sales Page template) + product.
+  const slug = await uniqueSlug(admin, course.title);
+  const page_config: Record<string, unknown> = {
+    hero_eyebrow: "Online Course",
+    hero_headline: course.title,
+    hero_subheadline:
+      course.description || "Get lifetime access to this course.",
+    hero_cta: "Get this course",
+    checkout_title: "Enroll now",
+    checkout_guarantee: "Instant access right after payment.",
+  };
+  if (course.thumbnail_url) page_config.hero_image = course.thumbnail_url;
+
+  const { data: page, error: pageErr } = await admin
+    .from("pages")
+    .insert({
+      user_id: userId,
+      title: course.title,
+      slug,
+      type: "payment",
+      template_id: "course",
+      status: "published",
+      page_config,
+      published_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+  if (pageErr || !page) {
+    return { ok: false, message: pageErr?.message ?? "Couldn't create the sales page" };
+  }
+
+  const { data: product, error: prodErr } = await admin
+    .from("products")
+    .insert({
+      user_id: userId,
+      page_id: page.id,
+      name: course.title,
+      price,
+      original_price: original,
+      currency: "INR",
+      type: "one_time",
+      active: true,
+      image_url: course.thumbnail_url ?? null,
+    })
+    .select("id")
+    .single();
+  if (prodErr || !product) {
+    return { ok: false, message: prodErr?.message ?? "Couldn't create the product" };
+  }
+
+  await admin
+    .from("courses")
+    .update({ product_id: product.id, updated_at: new Date().toISOString() })
+    .eq("id", input.courseId);
+
+  revalidatePath(`/dashboard/courses/${input.courseId}`);
+  revalidatePath("/dashboard/courses");
+  return { ok: true, salesPath: `/p/${slug}` };
 }
 
 export async function createCourseAction(input: { title: string }): Promise<Result> {

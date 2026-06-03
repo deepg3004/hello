@@ -1,8 +1,8 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyCourseToken } from "@/lib/course-token";
-import { publicPageUrl } from "@/lib/page-url";
+import { publicPageUrl, publicPagePath } from "@/lib/page-url";
 import {
   CoursePlayerClient,
   type PlayerModule,
@@ -124,6 +124,11 @@ export default async function CoursePage({
       ? product.pages[0]
       : product.pages
     : null;
+  // A published sales page IS the proper landing — send visitors there.
+  if (page && page.status === "published") {
+    redirect(publicPagePath(page.type, page.slug, page.template_id));
+  }
+
   const checkoutUrl =
     page && page.status === "published"
       ? publicPageUrl(page.type, page.slug, page.template_id)

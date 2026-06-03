@@ -74,11 +74,39 @@ export default async function CourseEditPage({
     product_id: course.product_id ?? "",
   };
 
+  // Sellable state — the linked product's price + its sales page (if any).
+  let sale: { price: number; originalPrice: number | null; salesPath: string | null } | null =
+    null;
+  if (course.product_id) {
+    const { data: prod } = await admin
+      .from("products")
+      .select("price, original_price, page_id")
+      .eq("id", course.product_id)
+      .maybeSingle();
+    if (prod) {
+      let salesPath: string | null = null;
+      if (prod.page_id) {
+        const { data: pg } = await admin
+          .from("pages")
+          .select("slug, status")
+          .eq("id", prod.page_id)
+          .maybeSingle();
+        if (pg?.slug && pg.status === "published") salesPath = `/p/${pg.slug}`;
+      }
+      sale = {
+        price: Number(prod.price ?? 0),
+        originalPrice: prod.original_price != null ? Number(prod.original_price) : null,
+        salesPath,
+      };
+    }
+  }
+
   return (
     <CourseEditor
       course={editorCourse}
       modules={editorModules}
       products={(products ?? []) as { id: string; name: string }[]}
+      sale={sale}
     />
   );
 }

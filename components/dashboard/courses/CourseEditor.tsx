@@ -21,10 +21,17 @@ import {
   addModuleAction,
   deleteLessonAction,
   deleteModuleAction,
+  makeCourseSellableAction,
   updateCourseAction,
   updateLessonAction,
   updateModuleAction,
 } from "@/actions/courses";
+
+export interface CourseSale {
+  price: number;
+  originalPrice: number | null;
+  salesPath: string | null;
+}
 
 export interface EditorLesson {
   id: string;
@@ -51,10 +58,12 @@ export function CourseEditor({
   course,
   modules,
   products,
+  sale,
 }: {
   course: EditorCourse;
   modules: EditorModule[];
   products: { id: string; name: string }[];
+  sale: CourseSale | null;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -66,8 +75,33 @@ export function CourseEditor({
   const [status, setStatus] = useState(course.status);
   const [productId, setProductId] = useState(course.product_id);
   const [newModule, setNewModule] = useState("");
+  const [price, setPrice] = useState(sale ? String(sale.price) : "");
+  const [origPrice, setOrigPrice] = useState(
+    sale?.originalPrice ? String(sale.originalPrice) : "",
+  );
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io";
   const publicLink = `${appUrl}/course/${course.id}`;
+
+  function makeSellable() {
+    const p = Number(price);
+    if (!Number.isFinite(p) || p <= 0) {
+      toast({ variant: "destructive", title: "Enter a price greater than 0" });
+      return;
+    }
+    startTransition(async () => {
+      const res = await makeCourseSellableAction({
+        courseId: course.id,
+        price: p,
+        originalPrice: origPrice ? Number(origPrice) : null,
+      });
+      if (!res.ok) {
+        toast({ variant: "destructive", title: "Couldn't update", description: res.message });
+        return;
+      }
+      toast({ title: sale ? "Price updated" : "Course is now sellable 🎉" });
+      router.refresh();
+    });
+  }
 
   function saveCourse() {
     startTransition(async () => {
@@ -187,6 +221,66 @@ export function CourseEditor({
               product get the full lessons.
             </p>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Sell this course</CardTitle>
+          <CardDescription>
+            One click creates a polished sales page + product and links it to
+            this course. Buyers are enrolled automatically on purchase.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <Label className="text-xs">Price (₹)</Label>
+              <Input
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="999"
+                inputMode="decimal"
+                className="mt-1 w-32"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Original price (₹, optional)</Label>
+              <Input
+                value={origPrice}
+                onChange={(e) => setOrigPrice(e.target.value)}
+                placeholder="1999"
+                inputMode="decimal"
+                className="mt-1 w-40"
+              />
+            </div>
+            <Button onClick={makeSellable} disabled={pending}>
+              {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {sale ? "Update price" : "Make sellable"}
+            </Button>
+          </div>
+          {sale?.salesPath && (
+            <>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 truncate rounded-md bg-muted px-3 py-2 text-xs">
+                  {appUrl}
+                  {sale.salesPath}
+                </code>
+                <Button asChild variant="outline" size="sm">
+                  <a href={sale.salesPath} target="_blank" rel="noopener noreferrer">
+                    View sales page
+                  </a>
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This sales page is fully editable in{" "}
+                <Link href="/dashboard/pages" className="underline">
+                  Pages
+                </Link>
+                .
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
 
