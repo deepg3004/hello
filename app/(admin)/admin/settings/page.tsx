@@ -18,6 +18,7 @@ import { SettingNumberInput } from "@/components/admin/SettingNumberInput";
 import { SettingTextInput } from "@/components/admin/SettingTextInput";
 import { SettingImageInput } from "@/components/admin/SettingImageInput";
 import { SettingToggle } from "@/components/admin/SettingToggle";
+import { AdminFeesForm } from "@/components/admin/AdminFeesForm";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 
@@ -43,6 +44,9 @@ const KEYS = [
   "maintenance_message",
   "platform_commission_percent",
   "commission_per_plan",
+  "platform_fee_default",
+  "platform_fee_by_plan",
+  "platform_fee_categories",
   "min_payout_amount",
   "payout_hold_days",
   "kyc_l3_gmv_threshold",
@@ -96,6 +100,29 @@ export default async function AdminPlatformSettingsPage() {
             label="Brand logo"
             description="Paste an image URL or upload a PNG/SVG (transparent background recommended)."
             initialValue={get("platform_logo_url")}
+          />
+        </CardContent>
+      </Card>
+
+      <Card className="animate-in-up" style={{ animationDelay: "110ms" }}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2.5 text-base">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl tile-emerald">
+              <Coins className="h-4 w-4" />
+            </span>
+            Platform fees
+          </CardTitle>
+          <CardDescription>
+            Per-order platform fee deducted from the seller&apos;s wallet. Set a
+            default, per-plan, and per-category fee (fixed ₹ + percent). Changes
+            apply to new orders immediately and show in seller dashboards.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AdminFeesForm
+            defaultJson={get("platform_fee_default")}
+            byPlanJson={get("platform_fee_by_plan")}
+            categoriesJson={get("platform_fee_categories")}
           />
         </CardContent>
       </Card>

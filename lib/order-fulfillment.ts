@@ -9,6 +9,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getWalletFeePaise } from "@/lib/wallet";
 import { notifyLowWalletBalance } from "@/lib/notifications/events";
+import { getFeeConfig } from "@/lib/settings";
+import { resolvePlatformFeePaise, feeCategoryForPage } from "@/lib/fees";
 import type { PlanKey } from "@/lib/plans";
 
 type DB = SupabaseClient;
@@ -36,7 +38,36 @@ export async function chargePlatformWalletFee(
       .eq("id", sellerUserId)
       .single();
     const plan = (sellerProfile?.subscription_plan ?? "free") as PlanKey;
-    const feePaise = getWalletFeePaise(plan);
+
+    // Resolve the admin-configured fee (default / per-plan / per-category).
+    // Falls back to the legacy per-plan PLANS fee when nothing is configured.
+    const { data: orderRow } = await admin
+      .from("orders")
+      .select("amount, page_id")
+      .eq("id", orderId)
+      .single();
+    const orderAmountPaise = Math.round(Number(orderRow?.amount ?? 0) * 100);
+
+    let feeCategory: string | null = null;
+    if (orderRow?.page_id) {
+      const { data: pageRow } = await admin
+        .from("pages")
+        .select("type, template_id, fee_category")
+        .eq("id", orderRow.page_id)
+        .single();
+      if (pageRow) feeCategory = feeCategoryForPage(pageRow);
+    }
+
+    const cfg = await getFeeConfig();
+    const resolved = resolvePlatformFeePaise(
+      { plan, feeCategory, orderAmountPaise },
+      cfg,
+    );
+    const feePaise = resolved ?? getWalletFeePaise(plan);
+
+    // A zero/negative fee (e.g. a percent-only rule on a ₹0 order) → nothing to
+    // charge. The deduct RPC also rejects non-positive amounts.
+    if (feePaise <= 0) return;
 
     const { data: deducted, error: deductErr } = await admin.rpc(
       "deduct_wallet_balance",

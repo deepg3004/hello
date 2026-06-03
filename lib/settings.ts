@@ -12,6 +12,13 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MIN_PAYOUT_AMOUNT, CHARGEBACK_HOLD_DAYS } from "@/lib/payouts/constants";
+import {
+  BUILT_IN_FEE_CATEGORIES,
+  emptyRule,
+  type FeeCategory,
+  type FeeConfig,
+  type FeeRule,
+} from "@/lib/fees";
 
 /** Read a single setting value, falling back when missing/unreadable. */
 export async function getSetting(
@@ -136,4 +143,74 @@ export async function getCommissionConfig(): Promise<CommissionConfig> {
   }
 
   return { defaultPercent, perPlan };
+}
+
+// ── Platform fee engine config (lib/fees.ts) ────────────────────────────────
+function parseRule(raw: string): FeeRule {
+  try {
+    const o = JSON.parse(raw) as Record<string, unknown>;
+    const fixed = Number(o?.fixed_paise);
+    const pct = Number(o?.percent);
+    return {
+      fixed_paise: Number.isFinite(fixed) && fixed > 0 ? Math.round(fixed) : 0,
+      percent: Number.isFinite(pct) && pct > 0 ? pct : 0,
+    };
+  } catch {
+    return emptyRule();
+  }
+}
+
+/**
+ * Admin-configurable platform fee rules (default / per-plan / per-category),
+ * read from platform_settings. Pairs with lib/fees.resolvePlatformFeePaise().
+ * Anything unset stays at zero so the legacy PLANS fee remains the fallback.
+ */
+export async function getFeeConfig(): Promise<FeeConfig> {
+  const s = await getSettings({
+    platform_fee_default: "",
+    platform_fee_by_plan: "",
+    platform_fee_categories: "",
+  });
+
+  const def = s.platform_fee_default ? parseRule(s.platform_fee_default) : emptyRule();
+
+  const byPlan: Record<string, FeeRule> = {};
+  if (s.platform_fee_by_plan) {
+    try {
+      const parsed = JSON.parse(s.platform_fee_by_plan) as Record<string, unknown>;
+      for (const [k, v] of Object.entries(parsed)) {
+        byPlan[k] = parseRule(JSON.stringify(v));
+      }
+    } catch {
+      /* malformed — leave empty */
+    }
+  }
+
+  let categories: FeeCategory[] = BUILT_IN_FEE_CATEGORIES;
+  if (s.platform_fee_categories) {
+    try {
+      const parsed = JSON.parse(s.platform_fee_categories) as unknown[];
+      if (Array.isArray(parsed)) {
+        categories = parsed
+          .map((c) => {
+            const o = c as Record<string, unknown>;
+            const key = String(o?.key ?? "").trim();
+            if (!key) return null;
+            const r = parseRule(JSON.stringify(o));
+            return {
+              key,
+              label: String(o?.label ?? key),
+              fixed_paise: r.fixed_paise,
+              percent: r.percent,
+            } satisfies FeeCategory;
+          })
+          .filter((c): c is FeeCategory => c !== null);
+        if (categories.length === 0) categories = BUILT_IN_FEE_CATEGORIES;
+      }
+    } catch {
+      categories = BUILT_IN_FEE_CATEGORIES;
+    }
+  }
+
+  return { default: def, byPlan, categories };
 }

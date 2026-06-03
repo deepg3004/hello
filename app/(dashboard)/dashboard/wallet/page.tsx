@@ -2,6 +2,10 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getFeeConfig } from "@/lib/settings";
+import { effectivePlanRule, describeFeeRule } from "@/lib/fees";
+import { PLANS, type PlanKey } from "@/lib/plans";
+import { formatINR } from "@/lib/utils";
 import { WalletBalanceCard } from "@/components/dashboard/WalletBalanceCard";
 import {
   WalletTransactionList,
@@ -19,21 +23,36 @@ export default async function WalletPage() {
   if (!user) redirect("/login?next=/dashboard/wallet");
 
   const admin = createAdminClient();
-  const [{ data: wallet }, { data: transactions }] = await Promise.all([
-    admin
-      .from("seller_wallets")
-      .select("balance_paise, auto_recharge_enabled")
-      .eq("seller_user_id", user.id)
-      .maybeSingle(),
-    admin
-      .from("wallet_transactions")
-      .select(
-        "id, type, amount_paise, description, balance_after, created_at, order_id",
-      )
-      .eq("seller_user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(50),
-  ]);
+  const [{ data: wallet }, { data: transactions }, { data: profile }, feeConfig] =
+    await Promise.all([
+      admin
+        .from("seller_wallets")
+        .select("balance_paise, auto_recharge_enabled")
+        .eq("seller_user_id", user.id)
+        .maybeSingle(),
+      admin
+        .from("wallet_transactions")
+        .select(
+          "id, type, amount_paise, description, balance_after, created_at, order_id",
+        )
+        .eq("seller_user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      admin
+        .from("user_profiles")
+        .select("subscription_plan")
+        .eq("id", user.id)
+        .single(),
+      getFeeConfig(),
+    ]);
+
+  // Effective per-order platform fee for this seller's plan (admin-configurable;
+  // re-read every request so admin changes appear automatically).
+  const plan = (profile?.subscription_plan ?? "free") as PlanKey;
+  const feeText = describeFeeRule(
+    effectivePlanRule(plan, feeConfig, PLANS[plan].wallet_fee_paise),
+    formatINR,
+  );
 
   return (
     <div className="space-y-6">
@@ -42,6 +61,10 @@ export default async function WalletPage() {
         <p className="text-sm text-muted-foreground">
           Platform fees are deducted per completed order. Recharge to keep your
           store active.
+        </p>
+        <p className="mt-1 text-sm">
+          <span className="text-muted-foreground">Your plan&apos;s platform fee:</span>{" "}
+          <span className="font-medium text-foreground">{feeText}</span>
         </p>
       </div>
 

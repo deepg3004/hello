@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2 } from "lucide-react";
 
 import {
@@ -36,6 +37,7 @@ export function GatewaySettingsForm({
   existing: ExistingGateway | null;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   const [gatewayType, setGatewayType] = useState(
@@ -76,6 +78,10 @@ export function GatewaySettingsForm({
         title: "Gateway connected 🎉",
         description: "Your keys are saved and encrypted.",
       });
+      // Re-render from the server so the "Currently connected" banner reflects
+      // the new gateway without a manual reload (revalidatePath alone won't
+      // refresh this already-hydrated client view).
+      router.refresh();
     });
   }
 
