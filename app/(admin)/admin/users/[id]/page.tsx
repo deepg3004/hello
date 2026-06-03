@@ -4,17 +4,13 @@ import {
   AlertTriangle,
   ArrowLeft,
   Calendar,
-  Check,
   CreditCard,
   FileText,
   IndianRupee,
-  Layers,
   Mail,
   Phone,
   Receipt,
-  ShieldCheck,
   Wallet,
-  X,
 } from "lucide-react";
 
 import {
@@ -81,7 +77,6 @@ export default async function AdminUserDetailPage({
     { data: orders },
     { data: subs },
     { data: notes },
-    { data: kyc },
     { data: auditTrail },
     { count: totalOrders },
     { data: walletRow },
@@ -110,13 +105,6 @@ export default async function AdminUserDetailPage({
       .from("admin_notes")
       .select("id, body, created_at, admin_id")
       .eq("target_user_id", params.id)
-      .order("created_at", { ascending: false }),
-    admin
-      .from("kyc_submissions")
-      .select(
-        "id, level, status, pan_number, pan_name, pan_verified_at, bank_verified_at, selfie_url, id_document_url, gst_certificate_url, aadhaar_verified_at, rejection_reason, created_at",
-      )
-      .eq("user_id", params.id)
       .order("created_at", { ascending: false }),
     admin
       .from("admin_audit_logs")
@@ -188,10 +176,6 @@ export default async function AdminUserDetailPage({
               <HeroChip>
                 {(profile.subscription_status ?? "inactive").replace(/_/g, " ")}
               </HeroChip>
-              <HeroChip icon={ShieldCheck}>
-                KYC L{Number(profile.kyc_level ?? 0)}
-                {profile.payouts_enabled ? " · payouts on" : ""}
-              </HeroChip>
               {profile.suspended_at && (
                 <HeroChip className="bg-rose-500/40 ring-rose-200/40">
                   Suspended
@@ -226,7 +210,7 @@ export default async function AdminUserDetailPage({
         <DetailStat label="Lifetime Revenue" value={rupees(Number(profile.total_revenue ?? 0))} tile="tile-emerald" icon={IndianRupee} />
         <DetailStat label="Orders" value={(totalOrders ?? 0).toLocaleString("en-IN")} tile="tile-indigo" icon={Receipt} />
         <DetailStat label="Pages" value={(pages?.length ?? 0).toLocaleString("en-IN")} tile="tile-violet" icon={FileText} />
-        <DetailStat label="KYC Level" value={`L${Number(profile.kyc_level ?? 0)} / 3`} tile="tile-amber" icon={Layers} />
+        <DetailStat label="Wallet" value={formatINR(Number(walletRow?.balance_paise ?? 0))} tile="tile-amber" icon={Wallet} />
       </div>
 
       {/* Suspended banner */}
@@ -291,11 +275,6 @@ export default async function AdminUserDetailPage({
               )}
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-3 border-t border-border pt-4 text-sm">
-              <KycBlock level={Number(profile.kyc_level ?? 0)} />
-              <BankBlock verified={!!profile.bank_verified} />
-            </div>
-
             <div className="mt-5 space-y-3 border-t border-border pt-4 text-sm">
               <ProfileLine
                 icon={Wallet}
@@ -303,16 +282,7 @@ export default async function AdminUserDetailPage({
                 value={rupees(Number(profile.total_revenue ?? 0))}
                 mono
               />
-              <ProfileLine
-                icon={CreditCard}
-                label="Razorpay linked acc"
-                value={profile.razorpay_linked_account_id ?? "—"}
-                mono
-              />
-            </div>
-
-            <div className="mt-5 space-y-3 border-t border-border pt-4 text-sm">
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+              <p className="mb-1 mt-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                 Wallet &amp; gateway
               </p>
               <ProfileLine
@@ -381,9 +351,6 @@ export default async function AdminUserDetailPage({
             </DataTab>
             <DataTab value="pages" count={pages?.length ?? 0}>
               Pages
-            </DataTab>
-            <DataTab value="kyc" count={kyc?.length ?? 0}>
-              KYC Documents
             </DataTab>
             <DataTab value="audit" count={auditTrail?.length ?? 0}>
               Audit Trail
@@ -555,60 +522,6 @@ export default async function AdminUserDetailPage({
             </DataCard>
           </TabsContent>
 
-          {/* ── KYC documents tab ───────────────────────────────── */}
-          <TabsContent value="kyc" className="mt-0">
-            <DataCard
-              title="KYC submissions"
-              subtitle={`${kyc?.length ?? 0} on file`}
-            >
-              {(kyc ?? []).length === 0 ? (
-                <EmptyData label="No KYC submissions yet" />
-              ) : (
-                <ul className="divide-y divide-border">
-                  {(kyc ?? []).map((k) => (
-                    <li key={k.id} className="px-5 py-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-sora font-semibold">
-                              Level {k.level ?? 0}
-                            </span>
-                            <StatusBadge status={k.status} />
-                          </div>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Submitted {formatDateTime(k.created_at)}
-                          </p>
-                          {k.rejection_reason && (
-                            <p className="mt-1 text-xs text-rose-700 dark:text-rose-300">
-                              Rejection reason: {k.rejection_reason}
-                            </p>
-                          )}
-                        </div>
-                        <Link
-                          href={`/admin/kyc?id=${k.id}`}
-                          className="text-sm font-medium text-primary hover:underline"
-                        >
-                          Review →
-                        </Link>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                        <DocChip ok={!!k.pan_verified_at} label="PAN" />
-                        <DocChip ok={!!k.bank_verified_at} label="Bank" />
-                        <DocChip ok={!!k.selfie_url} label="Selfie" />
-                        <DocChip ok={!!k.id_document_url} label="ID" />
-                        <DocChip
-                          ok={!!k.aadhaar_verified_at}
-                          label="Aadhaar"
-                        />
-                        <DocChip ok={!!k.gst_certificate_url} label="GST" />
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </DataCard>
-          </TabsContent>
-
           {/* ── Audit trail tab ─────────────────────────────────── */}
           <TabsContent value="audit" className="mt-0">
             <DataCard
@@ -744,71 +657,6 @@ function ProfileLine({
   );
 }
 
-function KycBlock({ level }: { level: number }) {
-  const lvl = Math.max(0, Math.min(3, level));
-  return (
-    <div className="rounded-lg border border-border bg-muted/20 p-3">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-        KYC level
-      </p>
-      <div className="mt-1.5 flex items-center gap-1.5">
-        {[1, 2, 3].map((i) => (
-          <span
-            key={i}
-            className={cn(
-              "h-2 w-2 rounded-full",
-              i <= lvl
-                ? lvl === 3
-                  ? "bg-emerald-500"
-                  : "bg-indigo-500"
-                : "bg-muted",
-            )}
-          />
-        ))}
-        <span className="ml-1 font-mono text-sm font-semibold">L{lvl}</span>
-      </div>
-    </div>
-  );
-}
-
-function BankBlock({ verified }: { verified: boolean }) {
-  return (
-    <div
-      className={cn(
-        "rounded-lg border p-3",
-        verified
-          ? "border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10"
-          : "border-border bg-muted/20",
-      )}
-    >
-      <p
-        className={cn(
-          "text-[10px] font-semibold uppercase tracking-widest",
-          verified ? "text-emerald-700 dark:text-emerald-300" : "text-muted-foreground",
-        )}
-      >
-        Bank
-      </p>
-      <div
-        className={cn(
-          "mt-1.5 inline-flex items-center gap-1 text-sm font-semibold",
-          verified ? "text-emerald-700 dark:text-emerald-300" : "text-muted-foreground",
-        )}
-      >
-        {verified ? (
-          <>
-            <Check className="h-3.5 w-3.5" /> Verified
-          </>
-        ) : (
-          <>
-            <X className="h-3.5 w-3.5" /> Pending
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function DataTab({
   value,
   count,
@@ -894,22 +742,3 @@ function EmptyData({ label }: { label: string }) {
   );
 }
 
-function DocChip({ ok, label }: { ok: boolean; label: string }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
-        ok
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
-          : "border-border bg-muted/30 text-muted-foreground",
-      )}
-    >
-      {ok ? (
-        <Check className="h-3 w-3" />
-      ) : (
-        <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
-      )}
-      {label}
-    </span>
-  );
-}

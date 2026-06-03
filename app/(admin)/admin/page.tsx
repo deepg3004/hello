@@ -10,12 +10,12 @@ import {
 import {
   AlertCircle,
   ArrowRight,
+  Coins,
   CreditCard,
   Crown,
   History,
   PieChart,
   ScrollText,
-  ShieldCheck,
   Sliders,
   TrendingUp,
   UserMinus,
@@ -90,8 +90,6 @@ export default async function AdminOverview() {
     { count: signupsThisWeek },
     { count: failedToday },
     { count: failedThisMonth },
-    { count: kycPending },
-    { count: kycReview },
     { data: auditRaw },
     { data: yearPaid },
     { count: totalPages },
@@ -122,14 +120,6 @@ export default async function AdminOverview() {
       .select("id", { count: "exact", head: true })
       .eq("status", "failed")
       .gte("created_at", monthStart),
-    admin
-      .from("kyc_submissions")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "pending"),
-    admin
-      .from("kyc_submissions")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "under_review"),
     admin
       .from("admin_audit_logs")
       .select(
@@ -330,13 +320,6 @@ export default async function AdminOverview() {
           accentColor={(failedToday ?? 0) > 0 ? "rose" : "emerald"}
           hint={`This month: ${(failedThisMonth ?? 0).toLocaleString("en-IN")}`}
         />
-        <MetricCard
-          label="KYC Pending"
-          value={(kycPending ?? 0).toLocaleString("en-IN")}
-          icon={ShieldCheck}
-          accentColor={(kycPending ?? 0) > 0 ? "amber" : "emerald"}
-          hint={`Under review: ${(kycReview ?? 0).toLocaleString("en-IN")}`}
-        />
       </div>
 
       {/* ── Row 2b — Platform GMV trend ─────────────────────────────── */}
@@ -432,8 +415,7 @@ export default async function AdminOverview() {
         <h2 className="section-title mb-4">Quick links</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <AdminLink href="/admin/users" icon={Users} accent="indigo" label="Users" />
-          <AdminLink href="/admin/kyc" icon={ShieldCheck} accent="amber" label="KYC Queue" />
-          <AdminLink href="/admin/payouts" icon={Wallet} accent="emerald" label="Payouts" />
+          <AdminLink href="/admin/seller-wallets" icon={Coins} accent="emerald" label="Seller Wallets" />
           <AdminLink href="/admin/transactions" icon={CreditCard} accent="violet" label="Transactions" />
           <AdminLink href="/admin/settings" icon={Sliders} accent="indigo" label="Settings" />
           <AdminLink href="/admin/audit-logs" icon={ScrollText} accent="rose" label="Audit Logs" />

@@ -13,11 +13,9 @@ import {
   Magnet,
   Send,
   Settings,
-  ShieldCheck,
   Sparkles,
   Tag,
   Users,
-  Wallet,
   Zap,
 } from "lucide-react";
 
@@ -56,8 +54,6 @@ const NAV_GROWTH: NavItem[] = [
 ];
 
 const NAV_ACCOUNT: NavItem[] = [
-  { href: "/dashboard/kyc", label: "KYC", Icon: ShieldCheck },
-  { href: "/dashboard/payouts", label: "Payouts", Icon: Wallet },
   { href: "/dashboard/wallet", label: "Wallet", Icon: Coins },
   { href: "/dashboard/settings", label: "Settings", Icon: Settings },
 ];

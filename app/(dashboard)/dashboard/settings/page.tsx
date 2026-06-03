@@ -39,7 +39,7 @@ export default async function SettingsPage() {
       <div>
         <h1 className="text-2xl font-sora font-semibold tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground">
-          Your profile, KYC and payout setup.
+          Your profile, gateway, and account setup.
         </p>
       </div>
 
@@ -62,24 +62,6 @@ export default async function SettingsPage() {
               Email changes aren&apos;t self-serve yet — contact support.
             </p>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">KYC &amp; payouts</CardTitle>
-          <CardDescription>
-            Required before InvoxAI can send you money.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-1 text-sm">
-          <Row k="KYC level" v={String(profile?.kyc_level ?? 0)} />
-          <Row k="PAN verified" v={profile?.pan_verified ? "Yes" : "No"} />
-          <Row k="Bank verified" v={profile?.bank_verified ? "Yes" : "No"} />
-          <Row
-            k="Linked account"
-            v={profile?.razorpay_linked_account_id ?? "Not yet set up"}
-          />
         </CardContent>
       </Card>
 

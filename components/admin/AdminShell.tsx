@@ -10,15 +10,12 @@ import { AdminTopbar, type AdminTopbarProfile } from "./AdminTopbar";
 
 interface AdminShellProps {
   profile: AdminTopbarProfile;
-  /** Pending KYC submissions count — passed from layout for the sidebar badge. */
-  kycPending: number;
   branding: Branding;
   children: ReactNode;
 }
 
 export function AdminShell({
   profile,
-  kycPending,
   branding,
   children,
 }: AdminShellProps) {
@@ -32,7 +29,6 @@ export function AdminShell({
         <AdminSidebar
           pathname={pathname}
           profile={profile}
-          kycPending={kycPending}
           branding={branding}
         />
       </aside>
@@ -47,7 +43,6 @@ export function AdminShell({
           <AdminSidebar
             pathname={pathname}
             profile={profile}
-            kycPending={kycPending}
             branding={branding}
             onNavigate={() => setOpen(false)}
           />

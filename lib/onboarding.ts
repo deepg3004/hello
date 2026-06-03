@@ -52,19 +52,8 @@ export function buildOnboardingSteps(
       skippable: false,
     },
     {
-      key: "kyc",
-      index: 2,
-      title: "Complete KYC Level 2",
-      description:
-        "Verify your PAN + bank so payouts can land in your account. Required before InvoxAI can send you money.",
-      cta_label: "Start KYC",
-      cta_href: "/dashboard/kyc",
-      done: (profile.kyc_level ?? 0) >= 2,
-      skippable: true,
-    },
-    {
       key: "page",
-      index: 3,
+      index: 2,
       title: "Create your first page",
       description:
         "Pick a template, name your product, hit Publish. Pre-filled defaults so you can be live in 60 seconds.",
@@ -75,18 +64,6 @@ export function buildOnboardingSteps(
           : "/dashboard/pages/new",
       done: profile.pages_count > 0,
       skippable: false,
-    },
-    {
-      key: "payouts",
-      index: 4,
-      title: "Set up payouts",
-      description:
-        "Razorpay Linked Account (Pro) or your bank for Cashfree payouts. We don't move money until this is set up.",
-      cta_label: "Set up payouts",
-      cta_href: "/dashboard/settings/payouts",
-      done:
-        !!profile.razorpay_linked_account_id || !!profile.bank_verified,
-      skippable: true,
     },
   ];
 }

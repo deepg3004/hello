@@ -18,20 +18,11 @@ export default async function AdminLayout({
   if (!user) redirect("/login?next=/admin");
 
   const admin = createAdminClient();
-  // Pull the profile (for the topbar + admin gate) and the pending KYC
-  // count in parallel so the layout doesn't add a second sequential
-  // round-trip on every admin page render.
-  const [{ data: profile }, { count: kycPending }] = await Promise.all([
-    admin
-      .from("user_profiles")
-      .select("id, full_name, email, is_admin")
-      .eq("id", user.id)
-      .single(),
-    admin
-      .from("kyc_submissions")
-      .select("id", { count: "exact", head: true })
-      .in("status", ["pending", "under_review"]),
-  ]);
+  const { data: profile } = await admin
+    .from("user_profiles")
+    .select("id, full_name, email, is_admin")
+    .eq("id", user.id)
+    .single();
 
   if (!profile?.is_admin) {
     redirect("/dashboard");
@@ -49,11 +40,7 @@ export default async function AdminLayout({
   const branding = await getBranding();
 
   return (
-    <AdminShell
-      profile={topbarProfile}
-      kycPending={kycPending ?? 0}
-      branding={branding}
-    >
+    <AdminShell profile={topbarProfile} branding={branding}>
       {children}
     </AdminShell>
   );

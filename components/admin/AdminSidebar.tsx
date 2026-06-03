@@ -17,7 +17,6 @@ import {
   ShieldCheck,
   Sliders,
   Users,
-  Wallet,
 } from "lucide-react";
 
 import type { Branding } from "@/lib/settings";
@@ -41,8 +40,6 @@ interface NavGroup {
 interface AdminSidebarProps {
   pathname: string;
   profile: AdminTopbarProfile;
-  /** Number of KYC submissions awaiting review — drives the red badge. */
-  kycPending: number;
   branding: Branding;
   onNavigate?: () => void;
 }
@@ -50,7 +47,6 @@ interface AdminSidebarProps {
 export function AdminSidebar({
   pathname,
   profile,
-  kycPending,
   branding,
   onNavigate,
 }: AdminSidebarProps) {
@@ -62,7 +58,6 @@ export function AdminSidebar({
         { href: "/admin/users", label: "Users", Icon: Users },
         { href: "/admin/pages", label: "Pages", Icon: FileText },
         { href: "/admin/transactions", label: "Transactions", Icon: CreditCard },
-        { href: "/admin/payouts", label: "Payouts", Icon: Wallet },
         { href: "/admin/seller-wallets", label: "Seller Wallets", Icon: Coins },
         { href: "/admin/gateways", label: "Gateways", Icon: Plug },
       ],
@@ -70,12 +65,6 @@ export function AdminSidebar({
     {
       label: "Compliance",
       items: [
-        {
-          href: "/admin/kyc",
-          label: "KYC Queue",
-          Icon: ShieldCheck,
-          badge: kycPending,
-        },
         { href: "/admin/telegram", label: "Telegram", Icon: Send },
         { href: "/admin/support", label: "Support", Icon: LifeBuoy },
       ],
