@@ -47,6 +47,7 @@ const KEYS = [
   "platform_fee_default",
   "platform_fee_by_plan",
   "platform_fee_categories",
+  "require_wallet_balance",
   "min_payout_amount",
   "payout_hold_days",
   "kyc_l3_gmv_threshold",
@@ -118,12 +119,20 @@ export default async function AdminPlatformSettingsPage() {
             apply to new orders immediately and show in seller dashboards.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <AdminFeesForm
-            defaultJson={get("platform_fee_default")}
-            byPlanJson={get("platform_fee_by_plan")}
-            categoriesJson={get("platform_fee_categories")}
+        <CardContent className="space-y-5">
+          <SettingToggle
+            storageKey="require_wallet_balance"
+            label="Require wallet balance to check out"
+            description="When on, an order can only be placed if the seller's wallet can cover the per-order fee. Sellers with an empty wallet can't accept payments until they recharge."
+            initialValue={get("require_wallet_balance", "false")}
           />
+          <div className="border-t pt-5">
+            <AdminFeesForm
+              defaultJson={get("platform_fee_default")}
+              byPlanJson={get("platform_fee_by_plan")}
+              categoriesJson={get("platform_fee_categories")}
+            />
+          </div>
         </CardContent>
       </Card>
 

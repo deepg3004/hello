@@ -23,7 +23,13 @@ import {
   validateCoupon,
 } from "@/lib/coupons";
 import { resolveCommissionPercent, type PlanKey } from "@/lib/plans";
-import { getCommissionConfig } from "@/lib/settings";
+import {
+  getCommissionConfig,
+  getFeeConfig,
+  getRequireWalletBalance,
+} from "@/lib/settings";
+import { resolvePlatformFeePaise, feeCategoryForPage } from "@/lib/fees";
+import { getWalletFeePaise } from "@/lib/wallet";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
@@ -141,7 +147,7 @@ export async function POST(request: Request) {
   // 1. Validate page is published
   const { data: page } = await admin
     .from("pages")
-    .select("id, user_id, slug, status, title, page_config")
+    .select("id, user_id, slug, status, title, page_config, type, template_id, fee_category")
     .eq("id", page_id)
     .single();
   if (!page || page.status !== "published") {
@@ -310,6 +316,44 @@ export async function POST(request: Request) {
   const sellerAmountPaise = amountPaise - commissionPaise;
   const commissionAmount = commissionPaise / 100;
   const sellerAmount = sellerAmountPaise / 100;
+
+  // 4c. Wallet-balance gate (admin toggle, default off). Block checkout when the
+  //     seller's wallet can't cover the per-order platform fee — same resolver
+  //     the post-payment deduction uses, so the gate and the charge agree.
+  if (await getRequireWalletBalance()) {
+    const pg = page as {
+      type?: string | null;
+      template_id?: string | null;
+      fee_category?: string | null;
+    };
+    const feeCategory = feeCategoryForPage({
+      type: pg.type ?? null,
+      template_id: pg.template_id ?? null,
+      fee_category: pg.fee_category ?? null,
+    });
+    const feePaise =
+      resolvePlatformFeePaise(
+        { plan: planKey, feeCategory, orderAmountPaise: amountPaise },
+        await getFeeConfig(),
+      ) ?? getWalletFeePaise(planKey);
+    if (feePaise > 0) {
+      const { data: w } = await admin
+        .from("seller_wallets")
+        .select("balance_paise")
+        .eq("seller_user_id", seller.id)
+        .maybeSingle();
+      if (Number(w?.balance_paise ?? 0) < feePaise) {
+        if (couponId) await releaseCoupon(couponId, buyer_email);
+        return NextResponse.json(
+          {
+            error:
+              "This store is temporarily unavailable. Please try again later.",
+          },
+          { status: 402 },
+        );
+      }
+    }
+  }
 
   // 5. Allocate an internal order id up front so Razorpay's `receipt` and
   //    our DB row share it (and so we can pass it through `notes`).

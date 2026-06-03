@@ -145,6 +145,15 @@ export async function getCommissionConfig(): Promise<CommissionConfig> {
   return { defaultPercent, perPlan };
 }
 
+/**
+ * When true, checkout (create-order) is blocked unless the seller's wallet can
+ * cover the per-order platform fee. Admin-editable via `require_wallet_balance`;
+ * defaults OFF so unfunded wallets don't break existing sellers.
+ */
+export async function getRequireWalletBalance(): Promise<boolean> {
+  return (await getSetting("require_wallet_balance", "false")) === "true";
+}
+
 // ── Platform fee engine config (lib/fees.ts) ────────────────────────────────
 function parseRule(raw: string): FeeRule {
   try {

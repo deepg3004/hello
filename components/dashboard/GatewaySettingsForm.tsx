@@ -46,6 +46,9 @@ export function GatewaySettingsForm({
   const [keyId, setKeyId] = useState("");
   const [keySecret, setKeySecret] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
+  // Reflect a just-saved connection immediately, independent of the server
+  // re-fetch (router-cache timing can otherwise leave the banner stale).
+  const [saved, setSaved] = useState<ExistingGateway | null>(existing);
 
   function save() {
     if (!keyId.trim() || !keySecret.trim()) {
@@ -74,6 +77,7 @@ export function GatewaySettingsForm({
       // Clear the secret fields after a successful save — we never show them back.
       setKeySecret("");
       setWebhookSecret("");
+      setSaved({ gateway_type: gatewayType, is_active: true, is_verified: false });
       toast({
         title: "Gateway connected 🎉",
         description: "Your keys are saved and encrypted.",
@@ -95,9 +99,9 @@ export function GatewaySettingsForm({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {existing && (
+        {(saved ?? existing) && (
           <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-            {existing.is_verified ? (
+            {(saved ?? existing)!.is_verified ? (
               <CheckCircle2 className="h-4 w-4 text-emerald-600" />
             ) : (
               <Loader2 className="h-4 w-4 text-muted-foreground" />
@@ -105,9 +109,11 @@ export function GatewaySettingsForm({
             <span className="text-muted-foreground">
               Currently connected:{" "}
               <span className="font-medium text-foreground">
-                {existing.gateway_type}
+                {(saved ?? existing)!.gateway_type}
               </span>
-              {existing.is_verified ? " (verified)" : " (pending verification)"}
+              {(saved ?? existing)!.is_verified
+                ? " (verified)"
+                : " (pending verification)"}
             </span>
           </div>
         )}
