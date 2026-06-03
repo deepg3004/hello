@@ -118,3 +118,43 @@ export async function setGatewayStatusAction(input: {
   revalidatePath(`/admin/users/${input.sellerId}`);
   return { ok: true };
 }
+
+/**
+ * Admin-only: set (or clear) a page's fee category override. `feeCategory` null/
+ * empty → clear (fee derives from the page type). Sellers can't do this — it
+ * would let them pick a cheaper fee tier.
+ */
+export async function setPageFeeCategoryAction(input: {
+  pageId: string;
+  feeCategory: string | null;
+}): Promise<AdminResult> {
+  let adminId: string;
+  try {
+    adminId = await requireAdmin();
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+  if (!input.pageId) return { ok: false, message: "Missing page." };
+
+  const value = input.feeCategory?.trim() || null;
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("pages")
+    .update({ fee_category: value })
+    .eq("id", input.pageId);
+  if (error) {
+    console.error("[setPageFeeCategoryAction] update failed", error);
+    return { ok: false, message: error.message };
+  }
+
+  await writeAuditLog({
+    admin_id: adminId,
+    action: "page.fee_category_set",
+    target_type: "page",
+    target_id: input.pageId,
+    details: { fee_category: value },
+  });
+
+  revalidatePath("/admin/pages");
+  return { ok: true };
+}

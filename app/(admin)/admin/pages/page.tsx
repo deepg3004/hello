@@ -7,7 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { PageActionsMenu } from "@/components/admin/PageActionsMenu";
+import { PageFeeCategorySelect } from "@/components/admin/PageFeeCategorySelect";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getFeeConfig } from "@/lib/settings";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { publicPagePath } from "@/lib/page-url";
 import { formatINR } from "@/lib/utils";
@@ -21,13 +23,21 @@ export default async function AdminPagesPage() {
   // pages has TWO FKs to user_profiles (user_id + flagged_by_admin_id).
   // PostgREST throws PGRST201 unless we disambiguate which FK to follow —
   // here we want the page owner, not the admin who flagged it.
-  const { data: rowsRaw } = await admin
-    .from("pages")
-    .select(
-      "id, title, slug, type, template_id, status, view_count, conversion_count, total_revenue, flagged_at, flag_reason, created_at, user_id, user_profiles!pages_user_id_fkey(full_name, email)",
-    )
-    .order("created_at", { ascending: false })
-    .limit(500);
+  const [{ data: rowsRaw }, feeCfg] = await Promise.all([
+    admin
+      .from("pages")
+      .select(
+        "id, title, slug, type, template_id, status, view_count, conversion_count, total_revenue, flagged_at, flag_reason, created_at, user_id, fee_category, user_profiles!pages_user_id_fkey(full_name, email)",
+      )
+      .order("created_at", { ascending: false })
+      .limit(500),
+    getFeeConfig(),
+  ]);
+
+  const feeCategoryOptions = feeCfg.categories.map((c) => ({
+    key: c.key,
+    label: c.label,
+  }));
 
   const rows = (rowsRaw ?? []) as unknown as Array<{
     id: string;
@@ -43,6 +53,7 @@ export default async function AdminPagesPage() {
     flag_reason: string | null;
     created_at: string;
     user_id: string;
+    fee_category: string | null;
     user_profiles: { full_name: string | null; email: string } | { full_name: string | null; email: string }[] | null;
   }>;
 
@@ -67,6 +78,7 @@ export default async function AdminPagesPage() {
                 <TableHead className="th-label">Status</TableHead>
                 <TableHead className="th-label text-right">Views</TableHead>
                 <TableHead className="th-label text-right">Revenue</TableHead>
+                <TableHead className="th-label">Fee category</TableHead>
                 <TableHead className="th-label">Created</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
@@ -74,7 +86,7 @@ export default async function AdminPagesPage() {
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={9} className="py-12 text-center text-sm text-muted-foreground">
                     <div className="flex flex-col items-center gap-3">
                       <div className="flex h-12 w-12 items-center justify-center rounded-full tile-indigo">
                         <FileText className="h-5 w-5" />
@@ -117,6 +129,13 @@ export default async function AdminPagesPage() {
                       </TableCell>
                       <TableCell className="text-right font-mono">
                         {rupees(Number(r.total_revenue ?? 0))}
+                      </TableCell>
+                      <TableCell>
+                        <PageFeeCategorySelect
+                          pageId={r.id}
+                          current={r.fee_category}
+                          options={feeCategoryOptions}
+                        />
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {format(new Date(r.created_at), "d MMM yyyy")}
