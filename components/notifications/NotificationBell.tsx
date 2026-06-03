@@ -16,6 +16,7 @@ import {
   ShieldX,
   Volume2,
   VolumeX,
+  Wallet,
   X,
 } from "lucide-react";
 
@@ -50,6 +51,7 @@ const ICONS: Record<string, { Icon: LucideIcon; tile: string }> = {
   kyc_flagged: { Icon: ShieldAlert, tile: "tile-amber" },
   kyc_rekyc: { Icon: RotateCcw, tile: "tile-amber" },
   telegram_join: { Icon: Send, tile: "tile-indigo" },
+  wallet_low_balance: { Icon: Wallet, tile: "tile-amber" },
 };
 
 const FALLBACK = { Icon: Bell, tile: "tile-neutral" };

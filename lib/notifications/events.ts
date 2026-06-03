@@ -27,7 +27,8 @@ export type NotificationType =
   | "kyc_rejected"
   | "kyc_flagged"
   | "kyc_rekyc"
-  | "telegram_join";
+  | "telegram_join"
+  | "wallet_low_balance";
 
 // orders.amount / seller_amount are stored in rupees across this codebase
 // (see the dashboard + payouts pages); formatINR expects paise.
@@ -265,6 +266,41 @@ export async function notifyKyc(
   } catch {
     /* best-effort */
   }
+}
+
+// ── 8. Low wallet balance ───────────────────────────────────────────────────
+// Fired (best-effort) from the checkout flow when a platform-fee deduction
+// can't be taken because the seller's wallet is empty/insufficient. Seller-only
+// — admins don't need a bell for every seller's low balance.
+export async function notifyLowWalletBalance(
+  o: { sellerId: string },
+  client?: DB,
+): Promise<void> {
+  const db = client ?? createAdminClient();
+  let balancePaise = 0;
+  try {
+    const { data } = await db
+      .from("seller_wallets")
+      .select("balance_paise")
+      .eq("seller_user_id", o.sellerId)
+      .single();
+    balancePaise = Number(data?.balance_paise ?? 0);
+  } catch {
+    /* best-effort — table may not exist until migration 040 is applied */
+  }
+
+  await createNotification(
+    {
+      userId: o.sellerId,
+      type: "wallet_low_balance",
+      title: "Low wallet balance",
+      // formatINR expects paise (see the `inr` helper above).
+      body: `Your InvoxAI wallet balance is ${formatINR(balancePaise)}. Recharge to keep your store active.`,
+      link: "/dashboard/wallet",
+      meta: { balance_paise: balancePaise },
+    },
+    db,
+  );
 }
 
 // ── 7. New Telegram join ────────────────────────────────────────────────────

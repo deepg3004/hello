@@ -10,7 +10,12 @@ import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyPayment } from "@/lib/razorpay";
-import { notifyPaymentReceived } from "@/lib/notifications/events";
+import {
+  notifyPaymentReceived,
+  notifyLowWalletBalance,
+} from "@/lib/notifications/events";
+import { getWalletFeePaise } from "@/lib/wallet";
+import type { PlanKey } from "@/lib/plans";
 import { settleCoupon } from "@/lib/coupons";
 import { getRedis } from "@/lib/redis";
 import {
@@ -242,6 +247,52 @@ export async function POST(request: Request) {
         })
         .eq("id", order.seller_user_id);
     }
+  }
+
+  // 4b. Wallet — deduct the platform fee instantly via the atomic RPC
+  //     (migration 040). Best-effort by design: the buyer has already been
+  //     charged, so a wallet problem must NEVER fail this request. It's a
+  //     safe no-op until migration 040 is applied and the seller funds a
+  //     wallet — a missing table / empty wallet just logs and (once) alerts
+  //     the seller to recharge.
+  try {
+    const { data: sellerProfile } = await admin
+      .from("user_profiles")
+      .select("subscription_plan")
+      .eq("id", order.seller_user_id)
+      .single();
+    const plan = (sellerProfile?.subscription_plan ?? "free") as PlanKey;
+    const feePaise = getWalletFeePaise(plan);
+
+    const { data: deducted, error: deductErr } = await admin.rpc(
+      "deduct_wallet_balance",
+      {
+        p_seller_id: order.seller_user_id,
+        p_amount_paise: feePaise,
+        p_order_id: order_id,
+        p_description: `Platform fee — Order #${order_id.slice(-8).toUpperCase()}`,
+      },
+    );
+
+    if (deductErr) {
+      // RPC missing (pre-migration) or DB error — log and carry on.
+      console.error("[verify-payment] wallet deduction RPC failed", deductErr);
+    } else if (deducted === false) {
+      // Insufficient balance / no wallet row — alert the seller, don't block.
+      console.warn(
+        "[verify-payment] wallet insufficient for seller",
+        order.seller_user_id,
+      );
+      void notifyLowWalletBalance(
+        { sellerId: order.seller_user_id },
+        admin,
+      ).catch((e) =>
+        console.error("[verify-payment] low-balance notify failed", e),
+      );
+    }
+  } catch (e) {
+    console.error("[verify-payment] wallet deduction failed", e);
+    // Payment is already complete — never fail the request over the wallet.
   }
 
   // 5. Settle coupon usage_count in Postgres — atomic UPDATE that refuses to

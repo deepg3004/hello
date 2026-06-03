@@ -48,6 +48,7 @@ export interface Plan {
   price: number;                       // monthly INR (rupees, not paise)
   razorpay_plan_id?: string;           // fill in from Razorpay dashboard
   pages: number;                       // -1 = unlimited
+  wallet_fee_paise: number;            // platform fee per completed order, in paise
   commission_discount?: number;        // percentage points off platform commission
   features: Feature[];
   popular?: boolean;                   // highlighted on pricing page
@@ -59,6 +60,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     name: "Free",
     price: 0,
     pages: 3,
+    wallet_fee_paise: 2000, // ₹20 per order
     features: ["basic_pages", "basic_analytics"],
   },
   starter: {
@@ -67,6 +69,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     price: 499,
     razorpay_plan_id: "",
     pages: 10,
+    wallet_fee_paise: 1200, // ₹12 per order
     features: [
       "all_pages",
       "analytics",
@@ -81,6 +84,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     price: 999,
     razorpay_plan_id: "",
     pages: -1,
+    wallet_fee_paise: 700, // ₹7 per order
     popular: true,
     features: [
       "everything_starter",
@@ -100,6 +104,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     price: 1999,
     razorpay_plan_id: "",
     pages: -1,
+    wallet_fee_paise: 300, // ₹3 per order
     commission_discount: 2,
     features: [
       "everything_pro",
