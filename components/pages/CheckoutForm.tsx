@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { OrderBump } from "@/components/pages/OrderBump";
+import { useCheckoutConfig } from "@/components/pages/CheckoutConfig";
 import type { OrderBumpConfig } from "@/lib/upsells";
 import { GSTIN_REGEX, stateCodeFromGstin } from "@/lib/gst";
 import { getRuntimePixelConfig } from "@/components/pages/PixelScripts";
@@ -99,8 +100,11 @@ function useRazorpayScript() {
 // Form
 // ----------------------------------------------------------------------------
 
+// Name is optional at the schema level; when the form is *not* in "name
+// optional" mode we enforce a minimum length manually in onSubmit (preserving
+// the original required-name behaviour for fixed-price templates).
 const schema = z.object({
-  buyer_name: z.string().min(2, "Enter your name"),
+  buyer_name: z.string().optional(),
   buyer_email: z.string().email("Enter a valid email"),
   buyer_phone: z.string().min(8, "Enter a valid phone number"),
 });
@@ -127,6 +131,35 @@ export interface CheckoutFormProps {
   primaryColor?: string;
   /** Seller-defined extra checkout questions. */
   questions?: Array<{ label: string; required: boolean }>;
+  /** Pin the Pay button to a fixed bottom action bar on mobile (Magic-Checkout
+   *  style). Used on the dedicated /checkout route, which reserves bottom space
+   *  for it. Off for inline checkout embedded in payment templates. */
+  stickyPay?: boolean;
+  /**
+   * "Pay what you like" mode (donation / name-your-price). When set, the buyer
+   * chooses the amount from preset pills (or types their own ≥ `min`) and that
+   * drives the total instead of the fixed `price`. The server only honours this
+   * when the page's `page_config.pwyl_enabled` flag is true, and never charges
+   * below the product price — so the pills/min must all be ≥ the product price.
+   */
+  payWhatYouLike?: {
+    presets: Array<{ amount: number; label?: string; popular?: boolean }>;
+    /** Minimum the buyer may enter (defaults to `price`). */
+    min?: number;
+  };
+  /** Override the Pay button label (e.g. "Make Payment"). Defaults to
+   *  "Pay ₹<total> securely". */
+  payLabel?: string;
+  /**
+   * Make the Name field optional and move it below email/phone. When the buyer
+   * leaves it blank we derive a receipt name from their email's local part.
+   * Defaults to true whenever `payWhatYouLike` is set (the name-your-price card
+   * leads with email), false otherwise. */
+  nameOptional?: boolean;
+  /** Render the real form for the editor live preview WITHOUT any network side
+   *  effects (no Razorpay, pre-capture, coupon or prefill calls). Lets sellers
+   *  see the actual checkout design while editing. */
+  preview?: boolean;
 }
 
 interface AppliedCoupon {
@@ -174,6 +207,24 @@ export function CheckoutForm(props: CheckoutFormProps) {
   // sees confirmation instead of staring at a frozen form.
   const [success, setSuccess] = useState(false);
 
+  // ── Pay-what-you-like state ───────────────────────────────────────────
+  // Props win; otherwise fall back to the page-level checkout config (set by
+  // the Pricing → Custom price setting) so it works on any payment template.
+  const checkoutCfg = useCheckoutConfig();
+  const preview = !!props.preview;
+  const pwyl = props.payWhatYouLike ?? checkoutCfg?.payWhatYouLike;
+  const payLabel = props.payLabel ?? checkoutCfg?.payLabel;
+  // The name-your-price card leads with email and treats name as optional.
+  const nameOptional = props.nameOptional ?? !!pwyl;
+  const pwylMin = pwyl?.min ?? props.price;
+  const pwylDefault =
+    pwyl?.presets.find((p) => p.popular)?.amount ??
+    pwyl?.presets[0]?.amount ??
+    pwylMin;
+  const [chosenAmount, setChosenAmount] = useState<number>(pwylDefault);
+  const [otherMode, setOtherMode] = useState(false);
+  const [otherInput, setOtherInput] = useState("");
+
   const lastCapturedEmailRef = useRef<string | null>(null);
 
   // ── Optional GST / billing details (B2B invoice path) ─────────────────
@@ -191,13 +242,13 @@ export function CheckoutForm(props: CheckoutFormProps) {
   const bumpReady = !!props.orderBump?.ready;
   const bumpPrice = Number(props.orderBump?.price ?? 0);
   const bumpExtra = bumpReady && bumpAccepted ? bumpPrice : 0;
-  const subtotal = props.price;
+  const subtotal = pwyl ? chosenAmount : props.price;
   const total = Math.max(0, subtotal - discount) + bumpExtra;
   const hasPrice = subtotal > 0;
 
   // ── Cart-recovery prefill: ?r=<token> populates the form once ────────
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || preview) return;
     const sp = new URLSearchParams(window.location.search);
     const token = sp.get("r");
     if (!token) return;
@@ -248,7 +299,7 @@ export function CheckoutForm(props: CheckoutFormProps) {
 
   // Pre-fill coupon stashed by an exit-intent popup, and open the panel.
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || preview) return;
     try {
       const stashedKey = Object.keys(window.sessionStorage).find((k) =>
         k.startsWith("invoxai_coupon_"),
@@ -269,7 +320,7 @@ export function CheckoutForm(props: CheckoutFormProps) {
   // Auto-apply a coupon passed via ?coupon=CODE — the shareable discount link.
   // The discounted total then shows immediately without the buyer typing it.
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || preview) return;
     const code = new URLSearchParams(window.location.search).get("coupon");
     if (code && !coupon) {
       setCouponInput(code);
@@ -283,6 +334,7 @@ export function CheckoutForm(props: CheckoutFormProps) {
   // Fire-and-forget pre-capture on email blur once the user types a valid
   // address. The server is idempotent, so accidental double-fires are fine.
   function maybePreCapture() {
+    if (preview) return;
     const email = form.getValues("buyer_email")?.trim();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
     if (lastCapturedEmailRef.current === email) return;
@@ -317,6 +369,7 @@ export function CheckoutForm(props: CheckoutFormProps) {
   }
 
   async function applyCoupon(codeArg?: string) {
+    if (preview) return;
     const code = (codeArg ?? couponInput).trim();
     if (!code) return;
     setApplyingCoupon(true);
@@ -326,7 +379,7 @@ export function CheckoutForm(props: CheckoutFormProps) {
       const qs = new URLSearchParams({
         code,
         page_id: props.pageId,
-        amount: String(props.price),
+        amount: String(subtotal),
       });
       if (buyerEmail) qs.set("buyer_email", buyerEmail);
       const res = await fetch(`/api/coupons/validate?${qs.toString()}`);
@@ -358,10 +411,26 @@ export function CheckoutForm(props: CheckoutFormProps) {
 
   async function onSubmit(values: FormValues) {
     setFailure(null);
+    if (preview) {
+      setFailure("Preview mode — checkout works on your published page.");
+      return;
+    }
     if (!razorpayReady) {
       setFailure("Checkout is still loading. Try again in a moment.");
       return;
     }
+    if (pwyl && (!Number.isFinite(subtotal) || subtotal < pwylMin)) {
+      setFailure(
+        `Please choose an amount of at least ₹${pwylMin.toLocaleString("en-IN")}.`,
+      );
+      return;
+    }
+    // Name required for fixed-price templates; optional (derived) for pwyl.
+    if (!nameOptional && (values.buyer_name?.trim().length ?? 0) < 2) {
+      setFailure("Please enter your name.");
+      return;
+    }
+    const buyerName = values.buyer_name?.trim() || nameFromEmail(values.buyer_email);
     if (gstOpen && gstinUpper && !gstinValid) {
       setFailure("The GSTIN you entered looks invalid. Check it or clear the field.");
       return;
@@ -400,7 +469,7 @@ export function CheckoutForm(props: CheckoutFormProps) {
           product_id: props.productId,
           amount: total,
           buyer_email: values.buyer_email,
-          buyer_name: values.buyer_name,
+          buyer_name: buyerName,
           buyer_phone: normalisePhone(values.buyer_phone),
           coupon_code: coupon?.code,
           bump_offered: bumpReady,
@@ -444,7 +513,7 @@ export function CheckoutForm(props: CheckoutFormProps) {
       description: createBody.description ?? props.productName,
       order_id: createBody.razorpay_order_id!,
       prefill: {
-        name: values.buyer_name,
+        name: buyerName,
         email: values.buyer_email,
         contact: normalisePhone(values.buyer_phone),
       },
@@ -499,6 +568,9 @@ export function CheckoutForm(props: CheckoutFormProps) {
           // buyer's eye time to land on the green check before navigation.
           setModalOpen(false);
           setSuccess(true);
+          // Tell the exit guard payment is done so it doesn't warn "leave?"
+          // on the redirect to the success page.
+          window.dispatchEvent(new Event("invox:checkout-complete"));
           setTimeout(() => {
             window.location.href = verifyBody.redirect_url ?? "/";
           }, 700);
@@ -530,10 +602,197 @@ export function CheckoutForm(props: CheckoutFormProps) {
     return <SuccessSplash />;
   }
 
+  // Field fragments — composed in different orders below. The pwyl card leads
+  // with email + the price selector, then phone, then an optional name; the
+  // fixed-price card keeps the classic name → email → phone order.
+  const nameField = (
+    <FormField
+      control={form.control}
+      name="buyer_name"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel className="text-xs font-semibold text-zinc-700">
+            {nameOptional ? "Full name (optional)" : "Full name"}
+          </FormLabel>
+          <FormControl>
+            <Input
+              autoComplete="name"
+              placeholder="Your name"
+              {...field}
+              value={field.value ?? ""}
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+
+  const emailField = (
+    <FormField
+      control={form.control}
+      name="buyer_email"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel className="text-xs font-semibold text-zinc-700">
+            Email
+          </FormLabel>
+          <FormControl>
+            <Input
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              {...field}
+              onBlur={() => {
+                field.onBlur();
+                // One tick later so RHF state is settled before the
+                // pre-capture beacon reads form values.
+                setTimeout(maybePreCapture, 0);
+              }}
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+
+  const phoneField = (
+    <FormField
+      control={form.control}
+      name="buyer_phone"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel className="text-xs font-semibold text-zinc-700">
+            Phone
+          </FormLabel>
+          <FormControl>
+            <div className="relative">
+              {/* +91 prefix shown as grey static text inside the field */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none text-sm font-medium text-zinc-400"
+              >
+                +91
+              </span>
+              <Input
+                type="tel"
+                autoComplete="tel-national"
+                inputMode="numeric"
+                placeholder="98765 43210"
+                className="pl-12"
+                {...field}
+                onChange={(e) => {
+                  // Allow digits + spaces only; strip everything else
+                  const cleaned = e.target.value.replace(/[^\d\s]/g, "");
+                  field.onChange(cleaned);
+                }}
+              />
+            </div>
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+
+  const pwylBlock = pwyl ? (
+    <div className="space-y-3">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+        Pay what you like
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        {pwyl.presets.map((p) => {
+          const active = !otherMode && chosenAmount === p.amount;
+          return (
+            <button
+              key={p.amount}
+              type="button"
+              onClick={() => {
+                setOtherMode(false);
+                setChosenAmount(p.amount);
+              }}
+              style={
+                active
+                  ? { borderColor: primaryColor, background: `${primaryColor}1f` }
+                  : undefined
+              }
+              className={cn(
+                "relative flex min-h-[44px] items-center justify-center rounded-full border px-3 text-sm font-semibold transition",
+                active
+                  ? "text-zinc-900"
+                  : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300",
+              )}
+            >
+              ₹{p.amount.toLocaleString("en-IN")}
+              {p.label && (
+                <span className="ml-1.5 text-[10px] font-normal text-zinc-500">
+                  {p.label}
+                </span>
+              )}
+              {p.popular && (
+                <span
+                  className="absolute -top-2 right-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white"
+                  style={{ background: primaryColor }}
+                >
+                  Popular
+                </span>
+              )}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => setOtherMode(true)}
+          style={
+            otherMode
+              ? { borderColor: primaryColor, background: `${primaryColor}1f` }
+              : undefined
+          }
+          className={cn(
+            "flex min-h-[44px] items-center justify-center rounded-full border px-3 text-sm font-semibold transition",
+            otherMode
+              ? "text-zinc-900"
+              : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300",
+          )}
+        >
+          Other
+        </button>
+      </div>
+      {otherMode && (
+        <div>
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-zinc-400">
+              ₹
+            </span>
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={pwylMin}
+              placeholder={`Min ₹${pwylMin.toLocaleString("en-IN")}`}
+              value={otherInput}
+              onChange={(e) => {
+                setOtherInput(e.target.value);
+                const n = Number(e.target.value);
+                setChosenAmount(Number.isFinite(n) ? n : 0);
+              }}
+              className="pl-7"
+            />
+          </div>
+          {chosenAmount > 0 && chosenAmount < pwylMin && (
+            <p className="mt-1 text-xs text-rose-600">
+              Minimum is ₹{pwylMin.toLocaleString("en-IN")}.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  ) : null;
+
   return (
     <div
       className={cn(
-        "relative space-y-5 transition-opacity duration-200",
+        "relative space-y-3.5 transition-opacity duration-200",
         modalOpen && "pointer-events-none select-none opacity-50",
       )}
     >
@@ -569,20 +828,20 @@ export function CheckoutForm(props: CheckoutFormProps) {
         </div>
       )}
 
-      {/* Mini order summary (only when price > 0) */}
-      {hasPrice && (
-        <div className="flex items-start gap-3 border-b border-zinc-200 pb-4">
+      {/* Mini order summary (only when price > 0, fixed-price mode) */}
+      {hasPrice && !pwyl && (
+        <div className="flex items-center gap-3 border-b border-zinc-100 pb-3.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {props.productImage ? (
             <img
               src={props.productImage}
               alt={props.productName}
-              className="h-12 w-12 shrink-0 rounded-lg border border-zinc-200 object-cover"
+              className="h-11 w-11 shrink-0 rounded-lg border border-zinc-200 object-cover"
             />
           ) : (
             <div
               aria-hidden
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 font-mono text-[10px] font-bold text-zinc-400"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 font-mono text-[10px] font-bold text-zinc-400"
             >
               IXA
             </div>
@@ -624,94 +883,25 @@ export function CheckoutForm(props: CheckoutFormProps) {
         <form
           id="checkout-form"
           onSubmit={form.handleSubmit(onSubmit)}
-          className="space-y-4"
+          className="space-y-3"
         >
-          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-            Your Details
-          </p>
 
-          <FormField
-            control={form.control}
-            name="buyer_name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs font-semibold text-zinc-700">
-                  Full name
-                </FormLabel>
-                <FormControl>
-                  <Input autoComplete="name" placeholder="Your name" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="buyer_email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs font-semibold text-zinc-700">
-                  Email
-                </FormLabel>
-                <FormControl>
-                  <Input
-                    type="email"
-                    autoComplete="email"
-                    placeholder="you@example.com"
-                    {...field}
-                    onBlur={() => {
-                      field.onBlur();
-                      // One tick later so RHF state is settled before the
-                      // pre-capture beacon reads form values.
-                      setTimeout(maybePreCapture, 0);
-                    }}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="buyer_phone"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs font-semibold text-zinc-700">
-                  Phone
-                </FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    {/* +91 prefix shown as grey static text inside the field */}
-                    <span
-                      aria-hidden
-                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none text-sm font-medium text-zinc-400"
-                    >
-                      +91
-                    </span>
-                    <Input
-                      type="tel"
-                      autoComplete="tel-national"
-                      inputMode="numeric"
-                      placeholder="98765 43210"
-                      className="pl-12"
-                      {...field}
-                      onChange={(e) => {
-                        // Allow digits + spaces only; strip everything else
-                        const cleaned = e.target.value.replace(
-                          /[^\d\s]/g,
-                          "",
-                        );
-                        field.onChange(cleaned);
-                      }}
-                    />
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {nameOptional ? (
+            // pwyl card: email → price selector → phone → optional name
+            <>
+              {emailField}
+              {pwylBlock}
+              {phoneField}
+              {nameField}
+            </>
+          ) : (
+            // fixed-price card: classic name → email → phone
+            <>
+              {nameField}
+              {emailField}
+              {phoneField}
+            </>
+          )}
 
           {/* Seller-defined custom questions */}
           {customQuestions.length > 0 && (
@@ -888,7 +1078,7 @@ export function CheckoutForm(props: CheckoutFormProps) {
 
       {/* ── Price summary ── */}
       {hasPrice && (
-        <div className="space-y-1.5 rounded-lg border border-zinc-200 bg-zinc-50/60 p-4">
+        <div className="space-y-1.5 rounded-xl border border-zinc-200 bg-zinc-50/70 p-3.5">
           <Row
             label="Subtotal"
             value={`₹${subtotal.toLocaleString("en-IN")}`}
@@ -907,11 +1097,11 @@ export function CheckoutForm(props: CheckoutFormProps) {
               accent="amber"
             />
           )}
-          <div className="mt-2 flex items-baseline justify-between border-t border-zinc-200 pt-2">
+          <div className="mt-1.5 flex items-baseline justify-between border-t border-zinc-200 pt-2">
             <span className="text-sm font-medium text-zinc-700">Total</span>
-            <span className="font-sora text-2xl font-bold text-zinc-900">
+            <span className="font-sora text-xl font-bold text-zinc-900">
               ₹{total.toLocaleString("en-IN")}
-              <span className="ml-1 text-xs font-normal text-zinc-500">
+              <span className="ml-1 text-[11px] font-normal text-zinc-500">
                 {currency}
               </span>
             </span>
@@ -919,56 +1109,69 @@ export function CheckoutForm(props: CheckoutFormProps) {
         </div>
       )}
 
-      {/* ── Pay button (theme-coloured) ── */}
-      <button
-        type="submit"
-        form="checkout-form"
-        disabled={submitting || !razorpayReady}
-        style={{ background: primaryColor }}
+      {/* ── Pay button — sticky bottom bar on mobile when stickyPay ── */}
+      <div
         className={cn(
-          "group flex w-full items-center justify-center gap-2 rounded-xl py-4 text-base font-semibold text-white shadow-lg transition",
-          "hover:brightness-110 active:brightness-95",
-          "disabled:cursor-not-allowed disabled:opacity-70",
+          props.stickyPay && [
+            // Mobile: fixed action bar pinned to the bottom of the viewport
+            // with a safe-area inset for iOS home indicators.
+            "fixed inset-x-0 bottom-0 z-40 border-t border-zinc-200 bg-white/95 px-4 pt-3 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] backdrop-blur",
+            "pb-[calc(0.75rem+env(safe-area-inset-bottom))]",
+            // Desktop: revert to a normal inline button (no bar chrome).
+            "md:static md:z-auto md:border-0 md:bg-transparent md:p-0 md:shadow-none md:backdrop-blur-none",
+          ],
         )}
       >
-        {submitting ? (
-          <>
-            <Loader2 className="h-5 w-5 animate-spin" />
-            Processing…
-          </>
-        ) : (
-          <>
-            <Lock className="h-4 w-4" />
-            {hasPrice
-              ? `Pay ₹${total.toLocaleString("en-IN")} securely`
-              : "Complete order"}
-            <span className="transition-transform group-hover:translate-x-0.5">
-              →
-            </span>
-          </>
-        )}
-      </button>
+        <button
+          type="submit"
+          form="checkout-form"
+          disabled={submitting || !razorpayReady}
+          style={{ background: primaryColor }}
+          className={cn(
+            "btn-shine group flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-[15px] font-semibold text-white shadow-md transition",
+            "hover:brightness-110 active:brightness-95",
+            "disabled:cursor-not-allowed disabled:opacity-70",
+          )}
+        >
+          {submitting ? (
+            <>
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Processing…
+            </>
+          ) : (
+            <>
+              <Lock className="h-4 w-4" />
+              {payLabel ??
+                (hasPrice
+                  ? `Pay ₹${total.toLocaleString("en-IN")} securely`
+                  : "Complete order")}
+              <span className="transition-transform group-hover:translate-x-0.5">
+                →
+              </span>
+            </>
+          )}
+        </button>
+      </div>
 
-      {/* ── Trust strip ── */}
-      <div className="space-y-2 text-center">
-        <p className="flex items-center justify-center gap-1.5 text-[11px] text-zinc-500">
+      {/* ── Trust strip — one compact, polished line ── */}
+      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5 pt-0.5">
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-zinc-500">
           <Lock className="h-3 w-3" />
-          SSL Secured · Powered by Razorpay
-        </p>
-        <div className="flex items-center justify-center gap-1.5">
+          SSL secured
+        </span>
+        <span className="text-zinc-300">·</span>
+        <div className="flex items-center gap-1">
           {["UPI", "Visa", "Mastercard", "RuPay"].map((m) => (
             <span
               key={m}
-              className="rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-700"
+              className="rounded border border-zinc-200 bg-white px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-zinc-600"
             >
               {m}
             </span>
           ))}
         </div>
-        <p className="text-[11px] text-zinc-400">
-          By continuing you agree to InvoxAI&apos;s terms · Refunds per the
-          seller&apos;s policy
-        </p>
+        <span className="text-zinc-300">·</span>
+        <span className="text-[11px] font-medium text-zinc-500">Razorpay</span>
       </div>
     </div>
   );
@@ -1085,6 +1288,17 @@ function SuccessSplash() {
       `}</style>
     </div>
   );
+}
+
+/** Derive a human receipt name from an email's local part when the buyer
+ *  leaves the (optional) name field blank — e.g. "rahul.k@x.com" → "Rahul K". */
+function nameFromEmail(email: string): string {
+  const local = (email.split("@")[0] ?? "").replace(/[._-]+/g, " ").trim();
+  if (!local) return "Customer";
+  return local
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
 function normalisePhone(raw: string): string {

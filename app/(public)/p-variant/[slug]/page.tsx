@@ -108,9 +108,15 @@ export async function generateMetadata({
     return { title: params.slug };
   }
   const { page } = result;
+  const faviconUrl =
+    typeof page.page_config?.favicon_url === "string" &&
+    page.page_config.favicon_url.trim()
+      ? page.page_config.favicon_url.trim()
+      : null;
   return {
     title: page.meta_title ?? page.title,
     description: page.meta_description ?? undefined,
+    icons: faviconUrl ? { icon: faviconUrl, shortcut: faviconUrl, apple: faviconUrl } : undefined,
     openGraph: {
       title: page.meta_title ?? page.title,
       description: page.meta_description ?? undefined,

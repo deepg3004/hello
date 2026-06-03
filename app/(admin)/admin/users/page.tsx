@@ -1,5 +1,6 @@
 import { UsersTable, type AdminUserRow } from "@/components/admin/UsersTable";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 
 export const metadata = { title: "Admin · Users" };
 
@@ -32,12 +33,11 @@ export default async function AdminUsersPage() {
         className="animate-in-up"
         style={{ animationDelay: "0ms" }}
       >
-        <h1 className="font-sora text-2xl font-semibold tracking-tight">
-          Users
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {users.length.toLocaleString("en-IN")} sellers on the platform.
-        </p>
+        <DashboardHero
+          title="Users"
+          blurb={`${users.length.toLocaleString("en-IN")} sellers on the platform.`}
+          resourcesHref={null}
+        />
       </div>
       <div
         className="animate-in-up"

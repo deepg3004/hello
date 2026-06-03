@@ -1,6 +1,7 @@
 // Freebie / lead magnet — definition + adapter.
 
 import { FreebieLeadPage } from "@/components/templates/FreebieLeadPage";
+import { designSection } from "@/lib/templates/design";
 import { extractDefaults, readField } from "@/lib/templates/utils";
 import type { Template, TemplateDefinition, TemplateRender } from "@/lib/templates/types";
 
@@ -74,6 +75,7 @@ const definition: TemplateDefinition = {
         },
       ],
     },
+    designSection("sunset"),
   ],
 };
 
@@ -89,6 +91,8 @@ const Render: TemplateRender = ({ values, pageId, isPreview }) => (
     optin_cta={readField(values, "optin_cta", "")}
     optin_privacy={readField(values, "optin_privacy", "")}
     redirect_url={readField(values, "redirect_url", "") || undefined}
+    theme_key={readField(values, "theme", "sunset")}
+    bg_animation={readField(values, "bg_animation", "none")}
     formConfig={(values.form_config as import("@/lib/leads").FormConfig | undefined) ?? undefined}
   />
 );

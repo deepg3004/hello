@@ -2,8 +2,12 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { pagePrefix, publicPagePath, type PagePrefix } from "@/lib/page-url";
 import { PixelScripts } from "@/components/pages/PixelScripts";
 import { getTemplate } from "@/lib/templates/registry";
+import { PageSkin } from "@/components/templates/PageSkin";
+import { CheckoutConfigProvider } from "@/components/pages/CheckoutConfig";
+import { checkoutConfigFromValues } from "@/lib/checkout-config";
 import { PageCountdown } from "@/components/templates/shared/PageCountdown";
 import { ExitIntentPopup } from "@/components/templates/shared/ExitIntentPopup";
 import { isBumpReady, type OrderBumpConfig } from "@/lib/upsells";
@@ -119,9 +123,16 @@ export async function generateMetadata({
     return { title: params.slug };
   }
   const { page } = result;
+  // Per-page favicon — each page can set its own in Settings → Favicon.
+  const faviconUrl =
+    typeof page.page_config?.favicon_url === "string" &&
+    page.page_config.favicon_url.trim()
+      ? page.page_config.favicon_url.trim()
+      : null;
   return {
     title: page.meta_title ?? page.title,
     description: page.meta_description ?? undefined,
+    icons: faviconUrl ? { icon: faviconUrl, shortcut: faviconUrl, apple: faviconUrl } : undefined,
     openGraph: {
       title: page.meta_title ?? page.title,
       description: page.meta_description ?? undefined,
@@ -130,11 +141,23 @@ export async function generateMetadata({
   };
 }
 
-export default async function PublicPage({
-  params,
-}: {
+// Thin per-prefix entrypoint for the /p route. The /ln, /tg and /ld routes
+// call `renderPublicPage` with their own prefix so a page served on the wrong
+// prefix can redirect to its canonical URL.
+type PublicSearchParams = { [key: string]: string | string[] | undefined };
+
+export default async function PublicPage(props: {
   params: { slug: string };
+  searchParams?: PublicSearchParams;
 }) {
+  return renderPublicPage(props.params, "p", props.searchParams);
+}
+
+export async function renderPublicPage(
+  params: { slug: string },
+  routePrefix: PagePrefix,
+  searchParams?: PublicSearchParams,
+) {
   if (!params.slug) notFound();
   const result = await loadPage(params.slug);
 
@@ -160,6 +183,28 @@ export default async function PublicPage({
   }
 
   const { page, product, products: tierList, pixel } = result;
+
+  // Canonical-prefix enforcement: each page has exactly one correct prefix
+  // (/p payment, /ln landing, /tg telegram, /ld lead). If it's being served on
+  // a different prefix, redirect to the canonical URL. Payment pages on /p
+  // match and never redirect, so the checkout path is untouched.
+  const canonical = pagePrefix(page.type, page.template_id);
+  if (canonical !== routePrefix) {
+    // Preserve query (?ref=, utm_*, product, etc.) across the canonical redirect
+    // so affiliate attribution and deep-links survive.
+    const qp = new URLSearchParams();
+    for (const [k, v] of Object.entries(searchParams ?? {})) {
+      if (v == null) continue;
+      if (Array.isArray(v)) v.forEach((x) => qp.append(k, x));
+      else qp.append(k, v);
+    }
+    const qs = qp.toString();
+    redirect(
+      publicPagePath(page.type, page.slug, page.template_id) +
+        (qs ? `?${qs}` : ""),
+    );
+  }
+
   const template = getTemplate(page.template_id);
 
   if (!template) {
@@ -245,14 +290,20 @@ export default async function PublicPage({
           labelText={spCfg.badge_label_text}
         />
       )}
-      <template.Render
-        values={values}
-        pageId={page.id}
-        slug={page.slug}
-        product={product}
-        products={tierList}
-        bumpRuntime={bumpRuntime}
-      />
+      <PageSkin values={values as Record<string, unknown>}>
+        <CheckoutConfigProvider
+          config={checkoutConfigFromValues(values as Record<string, unknown>)}
+        >
+          <template.Render
+            values={values}
+            pageId={page.id}
+            slug={page.slug}
+            product={product}
+            products={tierList}
+            bumpRuntime={bumpRuntime}
+          />
+        </CheckoutConfigProvider>
+      </PageSkin>
       {exitCfg?.enabled && (
         <ExitIntentPopup pageSlug={page.slug} config={exitCfg} />
       )}

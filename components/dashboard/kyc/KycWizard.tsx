@@ -171,7 +171,7 @@ function ResetKycButton() {
 function OverallStatus({ initial }: { initial: KycInitial }) {
   if (initial.status === "rejected") {
     return (
-      <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+      <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
         <div>
           <p className="font-semibold">KYC rejected</p>
@@ -190,7 +190,7 @@ function OverallStatus({ initial }: { initial: KycInitial }) {
     initial.kycLevel < 2;
   if (initial.status === "under_review" || awaitingManual) {
     return (
-      <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+      <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
         <RefreshCcw className="mt-0.5 h-4 w-4 shrink-0" />
         <div>
           <p className="font-semibold">
@@ -209,7 +209,7 @@ function OverallStatus({ initial }: { initial: KycInitial }) {
   }
   if (initial.kycLevel >= 2) {
     return (
-      <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+      <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
         <div>
           <p className="font-semibold">
@@ -940,7 +940,7 @@ function SectionCard({
     <section className="card-surface p-6">
       <header className="mb-4 flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-50 to-indigo-100/60 text-indigo-600 ring-1 ring-inset ring-indigo-200/70">
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-50 to-indigo-100/60 text-indigo-600 ring-1 ring-inset ring-indigo-200/70 dark:from-indigo-500/15 dark:to-indigo-500/5 dark:text-indigo-300 dark:ring-indigo-500/30">
             <Icon className="h-4 w-4" />
           </span>
           <div className="min-w-0">
@@ -965,7 +965,7 @@ function SectionCard({
 function StatusPill({ status }: { status: SectionStatus }) {
   if (status === "verified") {
     return (
-      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
         <Check className="h-3 w-3" />
         Verified
       </span>
@@ -973,14 +973,14 @@ function StatusPill({ status }: { status: SectionStatus }) {
   }
   if (status === "review") {
     return (
-      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
         <RefreshCcw className="h-3 w-3" />
         Pending
       </span>
     );
   }
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-xs font-medium text-rose-700">
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-xs font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
       Required
     </span>
   );
@@ -1029,7 +1029,7 @@ function Row({
           className={cn(
             "inline-flex h-5 w-5 items-center justify-center rounded-full",
             ok
-              ? "bg-emerald-100 text-emerald-700"
+              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
               : "bg-muted text-muted-foreground",
           )}
         >
@@ -1053,10 +1053,10 @@ function VerifiedInput({ value }: { value: string }) {
         value={value}
         disabled
         readOnly
-        className="bg-emerald-50/40 pr-9 font-medium text-emerald-900"
+        className="bg-emerald-50/40 pr-9 font-medium text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-200"
       />
       <Check
-        className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600"
+        className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600 dark:text-emerald-300"
         aria-hidden
       />
     </div>

@@ -3,6 +3,7 @@
 import { PaymentCoachingPage } from "@/components/templates/PaymentCoachingPage";
 import type { TimerConfig } from "@/components/templates/shared/types";
 import { extractDefaults, readField } from "@/lib/templates/utils";
+import { designSection } from "@/lib/templates/design";
 import type { Template, TemplateDefinition, TemplateRender } from "@/lib/templates/types";
 
 const definition: TemplateDefinition = {
@@ -134,6 +135,7 @@ const definition: TemplateDefinition = {
         { key: "social_proof_enabled", label: "Show recent buyer popups", type: "toggle", defaultValue: false },
       ],
     },
+    designSection("sunset"),
   ],
 };
 
@@ -169,6 +171,8 @@ const Render: TemplateRender = ({ values, pageId, product, isPreview, bumpRuntim
       forme_no_items={readField(values, "forme_no_items", [])}
       checkout_title={readField(values, "checkout_title", "")}
       checkout_note={readField(values, "checkout_note", "")}
+      theme_key={readField(values, "theme", "sunset")}
+      bg_animation={readField(values, "bg_animation", "none")}
     />
   );
 };

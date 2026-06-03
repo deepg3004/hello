@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Zap, ShoppingBag, ArrowUpCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,6 +8,7 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { isBumpReady, isOtoReady, type OrderBumpConfig, type OtoConfig } from "@/lib/upsells";
 import { formatINR } from "@/lib/utils";
 
@@ -144,27 +146,48 @@ export default async function UpsellsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-sora font-semibold tracking-tight">Upsells</h1>
-        <p className="text-sm text-muted-foreground">
-          Order bumps and post-purchase OTOs across all your pages. Configure
-          them under each page&apos;s <strong>Conversion</strong> tab.
-        </p>
+      <DashboardHero
+        title="Upsells"
+        gradient="from-fuchsia-600 via-pink-600 to-rose-600"
+        blurb="Order bumps and post-purchase OTOs across all your pages. Configure them under each page's Conversion tab."
+      />
+
+      <div
+        className="grid grid-cols-2 gap-4 animate-in-up md:grid-cols-3"
+        style={{ animationDelay: "60ms" }}
+      >
+        <MetricCard
+          label="Active upsells"
+          value={rows.filter((r) => r.active).length.toString()}
+          icon={Zap}
+          accentColor="indigo"
+        />
+        <MetricCard
+          label="Bump revenue"
+          value={rupees(totalBumpRevenue)}
+          icon={ShoppingBag}
+          accentColor="emerald"
+        />
+        <MetricCard
+          label="OTO revenue"
+          value={rupees(totalOtoRevenue)}
+          icon={ArrowUpCircle}
+          accentColor="amber"
+        />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-        <MetricCard label="Active upsells" value={rows.filter((r) => r.active).length.toString()} />
-        <MetricCard label="Bump revenue" value={rupees(totalBumpRevenue)} />
-        <MetricCard label="OTO revenue" value={rupees(totalOtoRevenue)} />
-      </div>
-
-      <Card>
+      <Card className="animate-in-up" style={{ animationDelay: "120ms" }}>
         <CardContent className="overflow-x-auto p-0">
           {rows.length === 0 ? (
-            <p className="px-6 py-10 text-center text-sm text-muted-foreground">
-              No upsells configured yet. Open a page and enable Order Bump or OTO
-              under the <strong>Conversion</strong> tab.
-            </p>
+            <div className="flex flex-col items-center gap-3 px-6 py-12 text-center text-sm text-muted-foreground">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full tile-indigo">
+                <Zap className="h-5 w-5" />
+              </div>
+              <p>
+                No upsells configured yet. Open a page and enable Order Bump or OTO
+                under the <strong>Conversion</strong> tab.
+              </p>
+            </div>
           ) : (
             <Table>
               <TableHeader>
@@ -187,7 +210,10 @@ export default async function UpsellsPage() {
                       ? ((r.accepted / r.triggered) * 100).toFixed(1)
                       : "—";
                   return (
-                    <TableRow key={`${r.page_id}-${r.kind}-${i}`}>
+                    <TableRow
+                      key={`${r.page_id}-${r.kind}-${i}`}
+                      className="transition-colors hover:bg-muted/30"
+                    >
                       <TableCell>
                         <Link
                           href={`/dashboard/pages/${r.page_id}/edit`}

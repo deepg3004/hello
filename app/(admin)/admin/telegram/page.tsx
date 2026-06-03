@@ -1,13 +1,12 @@
-import Link from "next/link";
-import { format, formatDistanceToNow } from "date-fns";
+import { CheckCircle2, Clock, Send, UserX } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { MetricCard } from "@/components/dashboard/MetricCard";
-import { TelegramMembershipActions } from "@/components/admin/TelegramMembershipActions";
+import {
+  AdminTelegramClient,
+  type AdminTelegramRow,
+} from "@/components/admin/AdminTelegramClient";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 
 export const metadata = { title: "Admin · Telegram" };
 
@@ -43,104 +42,43 @@ export default async function AdminTelegramPage() {
   const expired = mems.filter((m) => m.status === "expired").length;
   const removed = mems.filter((m) => m.status === "removed").length;
 
+  const rows: AdminTelegramRow[] = mems.map((m) => {
+    const group = Array.isArray(m.telegram_vip_groups)
+      ? m.telegram_vip_groups[0]
+      : m.telegram_vip_groups;
+    return {
+      id: m.id,
+      buyer_email: m.buyer_email,
+      telegram_user_id: m.telegram_user_id,
+      status: m.status,
+      joined_at: m.joined_at,
+      expires_at: m.expires_at,
+      group_name: group?.group_name ?? null,
+      group_id: group?.group_id ?? m.telegram_group_id,
+      owner_user_id: group?.user_id ?? null,
+    };
+  });
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-sora font-semibold tracking-tight">Telegram VIP memberships</h1>
-        <p className="text-sm text-muted-foreground">
-          Every paid invite, join, expiry and removal across every seller&apos;s VIP group.
-        </p>
+        <DashboardHero
+          title="Telegram VIP memberships"
+          blurb="Every paid invite, join, expiry and removal across every seller's VIP group."
+          resourcesHref={null}
+        />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <MetricCard label="Active" value={active.toLocaleString("en-IN")} />
-        <MetricCard label="Invited" value={invited.toLocaleString("en-IN")} hint="Awaiting join" />
-        <MetricCard label="Expired" value={expired.toLocaleString("en-IN")} />
-        <MetricCard label="Removed" value={removed.toLocaleString("en-IN")} />
+      <div className="grid grid-cols-2 gap-4 animate-in-up md:grid-cols-4" style={{ animationDelay: "60ms" }}>
+        <MetricCard label="Active" value={active.toLocaleString("en-IN")} icon={CheckCircle2} accentColor="emerald" />
+        <MetricCard label="Invited" value={invited.toLocaleString("en-IN")} hint="Awaiting join" icon={Send} accentColor="indigo" />
+        <MetricCard label="Expired" value={expired.toLocaleString("en-IN")} icon={Clock} accentColor="amber" />
+        <MetricCard label="Removed" value={removed.toLocaleString("en-IN")} icon={UserX} accentColor="rose" />
       </div>
 
-      <Card>
-        <CardContent className="overflow-x-auto p-0">
-          {mems.length === 0 ? (
-            <p className="px-6 py-10 text-center text-sm text-muted-foreground">
-              No memberships yet.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Buyer</TableHead>
-                  <TableHead>Group</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead>Expires</TableHead>
-                  <TableHead className="w-10" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {mems.map((m) => {
-                  const group = Array.isArray(m.telegram_vip_groups)
-                    ? m.telegram_vip_groups[0]
-                    : m.telegram_vip_groups;
-                  const expiresAt = m.expires_at ? new Date(m.expires_at) : null;
-                  const isFuture = expiresAt ? expiresAt > new Date() : false;
-                  return (
-                    <TableRow key={m.id}>
-                      <TableCell>
-                        <div className="font-medium">{m.buyer_email}</div>
-                        {m.telegram_user_id && (
-                          <div className="font-mono text-xs text-muted-foreground">
-                            tg:{m.telegram_user_id}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">{group?.group_name ?? "—"}</div>
-                        <div className="font-mono text-xs text-muted-foreground">
-                          {group?.group_id ?? ""}
-                        </div>
-                        {group?.user_id && (
-                          <Link
-                            href={`/admin/users/${group.user_id}`}
-                            className="text-xs text-muted-foreground hover:underline"
-                          >
-                            Owner
-                          </Link>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={m.status} />
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {m.joined_at ? format(new Date(m.joined_at), "d MMM yyyy") : "—"}
-                      </TableCell>
-                      <TableCell>
-                        {expiresAt ? (
-                          <div>
-                            <div>{format(expiresAt, "d MMM yyyy")}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {isFuture
-                                ? `in ${formatDistanceToNow(expiresAt)}`
-                                : `${formatDistanceToNow(expiresAt)} ago`}
-                            </div>
-                          </div>
-                        ) : (
-                          <Badge variant="outline">Lifetime</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {(m.status === "active" || m.status === "invited") && (
-                          <TelegramMembershipActions membershipId={m.id} />
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <div className="animate-in-up" style={{ animationDelay: "120ms" }}>
+        <AdminTelegramClient rows={rows} />
+      </div>
     </div>
   );
 }

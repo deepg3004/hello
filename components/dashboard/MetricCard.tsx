@@ -3,7 +3,16 @@ import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-export type MetricAccent = "indigo" | "emerald" | "amber" | "rose";
+export type MetricAccent = "indigo" | "violet" | "emerald" | "amber" | "rose";
+
+// Maps the accent to the shared soft-gradient tile vocabulary (globals.css).
+const ACCENT_TILE: Record<MetricAccent, string> = {
+  indigo: "tile-indigo",
+  violet: "tile-violet",
+  emerald: "tile-emerald",
+  amber: "tile-amber",
+  rose: "tile-rose",
+};
 
 export interface MetricTrend {
   direction: "up" | "down";
@@ -24,17 +33,9 @@ export interface MetricCardProps {
   className?: string;
 }
 
-// Premium-monochrome look: every metric icon uses the neutral tile (charcoal
-// glyph on a soft neutral fill). The `accentColor` prop is kept for API
-// compatibility but no longer paints the tile a different hue — the palette is
-// intentionally monochrome, with meaning carried by the trend chip instead.
-const ACCENT_TILE: Record<MetricAccent, string> = {
-  indigo: "tile-neutral",
-  emerald: "tile-neutral",
-  amber: "tile-neutral",
-  rose: "tile-neutral",
-};
-
+// Each metric icon sits in a soft colored gradient tile keyed off `accentColor`
+// (defaults to indigo). Vibrant but cohesive — meaning is reinforced by the
+// trend chip below the value.
 export function MetricCard({
   label,
   value,
@@ -44,8 +45,6 @@ export function MetricCard({
   accentColor = "indigo",
   className,
 }: MetricCardProps) {
-  const tile = ACCENT_TILE[accentColor];
-
   return (
     <div
       className={cn(
@@ -54,14 +53,14 @@ export function MetricCard({
         className,
       )}
     >
-      {/* Top row: 40px gradient icon tile (when icon supplied) + label */}
+      {/* Top row: 40px raised 3D icon tile (when icon supplied) + label */}
       <div className="flex items-center gap-3">
         {Icon && (
           <span
             aria-hidden
             className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105",
-              tile,
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:scale-105",
+              ACCENT_TILE[accentColor],
             )}
           >
             <Icon className="h-[18px] w-[18px]" strokeWidth={2.25} />

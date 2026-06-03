@@ -1,14 +1,44 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, Download, Loader2, Plus, RefreshCw, Search } from "lucide-react";
+import {
+  Ban,
+  CalendarClock,
+  Check,
+  Copy,
+  Download,
+  Loader2,
+  MoreHorizontal,
+  Plus,
+  RefreshCw,
+  Search,
+  UserCheck,
+  UserX,
+} from "lucide-react";
 
-import { addMemberAction, regenerateMemberInviteAction } from "@/actions/telegram";
+import {
+  addMemberAction,
+  regenerateMemberInviteAction,
+  sellerBanMembershipAction,
+  sellerConvertPlanAction,
+  sellerRevokeMembershipAction,
+  sellerSetJoinedAction,
+} from "@/actions/telegram";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
 import { formatDate } from "@/lib/utils";
@@ -30,6 +60,7 @@ const STATUS_FILTERS = [
   { key: "invited", label: "Not joined" },
   { key: "expired", label: "Expired" },
   { key: "removed", label: "Removed" },
+  { key: "banned", label: "Banned" },
 ] as const;
 
 type StatusFilter = (typeof STATUS_FILTERS)[number]["key"];
@@ -237,10 +268,13 @@ export function TelegramMembersClient({
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <Button variant="outline" size="sm" disabled={busyId === m.id} onClick={() => regenerate(m.id)}>
-                          {busyId === m.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1 h-3.5 w-3.5" />}
-                          Regenerate
-                        </Button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button variant="outline" size="sm" disabled={busyId === m.id} onClick={() => regenerate(m.id)}>
+                            {busyId === m.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1 h-3.5 w-3.5" />}
+                            Invite
+                          </Button>
+                          <MemberActions member={m} onDone={() => router.refresh()} />
+                        </div>
                       </td>
                     </tr>
                   );
@@ -255,5 +289,124 @@ export function TelegramMembersClient({
         Showing {filtered.length.toLocaleString("en-IN")} of {rows.length.toLocaleString("en-IN")} members.
       </p>
     </div>
+  );
+}
+
+const CONVERT_DURATIONS = [
+  { label: "1 Month", days: 30 },
+  { label: "3 Months", days: 90 },
+  { label: "6 Months", days: 180 },
+  { label: "1 Year", days: 365 },
+  { label: "Lifetime", days: 0 },
+];
+
+function MemberActions({
+  member,
+  onDone,
+}: {
+  member: MemberRow;
+  onDone: () => void;
+}) {
+  const { toast } = useToast();
+  const [pending, startTransition] = useTransition();
+  const joined = member.status === "active";
+
+  const run = (
+    fn: () => Promise<{ ok: boolean; message?: string }>,
+    okMsg: string,
+    confirmMsg?: string,
+  ) => {
+    if (confirmMsg && !window.confirm(confirmMsg)) return;
+    startTransition(async () => {
+      const res = await fn();
+      if (!res.ok) {
+        toast({ title: "Action failed", description: res.message, variant: "destructive" });
+        return;
+      }
+      toast({ title: okMsg });
+      onDone();
+    });
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={pending}>
+          {pending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <MoreHorizontal className="h-4 w-4" />
+          )}
+          <span className="sr-only">Manage member</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        {joined ? (
+          <DropdownMenuItem
+            onClick={() =>
+              run(() => sellerSetJoinedAction(member.id, false), "Marked as not joined")
+            }
+          >
+            <UserX className="mr-2 h-4 w-4" /> Mark as not joined
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem
+            onClick={() =>
+              run(() => sellerSetJoinedAction(member.id, true), "Marked as joined")
+            }
+          >
+            <UserCheck className="mr-2 h-4 w-4" /> Mark as joined
+          </DropdownMenuItem>
+        )}
+
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <CalendarClock className="mr-2 h-4 w-4" /> Convert plan
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            {CONVERT_DURATIONS.map((d) => (
+              <DropdownMenuItem
+                key={d.days}
+                onClick={() =>
+                  run(
+                    () => sellerConvertPlanAction(member.id, d.days),
+                    `Plan set to ${d.label}`,
+                  )
+                }
+              >
+                {d.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem
+          className="text-amber-600 focus:text-amber-600"
+          onClick={() =>
+            run(
+              () => sellerRevokeMembershipAction(member.id),
+              "Access revoked",
+              `Revoke access for ${member.buyer_email}? They'll be removed from the channel but can rejoin on renewal.`,
+            )
+          }
+        >
+          <UserX className="mr-2 h-4 w-4" /> Revoke access
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="text-rose-600 focus:text-rose-600"
+          onClick={() =>
+            run(
+              () => sellerBanMembershipAction(member.id),
+              "Member banned",
+              `Ban ${member.buyer_email}? They will be removed and blocked from rejoining until you unban them.`,
+            )
+          }
+        >
+          <Ban className="mr-2 h-4 w-4" /> Ban member
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

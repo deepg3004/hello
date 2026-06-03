@@ -401,7 +401,7 @@ export function ConnectFlow({ commissionPercent }: { commissionPercent: number }
                 <h2 className="text-xl font-sora font-semibold">Connect your Telegram account</h2>
                 <p className="mt-1 text-sm text-muted-foreground">We use your phone number to securely connect to Telegram and show your channels.</p>
               </div>
-              <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
+              <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300">
                 🔒 Your Telegram credentials are never stored — we keep only an encrypted session token, the same way Telegram Desktop works.
               </div>
 
@@ -409,7 +409,7 @@ export function ConnectFlow({ commissionPercent }: { commissionPercent: number }
                 <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Checking…</div>
               ) : connected ? (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                  <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
                     <Check className="h-4 w-4" /> {tgUser?.username ? `@${tgUser.username}` : tgUser?.name || "Account"} connected
                   </div>
                   <div className="flex items-center justify-between">
@@ -487,7 +487,7 @@ export function ConnectFlow({ commissionPercent }: { commissionPercent: number }
               ) : (
                 <div className="space-y-2">
                   {channels.map((c) => (
-                    <button key={c.id} onClick={() => setSelected(c)} className={cn("flex w-full items-center gap-3 rounded-md border p-3 text-left", selected?.id === c.id ? "border-indigo-500 border-2 bg-indigo-50" : "hover:bg-muted/40")}>
+                    <button key={c.id} onClick={() => setSelected(c)} className={cn("flex w-full items-center gap-3 rounded-md border p-3 text-left", selected?.id === c.id ? "border-indigo-500 border-2 bg-indigo-50 dark:bg-indigo-500/10" : "hover:bg-muted/40")}>
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0088cc] text-sm font-semibold text-white">{c.title.slice(0, 2).toUpperCase()}</div>
                       <div className="min-w-0 flex-1">
                         <div className="truncate font-medium">{c.title}</div>
@@ -502,7 +502,7 @@ export function ConnectFlow({ commissionPercent }: { commissionPercent: number }
               )}
 
               {selected && (
-                <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
                   ✅ Selected: {selected.title} — we&apos;ll add the InvoxAI bot as admin automatically.
                 </div>
               )}
@@ -584,7 +584,7 @@ export function ConnectFlow({ commissionPercent }: { commissionPercent: number }
                     </div>
                     <Input placeholder="Short description (optional)" value={p.description} onChange={(e) => updatePlan(i, { description: e.target.value })} />
                     <div className="flex items-center justify-between">
-                      <button onClick={() => updatePlan(i, { isPopular: !p.isPopular })} className={cn("inline-flex items-center gap-1 text-xs", p.isPopular ? "text-amber-600" : "text-muted-foreground")}>
+                      <button onClick={() => updatePlan(i, { isPopular: !p.isPopular })} className={cn("inline-flex items-center gap-1 text-xs", p.isPopular ? "text-amber-600 dark:text-amber-300" : "text-muted-foreground")}>
                         <Star className={cn("h-3.5 w-3.5", p.isPopular && "fill-amber-500")} /> Most popular
                       </button>
                       <button onClick={() => setPlans((prev) => prev.filter((_, idx) => idx !== i))} disabled={plans.length <= 1} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive disabled:opacity-40">

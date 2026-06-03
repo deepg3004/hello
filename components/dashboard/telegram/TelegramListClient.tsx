@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -9,6 +9,7 @@ import {
   Copy,
   Pencil,
   Plus,
+  Search,
   Send,
   Users,
 } from "lucide-react";
@@ -16,6 +17,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatINR } from "@/lib/utils";
 
 export interface ListChannel {
@@ -43,6 +52,31 @@ export function TelegramListClient({
 }) {
   const router = useRouter();
   const [copied, setCopied] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<"revenue" | "members" | "name">("revenue");
+
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const list = q
+      ? channels.filter(
+          (c) =>
+            c.name.toLowerCase().includes(q) ||
+            (c.username?.toLowerCase().includes(q) ?? false),
+        )
+      : channels;
+    const sorted = [...list];
+    switch (sort) {
+      case "members":
+        sorted.sort((a, b) => b.activeMembers - a.activeMembers);
+        break;
+      case "name":
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      default:
+        sorted.sort((a, b) => b.revenue - a.revenue);
+    }
+    return sorted;
+  }, [channels, search, sort]);
 
   async function disconnect() {
     await fetch("/api/telegram/user/disconnect", { method: "DELETE" });
@@ -98,7 +132,7 @@ export function TelegramListClient({
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm text-amber-800">
+          <div className="flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
             <Send className="h-4 w-4" />
             <span className="font-medium">Telegram not connected</span>
             <Link href="/dashboard/telegram/setup" className="ml-1 text-xs underline">Reconnect</Link>
@@ -122,8 +156,32 @@ export function TelegramListClient({
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {channels.map((c) => (
+        <>
+          {channels.length > 1 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-[200px] flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search channels"
+                  className="pl-9"
+                />
+              </div>
+              <Select value={sort} onValueChange={(v) => setSort(v as typeof sort)}>
+                <SelectTrigger className="w-[170px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="revenue">Top revenue</SelectItem>
+                  <SelectItem value="members">Most members</SelectItem>
+                  <SelectItem value="name">Name A–Z</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="grid gap-4 lg:grid-cols-2">
+            {visible.map((c) => (
             <Card key={c.id}>
               <CardContent className="space-y-3 p-5">
                 <div className="flex items-center gap-3">
@@ -139,7 +197,7 @@ export function TelegramListClient({
                   </div>
                   <Badge
                     variant="outline"
-                    className={c.setupComplete ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}
+                    className={c.setupComplete ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300" : "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"}
                   >
                     {c.setupComplete ? "Live" : "Draft"}
                   </Badge>
@@ -170,7 +228,7 @@ export function TelegramListClient({
                   <div className="flex items-center gap-2">
                     <code className="flex-1 truncate rounded-md border bg-muted/40 px-2 py-1 text-xs">{c.pageUrl}</code>
                     <Button variant="outline" size="sm" onClick={() => copy(c.pageUrl!)}>
-                      {copied === c.pageUrl ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copied === c.pageUrl ? <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-300" /> : <Copy className="h-3.5 w-3.5" />}
                     </Button>
                   </div>
                 )}
@@ -188,8 +246,9 @@ export function TelegramListClient({
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

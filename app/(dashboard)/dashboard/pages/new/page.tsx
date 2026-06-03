@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 import { PageBuilderWizard } from "@/components/dashboard/PageBuilder/Wizard";
 
 export const metadata = {
@@ -13,7 +15,10 @@ export default function NewPagePage() {
           Pick a template, customise the fields, and publish.
         </p>
       </div>
-      <PageBuilderWizard />
+      {/* Wizard reads ?type= via useSearchParams — needs a Suspense boundary. */}
+      <Suspense>
+        <PageBuilderWizard />
+      </Suspense>
     </div>
   );
 }

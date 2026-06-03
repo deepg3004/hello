@@ -60,6 +60,13 @@ const NAV_ACCOUNT: NavItem[] = [
   { href: "/dashboard/settings", label: "Settings", Icon: Settings },
 ];
 
+// Sub-links shown under "Pages" when the seller is inside that section.
+const PAGE_SUBNAV: { href: string; label: string }[] = [
+  { href: "/dashboard/pages/payment", label: "Payment" },
+  { href: "/dashboard/pages/landing", label: "Landing" },
+  { href: "/dashboard/pages/leads", label: "Leads" },
+];
+
 interface SidebarProps {
   pathname: string;
   profile: TopbarProfile;
@@ -81,7 +88,8 @@ export function Sidebar({
 
   return (
     <div
-      className="flex h-full flex-col border-r border-[hsl(var(--sidebar-border))] bg-gradient-to-b from-[hsl(var(--sidebar-bg))] to-[hsl(222_47%_6%)] text-[hsl(var(--sidebar-fg))]"
+      className="flex h-full flex-col text-[hsl(var(--sidebar-fg))]"
+      style={{ background: "#020617" }}
     >
       {/* ── Logo block ───────────────────────────────────────────────── */}
       <div
@@ -118,15 +126,40 @@ export function Sidebar({
         </div>
       </div>
 
-      {/* ── Nav (scrolls if it overflows) ─────────────────────────────── */}
-      <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
+      {/* ── Menu (scrolls independently; profile stays pinned below) ──── */}
+      <nav className="flex-1 overflow-y-auto p-3 space-y-0.5 [scrollbar-gutter:stable]">
+        <p className="mb-1 px-3 text-[9px] font-semibold uppercase tracking-[0.12em] text-[hsl(var(--sidebar-fg))]/50">
+          Main
+        </p>
         {NAV_MAIN.map((item) => (
-          <NavRow
-            key={item.href}
-            item={item}
-            pathname={pathname}
-            onNavigate={onNavigate}
-          />
+          <div key={item.href}>
+            <NavRow item={item} pathname={pathname} onNavigate={onNavigate} />
+            {/* Pages expands into its per-category dashboards while you're in
+                that section. */}
+            {item.href === "/dashboard/pages" &&
+              pathname.startsWith("/dashboard/pages") && (
+                <div className="ml-7 mt-0.5 space-y-0.5 border-l border-[hsl(var(--sidebar-border))] pl-2">
+                  {PAGE_SUBNAV.map((sub) => {
+                    const active = pathname === sub.href;
+                    return (
+                      <Link
+                        key={sub.href}
+                        href={sub.href}
+                        onClick={onNavigate}
+                        className={cn(
+                          "block rounded-md px-2 py-1 text-[13px] transition",
+                          active
+                            ? "bg-[hsl(var(--sidebar-hover-bg))] text-white"
+                            : "text-[hsl(var(--sidebar-fg))]/70 hover:text-white",
+                        )}
+                      >
+                        {sub.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+          </div>
         ))}
 
         <SectionLabel>Growth</SectionLabel>
@@ -150,9 +183,12 @@ export function Sidebar({
         ))}
       </nav>
 
-      {/* ── Upgrade CTA card (free / starter only) ───────────────────── */}
+      {/* ── Plan card ────────────────────────────────────────────────────
+          Only shown to Free/Starter as an upgrade CTA. Once a seller is on
+          Pro/Business the card is removed entirely (the menu simply ends at
+          Settings) — per the owner's request, no "current plan" status card. */}
       {showUpgrade && (
-        <div className="px-3 pt-2">
+        <div className="shrink-0 px-3 pt-2">
           <div className="rounded-xl bg-brand-gradient p-3 text-white shadow-lg shadow-black/30">
             <div className="flex items-center justify-between">
               <span className="inline-flex items-center gap-1 rounded-md bg-white/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
@@ -182,8 +218,8 @@ export function Sidebar({
       {/* ── User row + sign-out ──────────────────────────────────────── */}
       <div
         className={cn(
-          "flex items-center gap-3 border-t border-[hsl(var(--sidebar-border))]",
-          "mt-3 px-3 py-3",
+          "flex shrink-0 items-center gap-3 border-t border-[#1E293B]",
+          "px-3 py-3",
         )}
       >
         <Avatar className="h-9 w-9 shrink-0">
@@ -247,15 +283,22 @@ function NavRow({
     <Link
       href={item.href}
       onClick={onNavigate}
-      className={cn("sidebar-link", active && "active")}
+      className={cn(
+        "group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all duration-150",
+        active
+          ? "bg-[#7C3AED]/20 text-white ring-1 ring-inset ring-[#7C3AED]/30"
+          : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100",
+      )}
     >
-      <item.Icon
-        className={cn(
-          "h-4 w-4 shrink-0",
-          active ? "opacity-100" : "opacity-70",
-        )}
-      />
-      <span className="truncate">{item.label}</span>
+      <span className={cn("nav-icon", active && "nav-icon-active-purple")}>
+        <item.Icon
+          className={cn(
+            "h-4 w-4",
+            active ? "opacity-100" : "opacity-80 group-hover:opacity-100",
+          )}
+        />
+      </span>
+      <span className="flex-1 truncate">{item.label}</span>
     </Link>
   );
 }

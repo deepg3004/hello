@@ -140,7 +140,7 @@ export async function POST(request: Request) {
   // 1. Validate page is published
   const { data: page } = await admin
     .from("pages")
-    .select("id, user_id, slug, status, title")
+    .select("id, user_id, slug, status, title, page_config")
     .eq("id", page_id)
     .single();
   if (!page || page.status !== "published") {
@@ -162,11 +162,25 @@ export async function POST(request: Request) {
       { status: 404 },
     );
   }
-  const grossAmount = Number(product.price);
+  let grossAmount = Number(product.price);
   if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
     return NextResponse.json({ error: "Product has no price" }, { status: 400 });
   }
   const currency = product.currency ?? "INR";
+
+  // 2a. "Pay what you like" — opt-in via the page's OWN config (never a client
+  // claim). When enabled, the buyer may pay the product price OR MORE (the
+  // product price stays the hard floor); the client-supplied `amount` is
+  // honoured only within [floor, cap]. This never lets a buyer pay LESS than
+  // the seller's price, so it can't be abused to underpay.
+  const pageCfg = (page.page_config ?? {}) as Record<string, unknown>;
+  if (pageCfg.pwyl_enabled === true) {
+    const chosen = Number(body.amount);
+    const cap = Math.max(grossAmount * 50, 2_000_000); // sane upper bound (₹20L)
+    if (Number.isFinite(chosen) && chosen >= grossAmount) {
+      grossAmount = Math.min(chosen, cap);
+    }
+  }
 
   // 3. Coupon (optional)
   let discountAmount = 0;

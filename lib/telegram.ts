@@ -167,6 +167,44 @@ export async function kickMember(
   });
 }
 
+/**
+ * Read a member's current status in the chat (member/administrator/creator =
+ * in the channel; left/kicked = gone). Returns null if the member was never
+ * seen / the lookup fails. Used by the 1-minute sync to auto-detect join/leave.
+ */
+export async function getChatMemberStatus(
+  botToken: string,
+  chatId: string | number,
+  telegramUserId: number,
+): Promise<string | null> {
+  try {
+    const res = await call<{ status?: string }>(botToken, "getChatMember", {
+      chat_id: chatId,
+      user_id: telegramUserId,
+    });
+    return res.status ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Permanently ban a member — banChatMember WITHOUT the follow-up unban, so the
+ * user cannot rejoin via any invite link until manually unbanned. Used by the
+ * seller "Ban" action (vs kickMember which is a removable revoke).
+ */
+export async function banMember(
+  botToken: string,
+  chatId: string | number,
+  telegramUserId: number,
+): Promise<void> {
+  await call(botToken, "banChatMember", {
+    chat_id: chatId,
+    user_id: telegramUserId,
+    revoke_messages: false,
+  });
+}
+
 // ----------------------------------------------------------------------------
 // Webhook
 // ----------------------------------------------------------------------------

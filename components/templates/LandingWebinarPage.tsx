@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { ArrowRight, Calendar, Clock, Lock, Sparkles, Video } from "lucide-react";
 
 import { LeadCaptureForm } from "@/components/pages/LeadCaptureForm";
+import { tgTheme } from "@/lib/telegram-themes";
+import { BgAnimation } from "./BgAnimation";
 import { Countdown } from "./shared/Countdown";
+import { SecureFooter } from "@/components/templates/shared/SecureFooter";
+import { StickyFormCta } from "@/components/templates/shared/StickyFormCta";
 import type { BaseTemplateProps } from "./shared/types";
 
 interface AgendaItem {
@@ -37,9 +41,15 @@ export interface LandingWebinarPageProps extends BaseTemplateProps {
   registered_count?: number;
   /** Event date for the calendar chip + countdown ISO. */
   event_date_label?: string;
+  /** Seller-pickable colour theme (dark gradient bg + accent). */
+  theme_key?: string;
+  /** Optional ambient background animation. */
+  bg_animation?: string;
 }
 
 export function LandingWebinarPage(props: LandingWebinarPageProps) {
+  const theme = tgTheme(props.theme_key);
+  const accent = theme.accent;
   const agenda = props.agenda_items ?? [];
   const totalSeats = props.total_seats ?? 0;
   const filled = props.seats_filled ?? 0;
@@ -58,14 +68,17 @@ export function LandingWebinarPage(props: LandingWebinarPageProps) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0a0418] text-white">
+    <div className="relative min-h-screen text-white" style={{ background: theme.bg }}>
+      <BgAnimation type={props.bg_animation} />
+
       {/* ── Sticky header (slides in after scrolling past hero) ─────── */}
       <header
         className={[
           "fixed inset-x-0 top-0 z-40 transition-all duration-300",
-          "border-b border-white/10 bg-purple-950/95 backdrop-blur",
+          "border-b border-white/10 backdrop-blur",
           headerVisible ? "translate-y-0" : "-translate-y-full",
         ].join(" ")}
+        style={{ backgroundColor: `${theme.card}f2` }}
       >
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
@@ -79,16 +92,22 @@ export function LandingWebinarPage(props: LandingWebinarPageProps) {
           </div>
           <a
             href="#register"
-            className="shrink-0 rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-purple-900 transition hover:bg-purple-50"
+            className="shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold text-white shadow transition hover:opacity-90"
+            style={{ backgroundColor: accent }}
           >
             Register Free →
           </a>
         </div>
       </header>
 
+      <div className="relative z-10 pb-24 md:pb-0">
+
       {/* Optional top banner */}
       {props.banner_text && (
-        <div className="bg-purple-700 px-4 py-2 text-center text-sm font-medium text-white">
+        <div
+          className="px-4 py-2 text-center text-sm font-medium text-white"
+          style={{ backgroundColor: accent }}
+        >
           <span className="mr-2 inline-flex items-center gap-1">
             <Sparkles className="h-3.5 w-3.5" />
           </span>
@@ -99,21 +118,17 @@ export function LandingWebinarPage(props: LandingWebinarPageProps) {
       {/* ====================================================================
           HERO + REGISTRATION (2-col on lg)
           ==================================================================== */}
-      <section
-        className="relative isolate overflow-hidden"
-        style={{
-          background:
-            "linear-gradient(135deg, #2e1065 0%, #4c1d95 35%, #312e81 100%)",
-        }}
-      >
-        {/* Radial glow */}
+      <section className="relative isolate overflow-hidden">
+        {/* Radial glow — tinted with the theme accent */}
         <div
           aria-hidden
-          className="pointer-events-none absolute -right-32 -top-32 h-[480px] w-[480px] rounded-full bg-fuchsia-500/20 blur-3xl"
+          className="pointer-events-none absolute -right-32 -top-32 h-[480px] w-[480px] rounded-full blur-3xl"
+          style={{ backgroundColor: `${accent}33` }}
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -left-40 bottom-0 h-[360px] w-[360px] rounded-full bg-violet-500/20 blur-3xl"
+          className="pointer-events-none absolute -left-40 bottom-0 h-[360px] w-[360px] rounded-full blur-3xl"
+          style={{ backgroundColor: `${accent}26` }}
         />
         {/* Subtle grid overlay */}
         <div
@@ -240,11 +255,11 @@ export function LandingWebinarPage(props: LandingWebinarPageProps) {
                   </div>
                   <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200">
                     <div
-                      className={[
-                        "h-full rounded-full transition-[width] duration-500 ease-out",
-                        lowSeats ? "bg-rose-500" : "bg-emerald-500",
-                      ].join(" ")}
-                      style={{ width: `${fillPct}%` }}
+                      className="h-full rounded-full transition-[width] duration-500 ease-out"
+                      style={{
+                        width: `${fillPct}%`,
+                        backgroundColor: lowSeats ? "#f43f5e" : accent,
+                      }}
                     />
                   </div>
                 </div>
@@ -259,6 +274,7 @@ export function LandingWebinarPage(props: LandingWebinarPageProps) {
                     requirePhone
                     redirectUrl={props.redirect_url}
                     formConfig={props.formConfig}
+                    primaryColor={accent}
                   />
                 ) : (
                   <p className="rounded-lg border border-dashed border-zinc-200 bg-zinc-50 p-4 text-center text-sm text-zinc-500">
@@ -292,7 +308,7 @@ export function LandingWebinarPage(props: LandingWebinarPageProps) {
           WHAT YOU'LL LEARN (grid)
           ==================================================================== */}
       {agenda.length > 0 && (
-        <section className="bg-slate-50 py-16 text-zinc-900 md:py-20">
+        <section className="py-16 text-zinc-100 md:py-20">
           <div className="mx-auto max-w-6xl px-4">
             <h2 className="text-center font-sora text-2xl font-bold tracking-tight sm:text-3xl">
               {props.agenda_title ?? "What you'll learn"}
@@ -301,19 +317,20 @@ export function LandingWebinarPage(props: LandingWebinarPageProps) {
               {agenda.map((b, i) => (
                 <li
                   key={i}
-                  className="group rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                  className="group rounded-xl border border-white/10 bg-white/5 p-5 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/[0.07]"
                 >
                   <span
                     aria-hidden
-                    className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-violet-600 font-sora text-sm font-bold text-white shadow-sm"
+                    className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-full font-sora text-sm font-bold text-white shadow-sm"
+                    style={{ backgroundColor: accent }}
                   >
                     {String(i + 1).padStart(2, "0")}
                   </span>
-                  <p className="font-sora text-sm font-semibold text-zinc-900">
+                  <p className="font-sora text-sm font-semibold text-white">
                     {b.text}
                   </p>
                   {b.description && (
-                    <p className="mt-1 text-sm leading-relaxed text-zinc-600">
+                    <p className="mt-1 text-sm leading-relaxed text-zinc-300">
                       {b.description}
                     </p>
                   )}
@@ -328,10 +345,13 @@ export function LandingWebinarPage(props: LandingWebinarPageProps) {
           HOST BIO
           ==================================================================== */}
       {(props.host_name || props.host_bio) && (
-        <section className="bg-white py-16 text-zinc-900 md:py-20">
+        <section className="py-16 text-zinc-100 md:py-20">
           <div className="mx-auto max-w-3xl px-4">
             <div className="flex flex-col items-center gap-6 text-center md:flex-row md:items-start md:text-left">
-              <div className="h-28 w-28 shrink-0 overflow-hidden rounded-full border-2 border-purple-400 bg-zinc-100 shadow-lg">
+              <div
+                className="h-28 w-28 shrink-0 overflow-hidden rounded-full border-2 bg-white/10 shadow-lg"
+                style={{ borderColor: accent }}
+              >
                 {props.host_avatar ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img
@@ -340,23 +360,29 @@ export function LandingWebinarPage(props: LandingWebinarPageProps) {
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-purple-200 to-violet-400 font-sora text-2xl font-bold text-purple-900">
+                  <div
+                    className="flex h-full w-full items-center justify-center font-sora text-2xl font-bold text-white"
+                    style={{ backgroundColor: `${accent}40` }}
+                  >
                     {(props.host_name ?? "?")[0]?.toUpperCase()}
                   </div>
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-purple-600">
+                <p
+                  className="text-[10px] font-bold uppercase tracking-widest"
+                  style={{ color: accent }}
+                >
                   Your host
                 </p>
                 <h3 className="mt-1 font-sora text-2xl font-bold tracking-tight">
                   {props.host_name}
                 </h3>
                 {props.host_title && (
-                  <p className="text-sm text-zinc-500">{props.host_title}</p>
+                  <p className="text-sm text-zinc-400">{props.host_title}</p>
                 )}
                 {props.host_bio && (
-                  <p className="mt-3 text-base leading-relaxed text-zinc-600">
+                  <p className="mt-3 text-base leading-relaxed text-zinc-300">
                     {props.host_bio}
                   </p>
                 )}
@@ -369,7 +395,10 @@ export function LandingWebinarPage(props: LandingWebinarPageProps) {
       {/* ====================================================================
           FINAL CTA STRIP
           ==================================================================== */}
-      <section className="bg-purple-950 py-12 text-center text-white">
+      <section
+        className="py-12 text-center text-white"
+        style={{ backgroundColor: theme.card }}
+      >
         <div className="mx-auto max-w-xl px-4">
           <h3 className="font-sora text-2xl font-bold tracking-tight">
             Ready to join the live session?
@@ -379,13 +408,23 @@ export function LandingWebinarPage(props: LandingWebinarPageProps) {
           </p>
           <a
             href="#register"
-            className="mt-6 inline-flex items-center gap-2 rounded-full bg-white px-7 py-3 text-base font-semibold text-purple-900 shadow-lg transition hover:scale-105 hover:bg-purple-50"
+            className="mt-6 inline-flex items-center gap-2 rounded-full px-7 py-3 text-base font-semibold text-white shadow-lg transition hover:scale-105 hover:opacity-90"
+            style={{ backgroundColor: accent }}
           >
             Reserve my seat
             <ArrowRight className="h-4 w-4" strokeWidth={2.5} />
           </a>
         </div>
       </section>
+
+      <SecureFooter accent={accent} variant="lite" />
+
+      <StickyFormCta
+        label={props.register_cta ?? "Save my spot"}
+        accent={accent}
+        targetId="register"
+      />
+      </div>
     </div>
   );
 }

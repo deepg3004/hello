@@ -1,10 +1,12 @@
 import Link from "next/link";
-import { Download, Home, RotateCcw } from "lucide-react";
+import { Home, RotateCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { PaymentSuccessShare } from "@/components/pages/PaymentSuccessShare";
 import { TelegramInviteCard } from "@/components/pages/TelegramInviteCard";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { formatDateTime } from "@/lib/utils";
+import { publicPageUrl } from "@/lib/page-url";
+import { cn, formatDateTime } from "@/lib/utils";
 
 export const metadata = { title: "Order" };
 
@@ -53,7 +55,7 @@ export default async function OrderConfirmationPage({
       ? admin
           .from("pages")
           .select(
-            "slug, title, user_profiles!pages_user_id_fkey(full_name), telegram_vip_groups(group_name)",
+            "slug, title, type, template_id, user_profiles!pages_user_id_fkey(full_name), telegram_vip_groups(group_name)",
           )
           .eq("id", order.page_id)
           .single()
@@ -65,6 +67,8 @@ export default async function OrderConfirmationPage({
   type PageJoin = {
     slug: string;
     title: string;
+    type: string | null;
+    template_id: string | null;
     user_profiles:
       | { full_name: string | null }
       | { full_name: string | null }[]
@@ -83,6 +87,9 @@ export default async function OrderConfirmationPage({
   const sellerName = seller?.full_name?.trim() || null;
   const pageSlug = page?.slug ?? null;
   const pageTitle = page?.title ?? null;
+  const shareUrl = page?.slug
+    ? publicPageUrl(page.type, page.slug, page.template_id)
+    : null;
 
   const tg = page?.telegram_vip_groups
     ? Array.isArray(page.telegram_vip_groups)
@@ -98,7 +105,12 @@ export default async function OrderConfirmationPage({
     order.status === "expired";
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-zinc-50 to-white px-4 py-12 md:py-16">
+    <main
+      className={cn(
+        "min-h-screen bg-gradient-to-b from-zinc-50 to-white px-4 pt-12 md:py-16",
+        paid ? "pb-28 md:pb-16" : "pb-12",
+      )}
+    >
       <div className="mx-auto max-w-xl space-y-6">
         {/* Animated status circle */}
         {paid && <StatusCircle variant="success" />}
@@ -191,16 +203,22 @@ export default async function OrderConfirmationPage({
           </div>
         )}
 
-        {/* Action row — invoice (paid) + back link */}
+        {/* Branded shareable receipt + share buttons (paid only) */}
+        {paid && (
+          <PaymentSuccessShare
+            amount={Number(order.amount)}
+            currency={order.currency}
+            productName={productName}
+            orderId={order.id}
+            buyerName={order.buyer_name}
+            sellerName={sellerName}
+            dateText={formatDateTime(order.paid_at ?? order.created_at)}
+            shareUrl={shareUrl}
+          />
+        )}
+
+        {/* Back link */}
         <div className="flex flex-col gap-3 sm:flex-row">
-          {paid && (
-            <Button asChild variant="outline" className="flex-1">
-              <a href={`/api/orders/${order.id}/invoice`} target="_blank" rel="noreferrer">
-                <Download className="mr-2 h-4 w-4" />
-                Download GST invoice
-              </a>
-            </Button>
-          )}
           {pageSlug ? (
             <Button asChild variant="ghost" className="flex-1">
               <Link href={`/p/${pageSlug}`}>

@@ -53,22 +53,22 @@ export interface PageCardData {
 const TYPE_BAND: Record<string, { band: string; chip: string; label: string }> = {
   payment: {
     band: "bg-gradient-to-r from-indigo-500 to-indigo-600",
-    chip: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    chip: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-500/30",
     label: "Payment",
   },
   landing: {
     band: "bg-gradient-to-r from-emerald-500 to-emerald-600",
-    chip: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    chip: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/30",
     label: "Landing",
   },
   lead_magnet: {
     band: "bg-gradient-to-r from-amber-500 to-amber-600",
-    chip: "bg-amber-50 text-amber-700 border-amber-200",
+    chip: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/30",
     label: "Lead magnet",
   },
   telegram: {
     band: "bg-gradient-to-r from-violet-500 to-violet-600",
-    chip: "bg-violet-50 text-violet-700 border-violet-200",
+    chip: "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-500/10 dark:text-violet-300 dark:border-violet-500/30",
     label: "Telegram VIP",
   },
 };
@@ -229,7 +229,7 @@ export function PageCard({ page }: { page: PageCardData }) {
               <DropdownMenuItem
                 onSelect={remove}
                 disabled={busy === "delete"}
-                className="text-rose-600 focus:text-rose-700"
+                className="text-rose-600 focus:text-rose-700 dark:text-rose-300 dark:focus:text-rose-200"
               >
                 <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
               </DropdownMenuItem>
@@ -258,9 +258,9 @@ export function PageCard({ page }: { page: PageCardData }) {
               "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition",
               "disabled:opacity-70",
               isPublished
-                ? "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                ? "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
                 : page.status === "paused"
-                  ? "border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                  ? "border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20"
                   : "border border-border bg-muted text-muted-foreground hover:bg-muted/70",
             )}
           >
@@ -294,7 +294,7 @@ export function PageCard({ page }: { page: PageCardData }) {
             icon={IndianRupee}
             value={formatINR(page.total_revenue * 100)}
             label="Revenue"
-            valueClassName="text-emerald-700"
+            valueClassName="text-emerald-700 dark:text-emerald-300"
           />
         </div>
 
@@ -310,7 +310,7 @@ export function PageCard({ page }: { page: PageCardData }) {
               label="Edit"
             />
             <IconButton
-              href={`/p/${page.slug}`}
+              href={publicPagePath(page.type, page.slug, page.template_id)}
               external
               icon={ExternalLink}
               label="Preview"
@@ -398,30 +398,56 @@ function IconButton({
   );
 }
 
+// Per-type copy + deep-link target for the "+ New page" tile. When a `type`
+// is given the tile jumps straight into the wizard scoped to that category
+// (skipping the generic type picker).
+const NEW_TILE: Record<
+  "payment" | "landing" | "lead_magnet",
+  { label: string; hint: string }
+> = {
+  payment: { label: "New payment page", hint: "Sell a product or service" },
+  landing: { label: "New landing page", hint: "Promote an offer or event" },
+  lead_magnet: { label: "New lead page", hint: "Capture emails with a freebie" },
+};
+
 /**
  * Render this as a grid cell after all the real PageCards. Acts as a
- * "+ New page" tile.
+ * "+ New page" tile. Pass `type` to scope creation to a single category.
  */
-export function CreatePageTile({ disabled }: { disabled?: boolean }) {
+export function CreatePageTile({
+  disabled,
+  type,
+  href: hrefOverride,
+}: {
+  disabled?: boolean;
+  type?: "payment" | "landing" | "lead_magnet";
+  /** Full create URL — used when the category needs a template deep-link too. */
+  href?: string;
+}) {
+  const copy = type ? NEW_TILE[type] : null;
+  const href = disabled
+    ? "/dashboard/upgrade"
+    : (hrefOverride ??
+      (type ? `/dashboard/pages/new?type=${type}` : "/dashboard/pages/new"));
   return (
     <Link
-      href={disabled ? "/dashboard/upgrade" : "/dashboard/pages/new"}
+      href={href}
       className={cn(
         "group flex min-h-[260px] flex-col items-center justify-center gap-2 rounded-xl",
         "border-2 border-dashed border-border bg-card/60 p-6 text-center transition",
-        "hover:border-primary hover:bg-indigo-50/40",
+        "hover:border-primary hover:bg-indigo-50/40 dark:hover:bg-indigo-500/10",
       )}
     >
-      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 transition group-hover:bg-indigo-100">
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 transition group-hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:group-hover:bg-indigo-500/20">
         <PlusIcon />
       </span>
       <p className="font-sora text-sm font-semibold text-foreground">
-        {disabled ? "Upgrade for more pages" : "New page"}
+        {disabled ? "Upgrade for more pages" : (copy?.label ?? "New page")}
       </p>
       <p className="text-xs text-muted-foreground">
         {disabled
           ? "You've hit your plan limit"
-          : "Build a payment, landing, or lead-magnet page"}
+          : (copy?.hint ?? "Build a payment, landing, or lead-magnet page")}
       </p>
     </Link>
   );

@@ -182,6 +182,8 @@ export interface TopPageRow {
   id: string;
   title: string;
   slug: string;
+  type: string | null;
+  template_id: string | null;
   total_revenue: number;
 }
 
@@ -189,7 +191,7 @@ export async function getTopPages(userId: string, limit = 5): Promise<TopPageRow
   const admin = createAdminClient();
   const { data } = await admin
     .from("pages")
-    .select("id, title, slug, total_revenue")
+    .select("id, title, slug, type, template_id, total_revenue")
     .eq("user_id", userId)
     .order("total_revenue", { ascending: false })
     .limit(limit);
@@ -197,6 +199,8 @@ export async function getTopPages(userId: string, limit = 5): Promise<TopPageRow
     id: r.id,
     title: r.title,
     slug: r.slug,
+    type: (r as { type?: string | null }).type ?? null,
+    template_id: (r as { template_id?: string | null }).template_id ?? null,
     total_revenue: Number(r.total_revenue ?? 0),
   }));
 }

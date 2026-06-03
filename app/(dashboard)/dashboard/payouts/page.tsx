@@ -14,6 +14,7 @@ import { RequestPayoutDialog } from "@/components/dashboard/RequestPayoutDialog"
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { calculateAvailableBalance } from "@/lib/payouts";
 import { getMinPayoutAmount } from "@/lib/settings";
 import { cn, formatDate, formatINR } from "@/lib/utils";
@@ -65,26 +66,20 @@ export default async function PayoutsPage() {
   return (
     <div className="space-y-6">
       {/* ── Header ───────────────────────────────────────────────────── */}
-      <div
-        className="flex flex-wrap items-center justify-between gap-3 animate-in-up"
-        style={{ animationDelay: "0ms" }}
+      <DashboardHero
+        title="Payouts"
+        gradient="from-emerald-600 via-green-600 to-teal-600"
+        blurb="Your share of every paid order, minus what you've already withdrawn."
       >
-        <div>
-          <h1 className="page-title">Payouts</h1>
-          <p className="page-subtitle">
-            Your share of every paid order, minus what you&apos;ve already
-            withdrawn.
-          </p>
-        </div>
         {kycComplete && (
           <RequestPayoutDialog available={available} minPayout={minPayout} />
         )}
-      </div>
+      </DashboardHero>
 
       {/* ── KYC-incomplete banner (full-width, amber) ────────────────── */}
       {!kycComplete && (
         <div
-          className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 animate-in-up"
+          className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 animate-in-up dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
           style={{ animationDelay: "50ms" }}
         >
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
@@ -219,8 +214,8 @@ function Th({
 function EmptyPayouts({ kycComplete }: { kycComplete: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-50 to-indigo-100/60 ring-1 ring-inset ring-indigo-200/70">
-        <Inbox className="h-5 w-5 text-indigo-600" />
+      <div className="flex h-12 w-12 items-center justify-center rounded-full tile-indigo">
+        <Inbox className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
       </div>
       <div>
         <p className="font-medium text-foreground">No payouts yet</p>

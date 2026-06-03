@@ -89,6 +89,22 @@ export function FieldEditor({ field, value, onChange, compact }: FieldEditorProp
           />
         </Wrap>
       );
+    case "select":
+      return (
+        <Wrap field={field} compact={compact}>
+          <select
+            value={(value as string) ?? ""}
+            onChange={(e) => onChange(e.target.value)}
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            {(field.options ?? []).map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </Wrap>
+      );
     case "toggle":
       return (
         <div

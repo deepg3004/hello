@@ -120,10 +120,10 @@ export function AdminSidebar({
       </div>
 
       {/* ── Nav groups ──────────────────────────────────────────────── */}
-      <nav className="flex-1 overflow-y-auto p-3">
+      <nav className="flex-1 overflow-y-auto p-3 space-y-0.5 [scrollbar-gutter:stable]">
         {groups.map((g, gi) => (
-          <div key={g.label} className={gi === 0 ? "" : "mt-5"}>
-            <p className="mb-1 px-3 text-[9px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+          <div key={g.label} className={gi === 0 ? "" : "mt-4"}>
+            <p className="mb-1 px-3 text-[9px] font-semibold uppercase tracking-[0.12em] text-[hsl(var(--sidebar-fg))]/50">
               {g.label}
             </p>
             <div className="space-y-0.5">
@@ -197,29 +197,24 @@ function NavRow({
       href={item.href}
       onClick={onNavigate}
       className={cn(
-        "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
+        "group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all duration-150",
         active
-          ? "bg-amber-400 text-zinc-950 shadow-sm shadow-amber-900/40"
+          ? "bg-amber-400/10 text-white ring-1 ring-inset ring-amber-400/25"
           : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100",
       )}
     >
-      <item.Icon
-        className={cn(
-          "h-4 w-4 shrink-0",
-          active ? "opacity-100" : "opacity-70 group-hover:opacity-100",
-        )}
-      />
+      <span className={cn("nav-icon", active && "nav-icon-active-amber")}>
+        <item.Icon
+          className={cn(
+            "h-4 w-4",
+            active ? "opacity-100" : "opacity-80 group-hover:opacity-100",
+          )}
+        />
+      </span>
       <span className="flex-1 truncate">{item.label}</span>
       {/* Red badge for KYC queue (and any future counter) — hidden when 0 */}
       {item.badge != null && item.badge > 0 && (
-        <span
-          className={cn(
-            "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
-            active
-              ? "bg-zinc-950 text-amber-300"
-              : "bg-rose-500 text-white",
-          )}
-        >
+        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white">
           {item.badge > 99 ? "99+" : item.badge}
         </span>
       )}

@@ -1,6 +1,7 @@
 // Digital product — definition + adapter.
 
 import { PaymentDigitalProductPage } from "@/components/templates/PaymentDigitalProductPage";
+import { designSection } from "@/lib/templates/design";
 import { extractDefaults, readField } from "@/lib/templates/utils";
 import type { Template, TemplateDefinition, TemplateRender } from "@/lib/templates/types";
 
@@ -64,6 +65,7 @@ const definition: TemplateDefinition = {
         { key: "price_card_note", label: "Card note", type: "text", defaultValue: "Instant download after payment." },
       ],
     },
+    designSection("emerald"),
   ],
 };
 
@@ -81,6 +83,8 @@ const Render: TemplateRender = ({ values, pageId, product, isPreview, bumpRuntim
     features_items={readField(values, "features_items", [])}
     price_card_title={readField(values, "price_card_title", "")}
     price_card_note={readField(values, "price_card_note", "")}
+    theme_key={readField(values, "theme", "emerald")}
+    bg_animation={readField(values, "bg_animation", "none")}
   />
 );
 

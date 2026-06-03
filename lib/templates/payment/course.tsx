@@ -2,6 +2,7 @@
 
 import { PaymentCoursePage } from "@/components/templates/PaymentCoursePage";
 import type { OrderBumpConfig, TimerConfig } from "@/components/templates/shared/types";
+import { designSection } from "@/lib/templates/design";
 import { extractDefaults, readField } from "@/lib/templates/utils";
 import type { Template, TemplateDefinition, TemplateRender } from "@/lib/templates/types";
 
@@ -166,6 +167,7 @@ const definition: TemplateDefinition = {
         { key: "bump_price", label: "Bump price (INR)", type: "number", defaultValue: 199 },
       ],
     },
+    designSection("midnight"),
   ],
 };
 
@@ -207,6 +209,8 @@ const Render: TemplateRender = ({ values, pageId, product, isPreview, bumpRuntim
       faq_items={readField(values, "faq_items", [])}
       checkout_title={readField(values, "checkout_title", "")}
       checkout_guarantee={readField(values, "checkout_guarantee", "")}
+      theme_key={readField(values, "theme", "midnight")}
+      bg_animation={readField(values, "bg_animation", "none")}
     />
   );
 };

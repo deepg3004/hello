@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { KycWizard, type KycInitial } from "@/components/dashboard/kyc/KycWizard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 
 export const metadata = { title: "KYC" };
 
@@ -87,15 +88,11 @@ export default async function KycPage() {
 
   return (
     <div className="space-y-6">
-      <div className="animate-in-up" style={{ animationDelay: "0ms" }}>
-        <h1 className="font-sora text-2xl font-semibold tracking-tight">
-          KYC verification
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Verify your identity to unlock payouts. Each step uses live API
-          checks — no manual review unless something looks off.
-        </p>
-      </div>
+      <DashboardHero
+        title="KYC verification"
+        gradient="from-blue-600 via-indigo-600 to-violet-600"
+        blurb="Verify your identity to unlock payouts. Each step uses live API checks — no manual review unless something looks off."
+      />
       <div className="animate-in-up" style={{ animationDelay: "100ms" }}>
         <KycWizard initial={initial} />
       </div>

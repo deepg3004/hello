@@ -12,6 +12,7 @@ import { CredentialField } from "@/components/admin/CredentialField";
 import { SettingTextInput } from "@/components/admin/SettingTextInput";
 import { SendTestEmailButton } from "@/components/admin/SendTestEmailButton";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { vaultConfigured, decryptValue, maskValue } from "@/lib/admin/vault";
 import { MAILBOX_ROLES, smtpKey, type MailboxRole } from "@/lib/emails/smtp";
 
@@ -120,29 +121,23 @@ export default async function AdminEmailPage() {
   return (
     <div className="space-y-6">
       {/* ── Header ───────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="font-sora text-2xl font-semibold tracking-tight">
-            Email
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Send transactional email from your own Gmail mailboxes. Each
-            audience gets its own branded address — buyers, sellers, KYC,
-            support. Any mailbox you leave empty falls back to Resend.
-          </p>
-        </div>
+      <DashboardHero
+        title="Email"
+        blurb="Send transactional email from your own Gmail mailboxes. Each audience gets its own branded address — buyers, sellers, KYC, support. Empty mailboxes fall back to Resend."
+        resourcesHref={null}
+      >
         <Link
           href="/admin/email/templates"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium transition hover:bg-muted"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-white/30 bg-white/10 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/20"
         >
           <Eye className="h-4 w-4" />
           Preview all templates
         </Link>
-      </div>
+      </DashboardHero>
 
       {/* ── Vault status banner ──────────────────────────────────── */}
       {vaultOk ? (
-        <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+        <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 animate-in-up" style={{ animationDelay: "60ms" }}>
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
           <div className="flex-1">
             <p className="font-semibold">Vault encrypted</p>
@@ -156,7 +151,7 @@ export default async function AdminEmailPage() {
           </div>
         </div>
       ) : (
-        <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+        <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900 animate-in-up" style={{ animationDelay: "60ms" }}>
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
           <div className="flex-1">
             <p className="font-semibold">
@@ -175,7 +170,7 @@ export default async function AdminEmailPage() {
       )}
 
       {/* ── Propagation note ─────────────────────────────────────── */}
-      <div className="rounded-xl border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
+      <div className="rounded-xl border border-border bg-muted/30 p-4 text-xs text-muted-foreground animate-in-up" style={{ animationDelay: "120ms" }}>
         Credential changes take effect within ~60 seconds (config is cached).
         After saving, use <strong>Send test email</strong> to confirm a mailbox
         before relying on it. If you run a separate worker process, it must share
@@ -184,7 +179,7 @@ export default async function AdminEmailPage() {
       </div>
 
       {/* ── Admin BCC ────────────────────────────────────────────── */}
-      <Card>
+      <Card className="animate-in-up" style={{ animationDelay: "180ms" }}>
         <CardHeader>
           <CardTitle className="text-base">Admin copy (BCC)</CardTitle>
           <CardDescription>
@@ -204,7 +199,9 @@ export default async function AdminEmailPage() {
       </Card>
 
       {/* ── Per-mailbox cards ────────────────────────────────────── */}
-      {ROLES.map((def) => {
+      {ROLES.map((def, idx) => {
+        const tiles = ["tile-indigo", "tile-emerald", "tile-amber", "tile-rose", "tile-violet"];
+        const tile = tiles[idx % tiles.length];
         const passKey = smtpKey(def.role, "pass");
         const passRow = stored.get(passKey);
         const passEmpty = !passRow?.value;
@@ -223,10 +220,16 @@ export default async function AdminEmailPage() {
         }
 
         return (
-          <Card key={def.role}>
+          <Card
+            key={def.role}
+            className="animate-in-up transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-md"
+            style={{ animationDelay: `${240 + idx * 60}ms` }}
+          >
             <CardHeader>
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-muted-foreground" />
+              <div className="flex items-center gap-2.5">
+                <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${tile}`}>
+                  <Mail className="h-5 w-5" />
+                </span>
                 <CardTitle className="text-base">{def.title}</CardTitle>
               </div>
               <CardDescription>

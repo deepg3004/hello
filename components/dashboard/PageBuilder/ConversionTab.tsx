@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ImageInput } from "@/components/ui/ImageInput";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -25,10 +26,14 @@ import { ORDER_BUMP_DEFAULTS, OTO_DEFAULTS } from "@/lib/upsells";
 import { Textarea as TA } from "@/components/ui/textarea";
 import type { SocialProofConfig } from "@/lib/social-proof";
 import { SOCIAL_PROOF_DEFAULTS } from "@/lib/social-proof";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Tag, Wand2 } from "lucide-react";
 import { seedSocialProofAction } from "@/actions/social-proof";
+import {
+  createCouponAction,
+  generateCouponCodeAction,
+} from "@/actions/coupons";
 import { useToast } from "@/hooks/use-toast";
 
 interface ProductOption {
@@ -330,11 +335,11 @@ export function ConversionTab({
                   />
                 </div>
                 <div>
-                  <Label className="text-xs">Image URL</Label>
-                  <Input
+                  <Label className="text-xs">Bump image</Label>
+                  <ImageInput
                     value={bump.image_url ?? ""}
-                    onChange={(e) => setB("image_url", e.target.value)}
-                    placeholder="https://…"
+                    onChange={(url) => setB("image_url", url)}
+                    placeholder="Paste an image URL or upload"
                   />
                 </div>
               </div>
@@ -765,7 +770,153 @@ export function ConversionTab({
           </div>
         </CardContent>
       </Card>
+
+      {/* Quick coupon creation — scoped to this page. */}
+      <CouponQuickAdd pageId={pageId} existing={coupons} />
     </div>
+  );
+}
+
+function CouponQuickAdd({
+  pageId,
+  existing,
+}: {
+  pageId: string | null;
+  existing: Array<{ code: string }>;
+}) {
+  const { toast } = useToast();
+  const [pending, startTransition] = useTransition();
+  const [code, setCode] = useState("");
+  const [type, setType] = useState<"percentage" | "fixed">("percentage");
+  const [value, setValue] = useState("");
+  const [created, setCreated] = useState<string[]>([]);
+
+  const create = () => {
+    if (!pageId) {
+      toast({ title: "Save the page first", variant: "destructive" });
+      return;
+    }
+    const cleaned = code.trim().toUpperCase();
+    const num = Number(value);
+    if (cleaned.length < 3) {
+      toast({ title: "Enter a code (3+ chars)", variant: "destructive" });
+      return;
+    }
+    if (!Number.isFinite(num) || num <= 0) {
+      toast({ title: "Enter a discount value", variant: "destructive" });
+      return;
+    }
+    startTransition(async () => {
+      const res = await createCouponAction({
+        code: cleaned,
+        discount_type: type,
+        discount_value: num,
+        min_order: 0,
+        max_discount: null,
+        total_limit: null,
+        per_customer_limit: 1,
+        starts_at: null,
+        expires_at: null,
+        page_ids: [pageId],
+        active: true,
+      });
+      if (!res.ok) {
+        toast({ title: "Couldn't create coupon", description: res.message, variant: "destructive" });
+        return;
+      }
+      setCreated((c) => [cleaned, ...c]);
+      setCode("");
+      setValue("");
+      toast({ title: `Coupon ${cleaned} created` });
+    });
+  };
+
+  const allCodes = [...created, ...existing.map((c) => c.code)];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Coupons</CardTitle>
+        <CardDescription>
+          Add a discount code that works on this page&apos;s checkout.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr_auto]">
+          <div className="space-y-1">
+            <Label className="text-xs">Code</Label>
+            <div className="flex gap-1">
+              <Input
+                value={code}
+                onChange={(e) =>
+                  setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""))
+                }
+                placeholder="SAVE20"
+                className="font-mono uppercase"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                title="Generate a code"
+                onClick={async () => {
+                  const r = await generateCouponCodeAction();
+                  setCode(r.code);
+                }}
+              >
+                <Wand2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Type</Label>
+            <Select value={type} onValueChange={(v) => setType(v as "percentage" | "fixed")}>
+              <SelectTrigger className="w-[110px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="percentage">% off</SelectItem>
+                <SelectItem value="fixed">₹ off</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">{type === "percentage" ? "Percent" : "Amount (₹)"}</Label>
+            <Input
+              type="number"
+              min="1"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={type === "percentage" ? "20" : "500"}
+            />
+          </div>
+          <div className="flex items-end">
+            <Button type="button" onClick={create} disabled={pending}>
+              {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Add
+            </Button>
+          </div>
+        </div>
+
+        {allCodes.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {allCodes.map((c) => (
+              <span
+                key={c}
+                className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2.5 py-1 font-mono text-xs"
+              >
+                <Tag className="h-3 w-3" />
+                {c}
+              </span>
+            ))}
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground">
+          New coupons apply to this page. Manage all coupons (limits, expiry) in
+          the Coupons section.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 

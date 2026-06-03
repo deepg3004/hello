@@ -85,7 +85,7 @@ export default async function PayoutSettingsPage() {
       </Card>
 
       {!kycComplete && (
-        <div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
             <p className="font-medium">KYC Level 2 required for payouts</p>
@@ -101,7 +101,7 @@ export default async function PayoutSettingsPage() {
       )}
 
       {kycComplete && (
-        <div className="flex items-start gap-3 rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+        <div className="flex items-start gap-3 rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
             <p className="font-medium">Payouts enabled</p>
@@ -144,9 +144,9 @@ function Row({
         className={
           (mono ? "font-mono " : "") +
           (tone === "ok"
-            ? "text-emerald-600 font-medium"
+            ? "text-emerald-600 dark:text-emerald-300 font-medium"
             : tone === "warn"
-              ? "text-amber-600 font-medium"
+              ? "text-amber-600 dark:text-amber-300 font-medium"
               : "font-medium")
         }
       >

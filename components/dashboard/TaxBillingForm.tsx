@@ -93,9 +93,9 @@ export function TaxBillingForm({ states, verifiedAt, defaults, stateLabel }: Pro
   return (
     <form className="space-y-6" onSubmit={submit}>
       {saved && (
-        <Card className="border-emerald-200 bg-emerald-50/50 dark:bg-emerald-900/10">
+        <Card className="border-emerald-200 bg-emerald-50/50 dark:border-emerald-500/30 dark:bg-emerald-900/10">
           <CardContent className="flex items-center gap-3 py-4 text-sm">
-            <ShieldCheck className="h-5 w-5 text-emerald-600" />
+            <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-300" />
             <div>
               <p className="font-medium">GST profile verified</p>
               <p className="text-xs text-muted-foreground">
@@ -266,7 +266,7 @@ function Field({
             (tone === "bad"
               ? "text-destructive"
               : tone === "good"
-                ? "text-emerald-600"
+                ? "text-emerald-600 dark:text-emerald-300"
                 : "text-muted-foreground")
           }
         >

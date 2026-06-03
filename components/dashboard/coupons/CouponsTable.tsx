@@ -3,7 +3,18 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { Copy, Loader2, MoreVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  CalendarClock,
+  CheckCircle2,
+  Copy,
+  Loader2,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Repeat,
+  TimerOff,
+  Trash2,
+} from "lucide-react";
 
 import {
   deleteCouponAction,
@@ -20,8 +31,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { CouponDialog } from "./CouponDialog";
 
@@ -47,6 +66,31 @@ interface CouponsTableProps {
   pages: Array<{ id: string; title: string }>;
 }
 
+type Lifecycle = "active" | "scheduled" | "expired" | "inactive";
+type SortKey = "newest" | "used" | "code";
+
+const SORT_OPTIONS: Array<{ key: SortKey; label: string }> = [
+  { key: "newest", label: "Newest" },
+  { key: "used", label: "Most used" },
+  { key: "code", label: "Code A–Z" },
+];
+
+const SEG_ACTIVE: Record<string, string> = {
+  all: "bg-indigo-500/15 text-indigo-700 ring-indigo-500/30 dark:text-indigo-300",
+  active: "bg-emerald-500/15 text-emerald-700 ring-emerald-500/30 dark:text-emerald-300",
+  scheduled: "bg-indigo-500/15 text-indigo-700 ring-indigo-500/30 dark:text-indigo-300",
+  expired: "bg-rose-500/15 text-rose-700 ring-rose-500/30 dark:text-rose-300",
+  inactive: "bg-zinc-500/15 text-zinc-700 ring-zinc-500/30 dark:text-zinc-300",
+};
+
+const SEGMENTS: Array<{ key: Lifecycle | "all"; label: string }> = [
+  { key: "all", label: "All" },
+  { key: "active", label: "Active" },
+  { key: "scheduled", label: "Scheduled" },
+  { key: "expired", label: "Expired" },
+  { key: "inactive", label: "Inactive" },
+];
+
 export function CouponsTable({ coupons, pages }: CouponsTableProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -54,17 +98,68 @@ export function CouponsTable({ coupons, pages }: CouponsTableProps) {
   const [editing, setEditing] = useState<CouponRow | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
+  const [segment, setSegment] = useState<Lifecycle | "all">("all");
+  const [sort, setSort] = useState<SortKey>("newest");
+
   const now = useMemo(() => Date.now(), []);
   const enriched = useMemo(
     () =>
       coupons.map((c) => {
         const expired = c.expires_at ? Date.parse(c.expires_at) < now : false;
+        const scheduled = c.starts_at ? Date.parse(c.starts_at) > now : false;
         const depleted =
           c.total_limit !== null && c.usage_count >= c.total_limit;
-        return { ...c, expired, depleted };
+        // Lifecycle drives summary cards + segment chips (spec order):
+        // inactive → scheduled → expired → active.
+        const lifecycle: Lifecycle = !c.active
+          ? "inactive"
+          : scheduled
+            ? "scheduled"
+            : expired
+              ? "expired"
+              : "active";
+        return { ...c, expired, scheduled, depleted, lifecycle };
       }),
     [coupons, now],
   );
+
+  // Summary counts across all coupons (independent of the active segment).
+  const summary = useMemo(() => {
+    const counts = { active: 0, scheduled: 0, expired: 0, inactive: 0 };
+    let redemptions = 0;
+    for (const c of enriched) {
+      counts[c.lifecycle] += 1;
+      redemptions += c.usage_count;
+    }
+    return { ...counts, redemptions };
+  }, [enriched]);
+
+  const segCounts = useMemo(
+    () => ({
+      all: enriched.length,
+      active: summary.active,
+      scheduled: summary.scheduled,
+      expired: summary.expired,
+      inactive: summary.inactive,
+    }),
+    [enriched.length, summary],
+  );
+
+  const visible = useMemo(() => {
+    const rows =
+      segment === "all"
+        ? enriched
+        : enriched.filter((c) => c.lifecycle === segment);
+    const sorted = [...rows];
+    if (sort === "newest") {
+      sorted.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+    } else if (sort === "used") {
+      sorted.sort((a, b) => b.usage_count - a.usage_count);
+    } else {
+      sorted.sort((a, b) => a.code.localeCompare(b.code));
+    }
+    return sorted;
+  }, [enriched, segment, sort]);
 
   async function toggleActive(c: CouponRow) {
     setBusy(`active-${c.id}`);
@@ -103,15 +198,72 @@ export function CouponsTable({ coupons, pages }: CouponsTableProps) {
 
   return (
     <>
+      {/* Summary stat cards — computed from the coupon rows. */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <SummaryCard
+          tile="tile-emerald"
+          icon={CheckCircle2}
+          label="Active coupons"
+          value={summary.active}
+        />
+        <SummaryCard
+          tile="tile-indigo"
+          icon={Repeat}
+          label="Total redemptions"
+          value={summary.redemptions}
+        />
+        <SummaryCard
+          tile="tile-violet"
+          icon={CalendarClock}
+          label="Scheduled"
+          value={summary.scheduled}
+        />
+        <SummaryCard
+          tile="tile-rose"
+          icon={TimerOff}
+          label="Expired"
+          value={summary.expired}
+        />
+      </div>
+
       <Card>
         <CardContent className="space-y-4 p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-muted-foreground">
-              {coupons.length} coupon{coupons.length === 1 ? "" : "s"}
+              {visible.length} of {coupons.length} coupon
+              {coupons.length === 1 ? "" : "s"}
             </p>
-            <Button onClick={() => setCreating(true)}>
-              <Plus className="mr-2 h-4 w-4" /> New coupon
-            </Button>
+            <div className="flex items-center gap-2">
+              <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SORT_OPTIONS.map((s) => (
+                    <SelectItem key={s.key} value={s.key}>
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={() => setCreating(true)}>
+                <Plus className="mr-2 h-4 w-4" /> New coupon
+              </Button>
+            </div>
+          </div>
+
+          {/* Status segment chips with live counts. */}
+          <div className="flex flex-wrap gap-2">
+            {SEGMENTS.map((s) => (
+              <SegChip
+                key={s.key}
+                label={s.label}
+                count={segCounts[s.key]}
+                tone={s.key}
+                active={segment === s.key}
+                onClick={() => setSegment(s.key)}
+              />
+            ))}
           </div>
 
           <div className="overflow-x-auto">
@@ -128,14 +280,20 @@ export function CouponsTable({ coupons, pages }: CouponsTableProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {enriched.length === 0 ? (
+                {visible.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
-                      No coupons yet. Click <strong>New coupon</strong> to create your first.
+                      {coupons.length === 0 ? (
+                        <>
+                          No coupons yet. Click <strong>New coupon</strong> to create your first.
+                        </>
+                      ) : (
+                        "No coupons match this filter."
+                      )}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  enriched.map((c) => {
+                  visible.map((c) => {
                     const status = !c.active
                       ? "inactive"
                       : c.expired
@@ -220,6 +378,77 @@ export function CouponsTable({ coupons, pages }: CouponsTableProps) {
         initial={editing ?? undefined}
       />
     </>
+  );
+}
+
+function SummaryCard({
+  tile,
+  icon: Icon,
+  label,
+  value,
+}: {
+  tile: string;
+  icon: typeof CheckCircle2;
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="card-surface flex items-center gap-3 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-md">
+      <div
+        className={cn(
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+          tile,
+        )}
+      >
+        <Icon className="h-5 w-5" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          {label}
+        </p>
+        <p className="font-sora text-lg font-bold tabular-nums text-foreground">
+          {value.toLocaleString("en-IN")}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function SegChip({
+  label,
+  count,
+  tone,
+  active,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  tone: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const activeCls = SEG_ACTIVE[tone] ?? SEG_ACTIVE.all;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset transition",
+        active
+          ? activeCls
+          : "border border-border bg-card text-muted-foreground ring-transparent hover:text-foreground",
+      )}
+    >
+      {label}
+      <span
+        className={cn(
+          "rounded-full px-1.5 text-[10px] font-semibold tabular-nums",
+          active ? "bg-white/40 dark:bg-white/15" : "bg-muted",
+        )}
+      >
+        {count.toLocaleString("en-IN")}
+      </span>
+    </button>
   );
 }
 

@@ -4,16 +4,20 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
+  CheckCircle2,
   Check,
+  Clock,
   CreditCard,
   ExternalLink,
   Eye,
   FileText,
   Mail,
   Phone,
+  Search,
   ShieldCheck,
   User2,
   X,
+  XCircle,
 } from "lucide-react";
 
 import { KycReviewActions } from "@/components/admin/KycReviewActions";
@@ -23,7 +27,23 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn, formatDateTime } from "@/lib/utils";
+
+type SortKey = "newest" | "oldest" | "level_desc" | "risk";
+
+const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "level_desc", label: "Highest level" },
+  { value: "risk", label: "Most risk flags" },
+];
 
 export type KycReviewStatus =
   | "pending"
@@ -132,9 +152,52 @@ export function KycReviewClient({ items }: KycReviewClientProps) {
     return out;
   }, [items]);
 
-  const visibleItems = grouped[tab];
+  const [sort, setSort] = useState<SortKey>("newest");
+  const [query, setQuery] = useState("");
+
+  // Stat-card metrics — counts across every status + risk-flag total.
+  const stats = useMemo(
+    () => ({
+      pending: grouped.pending.length,
+      under_review: grouped.under_review.length,
+      approved: grouped.approved.length,
+      rejected: grouped.rejected.length,
+      flagged: items.filter((i) => i.risk_flags.length > 0).length,
+    }),
+    [grouped, items],
+  );
+
+  // Apply the search filter + sort to the active tab's rows.
+  const visibleItems = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let rows = grouped[tab];
+    if (q) {
+      rows = rows.filter(
+        (i) =>
+          (i.buyer_full_name ?? "").toLowerCase().includes(q) ||
+          i.buyer_email.toLowerCase().includes(q) ||
+          (i.pan_number ?? "").toLowerCase().includes(q),
+      );
+    }
+    const sorted = [...rows];
+    sorted.sort((a, b) => {
+      switch (sort) {
+        case "oldest":
+          return a.created_at.localeCompare(b.created_at);
+        case "level_desc":
+          return (b.level ?? 0) - (a.level ?? 0);
+        case "risk":
+          return b.risk_flags.length - a.risk_flags.length;
+        case "newest":
+        default:
+          return b.created_at.localeCompare(a.created_at);
+      }
+    });
+    return sorted;
+  }, [grouped, tab, query, sort]);
+
   const [selectedId, setSelectedId] = useState<string | null>(
-    visibleItems[0]?.id ?? null,
+    grouped[tab][0]?.id ?? null,
   );
 
   // Keep selection in sync when the tab changes.
@@ -148,6 +211,40 @@ export function KycReviewClient({ items }: KycReviewClientProps) {
 
   return (
     <div className="space-y-4">
+      {/* ── Summary stat cards ── */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <StatCard
+          icon={Clock}
+          accent="amber"
+          label="Pending"
+          value={stats.pending}
+        />
+        <StatCard
+          icon={Search}
+          accent="indigo"
+          label="Under review"
+          value={stats.under_review}
+        />
+        <StatCard
+          icon={CheckCircle2}
+          accent="emerald"
+          label="Approved"
+          value={stats.approved}
+        />
+        <StatCard
+          icon={XCircle}
+          accent="rose"
+          label="Rejected"
+          value={stats.rejected}
+        />
+        <StatCard
+          icon={AlertCircle}
+          accent="violet"
+          label="Risk flagged"
+          value={stats.flagged}
+        />
+      </div>
+
       {/* ── Tabs (Pending / Under Review / Approved / Rejected) ── */}
       <Tabs
         value={tab}
@@ -199,6 +296,32 @@ export function KycReviewClient({ items }: KycReviewClientProps) {
             </span>
           </div>
 
+          {/* Search + sort controls */}
+          <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search name, email, PAN…"
+                className="h-9 w-full rounded-lg border border-border bg-card pl-8 pr-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+              <SelectTrigger className="h-9 w-[140px] shrink-0 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value} className="text-xs">
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {visibleItems.length === 0 ? (
             <EmptyQueue tab={tab} />
           ) : (
@@ -229,6 +352,39 @@ export function KycReviewClient({ items }: KycReviewClientProps) {
 }
 
 // ── Sub-components ──────────────────────────────────────────────────────
+
+function StatCard({
+  icon: Icon,
+  accent,
+  label,
+  value,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  accent: "indigo" | "emerald" | "amber" | "rose" | "violet";
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="card-surface flex items-center gap-3 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-md">
+      <span
+        className={cn(
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+          `tile-${accent}`,
+        )}
+      >
+        <Icon className="h-5 w-5" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          {label}
+        </p>
+        <p className="font-sora text-lg font-bold tabular-nums text-foreground">
+          {value}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function EmptyQueue({ tab }: { tab: KycReviewStatus }) {
   const copy: Record<KycReviewStatus, string> = {

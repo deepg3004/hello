@@ -176,7 +176,7 @@ export function DomainSettingsForm(props: Props) {
             {props.subdomain && (
               <Badge
                 variant="outline"
-                className="ml-2 align-middle border-emerald-200 text-emerald-700"
+                className="ml-2 align-middle border-emerald-200 text-emerald-700 dark:border-emerald-500/30 dark:text-emerald-300"
               >
                 <ShieldCheck className="mr-1 h-3 w-3" />
                 Claimed
@@ -280,7 +280,7 @@ export function DomainSettingsForm(props: Props) {
             {props.customDomainVerifiedAt && (
               <Badge
                 variant="outline"
-                className="border-emerald-200 text-emerald-700"
+                className="border-emerald-200 text-emerald-700 dark:border-emerald-500/30 dark:text-emerald-300"
               >
                 <CheckCircle2 className="mr-1 h-3 w-3" />
                 Verified
@@ -296,7 +296,7 @@ export function DomainSettingsForm(props: Props) {
         </CardHeader>
         <CardContent className="space-y-4">
           {!props.canUseCustomDomains && (
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-900/10">
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-900/10 dark:text-amber-200">
               {props.plan === "free" || props.plan === "starter"
                 ? "Custom domains require the Pro plan or higher."
                 : "Custom domains are disabled platform-wide right now. Check back later."}
@@ -428,7 +428,7 @@ function certBadge(
 ): React.ReactNode {
   if (status === "active" || (verified && !status)) {
     return (
-      <Badge className="bg-emerald-100 text-emerald-700">
+      <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
         <CheckCircle2 className="mr-1 h-3 w-3" />
         Active
       </Badge>
@@ -436,7 +436,7 @@ function certBadge(
   }
   if (status === "provisioning") {
     return (
-      <Badge variant="outline" className="border-blue-200 text-blue-700">
+      <Badge variant="outline" className="border-blue-200 text-blue-700 dark:border-blue-500/30 dark:text-blue-300">
         <Loader2 className="mr-1 h-3 w-3 animate-spin" />
         Issuing certificate
       </Badge>

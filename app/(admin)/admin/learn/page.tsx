@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import {
   LearnAdminClient,
   type AdminLearnVideo,
@@ -36,21 +37,21 @@ export default async function AdminLearnPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-sora text-2xl font-semibold tracking-tight">
-          Creator Academy
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Manage the seller-facing Learn page — hero, masterclass, resources, and
-          both video carousels.
-        </p>
+        <DashboardHero
+          title="Creator Academy"
+          blurb="Manage the seller-facing Learn page — hero, masterclass, resources, and both video carousels."
+          resourcesHref={null}
+        />
       </div>
 
-      <LearnAdminClient
-        settings={settings}
-        featured={all.find((v) => v.section === "featured") ?? null}
-        useInvoxai={all.filter((v) => v.section === "use_invoxai")}
-        niche={all.filter((v) => v.section === "niche")}
-      />
+      <div className="animate-in-up" style={{ animationDelay: "80ms" }}>
+        <LearnAdminClient
+          settings={settings}
+          featured={all.find((v) => v.section === "featured") ?? null}
+          useInvoxai={all.filter((v) => v.section === "use_invoxai")}
+          niche={all.filter((v) => v.section === "niche")}
+        />
+      </div>
     </div>
   );
 }

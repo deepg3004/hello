@@ -5,11 +5,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Palette,
+  Wrench,
+  Coins,
+  ShieldCheck,
+  LifeBuoy,
+  Mail,
+  ToggleRight,
+} from "lucide-react";
 import { SettingNumberInput } from "@/components/admin/SettingNumberInput";
 import { SettingTextInput } from "@/components/admin/SettingTextInput";
 import { SettingImageInput } from "@/components/admin/SettingImageInput";
 import { SettingToggle } from "@/components/admin/SettingToggle";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 
 export const metadata = { title: "Admin · Platform Settings" };
 
@@ -56,19 +66,20 @@ export default async function AdminPlatformSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-sora font-semibold tracking-tight">
-          Platform settings
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Runtime knobs. Every save persists to <code>platform_settings</code>{" "}
-          and lands in the audit log.
-        </p>
-      </div>
+      <DashboardHero
+        title="Platform settings"
+        blurb="Runtime knobs. Every save persists to platform_settings and lands in the audit log."
+        resourcesHref={null}
+      />
 
-      <Card>
+      <Card className="animate-in-up" style={{ animationDelay: "60ms" }}>
         <CardHeader>
-          <CardTitle className="text-base">Identity</CardTitle>
+          <CardTitle className="flex items-center gap-2.5 text-base">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl tile-indigo">
+              <Palette className="h-4 w-4" />
+            </span>
+            Identity
+          </CardTitle>
           <CardDescription>
             Brand name + logo shown across the site — landing page, login,
             seller + admin sidebars, and the maintenance page.
@@ -89,9 +100,14 @@ export default async function AdminPlatformSettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="animate-in-up" style={{ animationDelay: "120ms" }}>
         <CardHeader>
-          <CardTitle className="text-base">Maintenance mode</CardTitle>
+          <CardTitle className="flex items-center gap-2.5 text-base">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl tile-amber">
+              <Wrench className="h-4 w-4" />
+            </span>
+            Maintenance mode
+          </CardTitle>
           <CardDescription>
             Turn this on during cutover windows. Every public + dashboard URL
             replies with a 503 to the maintenance page. Admins bypass it.
@@ -117,9 +133,14 @@ export default async function AdminPlatformSettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="animate-in-up" style={{ animationDelay: "180ms" }}>
         <CardHeader>
-          <CardTitle className="text-base">Economics</CardTitle>
+          <CardTitle className="flex items-center gap-2.5 text-base">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl tile-emerald">
+              <Coins className="h-4 w-4" />
+            </span>
+            Economics
+          </CardTitle>
           <CardDescription>
             Defaults apply to new orders. Existing rows keep their captured
             commission.
@@ -160,9 +181,14 @@ export default async function AdminPlatformSettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="animate-in-up" style={{ animationDelay: "240ms" }}>
         <CardHeader>
-          <CardTitle className="text-base">KYC thresholds</CardTitle>
+          <CardTitle className="flex items-center gap-2.5 text-base">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl tile-rose">
+              <ShieldCheck className="h-4 w-4" />
+            </span>
+            KYC thresholds
+          </CardTitle>
           <CardDescription>
             Sellers crossing the GMV threshold are required to complete the
             next KYC level before withdrawals continue.
@@ -179,9 +205,14 @@ export default async function AdminPlatformSettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="animate-in-up" style={{ animationDelay: "300ms" }}>
         <CardHeader>
-          <CardTitle className="text-base">Support &amp; legal</CardTitle>
+          <CardTitle className="flex items-center gap-2.5 text-base">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl tile-violet">
+              <LifeBuoy className="h-4 w-4" />
+            </span>
+            Support &amp; legal
+          </CardTitle>
           <CardDescription>
             Public-facing contact + legal links. The support address also
             doubles as the reply-to on every transactional email by default.
@@ -215,9 +246,12 @@ export default async function AdminPlatformSettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="animate-in-up" style={{ animationDelay: "360ms" }}>
         <CardHeader>
-          <CardTitle className="text-base">
+          <CardTitle className="flex items-center gap-2.5 text-base">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl tile-indigo">
+              <Mail className="h-4 w-4" />
+            </span>
             Email envelope (Resend fallback)
           </CardTitle>
           <CardDescription>
@@ -246,9 +280,14 @@ export default async function AdminPlatformSettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="animate-in-up" style={{ animationDelay: "420ms" }}>
         <CardHeader>
-          <CardTitle className="text-base">Feature flags</CardTitle>
+          <CardTitle className="flex items-center gap-2.5 text-base">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl tile-emerald">
+              <ToggleRight className="h-4 w-4" />
+            </span>
+            Feature flags
+          </CardTitle>
           <CardDescription>
             Kill switches for individual product surfaces — useful when
             rolling out new features gradually.

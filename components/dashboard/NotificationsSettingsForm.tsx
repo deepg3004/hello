@@ -259,9 +259,9 @@ export function NotificationsSettingsForm(props: Props) {
           </div>
 
           {isVerified ? (
-            <div className="flex flex-col items-start gap-3 rounded-md border bg-emerald-50/40 p-4 dark:bg-emerald-900/10 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col items-start gap-3 rounded-md border bg-emerald-50/40 p-4 dark:border-emerald-500/30 dark:bg-emerald-900/10 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-300" />
                 <div>
                   <p className="text-sm font-medium">
                     Verified: +{verifiedNumber}
@@ -409,13 +409,13 @@ export function NotificationsSettingsForm(props: Props) {
       {/* ─── Quick legend ───────────────────────────────────────────── */}
       <div className="rounded-md border bg-muted/30 p-4 text-xs text-muted-foreground">
         <div className="flex items-center gap-2">
-          <Check className="h-3.5 w-3.5 text-emerald-600" />
+          <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-300" />
           <span>
             Sample alert preview: <em>&quot;Great news! 🎉 New sale on InvoxAI · Buyer: Riya · Product: Cohort May · Amount: ₹4,999 · Your earnings: ₹4,749&quot;</em>
           </span>
         </div>
         <div className="mt-2 flex items-center gap-2">
-          <X className="h-3.5 w-3.5 text-zinc-500" />
+          <X className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
           <span>
             Notification delivery is best-effort — failures here never affect
             your payments or leads.

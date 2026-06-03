@@ -4,8 +4,12 @@ import {
   TelegramListClient,
   type ListChannel,
 } from "@/components/dashboard/telegram/TelegramListClient";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
+import { PageStatCard } from "@/components/dashboard/pages/PageStatCard";
+import { getCategoryDashboard } from "@/lib/dashboard/page-category-queries";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { formatINR } from "@/lib/utils";
 
 export const metadata = { title: "Telegram" };
 
@@ -108,21 +112,62 @@ export default async function TelegramListPage() {
     };
   });
 
+  // Headline stats — revenue/sales sparklines come from the shared telegram
+  // category query; channel + member counts from the groups above.
+  const { stats } = await getCategoryDashboard(user.id, "telegram");
+  const totalMembers = channels.reduce((a, c) => a + c.activeMembers, 0);
+  const salesSpark = stats.spark.map((s) => s.sales);
+  const revenueSpark = stats.spark.map((s) => s.revenue);
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-sora font-semibold tracking-tight">
-          My Telegram Channels
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Paid access, auto-invite on payment, and auto-removal on expiry.
-        </p>
-      </div>
-      <TelegramListClient
-        connected={!!session}
-        username={session?.telegram_username ?? null}
-        channels={channels}
+      <DashboardHero
+        title="Telegram Channels"
+        blurb="Paid access, auto-invite on payment, and auto-removal on expiry."
+        gradient="from-sky-600 via-indigo-600 to-violet-600"
       />
+
+      <div
+        className="flex flex-wrap gap-4 animate-in-up"
+        style={{ animationDelay: "60ms" }}
+      >
+        <PageStatCard
+          label="Channels"
+          value={channels.length.toLocaleString("en-IN")}
+          trendPct={null}
+          spark={salesSpark}
+          color="#6366f1"
+        />
+        <PageStatCard
+          label="Active Members"
+          value={totalMembers.toLocaleString("en-IN")}
+          trendPct={null}
+          spark={salesSpark}
+          color="#8b5cf6"
+        />
+        <PageStatCard
+          label="Total Revenue"
+          value={formatINR(stats.totalRevenue * 100)}
+          trendPct={stats.revenueTrendPct}
+          spark={revenueSpark}
+          color="#10b981"
+        />
+        <PageStatCard
+          label="Total Sales"
+          value={stats.totalSales.toLocaleString("en-IN")}
+          trendPct={stats.salesTrendPct}
+          spark={salesSpark}
+          color="#f59e0b"
+        />
+      </div>
+
+      <div className="animate-in-up" style={{ animationDelay: "120ms" }}>
+        <TelegramListClient
+          connected={!!session}
+          username={session?.telegram_username ?? null}
+          channels={channels}
+        />
+      </div>
     </div>
   );
 }

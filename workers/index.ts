@@ -42,6 +42,7 @@ import { bootEmailWorker } from "@/lib/queues/email";
 import { bootWhatsAppWorker } from "@/lib/queues/whatsapp";
 import { bootPayoutWorker } from "@/lib/queues/payouts";
 import { bootTelegramWorker } from "@/lib/queues/telegram";
+import { bootTelegramSyncLoop } from "@/lib/queues/telegram-sync";
 
 async function main(): Promise<void> {
   if (!process.env.REDIS_URL) {
@@ -66,6 +67,8 @@ async function main(): Promise<void> {
     bootPayoutWorker(),
     bootTelegramWorker(),
   ]);
+  // 1-minute Telegram join/leave reconcile (not a BullMQ queue — a timer loop).
+  bootTelegramSyncLoop();
   console.log("[workers] all workers booted");
 
   // PM2 sends SIGINT on reload — give workers a chance to finish in-flight

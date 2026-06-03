@@ -6,11 +6,16 @@ import {
   Copy,
   Download,
   Loader2,
+  MousePointerClick,
   PauseCircle,
   PlayCircle,
+  Search,
+  TrendingUp,
+  Users,
   Wallet,
 } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -102,6 +107,29 @@ export function AffiliatesDashboard({
     for (const p of programs) m.set(p.page_id, p);
     return m;
   }, [programs]);
+
+  // Platform-wide roll-up across every program (computed from props).
+  const overview = useMemo(() => {
+    const activePrograms = programs.filter((p) => p.status === "active").length;
+    const earnings = links.reduce((s, l) => s + l.earnings, 0);
+    const paid = links.reduce((s, l) => s + l.paid_amount, 0);
+    return {
+      activePrograms,
+      totalPrograms: programs.length,
+      affiliates: links.length,
+      revenue: earnings,
+      outstanding: Math.max(0, earnings - paid),
+    };
+  }, [programs, links]);
+
+  // Sort + filter + search state for the per-program affiliate table.
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "paused">(
+    "all",
+  );
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<
+    "earnings" | "outstanding" | "conversions" | "clicks" | "recent"
+  >("earnings");
 
   const [selectedPageId, setSelectedPageId] = useState<string>(
     pages[0]?.id ?? "",
@@ -242,6 +270,53 @@ export function AffiliatesDashboard({
     return { earnings, paid, outstanding: earnings - paid, clicks, conversions };
   }, [linksForPage]);
 
+  // Counts per status for the filter chips (reflect the active search only).
+  const statusCounts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const matches = (l: LinkRow) =>
+      !q ||
+      l.referrer_name.toLowerCase().includes(q) ||
+      l.referrer_email.toLowerCase().includes(q) ||
+      l.referral_code.toLowerCase().includes(q);
+    const base = linksForPage.filter(matches);
+    return {
+      all: base.length,
+      active: base.filter((l) => l.status === "active").length,
+      paused: base.filter((l) => l.status === "paused").length,
+    };
+  }, [linksForPage, search]);
+
+  // The rows actually shown: filtered by status + search, then sorted.
+  const visibleLinks = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const rows = linksForPage.filter((l) => {
+      if (statusFilter !== "all" && l.status !== statusFilter) return false;
+      if (!q) return true;
+      return (
+        l.referrer_name.toLowerCase().includes(q) ||
+        l.referrer_email.toLowerCase().includes(q) ||
+        l.referral_code.toLowerCase().includes(q)
+      );
+    });
+    const outstanding = (l: LinkRow) => Math.max(0, l.earnings - l.paid_amount);
+    return [...rows].sort((a, b) => {
+      switch (sortBy) {
+        case "outstanding":
+          return outstanding(b) - outstanding(a);
+        case "conversions":
+          return b.conversions - a.conversions;
+        case "clicks":
+          return b.clicks - a.clicks;
+        case "recent":
+          return (
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+        default:
+          return b.earnings - a.earnings;
+      }
+    });
+  }, [linksForPage, statusFilter, search, sortBy]);
+
   // ── render ────────────────────────────────────────────────────────────
   if (pages.length === 0) {
     return (
@@ -263,6 +338,38 @@ export function AffiliatesDashboard({
 
   return (
     <div className="space-y-6">
+      {/* Platform-wide summary — across every program */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <OverviewStat
+          label="Active programs"
+          value={`${overview.activePrograms}${
+            overview.totalPrograms > overview.activePrograms
+              ? ` / ${overview.totalPrograms}`
+              : ""
+          }`}
+          tile="tile-indigo"
+          icon={Users}
+        />
+        <OverviewStat
+          label="Affiliates"
+          value={overview.affiliates.toLocaleString("en-IN")}
+          tile="tile-violet"
+          icon={MousePointerClick}
+        />
+        <OverviewStat
+          label="Referred revenue"
+          value={inr(overview.revenue)}
+          tile="tile-emerald"
+          icon={TrendingUp}
+        />
+        <OverviewStat
+          label="Owed to affiliates"
+          value={inr(overview.outstanding)}
+          tile={overview.outstanding > 0 ? "tile-amber" : "tile-emerald"}
+          icon={Wallet}
+        />
+      </div>
+
       {/* Page selector + program form */}
       <Card>
         <CardHeader>
@@ -423,6 +530,50 @@ export function AffiliatesDashboard({
                 tone={totals.outstanding > 0 ? "warn" : "ok"}
               />
             </div>
+
+            {/* Filter chips + search + sort */}
+            {linksForPage.length > 0 && (
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap gap-2">
+                  {(["all", "active", "paused"] as const).map((s) => (
+                    <StatusChip
+                      key={s}
+                      label={s === "all" ? "All" : s}
+                      count={statusCounts[s]}
+                      active={statusFilter === s}
+                      tone={s}
+                      onClick={() => setStatusFilter(s)}
+                    />
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search affiliates…"
+                      className="h-9 w-full pl-8 sm:w-48"
+                    />
+                  </div>
+                  <Select
+                    value={sortBy}
+                    onValueChange={(v) => setSortBy(v as typeof sortBy)}
+                  >
+                    <SelectTrigger className="h-9 w-[150px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="earnings">Top earnings</SelectItem>
+                      <SelectItem value="outstanding">Most owed</SelectItem>
+                      <SelectItem value="conversions">Conversions</SelectItem>
+                      <SelectItem value="clicks">Clicks</SelectItem>
+                      <SelectItem value="recent">Newest</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
           </CardHeader>
           <CardContent className="px-0">
             <Table>
@@ -438,17 +589,19 @@ export function AffiliatesDashboard({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {linksForPage.length === 0 && (
+                {visibleLinks.length === 0 && (
                   <TableRow>
                     <TableCell
                       colSpan={7}
                       className="py-10 text-center text-sm text-muted-foreground"
                     >
-                      No affiliates yet. Share the join link above.
+                      {linksForPage.length === 0
+                        ? "No affiliates yet. Share the join link above."
+                        : "No affiliates match this filter."}
                     </TableCell>
                   </TableRow>
                 )}
-                {linksForPage.map((l) => {
+                {visibleLinks.map((l) => {
                   const outstanding = Math.max(0, l.earnings - l.paid_amount);
                   const conv =
                     l.clicks > 0
@@ -546,6 +699,86 @@ function Stat({
         {value}
       </p>
     </div>
+  );
+}
+
+function OverviewStat({
+  label,
+  value,
+  tile,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  tile: string;
+  icon: typeof Wallet;
+}) {
+  return (
+    <div className="card-surface flex items-center gap-3 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-md">
+      <span
+        aria-hidden
+        className={cn(
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+          tile,
+        )}
+      >
+        <Icon className="h-[18px] w-[18px]" strokeWidth={2.25} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground truncate">
+          {label}
+        </p>
+        <p className="mt-0.5 font-sora text-lg font-bold tabular-nums text-foreground">
+          {value}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+const CHIP_ACTIVE: Record<string, string> = {
+  all: "bg-indigo-500/15 text-indigo-700 ring-indigo-500/30 dark:text-indigo-300",
+  active:
+    "bg-emerald-500/15 text-emerald-700 ring-emerald-500/30 dark:text-emerald-300",
+  paused:
+    "bg-amber-500/15 text-amber-700 ring-amber-500/30 dark:text-amber-300",
+};
+
+function StatusChip({
+  label,
+  count,
+  active,
+  tone,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  tone?: string;
+  onClick: () => void;
+}) {
+  const activeCls = CHIP_ACTIVE[tone ?? "all"] ?? CHIP_ACTIVE.all;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium capitalize ring-1 ring-inset transition",
+        active
+          ? activeCls
+          : "border border-border bg-card text-muted-foreground ring-transparent hover:text-foreground",
+      )}
+    >
+      {label}
+      <span
+        className={cn(
+          "rounded-full px-1.5 text-[10px] font-semibold tabular-nums",
+          active ? "bg-white/40 dark:bg-white/15" : "bg-muted",
+        )}
+      >
+        {count.toLocaleString("en-IN")}
+      </span>
+    </button>
   );
 }
 

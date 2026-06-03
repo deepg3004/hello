@@ -1,13 +1,23 @@
 import { redirect } from "next/navigation";
 
+import { format, subMonths } from "date-fns";
+
 import {
   TransactionsClient,
   type PageOption,
   type TransactionRow,
 } from "@/components/dashboard/TransactionsClient";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
+import {
+  EarningsCard,
+  type EarningsPoint,
+} from "@/components/dashboard/EarningsCard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { ExportCsvButton } from "@/components/dashboard/ExportCsvButton";
+
+const HERO_BTN =
+  "border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white";
 
 export const metadata = { title: "Transactions" };
 
@@ -99,17 +109,37 @@ export default async function TransactionsPage() {
 
   const pages: PageOption[] = (pagesRaw ?? []).map((p) => ({ id: p.id, title: p.title }));
 
+  // ── Monthly earnings series for the chart (last 12 months) ───────────
+  const paid = rows.filter((r) => r.status === "paid");
+  const byMonth = new Map<string, number>();
+  for (const r of paid) {
+    const k = String(r.created_at).slice(0, 7); // yyyy-MM
+    byMonth.set(k, (byMonth.get(k) ?? 0) + r.amount);
+  }
+  const earnings: EarningsPoint[] = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = subMonths(new Date(), i);
+    const key = format(d, "yyyy-MM");
+    earnings.push({
+      key,
+      // Show the year on January so the axis reads across year boundaries.
+      label: d.getMonth() === 0 ? format(d, "MMM yy") : format(d, "MMM"),
+      value: byMonth.get(key) ?? 0,
+    });
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-sora font-semibold tracking-tight">Transactions</h1>
-          <p className="text-sm text-muted-foreground">
-            Every order ever placed on your pages.
-          </p>
-        </div>
-        <ExportCsvButton type="orders" />
-      </div>
+      <DashboardHero
+        title="Transactions"
+        blurb="Every order ever placed on your pages."
+        gradient="from-indigo-600 via-blue-600 to-cyan-600"
+      >
+        <ExportCsvButton type="orders" className={HERO_BTN} />
+      </DashboardHero>
+
+      <EarningsCard series={earnings} />
+
       <TransactionsClient
         rows={rows}
         pages={pages}

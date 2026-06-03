@@ -17,6 +17,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { resolvedFormConfig, type FormConfig } from "@/lib/leads";
 import { getRuntimePixelConfig } from "@/components/pages/PixelScripts";
@@ -33,6 +34,8 @@ interface LeadCaptureFormProps {
   redirectUrl?: string;
   /** Live form configuration from page_config.form_config. */
   formConfig?: FormConfig;
+  /** Theme accent — tints the submit button so the form matches the page. */
+  primaryColor?: string;
 }
 
 export function LeadCaptureForm({
@@ -41,6 +44,7 @@ export function LeadCaptureForm({
   requirePhone,
   redirectUrl,
   formConfig,
+  primaryColor,
 }: LeadCaptureFormProps) {
   const { toast } = useToast();
   const cfg = resolvedFormConfig(formConfig);
@@ -54,6 +58,11 @@ export function LeadCaptureForm({
   const privacy = cfg.privacy_text;
 
   const [submitting, setSubmitting] = useState(false);
+  const customFields = cfg.custom_fields ?? [];
+  const [customValues, setCustomValues] = useState<
+    Record<string, string | boolean>
+  >({});
+  const [customError, setCustomError] = useState<string | null>(null);
   const [done, setDone] = useState<
     | { kind: "thanks" }
     | { kind: "download"; url: string }
@@ -77,6 +86,17 @@ export function LeadCaptureForm({
   });
 
   async function onSubmit(values: FormValues) {
+    // Validate required custom fields (they live outside react-hook-form).
+    for (const f of customFields) {
+      if (!f.required) continue;
+      const v = customValues[f.key];
+      const empty = f.type === "checkbox" ? !v : !String(v ?? "").trim();
+      if (empty) {
+        setCustomError(`Please complete: ${f.label}`);
+        return;
+      }
+    }
+    setCustomError(null);
     setSubmitting(true);
     try {
       const res = await fetch("/api/leads/capture", {
@@ -87,6 +107,7 @@ export function LeadCaptureForm({
           name: values.name ?? "",
           email: values.email,
           phone: values.phone || null,
+          custom_fields: customValues,
           source: typeof document !== "undefined" ? document.referrer || null : null,
           utm: parseUtmFromUrl(),
         }),
@@ -154,7 +175,11 @@ export function LeadCaptureForm({
       <div className="flex flex-col items-center gap-3 text-center">
         <CheckCircle2 className="h-8 w-8 text-emerald-500" />
         <p className="font-medium">Your download is ready.</p>
-        <Button asChild className="w-full">
+        <Button
+          asChild
+          className="w-full"
+          style={primaryColor ? { backgroundColor: primaryColor } : undefined}
+        >
           <Link href={done.url} target="_blank" rel="noreferrer">
             <Download className="mr-2 h-4 w-4" /> Download now
           </Link>
@@ -226,7 +251,76 @@ export function LeadCaptureForm({
             )}
           />
         )}
-        <Button type="submit" className="w-full" disabled={submitting}>
+        {/* Seller-defined custom fields */}
+        {customFields.map((f) => {
+          const val = customValues[f.key];
+          const set = (v: string | boolean) =>
+            setCustomValues((p) => ({ ...p, [f.key]: v }));
+          if (f.type === "checkbox") {
+            return (
+              <label
+                key={f.key}
+                className="flex items-start gap-2 text-sm font-medium"
+              >
+                <input
+                  type="checkbox"
+                  checked={!!val}
+                  onChange={(e) => set(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-input"
+                />
+                <span>
+                  {f.label}
+                  {f.required && <span className="text-rose-500"> *</span>}
+                </span>
+              </label>
+            );
+          }
+          return (
+            <div key={f.key} className="space-y-1.5">
+              <label className="text-sm font-medium">
+                {f.label}
+                {f.required && <span className="text-rose-500"> *</span>}
+              </label>
+              {f.type === "textarea" ? (
+                <Textarea
+                  rows={3}
+                  placeholder={f.placeholder}
+                  value={(val as string) ?? ""}
+                  onChange={(e) => set(e.target.value)}
+                />
+              ) : f.type === "select" ? (
+                <select
+                  value={(val as string) ?? ""}
+                  onChange={(e) => set(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="">{f.placeholder ?? "Select…"}</option>
+                  {(f.options ?? []).map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  placeholder={f.placeholder}
+                  value={(val as string) ?? ""}
+                  onChange={(e) => set(e.target.value)}
+                />
+              )}
+            </div>
+          );
+        })}
+        {customError && (
+          <p className="text-xs font-medium text-rose-500">{customError}</p>
+        )}
+
+        <Button
+          type="submit"
+          className="w-full"
+          disabled={submitting}
+          style={primaryColor ? { backgroundColor: primaryColor } : undefined}
+        >
           {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {submitCta}
         </Button>

@@ -2,6 +2,7 @@
 
 import { LandingWebinarPage } from "@/components/templates/LandingWebinarPage";
 import type { TimerConfig } from "@/components/templates/shared/types";
+import { designSection } from "@/lib/templates/design";
 import { extractDefaults, readField } from "@/lib/templates/utils";
 import type { Template, TemplateDefinition, TemplateRender } from "@/lib/templates/types";
 
@@ -104,6 +105,7 @@ const definition: TemplateDefinition = {
         { key: "timer_label", label: "Timer label", type: "text", defaultValue: "Live in" },
       ],
     },
+    designSection("purple"),
   ],
 };
 
@@ -132,6 +134,8 @@ const Render: TemplateRender = ({ values, pageId, isPreview }) => {
       register_count_label={readField(values, "register_count_label", "")}
       redirect_url={readField(values, "redirect_url", "") || undefined}
       formConfig={(values.form_config as import("@/lib/leads").FormConfig | undefined) ?? undefined}
+      theme_key={readField(values, "theme", "purple")}
+      bg_animation={readField(values, "bg_animation", "none")}
     />
   );
 };

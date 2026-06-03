@@ -4,12 +4,14 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Filter,
+  IndianRupee,
   Inbox,
   MoreVertical,
   Search,
   ShieldCheck,
   Sparkles,
   UserCheck,
+  Users,
   UserX,
   X,
 } from "lucide-react";
@@ -58,10 +60,10 @@ const STATUS_OPTIONS = [
 
 // Plan badge palette — small coloured pill per plan.
 const PLAN_BADGE: Record<string, string> = {
-  free: "bg-zinc-100 text-zinc-700 border-zinc-200",
-  starter: "bg-sky-50 text-sky-700 border-sky-200",
-  pro: "bg-indigo-50 text-indigo-700 border-indigo-200",
-  business: "bg-amber-50 text-amber-700 border-amber-200",
+  free: "bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-500/15 dark:text-zinc-300 dark:border-zinc-500/30",
+  starter: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30",
+  pro: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:border-indigo-500/30",
+  business: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30",
 };
 
 // Deterministic gradient avatar (FNV-1a hash → 5 buckets) shared with the
@@ -100,10 +102,11 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
   const [status, setStatus] = useState<string>("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [sort, setSort] = useState<"joined" | "revenue" | "name">("joined");
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return users.filter((u) => {
+    const list = users.filter((u) => {
       if (
         q &&
         !u.email.toLowerCase().includes(q) &&
@@ -122,7 +125,42 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
       }
       return true;
     });
-  }, [users, search, plan, kyc, status, from, to]);
+    const sorted = [...list];
+    switch (sort) {
+      case "revenue":
+        sorted.sort((a, b) => b.total_revenue - a.total_revenue);
+        break;
+      case "name":
+        sorted.sort((a, b) =>
+          (a.full_name ?? a.email).localeCompare(b.full_name ?? b.email),
+        );
+        break;
+      default:
+        sorted.sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        );
+    }
+    return sorted;
+  }, [users, search, plan, kyc, status, from, to, sort]);
+
+  // Platform summary for the stat cards (reflects the active filters).
+  const summary = useMemo(() => {
+    let paying = 0;
+    let suspended = 0;
+    let revenue = 0;
+    for (const u of filtered) {
+      revenue += u.total_revenue;
+      if (u.suspended) suspended += 1;
+      else if (
+        u.subscription_plan !== "free" &&
+        (u.subscription_status === "active" ||
+          u.subscription_status === "trialing")
+      )
+        paying += 1;
+    }
+    return { total: filtered.length, paying, suspended, revenue };
+  }, [filtered]);
 
   const anyFilter =
     !!search || plan !== "all" || kyc !== "all" || status !== "all" || !!from || !!to;
@@ -138,6 +176,14 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
 
   return (
     <div className="space-y-4">
+      {/* ── Summary cards — reflect the active filters ────────────────── */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <UserStat label="Users" value={summary.total.toLocaleString("en-IN")} tile="tile-indigo" icon={Users} />
+        <UserStat label="Paying" value={summary.paying.toLocaleString("en-IN")} tile="tile-emerald" icon={UserCheck} />
+        <UserStat label="Suspended" value={summary.suspended.toLocaleString("en-IN")} tile="tile-rose" icon={UserX} />
+        <UserStat label="Lifetime Revenue" value={`₹${summary.revenue.toLocaleString("en-IN")}`} tile="tile-amber" icon={IndianRupee} />
+      </div>
+
       {/* ── Filter bar ──────────────────────────────────────────────── */}
       <div className="card-surface p-4">
         <div className="flex flex-wrap items-end gap-3">
@@ -229,6 +275,21 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
               className="w-[150px]"
             />
           </div>
+          <div className="space-y-1">
+            <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Sort
+            </Label>
+            <Select value={sort} onValueChange={(v) => setSort(v as typeof sort)}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="joined">Newest first</SelectItem>
+                <SelectItem value="revenue">Highest revenue</SelectItem>
+                <SelectItem value="name">Name A–Z</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           {anyFilter && (
             <Button
               variant="ghost"
@@ -290,6 +351,40 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
   );
 }
 
+function UserStat({
+  label,
+  value,
+  tile,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  tile: string;
+  icon: typeof Users;
+}) {
+  return (
+    <div className="card-surface flex items-center gap-3 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-md">
+      <span
+        aria-hidden
+        className={cn(
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+          tile,
+        )}
+      >
+        <Icon className="h-[18px] w-[18px]" strokeWidth={2.25} />
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </p>
+        <p className="mt-0.5 font-sora text-lg font-bold tabular-nums text-foreground">
+          {value}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function Th({
   children,
   className,
@@ -312,8 +407,8 @@ function Th({
 function EmptyState({ filtered }: { filtered: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50">
-        <Inbox className="h-5 w-5 text-indigo-600" />
+      <div className="flex h-12 w-12 items-center justify-center rounded-full tile-indigo">
+        <Inbox className="h-5 w-5" />
       </div>
       <div>
         <p className="font-medium">

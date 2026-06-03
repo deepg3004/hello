@@ -1,10 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, Mail, Phone, Search, ShoppingBag } from "lucide-react";
+import {
+  CalendarClock,
+  Crown,
+  Download,
+  Mail,
+  Phone,
+  Search,
+  ShoppingBag,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -76,8 +91,20 @@ const csvEscape = (s: unknown) => {
   return /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 };
 
+type Segment = "all" | "new" | "repeat" | "vip";
+type SortKey = "spent" | "orders" | "recent" | "name";
+
+const SORTS: { key: SortKey; label: string }[] = [
+  { key: "spent", label: "Highest spend" },
+  { key: "orders", label: "Most orders" },
+  { key: "recent", label: "Recent purchase" },
+  { key: "name", label: "Name A–Z" },
+];
+
 export function CustomersClient({ customers }: { customers: Customer[] }) {
   const [search, setSearch] = useState("");
+  const [segment, setSegment] = useState<Segment>("all");
+  const [sort, setSort] = useState<SortKey>("spent");
   const [active, setActive] = useState<Customer | null>(null);
 
   // Prefill from the global command palette (/dashboard/customers?q=...).
@@ -86,7 +113,19 @@ export function CustomersClient({ customers }: { customers: Customer[] }) {
     if (q) setSearch(q);
   }, []);
 
-  const filtered = useMemo(() => {
+  // VIP = spend in the top 10% of all customers (≥1 paid order).
+  const vipThreshold = useMemo(() => {
+    const spends = customers
+      .map((c) => c.total_spent)
+      .filter((n) => n > 0)
+      .sort((a, b) => b - a);
+    if (spends.length === 0) return Infinity;
+    const idx = Math.max(0, Math.floor(spends.length * 0.1) - 1);
+    return spends[idx] ?? Infinity;
+  }, [customers]);
+  const isVip = (c: Customer) => c.total_spent > 0 && c.total_spent >= vipThreshold;
+
+  const searched = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return customers;
     return customers.filter(
@@ -94,6 +133,45 @@ export function CustomersClient({ customers }: { customers: Customer[] }) {
         c.email.toLowerCase().includes(q) || c.name?.toLowerCase().includes(q),
     );
   }, [search, customers]);
+
+  const segCounts = useMemo(
+    () => ({
+      all: searched.length,
+      new: searched.filter((c) => c.total_orders === 1).length,
+      repeat: searched.filter((c) => c.total_orders >= 2).length,
+      vip: searched.filter(isVip).length,
+    }),
+    [searched, vipThreshold],
+  );
+
+  const filtered = useMemo(() => {
+    let list = searched;
+    if (segment === "new") list = list.filter((c) => c.total_orders === 1);
+    else if (segment === "repeat") list = list.filter((c) => c.total_orders >= 2);
+    else if (segment === "vip") list = list.filter(isVip);
+
+    const sorted = [...list];
+    switch (sort) {
+      case "orders":
+        sorted.sort((a, b) => b.total_orders - a.total_orders);
+        break;
+      case "recent":
+        sorted.sort(
+          (a, b) =>
+            new Date(b.last_purchase_at).getTime() -
+            new Date(a.last_purchase_at).getTime(),
+        );
+        break;
+      case "name":
+        sorted.sort((a, b) =>
+          (a.name ?? a.email).localeCompare(b.name ?? b.email),
+        );
+        break;
+      default:
+        sorted.sort((a, b) => b.total_spent - a.total_spent);
+    }
+    return sorted;
+  }, [searched, segment, sort, vipThreshold]);
 
   function exportCsv() {
     const header = [
@@ -136,7 +214,7 @@ export function CustomersClient({ customers }: { customers: Customer[] }) {
 
   return (
     <>
-      {/* ── Search + export ──────────────────────────────────────────── */}
+      {/* ── Search + sort + export ───────────────────────────────────── */}
       <div className="card-surface p-4">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[220px] flex-1">
@@ -148,15 +226,36 @@ export function CustomersClient({ customers }: { customers: Customer[] }) {
               className="pl-9"
             />
           </div>
+          <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+            <SelectTrigger className="w-[170px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SORTS.map((s) => (
+                <SelectItem key={s.key} value={s.key}>
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button variant="outline" size="sm" onClick={exportCsv}>
             <Download className="mr-2 h-3.5 w-3.5" />
             Export CSV
           </Button>
         </div>
+
+        {/* Segment chips with live counts */}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <SegChip label="All" count={segCounts.all} active={segment === "all"} onClick={() => setSegment("all")} />
+          <SegChip label="New" count={segCounts.new} active={segment === "new"} tone="indigo" onClick={() => setSegment(segment === "new" ? "all" : "new")} />
+          <SegChip label="Repeat" count={segCounts.repeat} active={segment === "repeat"} tone="emerald" onClick={() => setSegment(segment === "repeat" ? "all" : "repeat")} />
+          <SegChip label="VIP" count={segCounts.vip} active={segment === "vip"} tone="amber" icon={Crown} onClick={() => setSegment(segment === "vip" ? "all" : "vip")} />
+        </div>
+
         <p className="mt-2 text-xs text-muted-foreground">
           {filtered.length.toLocaleString("en-IN")} customer
           {filtered.length === 1 ? "" : "s"}
-          {search ? ` matching "${search}"` : " · sorted by total spent"}
+          {search ? ` matching "${search}"` : ""}
         </p>
       </div>
 
@@ -209,14 +308,14 @@ export function CustomersClient({ customers }: { customers: Customer[] }) {
 
                   {/* Orders badge */}
                   <div className="lg:w-20 lg:text-center">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
                       <ShoppingBag className="h-3 w-3" />
                       {c.total_orders}
                     </span>
                   </div>
 
                   {/* Total spent */}
-                  <div className="font-mono text-sm font-semibold text-emerald-700 lg:w-32 lg:text-right">
+                  <div className="font-mono text-sm font-semibold text-emerald-700 dark:text-emerald-400 lg:w-32 lg:text-right">
                     {rupees(c.total_spent)}
                   </div>
 
@@ -246,11 +345,59 @@ export function CustomersClient({ customers }: { customers: Customer[] }) {
 
 // ── Sub-components ──────────────────────────────────────────────────────
 
+const SEG_ACTIVE: Record<string, string> = {
+  all: "bg-indigo-500/15 text-indigo-700 ring-indigo-500/30 dark:text-indigo-300",
+  indigo: "bg-indigo-500/15 text-indigo-700 ring-indigo-500/30 dark:text-indigo-300",
+  emerald: "bg-emerald-500/15 text-emerald-700 ring-emerald-500/30 dark:text-emerald-300",
+  amber: "bg-amber-500/15 text-amber-700 ring-amber-500/30 dark:text-amber-300",
+};
+
+function SegChip({
+  label,
+  count,
+  active,
+  tone,
+  icon: Icon,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  tone?: string;
+  icon?: typeof Crown;
+  onClick: () => void;
+}) {
+  const activeCls = SEG_ACTIVE[tone ?? "all"] ?? SEG_ACTIVE.all;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset transition",
+        active
+          ? activeCls
+          : "border border-border bg-card text-muted-foreground ring-transparent hover:text-foreground",
+      )}
+    >
+      {Icon && <Icon className="h-3 w-3" />}
+      {label}
+      <span
+        className={cn(
+          "rounded-full px-1.5 text-[10px] font-semibold tabular-nums",
+          active ? "bg-white/40 dark:bg-white/15" : "bg-muted",
+        )}
+      >
+        {count.toLocaleString("en-IN")}
+      </span>
+    </button>
+  );
+}
+
 function EmptyState({ search }: { search: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-50 to-indigo-100/60 ring-1 ring-inset ring-indigo-200/70">
-        <ShoppingBag className="h-5 w-5 text-indigo-600" />
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-50 to-indigo-100/60 ring-1 ring-inset ring-indigo-200/70 dark:from-indigo-500/15 dark:to-indigo-500/5 dark:ring-indigo-500/30">
+        <ShoppingBag className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
       </div>
       <div>
         <p className="font-medium text-foreground">
@@ -267,6 +414,15 @@ function EmptyState({ search }: { search: string }) {
 }
 
 function CustomerDetail({ customer }: { customer: Customer }) {
+  const avgOrder =
+    customer.total_orders > 0 ? customer.total_spent / customer.total_orders : 0;
+  const customerSince = customer.orders.length
+    ? customer.orders.reduce(
+        (min, o) => (o.created_at < min ? o.created_at : min),
+        customer.orders[0]!.created_at,
+      )
+    : customer.last_purchase_at;
+
   return (
     <>
       <SheetHeader>
@@ -318,20 +474,37 @@ function CustomerDetail({ customer }: { customer: Customer }) {
 
       {/* Quick-stat cards */}
       <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-        <div className="rounded-lg border border-border bg-emerald-50/40 p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700">
+        <div className="rounded-lg border border-border bg-emerald-50/40 p-3 dark:bg-emerald-500/10">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-300">
             Total spent
           </p>
-          <p className="mt-1 font-sora text-lg font-bold text-emerald-700">
+          <p className="mt-1 font-sora text-lg font-bold text-emerald-700 dark:text-emerald-300">
             {rupees(customer.total_spent)}
           </p>
         </div>
-        <div className="rounded-lg border border-border bg-indigo-50/40 p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-700">
+        <div className="rounded-lg border border-border bg-indigo-50/40 p-3 dark:bg-indigo-500/10">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-700 dark:text-indigo-300">
             Orders
           </p>
-          <p className="mt-1 font-sora text-lg font-bold text-indigo-700">
+          <p className="mt-1 font-sora text-lg font-bold text-indigo-700 dark:text-indigo-300">
             {customer.total_orders}
+          </p>
+        </div>
+        <div className="rounded-lg border border-border bg-violet-50/40 p-3 dark:bg-violet-500/10">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-violet-700 dark:text-violet-300">
+            Avg order
+          </p>
+          <p className="mt-1 font-sora text-lg font-bold text-violet-700 dark:text-violet-300">
+            {rupees(avgOrder)}
+          </p>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            Customer since
+          </p>
+          <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-foreground">
+            <CalendarClock className="h-3.5 w-3.5 text-muted-foreground" />
+            {formatDate(customerSince)}
           </p>
         </div>
       </div>

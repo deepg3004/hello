@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { format, subDays, subMonths } from "date-fns";
 import {
+  CalendarRange,
   ChevronLeft,
   ChevronRight,
   ChevronsUpDown,
@@ -9,9 +11,13 @@ import {
   ExternalLink,
   FileText,
   Filter,
+  IndianRupee,
   Inbox,
   Loader2,
   Search,
+  ShoppingBag,
+  TrendingUp,
+  Undo2,
   X,
 } from "lucide-react";
 
@@ -35,6 +41,39 @@ import { cn, formatDateTime, formatINR, truncate } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
 const STATUSES = ["paid", "pending", "failed", "refunded", "cancelled"];
+
+// Quick date-range presets shown above the filter bar. "custom" reveals the
+// explicit From/To pickers; the others compute a range relative to today.
+const DATE_PRESETS = [
+  { key: "all", label: "All time" },
+  { key: "today", label: "Today" },
+  { key: "yesterday", label: "Yesterday" },
+  { key: "7d", label: "Last 7 days" },
+  { key: "1m", label: "Last 1 month" },
+  { key: "custom", label: "Custom" },
+] as const;
+
+type PresetKey = (typeof DATE_PRESETS)[number]["key"];
+
+// yyyy-MM-dd in local time — matches the value the <input type="date"> emits.
+function rangeForPreset(key: PresetKey): { from: string; to: string } {
+  const today = new Date();
+  const fmt = (d: Date) => format(d, "yyyy-MM-dd");
+  switch (key) {
+    case "today":
+      return { from: fmt(today), to: fmt(today) };
+    case "yesterday": {
+      const y = subDays(today, 1);
+      return { from: fmt(y), to: fmt(y) };
+    }
+    case "7d":
+      return { from: fmt(subDays(today, 6)), to: fmt(today) };
+    case "1m":
+      return { from: fmt(subMonths(today, 1)), to: fmt(today) };
+    default:
+      return { from: "", to: "" };
+  }
+}
 
 export interface TransactionRow {
   id: string;
@@ -116,6 +155,9 @@ export function TransactionsClient({
 }: TransactionsClientProps) {
   const { toast } = useToast();
   const [filter, setFilter] = useState(initialFilter);
+  const [preset, setPreset] = useState<PresetKey>(
+    initialFilter.from || initialFilter.to ? "custom" : "all",
+  );
   const [page, setPage] = useState(1);
 
   // Prefill the buyer search when arriving from the global command palette
@@ -128,12 +170,12 @@ export function TransactionsClient({
   const [exporting, setExporting] = useState(false);
   const [refundingId, setRefundingId] = useState<string | null>(null);
 
-  // Client-side filter over the server-loaded snapshot.
-  const filtered = useMemo(() => {
+  // Everything EXCEPT the status filter — so the status chips can show live
+  // counts for the current date/page/search selection.
+  const baseFiltered = useMemo(() => {
     return rows.filter((r) => {
       if (filter.from && new Date(r.created_at) < new Date(filter.from)) return false;
       if (filter.to && new Date(r.created_at) > endOfDay(filter.to)) return false;
-      if (filter.status && r.status !== filter.status) return false;
       if (filter.page_id && r.page_title) {
         const match = pages.find((p) => p.id === filter.page_id);
         if (!match || match.title !== r.page_title) return false;
@@ -146,7 +188,47 @@ export function TransactionsClient({
       }
       return true;
     });
-  }, [rows, filter, pages]);
+  }, [rows, filter.from, filter.to, filter.page_id, filter.search, pages]);
+
+  const filtered = useMemo(
+    () =>
+      filter.status
+        ? baseFiltered.filter((r) => r.status === filter.status)
+        : baseFiltered,
+    [baseFiltered, filter.status],
+  );
+
+  // Per-status counts for the quick-filter chips (based on the non-status set).
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: baseFiltered.length };
+    for (const s of STATUSES) counts[s] = 0;
+    for (const r of baseFiltered) {
+      counts[r.status] = (counts[r.status] ?? 0) + 1;
+    }
+    return counts;
+  }, [baseFiltered]);
+
+  // Summary stats for the cards — reflect the currently filtered rows.
+  const summary = useMemo(() => {
+    let paidRevenue = 0;
+    let paidCount = 0;
+    let refunded = 0;
+    for (const r of filtered) {
+      if (r.status === "paid") {
+        paidRevenue += Number(r.amount ?? 0);
+        paidCount += 1;
+      }
+      if (r.status === "refunded" || r.status === "partially_refunded") {
+        refunded += Number(r.amount ?? 0);
+      }
+    }
+    return {
+      paidRevenue,
+      paidCount,
+      refunded,
+      aov: paidCount > 0 ? paidRevenue / paidCount : 0,
+    };
+  }, [filtered]);
 
   const totalRevenue = filtered.reduce((acc, r) => acc + Number(r.amount ?? 0), 0);
   const totalCommission = filtered.reduce(
@@ -164,8 +246,19 @@ export function TransactionsClient({
     !!filter.page_id ||
     !!filter.search;
 
+  function applyPreset(key: PresetKey) {
+    setPage(1);
+    setPreset(key);
+    // "Custom" keeps whatever range is already set and just reveals the
+    // pickers; every other preset overwrites from/to with its computed range.
+    if (key === "custom") return;
+    const range = rangeForPreset(key);
+    setFilter((f) => ({ ...f, from: range.from, to: range.to }));
+  }
+
   function resetFilters() {
     setFilter({ from: "", to: "", status: "", page_id: "", search: "" });
+    setPreset("all");
     setPage(1);
   }
 
@@ -227,64 +320,93 @@ export function TransactionsClient({
 
   return (
     <div className="space-y-4">
+      {/* ── Summary cards — reflect the active filters ────────────────── */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <MiniStat
+          label="Revenue (paid)"
+          value={rupees(summary.paidRevenue)}
+          tile="tile-emerald"
+          icon={IndianRupee}
+        />
+        <MiniStat
+          label="Paid Orders"
+          value={summary.paidCount.toLocaleString("en-IN")}
+          tile="tile-indigo"
+          icon={ShoppingBag}
+        />
+        <MiniStat
+          label="Avg Order Value"
+          value={rupees(summary.aov)}
+          tile="tile-violet"
+          icon={TrendingUp}
+        />
+        <MiniStat
+          label="Refunded"
+          value={rupees(summary.refunded)}
+          tile="tile-rose"
+          icon={Undo2}
+        />
+      </div>
+
       {/* ── Filter bar ─────────────────────────────────────────────── */}
       <div className="card-surface p-4">
+        {/* Date-range presets */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="th-label mr-1 inline-flex items-center gap-1.5">
+            <CalendarRange className="h-3.5 w-3.5 text-indigo-500" />
+            Period
+          </span>
+          {DATE_PRESETS.map((p) => {
+            const isActive = preset === p.key;
+            return (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => applyPreset(p.key)}
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-xs font-medium transition-all",
+                  isActive
+                    ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-sm shadow-indigo-500/30"
+                    : "border border-border bg-card text-muted-foreground hover:border-indigo-300 hover:text-foreground",
+                )}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Custom From/To — only when the Custom preset is selected */}
+        {preset === "custom" && (
+          <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 dark:border-indigo-500/30 dark:bg-indigo-500/10">
+            <div className="space-y-1">
+              <Label className="th-label">From</Label>
+              <Input
+                type="date"
+                value={filter.from}
+                onChange={(e) => {
+                  setPage(1);
+                  setFilter((f) => ({ ...f, from: e.target.value }));
+                }}
+                className="w-[150px] bg-white dark:bg-card"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="th-label">To</Label>
+              <Input
+                type="date"
+                value={filter.to}
+                onChange={(e) => {
+                  setPage(1);
+                  setFilter((f) => ({ ...f, to: e.target.value }));
+                }}
+                className="w-[150px] bg-white dark:bg-card"
+              />
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-wrap items-end gap-3">
-          {/* From */}
-          <div className="space-y-1">
-            <Label className="th-label">
-              From
-            </Label>
-            <Input
-              type="date"
-              value={filter.from}
-              onChange={(e) => {
-                setPage(1);
-                setFilter((f) => ({ ...f, from: e.target.value }));
-              }}
-              className="w-[150px]"
-            />
-          </div>
-          {/* To */}
-          <div className="space-y-1">
-            <Label className="th-label">
-              To
-            </Label>
-            <Input
-              type="date"
-              value={filter.to}
-              onChange={(e) => {
-                setPage(1);
-                setFilter((f) => ({ ...f, to: e.target.value }));
-              }}
-              className="w-[150px]"
-            />
-          </div>
-          {/* Status */}
-          <div className="space-y-1">
-            <Label className="th-label">
-              Status
-            </Label>
-            <Select
-              value={filter.status || "all"}
-              onValueChange={(v) => {
-                setPage(1);
-                setFilter((f) => ({ ...f, status: v === "all" ? "" : v }));
-              }}
-            >
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                {STATUSES.map((s) => (
-                  <SelectItem key={s} value={s} className="capitalize">
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           {/* Page */}
           <div className="space-y-1">
             <Label className="th-label">
@@ -369,6 +491,32 @@ export function TransactionsClient({
             </span>
           </div>
         )}
+      </div>
+
+      {/* ── Status quick filters (with live counts) ──────────────────── */}
+      <div className="flex flex-wrap gap-2">
+        <StatusChip
+          label="All"
+          count={statusCounts.all}
+          active={!filter.status}
+          onClick={() => {
+            setPage(1);
+            setFilter((f) => ({ ...f, status: "" }));
+          }}
+        />
+        {STATUSES.map((s) => (
+          <StatusChip
+            key={s}
+            label={s}
+            count={statusCounts[s] ?? 0}
+            active={filter.status === s}
+            tone={s}
+            onClick={() => {
+              setPage(1);
+              setFilter((f) => ({ ...f, status: filter.status === s ? "" : s }));
+            }}
+          />
+        ))}
       </div>
 
       {/* ── Table ────────────────────────────────────────────────────── */}
@@ -467,6 +615,86 @@ export function TransactionsClient({
 
 // ── Sub-components ──────────────────────────────────────────────────────
 
+function MiniStat({
+  label,
+  value,
+  tile,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  tile: string;
+  icon: typeof IndianRupee;
+}) {
+  return (
+    <div className="card-surface flex items-center gap-3 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-md">
+      <span
+        aria-hidden
+        className={cn(
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+          tile,
+        )}
+      >
+        <Icon className="h-[18px] w-[18px]" strokeWidth={2.25} />
+      </span>
+      <div className="min-w-0">
+        <p className="th-label truncate">{label}</p>
+        <p className="mt-0.5 font-sora text-lg font-bold tabular-nums text-foreground">
+          {value}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Active-chip colours per status (dark-aware).
+const CHIP_ACTIVE: Record<string, string> = {
+  all: "bg-indigo-500/15 text-indigo-700 ring-indigo-500/30 dark:text-indigo-300",
+  paid: "bg-emerald-500/15 text-emerald-700 ring-emerald-500/30 dark:text-emerald-300",
+  pending: "bg-amber-500/15 text-amber-700 ring-amber-500/30 dark:text-amber-300",
+  failed: "bg-rose-500/15 text-rose-700 ring-rose-500/30 dark:text-rose-300",
+  refunded: "bg-violet-500/15 text-violet-700 ring-violet-500/30 dark:text-violet-300",
+  cancelled: "bg-zinc-400/15 text-zinc-700 ring-zinc-400/30 dark:text-zinc-300",
+};
+
+function StatusChip({
+  label,
+  count,
+  active,
+  tone,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  tone?: string;
+  onClick: () => void;
+}) {
+  const activeCls = CHIP_ACTIVE[tone ?? "all"] ?? CHIP_ACTIVE.all;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium capitalize ring-1 ring-inset transition",
+        active
+          ? activeCls
+          : "border border-border bg-card text-muted-foreground ring-transparent hover:text-foreground",
+      )}
+    >
+      {label}
+      <span
+        className={cn(
+          "rounded-full px-1.5 text-[10px] font-semibold tabular-nums",
+          active ? "bg-white/40 dark:bg-white/15" : "bg-muted",
+        )}
+      >
+        {count.toLocaleString("en-IN")}
+      </span>
+    </button>
+  );
+}
+
 function Th({
   children,
   className,
@@ -488,8 +716,8 @@ function Th({
 function EmptyTable({ filtered }: { filtered: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-50 to-indigo-100/60 ring-1 ring-inset ring-indigo-200/70">
-        <Inbox className="h-5 w-5 text-indigo-600" />
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-50 to-indigo-100/60 ring-1 ring-inset ring-indigo-200/70 dark:from-indigo-500/15 dark:to-indigo-500/5 dark:ring-indigo-500/30">
+        <Inbox className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
       </div>
       <div>
         <p className="font-medium">
@@ -565,7 +793,7 @@ function ExpandableRow({
           {row.page_title ? (
             <span
               title={row.page_title}
-              className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700"
+              className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300"
             >
               {truncate(row.page_title, 20)}
             </span>
@@ -676,7 +904,7 @@ function ExpandableRow({
                         onRefund(row.id, Number(row.amount));
                       }}
                       disabled={refunding}
-                      className="ml-auto border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                      className="ml-auto border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-500/30 dark:text-rose-400 dark:hover:bg-rose-500/10 dark:hover:text-rose-300"
                     >
                       {refunding && (
                         <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />

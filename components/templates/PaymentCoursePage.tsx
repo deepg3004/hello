@@ -18,10 +18,13 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { CheckoutForm } from "@/components/pages/CheckoutForm";
+import { BgAnimation } from "./BgAnimation";
 import { Countdown } from "./shared/Countdown";
 import { Stars } from "./shared/Stars";
 import { StickyCheckoutBar } from "./shared/StickyCheckoutBar";
+import { SecureFooter } from "@/components/templates/shared/SecureFooter";
 import type { BaseTemplateProps, OrderBumpConfig } from "./shared/types";
+import { tgTheme } from "@/lib/telegram-themes";
 
 interface Benefit {
   text: string;
@@ -62,6 +65,10 @@ export interface PaymentCoursePageProps extends BaseTemplateProps {
   checkout_guarantee?: string;
   /** Bullets shown inside the checkout card under "What's included". */
   whats_included?: Benefit[];
+  /** Theme key (see lib/telegram-themes). Defaults to "midnight". */
+  theme_key?: string;
+  /** Background animation: none | snow | gift | party | space | planet. */
+  bg_animation?: string;
 }
 
 const FALLBACK_PRICE = 999;
@@ -84,27 +91,32 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
   const heroCta = props.hero_cta ?? "Enrol Now";
   const timer = props.timer;
 
+  const theme = tgTheme(props.theme_key);
+  const accent = theme.accent;
+
   return (
-    <div className="min-h-screen bg-[#0a0f1e] text-zinc-100">
+    <div
+      className="relative min-h-screen text-zinc-100"
+      style={{ background: theme.bg }}
+    >
+      <BgAnimation type={props.bg_animation} />
       {/* =====================================================================
-          HERO — premium dark academic, gradient + amber radial glow
+          HERO — premium dark academic, gradient + accent radial glow
           ===================================================================== */}
       <section
-        className="relative isolate overflow-hidden"
-        style={{
-          minHeight: "80vh",
-          background:
-            "linear-gradient(135deg, #0a0f1e 0%, #111933 55%, #0a0f1e 100%)",
-        }}
+        className="relative isolate z-10 overflow-hidden"
+        style={{ minHeight: "80vh" }}
       >
         {/* Decorative glows */}
         <div
           aria-hidden
-          className="pointer-events-none absolute -right-32 -top-32 h-[480px] w-[480px] rounded-full bg-amber-400/15 blur-3xl"
+          className="pointer-events-none absolute -right-32 -top-32 h-[480px] w-[480px] rounded-full blur-3xl"
+          style={{ backgroundColor: `${accent}26` }}
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -left-40 bottom-0 h-[360px] w-[360px] rounded-full bg-indigo-500/20 blur-3xl"
+          className="pointer-events-none absolute -left-40 bottom-0 h-[360px] w-[360px] rounded-full blur-3xl"
+          style={{ backgroundColor: `${accent}33` }}
         />
         {/* Subtle dot grid */}
         <div
@@ -130,7 +142,13 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
             )}
 
             {props.hero_eyebrow && (
-              <span className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-indigo-400/30 bg-indigo-500/10 px-3 py-1 text-xs font-semibold text-indigo-200">
+              <span
+                className="mb-5 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold text-white"
+                style={{
+                  borderColor: `${accent}4d`,
+                  backgroundColor: `${accent}1a`,
+                }}
+              >
                 <Sparkles className="h-3 w-3" />
                 {props.hero_eyebrow}
               </span>
@@ -151,7 +169,8 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
 
             <a
               href="#enrol"
-              className="mt-8 inline-flex items-center gap-2 rounded-full bg-amber-400 px-8 py-4 text-base font-semibold text-zinc-950 shadow-xl shadow-amber-900/40 transition hover:scale-105 hover:bg-amber-300 sm:px-10 sm:text-lg"
+              style={{ backgroundColor: accent, boxShadow: `0 18px 40px ${accent}40` }}
+              className="mt-8 inline-flex items-center gap-2 rounded-full px-8 py-4 text-base font-semibold text-white transition hover:scale-105 hover:opacity-90 sm:px-10 sm:text-lg"
             >
               {heroCta}
               <ArrowRight className="h-5 w-5" strokeWidth={2.5} />
@@ -178,14 +197,15 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
               <img
                 src={props.hero_image}
                 alt={props.hero_headline}
-                className="aspect-[4/3] w-full rounded-2xl border border-white/10 object-cover shadow-2xl shadow-amber-900/20"
+                className="aspect-[4/3] w-full rounded-2xl border border-white/10 object-cover shadow-2xl"
+                style={{ boxShadow: `0 24px 60px ${accent}26` }}
               />
             ) : (
               <div
-                className="aspect-[4/3] w-full rounded-2xl border border-white/10 shadow-2xl shadow-amber-900/20"
+                className="aspect-[4/3] w-full rounded-2xl border border-white/10 shadow-2xl"
                 style={{
-                  background:
-                    "linear-gradient(135deg, rgba(212,175,55,0.25), rgba(99,102,241,0.18) 60%, rgba(17,25,51,1))",
+                  background: `linear-gradient(135deg, ${accent}40, ${accent}1f 60%, ${theme.card})`,
+                  boxShadow: `0 24px 60px ${accent}26`,
                 }}
               />
             )}
@@ -196,7 +216,7 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
       {/* =====================================================================
           MAIN CONTENT — 3-col on lg with sticky checkout on the right
           ===================================================================== */}
-      <div className="bg-slate-50 text-zinc-900">
+      <div className="relative z-10 text-zinc-100">
         <div className="mx-auto max-w-6xl px-4 py-12 md:px-6 lg:py-16">
           <div className="grid gap-8 lg:grid-cols-3 lg:gap-10">
             {/* ── LEFT (content) ─────────────────────────────────────── */}
@@ -205,7 +225,7 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
               {benefits.length > 0 && (
                 <section>
                   {props.benefits_title && (
-                    <h2 className="text-center font-sora text-2xl font-semibold tracking-tight text-zinc-900 sm:text-3xl">
+                    <h2 className="text-center font-sora text-2xl font-semibold tracking-tight text-white sm:text-3xl">
                       {props.benefits_title}
                     </h2>
                   )}
@@ -216,19 +236,21 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
                       return (
                         <li
                           key={i}
-                          className="group rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                          className="group rounded-xl border border-white/10 p-5 shadow-lg transition-all duration-200 hover:-translate-y-0.5"
+                          style={{ backgroundColor: theme.card }}
                         >
                           <span
                             aria-hidden
-                            className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm"
+                            className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full text-white shadow-sm"
+                            style={{ backgroundColor: accent }}
                           >
                             <Icon className="h-4 w-4" strokeWidth={2.25} />
                           </span>
-                          <p className="font-sora text-sm font-semibold text-zinc-900">
+                          <p className="font-sora text-sm font-semibold text-white">
                             {b.text}
                           </p>
                           {b.description && (
-                            <p className="mt-1 text-sm leading-relaxed text-zinc-600">
+                            <p className="mt-1 text-sm leading-relaxed text-zinc-400">
                               {b.description}
                             </p>
                           )}
@@ -241,9 +263,15 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
 
               {/* Instructor */}
               {(props.instructor_name || props.instructor_bio) && (
-                <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm md:p-8">
+                <section
+                  className="rounded-2xl border border-white/10 p-6 shadow-lg md:p-8"
+                  style={{ backgroundColor: theme.card }}
+                >
                   <div className="flex flex-col items-center gap-5 text-center md:flex-row md:items-start md:text-left">
-                    <div className="h-28 w-28 shrink-0 overflow-hidden rounded-full border-2 border-amber-400 bg-zinc-100 shadow-lg">
+                    <div
+                      className="h-28 w-28 shrink-0 overflow-hidden rounded-full border-2 bg-white/5 shadow-lg"
+                      style={{ borderColor: accent }}
+                    >
                       {props.instructor_avatar ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <img
@@ -252,20 +280,26 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-amber-200 to-amber-400 text-2xl font-semibold text-amber-900">
+                        <div
+                          className="flex h-full w-full items-center justify-center text-2xl font-semibold text-white"
+                          style={{ backgroundColor: `${accent}33` }}
+                        >
                           {(props.instructor_name ?? "?")[0]?.toUpperCase()}
                         </div>
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600">
+                      <p
+                        className="text-[10px] font-bold uppercase tracking-widest"
+                        style={{ color: accent }}
+                      >
                         Your instructor
                       </p>
-                      <h3 className="mt-1 font-sora text-2xl font-bold tracking-tight text-zinc-900">
+                      <h3 className="mt-1 font-sora text-2xl font-bold tracking-tight text-white">
                         {props.instructor_name}
                       </h3>
                       {props.instructor_title && (
-                        <p className="text-sm text-zinc-500">
+                        <p className="text-sm text-zinc-400">
                           {props.instructor_title}
                         </p>
                       )}
@@ -275,9 +309,9 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
                             <span className="inline-flex items-center gap-1">
                               <Stars
                                 rating={props.instructor_rating}
-                                className="text-amber-500"
+                                className="text-amber-400"
                               />
-                              <span className="font-semibold text-zinc-900">
+                              <span className="font-semibold text-white">
                                 {props.instructor_rating.toFixed(1)}★
                               </span>
                             </span>
@@ -285,9 +319,9 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
                           {props.instructor_stats && (
                             <>
                               {props.instructor_rating != null && (
-                                <span className="text-zinc-400">·</span>
+                                <span className="text-zinc-500">·</span>
                               )}
-                              <span className="text-zinc-600">
+                              <span className="text-zinc-300">
                                 {props.instructor_stats}
                               </span>
                             </>
@@ -295,7 +329,7 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
                         </div>
                       )}
                       {props.instructor_bio && (
-                        <p className="mt-3 text-base leading-relaxed text-zinc-600">
+                        <p className="mt-3 text-base leading-relaxed text-zinc-300">
                           {props.instructor_bio}
                         </p>
                       )}
@@ -306,7 +340,10 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
 
               {/* Testimonials — dark contrast block */}
               {testimonials.length > 0 && (
-                <section className="overflow-hidden rounded-2xl bg-slate-900 px-5 py-8 shadow-lg md:px-8 md:py-12">
+                <section
+                  className="overflow-hidden rounded-2xl border border-white/10 px-5 py-8 shadow-lg md:px-8 md:py-12"
+                  style={{ backgroundColor: theme.card }}
+                >
                   {props.testimonials_title && (
                     <h2 className="text-center font-sora text-2xl font-semibold tracking-tight text-white sm:text-3xl">
                       {props.testimonials_title}
@@ -325,7 +362,10 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
                           &ldquo;{t.quote}&rdquo;
                         </blockquote>
                         <figcaption className="mt-4 flex items-center gap-3">
-                          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-zinc-950">
+                          <span
+                            className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white"
+                            style={{ backgroundColor: accent }}
+                          >
                             {initials(t.author)}
                           </span>
                           <div className="min-w-0">
@@ -347,9 +387,12 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
 
               {/* FAQ */}
               {faqs.length > 0 && (
-                <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm md:p-8">
+                <section
+                  className="rounded-2xl border border-white/10 p-6 shadow-lg md:p-8"
+                  style={{ backgroundColor: theme.card }}
+                >
                   {props.faq_title && (
-                    <h2 className="text-center font-sora text-2xl font-semibold tracking-tight text-zinc-900 sm:text-3xl">
+                    <h2 className="text-center font-sora text-2xl font-semibold tracking-tight text-white sm:text-3xl">
                       {props.faq_title}
                     </h2>
                   )}
@@ -359,12 +402,12 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
                         <AccordionItem
                           key={i}
                           value={`faq-${i}`}
-                          className="border-zinc-200"
+                          className="border-white/10"
                         >
-                          <AccordionTrigger className="text-left text-[15px] font-semibold text-zinc-900 hover:no-underline">
+                          <AccordionTrigger className="text-left text-[15px] font-semibold text-white hover:no-underline">
                             {f.q}
                           </AccordionTrigger>
-                          <AccordionContent className="text-sm leading-relaxed text-zinc-600">
+                          <AccordionContent className="text-sm leading-relaxed text-zinc-300">
                             {f.a}
                           </AccordionContent>
                         </AccordionItem>
@@ -380,38 +423,41 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
               id="enrol"
               className="scroll-mt-8 lg:col-span-1 lg:sticky lg:top-8 lg:self-start"
             >
-              <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-xl">
+              <div
+                className="rounded-2xl border border-white/10 p-6 shadow-2xl"
+                style={{ backgroundColor: theme.card }}
+              >
                 {props.checkout_title && (
-                  <h3 className="font-sora text-xl font-bold tracking-tight text-zinc-900">
+                  <h3 className="font-sora text-xl font-bold tracking-tight text-white">
                     {props.checkout_title}
                   </h3>
                 )}
-                <p className="mt-1 truncate text-sm text-zinc-500">
+                <p className="mt-1 truncate text-sm text-zinc-400">
                   {productName}
                 </p>
 
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-sora text-4xl font-bold text-zinc-900">
+                  <span className="font-sora text-4xl font-bold text-white">
                     ₹{Number(productPrice).toLocaleString("en-IN")}
                   </span>
-                  <span className="text-sm text-zinc-500">
+                  <span className="text-sm text-zinc-400">
                     {productCurrency === "INR" ? "INR" : productCurrency} ·
                     one-time
                   </span>
                 </div>
 
                 {whatsIncluded.length > 0 && (
-                  <div className="mt-5 border-t border-zinc-100 pt-4">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                  <div className="mt-5 border-t border-white/10 pt-4">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">
                       What&apos;s included
                     </p>
                     <ul className="mt-2 space-y-1.5">
                       {whatsIncluded.slice(0, 6).map((it, i) => (
                         <li
                           key={i}
-                          className="flex items-start gap-2 text-sm text-zinc-700"
+                          className="flex items-start gap-2 text-sm text-zinc-300"
                         >
-                          <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                          <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
                           <span>{it.text}</span>
                         </li>
                       ))}
@@ -421,27 +467,37 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
 
                 {/* Bump */}
                 {bump.enabled && (
-                  <div className="mt-5 flex items-start gap-3 rounded-lg border-2 border-dashed border-amber-300 bg-amber-50 p-3">
+                  <div
+                    className="mt-5 flex items-start gap-3 rounded-lg border-2 border-dashed p-3"
+                    style={{
+                      borderColor: `${accent}99`,
+                      backgroundColor: `${accent}1a`,
+                    }}
+                  >
                     <input
                       type="checkbox"
                       id="order-bump"
-                      className="mt-1 h-4 w-4 cursor-pointer accent-amber-600"
+                      className="mt-1 h-4 w-4 cursor-pointer"
+                      style={{ accentColor: accent }}
                       readOnly
                     />
                     <label
                       htmlFor="order-bump"
                       className="flex-1 cursor-pointer"
                     >
-                      <div className="text-sm font-semibold text-amber-900">
+                      <div className="text-sm font-semibold text-white">
                         {bump.title ?? "Add the bonus pack"}
                         {typeof bump.price === "number" && (
-                          <span className="ml-2 rounded bg-amber-200 px-1.5 py-0.5 text-xs text-amber-900">
+                          <span
+                            className="ml-2 rounded px-1.5 py-0.5 text-xs text-white"
+                            style={{ backgroundColor: `${accent}40` }}
+                          >
                             +₹{bump.price.toLocaleString("en-IN")}
                           </span>
                         )}
                       </div>
                       {bump.description && (
-                        <p className="mt-1 text-xs text-amber-800">
+                        <p className="mt-1 text-xs text-zinc-300">
                           {bump.description}
                         </p>
                       )}
@@ -451,9 +507,10 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
 
                 {/* Checkout form */}
                 <div className="mt-5">
-                  {props.pageId && props.product && !props.isPreview ? (
+                  {props.product ? (
                     <CheckoutForm
-                      pageId={props.pageId}
+                      pageId={props.pageId ?? "preview"}
+                  preview={props.isPreview}
                       productId={props.product.id}
                       productName={props.product.name}
                       productDescription={props.product.description}
@@ -465,9 +522,10 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
                           ? { ...props.bumpRuntime, ready: true }
                           : undefined
                       }
+                      primaryColor={accent}
                     />
                   ) : (
-                    <p className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-4 text-center text-sm text-zinc-500">
+                    <p className="rounded-lg border border-dashed border-white/20 bg-white/5 p-4 text-center text-sm text-zinc-400">
                       {props.isPreview
                         ? "Checkout form renders on the live page."
                         : "Attach a product to this page to enable checkout."}
@@ -476,25 +534,10 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
                 </div>
 
                 {/* Security + payment methods */}
-                <div className="mt-4 border-t border-zinc-100 pt-4">
-                  <p className="flex items-center justify-center gap-1.5 text-xs text-zinc-500">
-                    <Lock className="h-3 w-3" />
-                    SSL Encrypted · Powered by Razorpay
-                  </p>
-                  <div className="mt-3 flex items-center justify-center gap-2">
-                    {["UPI", "Visa", "Mastercard", "RuPay"].map((m) => (
-                      <span
-                        key={m}
-                        className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-700"
-                      >
-                        {m}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+                <SecureFooter accent={accent} />
 
                 {props.checkout_guarantee && (
-                  <p className="mt-4 text-center text-xs text-zinc-500">
+                  <p className="mt-4 text-center text-xs text-zinc-400">
                     {props.checkout_guarantee}
                   </p>
                 )}
@@ -509,7 +552,10 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
         targetId="enrol"
         priceLabel={`₹${Number(productPrice).toLocaleString("en-IN")}`}
         cta={heroCta}
-        buttonClassName="bg-amber-400 text-zinc-950"
+        buttonClassName="text-white"
+        buttonStyle={{ backgroundColor: accent }}
+        barClassName="border-t border-white/10"
+        barStyle={{ backgroundColor: theme.card }}
       />
     </div>
   );

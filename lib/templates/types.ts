@@ -19,6 +19,7 @@ export type FieldType =
   | "color"
   | "toggle"
   | "number"
+  | "select"
   | "list";
 
 export interface FieldConfig {
@@ -30,6 +31,8 @@ export interface FieldConfig {
   placeholder?: string;
   /** Short help text shown under the input in the builder. */
   hint?: string;
+  /** For `select` fields — the dropdown choices. */
+  options?: Array<{ value: string; label: string }>;
   /** For `list` fields — per-item schema. */
   itemFields?: FieldConfig[];
   /** For `list` fields — what to call a single item ("testimonial", "FAQ"...). */
@@ -39,12 +42,23 @@ export interface FieldConfig {
   maxItems?: number;
 }
 
+/**
+ * Coarse grouping for the builder sidebar. Sections are bucketed into three
+ * tabs so a long template is easier to scan:
+ *   - "payment" — checkout, pricing, conversion boosters
+ *   - "landing" — marketing/content sections (hero, benefits, FAQ…)
+ *   - "leads"   — lead-capture forms (opt-in, registration)
+ */
+export type SectionCategory = "payment" | "landing" | "leads";
+
 export interface TemplateSection {
   id: string;
   /** Human label in the builder sidebar. */
   label: string;
   /** Free-form section kind, e.g. "hero", "benefits", "checkout" — used for icons. */
   type: string;
+  /** Builder-sidebar tab. Optional — falls back to a mapping keyed off `type`. */
+  category?: SectionCategory;
   fields: FieldConfig[];
 }
 

@@ -3,6 +3,7 @@ import {
   type KycReviewItem,
 } from "@/components/admin/KycReviewClient";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 
 export const metadata = { title: "Admin · KYC Queue" };
 
@@ -157,21 +158,15 @@ export default async function AdminKycQueuePage() {
 
   return (
     <div className="space-y-6">
-      <div
-        className="animate-in-up flex flex-wrap items-end justify-between gap-3"
-        style={{ animationDelay: "0ms" }}
-      >
-        <div>
-          <h1 className="font-sora text-2xl font-semibold tracking-tight">
-            KYC queue
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {pendingCount === 0
-              ? "Inbox zero. No submissions awaiting review."
-              : `${pendingCount} submission${pendingCount === 1 ? "" : "s"} awaiting review.`}
-          </p>
-        </div>
-      </div>
+      <DashboardHero
+        title="KYC queue"
+        blurb={
+          pendingCount === 0
+            ? "Inbox zero. No submissions awaiting review."
+            : `${pendingCount} submission${pendingCount === 1 ? "" : "s"} awaiting review.`
+        }
+        resourcesHref={null}
+      />
 
       <div className="animate-in-up" style={{ animationDelay: "100ms" }}>
         <KycReviewClient items={items} />

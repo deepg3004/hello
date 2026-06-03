@@ -6,10 +6,24 @@ import { Loader2, ExternalLink } from "lucide-react";
 import { FieldEditor } from "./FieldEditor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getTemplate } from "@/lib/templates/registry";
+import { groupSectionsByCategory } from "@/lib/templates/section-categories";
 import { encodeValues, isValidSlug, slugify } from "@/lib/templates/utils";
+import { BlockEditor } from "./BlockEditor";
+import { cn } from "@/lib/utils";
+import type {
+  SectionCategory,
+  TemplateSection,
+} from "@/lib/templates/types";
 
 interface CustomizerProps {
   templateId: string;
@@ -27,6 +41,12 @@ interface CustomizerProps {
   /** Current price (as the raw input string so empty is preserved). */
   price?: string;
   onPriceChange?: (next: string) => void;
+  /** Hide the "Design" (theme/animation) section — the edit page surfaces it in
+   *  a dedicated Design tab instead. The create wizard leaves it visible. */
+  hideDesign?: boolean;
+  /** Hide the built-in preview pane — the edit shell shows one persistent
+   *  preview beside every step instead. */
+  hidePreview?: boolean;
 }
 
 const PREVIEW_DEBOUNCE_MS = 500;
@@ -43,6 +63,8 @@ export function Customizer({
   pageType,
   price,
   onPriceChange,
+  hideDesign,
+  hidePreview,
 }: CustomizerProps) {
   const template = getTemplate(templateId);
 
@@ -96,7 +118,51 @@ export function Customizer({
     return () => clearTimeout(t);
   }, [templateId, values, title]);
 
-  const fields = useMemo(() => template?.definition.sections ?? [], [template]);
+  const fields = useMemo(
+    () =>
+      (template?.definition.sections ?? []).filter(
+        (s) => !(hideDesign && s.id === "design"),
+      ),
+    [template, hideDesign],
+  );
+  // Bucket sections into Payment / Landing / Leads tabs (empty buckets dropped).
+  const sectionGroups = useMemo(
+    () => groupSectionsByCategory(fields),
+    [fields],
+  );
+  const [activeCat, setActiveCat] = useState(
+    () => sectionGroups[0]?.category ?? "landing",
+  );
+  // If the resolved groups no longer contain the active tab (template switch),
+  // snap back to the first available one.
+  useEffect(() => {
+    if (!sectionGroups.some((g) => g.category === activeCat)) {
+      setActiveCat(sectionGroups[0]?.category ?? "landing");
+    }
+  }, [sectionGroups, activeCat]);
+
+  // Each section is a collapsible dropdown so long forms stay scannable.
+  const renderSection = (section: TemplateSection) => (
+    <AccordionItem
+      key={section.id}
+      value={section.id}
+      className="overflow-hidden rounded-lg border bg-card"
+    >
+      <AccordionTrigger className="px-4 text-sm font-semibold hover:no-underline">
+        {section.label}
+      </AccordionTrigger>
+      <AccordionContent className="space-y-4 px-4 pb-4">
+        {section.fields.map((f) => (
+          <FieldEditor
+            key={f.key}
+            field={f}
+            value={values[f.key]}
+            onChange={(v) => onValuesChange({ ...values, [f.key]: v })}
+          />
+        ))}
+      </AccordionContent>
+    </AccordionItem>
+  );
 
   if (!template) {
     return (
@@ -107,7 +173,12 @@ export function Customizer({
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
+    <div
+      className={cn(
+        "grid gap-6",
+        !hidePreview && "lg:grid-cols-[420px_1fr]",
+      )}
+    >
       {/* LEFT — field editor */}
       <div className="space-y-5">
         <Card>
@@ -145,7 +216,7 @@ export function Customizer({
               <p
                 className={
                   slugCheck === "available"
-                    ? "text-xs text-emerald-600"
+                    ? "text-xs text-emerald-600 dark:text-emerald-300"
                     : slugCheck === "taken" || slugCheck === "invalid"
                       ? "text-xs text-destructive"
                       : "text-xs text-muted-foreground"
@@ -189,28 +260,49 @@ export function Customizer({
           </CardContent>
         </Card>
 
-        {fields.map((section) => (
-          <Card key={section.id}>
-            <CardHeader>
-              <CardTitle className="text-base">{section.label}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {section.fields.map((f) => (
-                <FieldEditor
-                  key={f.key}
-                  field={f}
-                  value={values[f.key]}
-                  onChange={(v) =>
-                    onValuesChange({ ...values, [f.key]: v })
-                  }
-                />
+        {/* "Build from scratch" → block editor; otherwise the template's fixed
+            sections (grouped into Payment / Landing / Leads tabs). */}
+        {templateId === "custom" ? (
+          <BlockEditor
+            blocks={values.blocks}
+            onChange={(b) => onValuesChange({ ...values, blocks: b })}
+          />
+        ) : sectionGroups.length > 1 ? (
+          <Tabs
+            value={activeCat}
+            onValueChange={(v) => setActiveCat(v as SectionCategory)}
+          >
+            <TabsList className="grid w-full grid-cols-3">
+              {sectionGroups.map((g) => (
+                <TabsTrigger key={g.category} value={g.category}>
+                  {g.label}
+                  <span className="ml-1.5 rounded-full bg-muted-foreground/15 px-1.5 text-[11px] font-medium tabular-nums">
+                    {g.sections.length}
+                  </span>
+                </TabsTrigger>
               ))}
-            </CardContent>
-          </Card>
-        ))}
+            </TabsList>
+            {sectionGroups.map((g) => (
+              <TabsContent
+                key={g.category}
+                value={g.category}
+                className="mt-5"
+              >
+                <Accordion type="multiple" className="space-y-3">
+                  {g.sections.map(renderSection)}
+                </Accordion>
+              </TabsContent>
+            ))}
+          </Tabs>
+        ) : (
+          <Accordion type="multiple" className="space-y-3">
+            {fields.map(renderSection)}
+          </Accordion>
+        )}
       </div>
 
-      {/* RIGHT — live preview */}
+      {/* RIGHT — live preview (hidden when the shell owns one) */}
+      {!hidePreview && (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label className="text-sm font-medium">Live preview</Label>
@@ -240,6 +332,7 @@ export function Customizer({
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

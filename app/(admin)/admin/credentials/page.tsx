@@ -1,7 +1,8 @@
-import { AlertTriangle, KeyRound, Lock, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CreditCard, Database, KeyRound, MessageSquare, Cloud, ShieldCheck } from "lucide-react";
 
 import { CredentialField } from "@/components/admin/CredentialField";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { vaultConfigured, decryptValue, maskValue } from "@/lib/admin/vault";
 
 export const metadata = { title: "Admin · Credentials" };
@@ -108,18 +109,11 @@ export default async function AdminCredentialsPage() {
   return (
     <div className="space-y-6">
       {/* ── Header ───────────────────────────────────────────────── */}
-      <div className="animate-in-up" style={{ animationDelay: "0ms" }}>
-        <h1 className="font-sora text-2xl font-semibold tracking-tight">
-          Credentials
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Sensitive platform secrets. Stored encrypted in{" "}
-          <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
-            platform_settings
-          </code>
-          . Every reveal and edit is audit-logged.
-        </p>
-      </div>
+      <DashboardHero
+        title="Credentials"
+        blurb="Sensitive platform secrets, stored encrypted in platform_settings. Every reveal and edit is audit-logged."
+        resourcesHref={null}
+      />
 
       {/* ── Vault status banner ──────────────────────────────────── */}
       <div
@@ -166,6 +160,9 @@ export default async function AdminCredentialsPage() {
       {/* ── Grouped vault rows ───────────────────────────────────── */}
       {GROUPS.map((g, idx) => {
         const { set, total } = groupFillStats(g);
+        const tiles = ["tile-indigo", "tile-emerald", "tile-amber", "tile-rose", "tile-violet"];
+        const icons = [CreditCard, Database, MessageSquare, ShieldCheck, Cloud];
+        const Icon = icons[idx % icons.length];
         return (
           <section
             key={g.id}
@@ -174,7 +171,9 @@ export default async function AdminCredentialsPage() {
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Lock className="h-4 w-4 text-muted-foreground" />
+                <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${tiles[idx % tiles.length]}`}>
+                  <Icon className="h-5 w-5" />
+                </span>
                 <h2 className="font-sora text-base font-semibold tracking-tight">
                   {g.title}
                 </h2>

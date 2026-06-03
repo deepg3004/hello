@@ -3,6 +3,10 @@
 import { Check, Gift, Lock, Sparkles } from "lucide-react";
 
 import { LeadCaptureForm } from "@/components/pages/LeadCaptureForm";
+import { BgAnimation } from "./BgAnimation";
+import { tgTheme } from "@/lib/telegram-themes";
+import { SecureFooter } from "@/components/templates/shared/SecureFooter";
+import { StickyFormCta } from "@/components/templates/shared/StickyFormCta";
 import type { BaseTemplateProps } from "./shared/types";
 
 interface BulletItem {
@@ -24,23 +28,30 @@ export interface FreebieLeadPageProps extends BaseTemplateProps {
   hero_image?: string;
   /** Short label shown on the CSS book cover (e.g. "EBOOK", "GUIDE"). */
   product_label?: string;
+  /** Theme key (see lib/telegram-themes). Defaults to "sunset". */
+  theme_key?: string;
+  /** Background animation: none | snow | gift | party | space | planet. */
+  bg_animation?: string;
 }
 
 export function FreebieLeadPage(props: FreebieLeadPageProps) {
   const inside = props.inside_items ?? [];
   const heroCta = props.optin_cta ?? "Send it to me";
   const productLabel = (props.product_label ?? "FREE GUIDE").toUpperCase();
+  const theme = tgTheme(props.theme_key);
+  const accent = theme.accent;
 
   return (
-    <div className="min-h-screen bg-[#fdf8f3] text-zinc-900">
-      {/* Subtle radial wash behind the hero */}
-      <div className="relative isolate overflow-hidden">
+    <div className="relative min-h-screen text-zinc-100" style={{ background: theme.bg }}>
+      <BgAnimation type={props.bg_animation} />
+
+      <div className="relative z-10 isolate overflow-hidden pb-24 md:pb-0">
+        {/* Subtle accent wash behind the hero */}
         <div
           aria-hidden
           className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[60vh]"
           style={{
-            background:
-              "radial-gradient(60% 80% at 50% 0%, rgba(20, 184, 166, 0.12) 0%, rgba(253,248,243,0) 70%)",
+            background: `radial-gradient(60% 80% at 50% 0%, ${accent}26 0%, transparent 70%)`,
           }}
         />
 
@@ -48,17 +59,20 @@ export function FreebieLeadPage(props: FreebieLeadPageProps) {
             HERO — badge, headline, mockup
             ================================================================== */}
         <section className="mx-auto max-w-2xl px-4 pb-10 pt-16 text-center sm:pt-20">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-600 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-white shadow-sm">
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-white shadow-sm"
+            style={{ backgroundColor: accent }}
+          >
             <Gift className="h-3 w-3" />
             {props.badge_text ?? "Free Download"}
           </span>
 
-          <h1 className="mt-6 font-sora text-[40px] font-bold leading-[1.1] tracking-tight text-zinc-900 sm:text-5xl">
+          <h1 className="mt-6 font-sora text-[40px] font-bold leading-[1.1] tracking-tight text-white sm:text-5xl">
             {props.hero_headline}
           </h1>
 
           {props.hero_subheadline && (
-            <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-zinc-600 sm:text-lg">
+            <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-zinc-300 sm:text-lg">
               {props.hero_subheadline}
             </p>
           )}
@@ -70,21 +84,24 @@ export function FreebieLeadPage(props: FreebieLeadPageProps) {
               <img
                 src={props.hero_image}
                 alt={props.hero_headline}
-                className="aspect-[3/4] w-full rounded-2xl object-cover shadow-2xl shadow-teal-900/15"
+                className="aspect-[3/4] w-full rounded-2xl object-cover shadow-2xl shadow-black/40"
               />
             ) : (
-              <BookCover label={productLabel} title={props.hero_headline} />
+              <BookCover label={productLabel} title={props.hero_headline} accent={accent} />
             )}
           </div>
         </section>
 
         {/* ==================================================================
-            "What's inside" — teal ✓ bullet list
+            "What's inside" — accent ✓ bullet list
             ================================================================== */}
         {inside.length > 0 && (
           <section className="mx-auto max-w-2xl px-4 pb-8">
-            <div className="rounded-2xl border border-teal-100 bg-white p-6 shadow-sm md:p-8">
-              <h2 className="font-sora text-lg font-bold tracking-tight">
+            <div
+              className="rounded-2xl border p-6 shadow-2xl md:p-8"
+              style={{ background: theme.card, borderColor: `${accent}33` }}
+            >
+              <h2 className="font-sora text-lg font-bold tracking-tight text-white">
                 {props.inside_title ?? "What's inside"}
               </h2>
               <ul className="mt-4 space-y-2.5">
@@ -92,11 +109,12 @@ export function FreebieLeadPage(props: FreebieLeadPageProps) {
                   <li key={i} className="flex items-start gap-3 text-sm">
                     <span
                       aria-hidden
-                      className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-teal-600 text-white shadow-sm"
+                      className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-white shadow-sm"
+                      style={{ backgroundColor: accent }}
                     >
                       <Check className="h-3 w-3" strokeWidth={3} />
                     </span>
-                    <span className="text-zinc-700">{b.text}</span>
+                    <span className="text-zinc-300">{b.text}</span>
                   </li>
                 ))}
               </ul>
@@ -111,14 +129,23 @@ export function FreebieLeadPage(props: FreebieLeadPageProps) {
           id="get"
           className="mx-auto max-w-sm scroll-mt-8 px-4 pb-16"
         >
-          <div className="rounded-2xl bg-white p-6 shadow-md ring-1 ring-teal-100">
+          {/* The form card stays light (white surface, dark text) so the
+              opt-in inputs + labels are always legible; only the accent and
+              the surrounding page go dark-themed. */}
+          <div
+            className="rounded-2xl bg-white p-6 text-zinc-900 shadow-2xl"
+            style={{ boxShadow: `0 25px 50px -12px ${accent}40` }}
+          >
             {/* Title above form */}
             <div className="mb-4 text-center">
-              <p className="inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-teal-700">
+              <p
+                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest"
+                style={{ backgroundColor: `${accent}1f`, color: accent }}
+              >
                 <Sparkles className="h-3 w-3" />
                 Send it to my inbox
               </p>
-              <h2 className="mt-2 font-sora text-lg font-bold tracking-tight">
+              <h2 className="mt-2 font-sora text-lg font-bold tracking-tight text-zinc-900">
                 Where should we send it?
               </h2>
             </div>
@@ -130,6 +157,7 @@ export function FreebieLeadPage(props: FreebieLeadPageProps) {
                 requirePhone={false}
                 redirectUrl={props.redirect_url}
                 formConfig={props.formConfig}
+                primaryColor={accent}
               />
             ) : (
               <p className="rounded-lg border border-dashed border-zinc-200 bg-zinc-50 p-4 text-center text-sm text-zinc-500">
@@ -147,21 +175,16 @@ export function FreebieLeadPage(props: FreebieLeadPageProps) {
           </div>
 
           {props.optin_privacy && (
-            <p className="mt-4 text-center text-xs text-zinc-500">
+            <p className="mt-4 text-center text-xs text-zinc-400">
               {props.optin_privacy}
             </p>
           )}
         </section>
 
         {/* Tiny powered-by footer strip */}
-        <footer className="border-t border-zinc-200/60 py-6 text-center">
-          <p className="text-[11px] text-zinc-400">
-            Powered by{" "}
-            <span className="font-sora font-semibold text-zinc-500">
-              InvoxAI
-            </span>
-          </p>
-        </footer>
+        <SecureFooter accent={accent} variant="lite" />
+
+        <StickyFormCta label={heroCta} accent={accent} targetId="get" />
       </div>
     </div>
   );
@@ -171,15 +194,17 @@ export function FreebieLeadPage(props: FreebieLeadPageProps) {
 
 /**
  * CSS-built "book / folder" cover used when the seller hasn't uploaded a
- * mockup. Gradient face + paper-fold side stripe + the product title
- * embossed in the centre.
+ * mockup. Accent-tinted gradient face + paper-fold side stripe + the product
+ * title embossed in the centre.
  */
 function BookCover({
   label,
   title,
+  accent,
 }: {
   label: string;
   title: string;
+  accent: string;
 }) {
   // Truncate the title for the cover face — long marketing headlines look
   // weird embossed on a book.
@@ -188,10 +213,9 @@ function BookCover({
     <div className="relative mx-auto aspect-[3/4] w-full max-w-[280px]">
       {/* Drop shadow + slight 3D tilt */}
       <div
-        className="absolute inset-0 -rotate-2 rounded-2xl shadow-2xl shadow-teal-900/30 transition-transform duration-300 hover:rotate-0"
+        className="absolute inset-0 -rotate-2 rounded-2xl shadow-2xl shadow-black/40 transition-transform duration-300 hover:rotate-0"
         style={{
-          background:
-            "linear-gradient(135deg, #0d9488 0%, #14b8a6 35%, #2dd4bf 100%)",
+          background: `linear-gradient(135deg, ${accent} 0%, ${accent}cc 45%, ${accent}80 100%)`,
         }}
       >
         {/* Paper-fold side stripe (page edges) */}

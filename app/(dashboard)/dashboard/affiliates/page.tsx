@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { AffiliatesDashboard } from "@/components/dashboard/AffiliatesDashboard";
 
 export const metadata = { title: "Affiliates · Dashboard" };
@@ -46,16 +47,14 @@ export default async function AffiliatesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-sora font-semibold tracking-tight">Affiliates</h1>
-        <p className="text-sm text-muted-foreground">
-          Pay your customers a cut of every sale they bring in. Each page
-          gets its own program — share the join link below for affiliates
-          to sign up.
-        </p>
-      </div>
+      <DashboardHero
+        title="Affiliates"
+        gradient="from-cyan-600 via-sky-600 to-blue-600"
+        blurb="Pay your customers a cut of every sale they bring in. Each page gets its own program — share the join link for affiliates to sign up."
+      />
 
-      <AffiliatesDashboard
+      <div className="animate-in-up" style={{ animationDelay: "80ms" }}>
+        <AffiliatesDashboard
         pages={(pages ?? []).map((p) => ({
           id: p.id,
           title: p.title,
@@ -87,7 +86,8 @@ export default async function AffiliatesPage() {
           has_bank: !!l.bank_account_number,
         }))}
         baseUrl={baseUrl}
-      />
+        />
+      </div>
     </div>
   );
 }

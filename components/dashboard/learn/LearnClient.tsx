@@ -86,7 +86,7 @@ function SectionHeading({
   children: React.ReactNode;
 }) {
   return (
-    <h2 className="flex items-center gap-2 font-sora text-[19px] font-bold tracking-tight text-[#111111]">
+    <h2 className="flex items-center gap-2 font-sora text-[19px] font-bold tracking-tight text-foreground">
       {emoji && <span aria-hidden>{emoji}</span>}
       {children}
     </h2>
@@ -245,10 +245,10 @@ function Carousel({
       <div className="relative">
         {/* Edge fade masks — only when there's more to scroll. */}
         <div
-          className={`pointer-events-none absolute inset-y-0 left-0 z-10 w-10 bg-gradient-to-r from-white to-transparent transition-opacity duration-200 ${canLeft ? "opacity-100" : "opacity-0"}`}
+          className={`pointer-events-none absolute inset-y-0 left-0 z-10 w-10 bg-gradient-to-r from-card to-transparent transition-opacity duration-200 ${canLeft ? "opacity-100" : "opacity-0"}`}
         />
         <div
-          className={`pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-gradient-to-l from-white to-transparent transition-opacity duration-200 ${canRight ? "opacity-100" : "opacity-0"}`}
+          className={`pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-gradient-to-l from-card to-transparent transition-opacity duration-200 ${canRight ? "opacity-100" : "opacity-0"}`}
         />
         <div
           ref={scroller}
@@ -281,7 +281,7 @@ function ArrowBtn({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F3F4F6] text-[#111111] transition hover:bg-[#e5e7eb] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[#F3F4F6]"
+      className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-foreground transition hover:bg-muted/70 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-muted"
     >
       {children}
     </button>
@@ -305,7 +305,7 @@ function VideoCard({
       style={{ width }}
       className="group shrink-0 snap-start text-left"
     >
-      <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-gradient-to-br from-slate-200 to-slate-300 ring-1 ring-black/5 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-card-md">
+      <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-gradient-to-br from-slate-200 to-slate-300 ring-1 ring-black/5 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-card-md dark:from-slate-700 dark:to-slate-800">
         {thumb && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -320,11 +320,11 @@ function VideoCard({
           </span>
         </span>
       </div>
-      <h3 className="mt-2.5 line-clamp-2 text-[15px] font-semibold leading-snug text-[#111111]">
+      <h3 className="mt-2.5 line-clamp-2 text-[15px] font-semibold leading-snug text-foreground">
         {video.title}
       </h3>
       {video.description && (
-        <p className="mt-1 line-clamp-2 text-[12.5px] leading-snug text-[#6B7280]">
+        <p className="mt-1 line-clamp-2 text-[12.5px] leading-snug text-muted-foreground">
           {video.description}
         </p>
       )}

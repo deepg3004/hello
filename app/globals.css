@@ -119,6 +119,32 @@
 
 @layer base {
   * { @apply border-border; }
+
+  /* App-shell height — 100vh fallback, then 100dvh (dynamic viewport) where
+     supported so the dashboard fills the VISIBLE area on mobile (the browser
+     toolbar no longer hides the bottom of the scroll area / sticky bars). */
+  .app-screen-h {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  /* Seller dashboard premium navy palette — applied ONLY in dark mode. The
+     `.dash-surface` marker class sits on the DashboardShell root, so light mode
+     keeps the global cream theme and dark mode gets the navy SaaS look. This is
+     what lets the dashboard support BOTH light and dark. */
+  .dark .dash-surface {
+    --background: 229 64% 5%;          /* #050816 */
+    --card: 222 47% 11%;              /* #0F172A */
+    --popover: 222 47% 11%;
+    --secondary: 217 33% 17%;        /* #1E293B */
+    --muted: 217 33% 16%;
+    --accent: 217 33% 17%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --sidebar-bg: 229 84% 5%;        /* #020617 */
+    --sidebar-border: 217 33% 17%;
+    --sidebar-hover-bg: 217 33% 20%;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: 'Inter', system-ui, sans-serif;
@@ -148,19 +174,81 @@
 @layer components {
   /* ── Sidebar links ──────────────────────────────────────────────── */
   .sidebar-link {
-    @apply relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
+    @apply relative flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium
            text-[hsl(var(--sidebar-fg))] transition-all duration-150
            hover:bg-[hsl(var(--sidebar-hover-bg))] hover:text-white;
   }
   .sidebar-link.active {
-    @apply bg-[hsl(var(--sidebar-active-bg))] text-[hsl(var(--sidebar-active-fg))]
-           shadow-sm shadow-indigo-950/40;
+    @apply text-white ring-1 ring-inset ring-white/10;
+    background-image: linear-gradient(
+      90deg,
+      hsl(var(--sidebar-active-bg) / 0.22),
+      transparent 82%
+    );
   }
   /* A crisp accent rail on the active row's left edge — the small detail
      that reads as "considered" rather than "templated". */
   .sidebar-link.active::before {
     content: "";
-    @apply absolute -left-1 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-white/90;
+    @apply absolute -left-1 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full;
+    background-image: var(--brand-gradient);
+  }
+
+  /* ── 3D icon chips ───────────────────────────────────────────────────
+     The premium "3D" menu-icon treatment: a raised, gradient-filled tile
+     with a soft inset top-highlight and a drop shadow for lift. Hover
+     brightens + rises; the active variants glow in the brand accent so the
+     chip — not the row fill — is the focal point. Used on both sidebars. */
+  .nav-icon {
+    @apply relative flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]
+           ring-1 ring-inset ring-white/10 transition-all duration-200;
+    background-image: linear-gradient(
+      to bottom,
+      rgb(255 255 255 / 0.10),
+      rgb(255 255 255 / 0.02)
+    );
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.35),
+      inset 0 1px 0 rgb(255 255 255 / 0.10);
+  }
+  .sidebar-link:hover .nav-icon,
+  .group:hover .nav-icon {
+    @apply -translate-y-px ring-white/20;
+    background-image: linear-gradient(
+      to bottom,
+      rgb(255 255 255 / 0.18),
+      rgb(255 255 255 / 0.04)
+    );
+  }
+  .nav-icon-active-purple {
+    @apply text-white ring-white/25;
+    background-image: linear-gradient(160deg, hsl(262 83% 64%), hsl(248 84% 56%));
+    box-shadow: 0 6px 16px -4px hsl(262 83% 58% / 0.55),
+      inset 0 1px 0 rgb(255 255 255 / 0.30);
+  }
+  .nav-icon-active-amber {
+    @apply ring-amber-200/40;
+    color: #1c1917;
+    background-image: linear-gradient(160deg, hsl(45 96% 60%), hsl(38 95% 50%));
+    box-shadow: 0 6px 16px -4px rgb(245 158 11 / 0.55),
+      inset 0 1px 0 rgb(255 255 255 / 0.35);
+  }
+
+  /* Light-surface 3D chip — for feature/stat icons on cards + marketing.
+     Raised ivory tile with a bright top edge. */
+  .icon-tile-3d {
+    @apply relative flex items-center justify-center rounded-xl text-foreground
+           ring-1 ring-inset ring-border transition-all duration-200;
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--card)),
+      hsl(var(--secondary))
+    );
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.06),
+      0 6px 14px -6px rgb(0 0 0 / 0.12),
+      inset 0 1px 0 rgb(255 255 255 / 0.85);
+  }
+  .icon-tile-3d:hover {
+    @apply -translate-y-0.5;
   }
 
   /* ── Surfaces ───────────────────────────────────────────────────────
@@ -206,6 +294,36 @@
   @keyframes slideInUp {
     from { opacity: 0; transform: translateY(12px); }
     to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Button shine — a white strip that sweeps across on a loop ────────
+     Applied to filled button variants (see components/ui/button.tsx). The
+     element clips it and a skewed white gradient bar animates left→right with
+     a pause between sweeps. Honours prefers-reduced-motion. */
+  .btn-shine { position: relative; overflow: hidden; isolation: isolate; }
+  .btn-shine::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 45%;
+    pointer-events: none;
+    background: linear-gradient(
+      100deg,
+      transparent 0%,
+      rgb(255 255 255 / 0.40) 50%,
+      transparent 100%
+    );
+    transform: translateX(-160%) skewX(-20deg);
+    animation: btn-shine 3.6s ease-in-out infinite;
+  }
+  @keyframes btn-shine {
+    0%        { transform: translateX(-160%) skewX(-20deg); }
+    35%, 100% { transform: translateX(360%)  skewX(-20deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .btn-shine::after { animation: none; display: none; }
   }
 
   /* ── Premium "Elevated Ivory" vocabulary ─────────────────────────────

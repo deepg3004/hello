@@ -226,16 +226,20 @@ export function GlobalSearch() {
 
   return (
     <>
-      {/* Desktop trigger — a quiet pill. */}
+      {/* Desktop trigger — a premium pill with a gradient search tile. */}
       <button
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Search"
-        className="hidden h-9 items-center gap-2 rounded-lg border border-border bg-card/60 px-3 text-sm text-muted-foreground transition-colors hover:border-input hover:text-foreground lg:flex"
+        className="group hidden h-9 w-64 items-center gap-2.5 rounded-xl border border-border bg-gradient-to-r from-card to-card/50 pl-2 pr-2 text-sm text-muted-foreground shadow-sm transition-all hover:border-indigo-300 hover:shadow-md hover:shadow-indigo-500/10 lg:flex"
       >
-        <Search className="h-4 w-4" />
-        <span>Search…</span>
-        <kbd className="ml-2 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-50 to-indigo-100/60 ring-1 ring-inset ring-indigo-200/70 transition-colors group-hover:from-indigo-100 group-hover:to-violet-100/70">
+          <Search className="h-3.5 w-3.5 text-indigo-600" />
+        </span>
+        <span className="flex-1 text-left transition-colors group-hover:text-foreground">
+          Search…
+        </span>
+        <kbd className="rounded-md border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
           ⌘K
         </kbd>
       </button>

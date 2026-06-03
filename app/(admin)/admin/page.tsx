@@ -1,9 +1,22 @@
 import Link from "next/link";
-import { startOfMonth, startOfWeek, startOfDay, formatDistanceToNow } from "date-fns";
+import {
+  startOfMonth,
+  startOfWeek,
+  startOfDay,
+  subMonths,
+  format,
+  formatDistanceToNow,
+} from "date-fns";
 import {
   AlertCircle,
   ArrowRight,
+  CreditCard,
+  Crown,
+  History,
+  PieChart,
+  ScrollText,
   ShieldCheck,
+  Sliders,
   TrendingUp,
   UserMinus,
   UserPlus,
@@ -12,7 +25,12 @@ import {
 } from "lucide-react";
 
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import {
+  EarningsCard,
+  type EarningsPoint,
+} from "@/components/dashboard/EarningsCard";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { PLANS, type PlanKey } from "@/lib/plans";
 import { cn, formatINR } from "@/lib/utils";
 
@@ -58,6 +76,12 @@ export default async function AdminOverview() {
   const monthStart = startOfMonth(now).toISOString();
   const weekStart = startOfWeek(now, { weekStartsOn: 1 }).toISOString();
   const todayStart = startOfDay(now).toISOString();
+  const yearAgo = subMonths(now, 11);
+  const yearStart = new Date(
+    yearAgo.getFullYear(),
+    yearAgo.getMonth(),
+    1,
+  ).toISOString();
 
   const [
     { data: paidThisMonth },
@@ -69,10 +93,12 @@ export default async function AdminOverview() {
     { count: kycPending },
     { count: kycReview },
     { data: auditRaw },
+    { data: yearPaid },
+    { count: totalPages },
   ] = await Promise.all([
     admin
       .from("orders")
-      .select("amount, platform_commission")
+      .select("amount, platform_commission, seller_user_id")
       .eq("status", "paid")
       .gte("paid_at", monthStart),
     admin
@@ -111,6 +137,13 @@ export default async function AdminOverview() {
       )
       .order("created_at", { ascending: false })
       .limit(8),
+    // Paid orders over the trailing 12 months — drives the GMV trend chart.
+    admin
+      .from("orders")
+      .select("amount, paid_at")
+      .eq("status", "paid")
+      .gte("paid_at", yearStart),
+    admin.from("pages").select("id", { count: "exact", head: true }),
   ]);
 
   const gmv = (paidThisMonth ?? []).reduce(
@@ -169,26 +202,77 @@ export default async function AdminOverview() {
   };
   const auditLogs = (auditRaw ?? []) as unknown as AuditRow[];
 
+  // ── Platform GMV series (last 12 months) ─────────────────────────────
+  const gmvByMonth = new Map<string, number>();
+  for (const o of (yearPaid ?? []) as Array<{
+    amount: number;
+    paid_at: string;
+  }>) {
+    const k = String(o.paid_at).slice(0, 7);
+    gmvByMonth.set(k, (gmvByMonth.get(k) ?? 0) + Number(o.amount ?? 0));
+  }
+  const gmvSeries: EarningsPoint[] = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = subMonths(now, i);
+    const key = format(d, "yyyy-MM");
+    gmvSeries.push({
+      key,
+      label: d.getMonth() === 0 ? format(d, "MMM yy") : format(d, "MMM"),
+      value: gmvByMonth.get(key) ?? 0,
+    });
+  }
+
+  // ── Top sellers this month (by GMV) ──────────────────────────────────
+  const sellerTotals = new Map<string, { gmv: number; orders: number }>();
+  for (const o of (paidThisMonth ?? []) as Array<{
+    amount: number;
+    seller_user_id: string | null;
+  }>) {
+    if (!o.seller_user_id) continue;
+    const cur = sellerTotals.get(o.seller_user_id) ?? { gmv: 0, orders: 0 };
+    cur.gmv += Number(o.amount ?? 0);
+    cur.orders += 1;
+    sellerTotals.set(o.seller_user_id, cur);
+  }
+  const rankedSellerIds = [...sellerTotals.entries()]
+    .sort((a, b) => b[1].gmv - a[1].gmv)
+    .slice(0, 5);
+  const sellerNames = new Map<string, { full_name: string | null; email: string }>();
+  if (rankedSellerIds.length) {
+    const { data: sellerRows } = await admin
+      .from("user_profiles")
+      .select("id, full_name, email")
+      .in("id", rankedSellerIds.map(([id]) => id));
+    for (const r of (sellerRows ?? []) as Array<{
+      id: string;
+      full_name: string | null;
+      email: string;
+    }>) {
+      sellerNames.set(r.id, { full_name: r.full_name, email: r.email });
+    }
+  }
+  const topSellers = rankedSellerIds.map(([id, v]) => ({
+    id,
+    name: sellerNames.get(id)?.full_name ?? sellerNames.get(id)?.email ?? `${id.slice(0, 8)}…`,
+    email: sellerNames.get(id)?.email ?? "",
+    gmv: v.gmv,
+    orders: v.orders,
+  }));
+
   return (
     <div className="space-y-6">
       {/* ── Heading ──────────────────────────────────────────────────── */}
-      <div
-        className="flex flex-wrap items-end justify-between gap-3 animate-in-up"
-        style={{ animationDelay: "0ms" }}
+      <DashboardHero
+        title="Platform overview"
+        blurb="Live numbers across every seller, page, and order on InvoxAI."
+        resourcesHref={null}
       >
-        <div>
-          <h1 className="font-sora text-2xl font-semibold tracking-tight">
-            Platform overview
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Live numbers across every seller, page, and order on InvoxAI.
-          </p>
-        </div>
-        <div className="text-xs text-muted-foreground">
+        <div className="text-xs text-white/70">
           {totalActive.toLocaleString("en-IN")} active accounts ·{" "}
-          {totalPaying.toLocaleString("en-IN")} paying
+          {totalPaying.toLocaleString("en-IN")} paying ·{" "}
+          {(totalPages ?? 0).toLocaleString("en-IN")} pages
         </div>
-      </div>
+      </DashboardHero>
 
       {/* ── Row 1 — Platform health metrics ─────────────────────────── */}
       <div
@@ -255,6 +339,82 @@ export default async function AdminOverview() {
         />
       </div>
 
+      {/* ── Row 2b — Platform GMV trend ─────────────────────────────── */}
+      <div className="animate-in-up" style={{ animationDelay: "250ms" }}>
+        <EarningsCard series={gmvSeries} title="Platform GMV (paid)" />
+      </div>
+
+      {/* ── Row 2c — Top sellers this month ─────────────────────────── */}
+      <div
+        className="card-surface p-5 animate-in-up"
+        style={{ animationDelay: "280ms" }}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="flex items-center gap-2 font-sora text-base font-semibold tracking-tight">
+            <span
+              aria-hidden
+              className="tile-amber flex h-7 w-7 items-center justify-center rounded-lg"
+            >
+              <Crown className="h-3.5 w-3.5" />
+            </span>
+            Top sellers this month
+          </h2>
+          <Link
+            href="/admin/users"
+            className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+          >
+            All users
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+
+        {topSellers.length === 0 ? (
+          <div className="mt-6 flex flex-col items-center gap-3 rounded-lg border border-dashed bg-muted/30 px-3 py-8 text-center text-sm text-muted-foreground">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full tile-amber">
+              <Crown className="h-5 w-5" />
+            </div>
+            No paid sales yet this month.
+          </div>
+        ) : (
+          <ol className="mt-4 space-y-2">
+            {topSellers.map((s, i) => (
+              <li
+                key={s.id}
+                className="flex items-center gap-3 rounded-lg border border-border bg-card/40 px-3 py-2.5 transition-colors hover:bg-muted/30"
+              >
+                <span
+                  className={cn(
+                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                    i === 0
+                      ? "bg-amber-400 text-zinc-950"
+                      : i === 1
+                        ? "bg-zinc-300 text-zinc-800"
+                        : i === 2
+                          ? "bg-orange-400/80 text-zinc-950"
+                          : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {i + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {s.name}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {s.orders.toLocaleString("en-IN")} order
+                    {s.orders === 1 ? "" : "s"}
+                    {s.email ? ` · ${s.email}` : ""}
+                  </p>
+                </div>
+                <span className="shrink-0 font-mono text-sm font-semibold text-foreground">
+                  {rupees(s.gmv)}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+
       {/* ── Row 3 — Subscription chart + audit timeline ─────────────── */}
       <div
         className="grid gap-6 animate-in-up lg:grid-cols-2"
@@ -263,7 +423,66 @@ export default async function AdminOverview() {
         <SubscriptionBreakdown activeByPlan={activeByPlan} />
         <AuditTimeline rows={auditLogs} />
       </div>
+
+      {/* ── Row 4 — Quick admin links ───────────────────────────────── */}
+      <div
+        className="card-surface p-5 animate-in-up"
+        style={{ animationDelay: "350ms" }}
+      >
+        <h2 className="section-title mb-4">Quick links</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <AdminLink href="/admin/users" icon={Users} accent="indigo" label="Users" />
+          <AdminLink href="/admin/kyc" icon={ShieldCheck} accent="amber" label="KYC Queue" />
+          <AdminLink href="/admin/payouts" icon={Wallet} accent="emerald" label="Payouts" />
+          <AdminLink href="/admin/transactions" icon={CreditCard} accent="violet" label="Transactions" />
+          <AdminLink href="/admin/settings" icon={Sliders} accent="indigo" label="Settings" />
+          <AdminLink href="/admin/audit-logs" icon={ScrollText} accent="rose" label="Audit Logs" />
+        </div>
+      </div>
     </div>
+  );
+}
+
+const ADMIN_TILE: Record<
+  "indigo" | "emerald" | "amber" | "violet" | "rose",
+  string
+> = {
+  indigo: "tile-indigo",
+  emerald: "tile-emerald",
+  amber: "tile-amber",
+  violet: "tile-violet",
+  rose: "tile-rose",
+};
+
+function AdminLink({
+  href,
+  icon: Icon,
+  accent,
+  label,
+}: {
+  href: string;
+  icon: typeof Users;
+  accent: "indigo" | "emerald" | "amber" | "violet" | "rose";
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="card-surface card-surface-hover group flex flex-col items-center gap-2 p-4 text-center hover:border-primary/30"
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "flex h-10 w-10 items-center justify-center rounded-xl",
+          ADMIN_TILE[accent],
+        )}
+      >
+        <Icon className="h-5 w-5" strokeWidth={2} />
+      </span>
+      <span className="text-xs font-medium text-foreground transition-colors group-hover:text-primary">
+        {label}
+      </span>
+    </Link>
   );
 }
 
@@ -280,7 +499,7 @@ function ActiveSubscribersCard({
 }) {
   const total = starter + pro + business;
   return (
-    <div className="card-surface p-5 transition-shadow duration-200 hover:shadow-card-md">
+    <div className="card-surface p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-md">
       <div className="flex items-center gap-3">
         <span
           aria-hidden
@@ -332,7 +551,13 @@ function SubscriptionBreakdown({
   return (
     <div className="card-surface p-5">
       <div className="mb-1 flex items-center justify-between">
-        <h2 className="font-sora text-base font-semibold tracking-tight">
+        <h2 className="flex items-center gap-2 font-sora text-base font-semibold tracking-tight">
+          <span
+            aria-hidden
+            className="tile-violet flex h-7 w-7 items-center justify-center rounded-lg"
+          >
+            <PieChart className="h-3.5 w-3.5" />
+          </span>
           Subscription breakdown
         </h2>
         <span className="text-xs text-muted-foreground">
@@ -418,7 +643,13 @@ function AuditTimeline({ rows }: { rows: AuditRow[] }) {
   return (
     <div className="card-surface p-5">
       <div className="flex items-center justify-between">
-        <h2 className="font-sora text-base font-semibold tracking-tight">
+        <h2 className="flex items-center gap-2 font-sora text-base font-semibold tracking-tight">
+          <span
+            aria-hidden
+            className="tile-indigo flex h-7 w-7 items-center justify-center rounded-lg"
+          >
+            <History className="h-3.5 w-3.5" />
+          </span>
           Recent admin activity
         </h2>
         <Link
@@ -431,9 +662,12 @@ function AuditTimeline({ rows }: { rows: AuditRow[] }) {
       </div>
 
       {rows.length === 0 ? (
-        <p className="mt-6 rounded-lg border border-dashed bg-muted/30 px-3 py-8 text-center text-sm text-muted-foreground">
+        <div className="mt-6 flex flex-col items-center gap-3 rounded-lg border border-dashed bg-muted/30 px-3 py-8 text-center text-sm text-muted-foreground">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full tile-indigo">
+            <History className="h-5 w-5" />
+          </div>
           No admin actions yet.
-        </p>
+        </div>
       ) : (
         <ol className="relative mt-4 space-y-3">
           {/* Connecting trail line */}

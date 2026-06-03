@@ -37,6 +37,7 @@ export default async function EditPageRoute({
     { data: coupons },
     { data: profile },
     { data: sys },
+    { data: pageProduct },
   ] = await Promise.all([
     admin
       .from("pixel_configs")
@@ -66,6 +67,15 @@ export default async function EditPageRoute({
       .select("value")
       .eq("key", "allow_custom_scripts")
       .maybeSingle(),
+    // This page's own active product (for the Offer / Retail price fields).
+    admin
+      .from("products")
+      .select("price, original_price")
+      .eq("page_id", params.id)
+      .eq("active", true)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const customScriptsAllowed = sys?.value === "true";
@@ -90,6 +100,12 @@ export default async function EditPageRoute({
     coupons: (coupons ?? []).map((c) => ({ code: c.code as string })),
     customScriptsAllowed,
     sellerPlan: (profile?.subscription_plan as string) ?? "free",
+    productPrice:
+      pageProduct?.price != null ? Number(pageProduct.price) : null,
+    productOriginalPrice:
+      pageProduct?.original_price != null
+        ? Number(pageProduct.original_price)
+        : null,
   };
 
   return <PageEditorTabs initial={existing} />;

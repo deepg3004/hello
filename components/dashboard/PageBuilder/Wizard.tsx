@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -24,15 +24,34 @@ const STEPS: Array<{ id: Step; label: string }> = [
   { id: 3, label: "Customise" },
 ];
 
+const VALID_TYPES: PageDbType[] = ["payment", "landing", "lead_magnet"];
+
 export function PageBuilderWizard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
-  const [step, setStep] = useState<Step>(1);
-  const [type, setType] = useState<PageDbType | null>(null);
-  const [templateId, setTemplateId] = useState<string | null>(null);
-  const [title, setTitle] = useState("");
+  // When launched from a category dashboard the wizard is pre-scoped via query
+  // params: ?type= pre-selects the kind (skip to template step), and ?template=
+  // jumps straight into customising that specific template.
+  const presetTemplate = (() => {
+    const id = searchParams.get("template");
+    return id ? getTemplate(id) : null;
+  })();
+  const presetType = (() => {
+    if (presetTemplate) return presetTemplate.definition.dbType;
+    const t = searchParams.get("type") as PageDbType | null;
+    return t && VALID_TYPES.includes(t) ? t : null;
+  })();
+  const [step, setStep] = useState<Step>(presetTemplate ? 3 : presetType ? 2 : 1);
+  const [type, setType] = useState<PageDbType | null>(presetType);
+  const [templateId, setTemplateId] = useState<string | null>(
+    presetTemplate?.definition.id ?? null,
+  );
+  const [title, setTitle] = useState(presetTemplate?.definition.name ?? "");
   const [slug, setSlug] = useState("");
-  const [values, setValues] = useState<Record<string, unknown>>({});
+  const [values, setValues] = useState<Record<string, unknown>>(
+    presetTemplate ? { ...presetTemplate.defaultValues } : {},
+  );
   // Price in INR — only shown / sent for "payment" pages. createPageAction
   // auto-creates a matching products row so the public /p/[slug] route has
   // something to charge for.

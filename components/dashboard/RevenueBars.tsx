@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Inbox } from "lucide-react";
 
+import { publicPagePath } from "@/lib/page-url";
 import { cn, truncate } from "@/lib/utils";
 
 interface RevenueBarsProps {
@@ -11,6 +12,8 @@ interface RevenueBarsProps {
     id: string;
     title: string;
     slug: string;
+    type?: string | null;
+    template_id?: string | null;
     total_revenue: number;
   }>;
 }
@@ -55,7 +58,7 @@ export function RevenueBars({ rows }: RevenueBarsProps) {
           <li key={r.id} className="space-y-1.5">
             <div className="flex items-center justify-between gap-3 text-sm">
               <Link
-                href={`/p/${r.slug}`}
+                href={publicPagePath(r.type, r.slug, r.template_id)}
                 target="_blank"
                 rel="noreferrer"
                 className="flex min-w-0 items-center gap-2 font-medium text-foreground hover:text-primary"

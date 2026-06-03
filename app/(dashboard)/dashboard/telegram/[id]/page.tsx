@@ -30,6 +30,7 @@ import {
   TelegramMembersClient,
   type MemberRow,
 } from "@/components/dashboard/telegram/TelegramMembersClient";
+import { AutoRefresh } from "@/components/dashboard/telegram/AutoRefresh";
 import { getChannelDashboardAction } from "@/actions/telegram-channels";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -90,6 +91,9 @@ export default async function TelegramChannelPage({
 
   return (
     <div className="space-y-6">
+      {/* Live-refresh the Overview + Members metrics every minute so join/leave
+          and view counts stay current without a manual reload. */}
+      {(tab === "overview" || tab === "members") && <AutoRefresh seconds={60} />}
       {/* Header */}
       <div className="space-y-3">
         <Button asChild variant="ghost" size="sm" className="-ml-2 h-8">

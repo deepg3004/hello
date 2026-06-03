@@ -35,6 +35,9 @@ export interface UpdatePageInput {
   /** Sale price in INR. When provided on a payment page, we upsert the
    *  associated products row so the public checkout reflects the change. */
   price?: number | null;
+  /** Retail / "compare at" price in INR (strikethrough). Stored as the
+   *  product's original_price; null clears it. */
+  original_price?: number | null;
   pixel: {
     meta_pixel_id: string;
     meta_capi_access_token: string;
@@ -208,10 +211,22 @@ export async function updatePageAction(
       .limit(1)
       .maybeSingle();
 
+    // Retail price (compare-at). Only persist when it's strictly above the
+    // sale price — otherwise clear it so a stale strikethrough doesn't linger.
+    const retail =
+      typeof input.original_price === "number" &&
+      input.original_price > input.price
+        ? input.original_price
+        : null;
+
     if (existingProduct) {
       await admin
         .from("products")
-        .update({ price: input.price, name: input.title })
+        .update({
+          price: input.price,
+          original_price: retail,
+          name: input.title,
+        })
         .eq("id", existingProduct.id);
     } else {
       await admin.from("products").insert({
@@ -219,6 +234,7 @@ export async function updatePageAction(
         page_id: input.id,
         name: input.title,
         price: input.price,
+        original_price: retail,
         currency: "INR",
         type: "one_time",
         active: true,

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { Flag } from "lucide-react";
+import { Flag, FileText } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { PageActionsMenu } from "@/components/admin/PageActionsMenu";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { publicPagePath } from "@/lib/page-url";
 import { formatINR } from "@/lib/utils";
 
@@ -48,39 +49,45 @@ export default async function AdminPagesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-sora font-semibold tracking-tight">Pages</h1>
-        <p className="text-sm text-muted-foreground">
-          Every page across every seller. Flagged pages show a warning to the seller.
-        </p>
+        <DashboardHero
+          title="Pages"
+          blurb="Every page across every seller. Flagged pages show a warning to the seller."
+          resourcesHref={null}
+        />
       </div>
 
-      <Card>
+      <Card className="animate-in-up" style={{ animationDelay: "80ms" }}>
         <CardContent className="overflow-x-auto p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Seller</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Views</TableHead>
-                <TableHead className="text-right">Revenue</TableHead>
-                <TableHead>Created</TableHead>
+                <TableHead className="th-label">Title</TableHead>
+                <TableHead className="th-label">Seller</TableHead>
+                <TableHead className="th-label">Type</TableHead>
+                <TableHead className="th-label">Status</TableHead>
+                <TableHead className="th-label text-right">Views</TableHead>
+                <TableHead className="th-label text-right">Revenue</TableHead>
+                <TableHead className="th-label">Created</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
-                    No pages on the platform yet.
+                  <TableCell colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full tile-indigo">
+                        <FileText className="h-5 w-5" />
+                      </div>
+                      No pages on the platform yet.
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
                 rows.map((r) => {
                   const seller = Array.isArray(r.user_profiles) ? r.user_profiles[0] : r.user_profiles;
                   return (
-                    <TableRow key={r.id}>
+                    <TableRow key={r.id} className="transition-colors hover:bg-muted/30">
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Link href={publicPagePath(r.type, r.slug, r.template_id)} target="_blank" className="font-medium hover:underline">

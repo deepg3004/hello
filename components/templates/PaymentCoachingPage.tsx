@@ -1,10 +1,13 @@
 "use client";
 
-import { ArrowRight, Check, Lock, Star, X } from "lucide-react";
+import { ArrowRight, Check, Star, X } from "lucide-react";
 
 import { CheckoutForm } from "@/components/pages/CheckoutForm";
+import { BgAnimation } from "./BgAnimation";
 import { Countdown } from "./shared/Countdown";
 import { StickyCheckoutBar } from "./shared/StickyCheckoutBar";
+import { SecureFooter } from "@/components/templates/shared/SecureFooter";
+import { tgTheme } from "@/lib/telegram-themes";
 import type { BaseTemplateProps } from "./shared/types";
 
 interface Bullet {
@@ -59,6 +62,11 @@ export interface PaymentCoachingPageProps extends BaseTemplateProps {
 
   checkout_title?: string;
   checkout_note?: string;
+
+  /** Theme key (see lib/telegram-themes). Defaults to "sunset". */
+  theme_key?: string;
+  /** Background animation: none | snow | gift | party | space | planet. */
+  bg_animation?: string;
 }
 
 export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
@@ -71,6 +79,9 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
   const timer = props.timer;
   const price = props.product?.price ?? 0;
   const heroCta = props.hero_cta ?? "Book a strategy call";
+
+  const theme = tgTheme(props.theme_key);
+  const accent = theme.accent;
 
   const socialCount = props.social_proof_count ?? 1200;
   const socialText =
@@ -92,10 +103,18 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
   );
 
   return (
-    <div className="min-h-screen bg-zinc-900 text-zinc-100">
+    <div
+      className="relative min-h-screen text-zinc-100"
+      style={{ background: theme.bg }}
+    >
+      <BgAnimation type={props.bg_animation} />
+      <div className="relative z-10">
       {/* ── Optional urgency strip ──────────────────────────────────── */}
       {props.urgency_enabled && props.urgency_text && (
-        <div className="bg-orange-500 px-4 py-2 text-center text-sm font-semibold text-zinc-950">
+        <div
+          className="px-4 py-2 text-center text-sm font-semibold text-zinc-950"
+          style={{ backgroundColor: accent }}
+        >
           {props.urgency_text}
         </div>
       )}
@@ -103,16 +122,11 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
       {/* ====================================================================
           HERO — split layout (text left, coach photo right)
           ==================================================================== */}
-      <section
-        className="relative isolate overflow-hidden"
-        style={{
-          background:
-            "linear-gradient(160deg, #18181b 0%, #27272a 100%)",
-        }}
-      >
+      <section className="relative isolate overflow-hidden">
         <div
           aria-hidden
-          className="pointer-events-none absolute -right-32 top-0 h-[420px] w-[420px] rounded-full bg-orange-500/15 blur-3xl"
+          className="pointer-events-none absolute -right-32 top-0 h-[420px] w-[420px] rounded-full blur-3xl"
+          style={{ backgroundColor: `${accent}26` }}
         />
 
         <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 pb-16 pt-12 md:grid-cols-[1.1fr_minmax(0,1fr)] md:gap-12 md:pb-20 md:pt-16">
@@ -122,7 +136,7 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
                 <Countdown
                   targetIso={timer.target}
                   label={timer.label ?? "Cohort closes in"}
-                  boxClassName="bg-orange-500/15 text-orange-100"
+                  boxClassName="bg-white/10 text-white"
                 />
               </div>
             )}
@@ -136,7 +150,8 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
                     {headlineParts.tail}
                     <span
                       aria-hidden
-                      className="absolute -bottom-1.5 left-0 right-0 h-1.5 rounded-full bg-orange-500"
+                      className="absolute -bottom-1.5 left-0 right-0 h-1.5 rounded-full"
+                      style={{ backgroundColor: accent }}
                     />
                   </span>
                 </>
@@ -154,7 +169,10 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
               <ul className="mt-6 space-y-2 text-base text-white/85">
                 {wyg.slice(0, 6).map((b, i) => (
                   <li key={i} className="flex items-start gap-3">
-                    <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500 text-zinc-950">
+                    <span
+                      className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-zinc-950"
+                      style={{ backgroundColor: accent }}
+                    >
                       <Check className="h-3 w-3" strokeWidth={3} />
                     </span>
                     {b.text}
@@ -167,7 +185,8 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
             <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center">
               <a
                 href="#book"
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-500 px-8 py-4 text-base font-semibold text-white shadow-xl shadow-orange-900/40 transition hover:scale-105 hover:bg-orange-600"
+                className="inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-base font-semibold text-white shadow-xl transition hover:scale-105 hover:opacity-90"
+                style={{ backgroundColor: accent, boxShadow: `0 18px 40px ${accent}40` }}
               >
                 {heroCta}
                 <ArrowRight className="h-5 w-5" strokeWidth={2.5} />
@@ -181,7 +200,7 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
 
           {/* Coach photo (placeholder gradient if not set) */}
           <div className="relative">
-            <div className="aspect-[4/5] w-full overflow-hidden rounded-2xl border border-white/10 shadow-2xl shadow-orange-900/20">
+            <div className="aspect-[4/5] w-full overflow-hidden rounded-2xl border border-white/10 shadow-2xl">
               {props.coach_image ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
@@ -193,8 +212,7 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
                 <div
                   className="flex h-full w-full items-center justify-center text-zinc-500"
                   style={{
-                    background:
-                      "linear-gradient(135deg, rgba(249,115,22,0.25), rgba(39,39,42,1) 70%)",
+                    background: `linear-gradient(135deg, ${accent}40, ${theme.card} 70%)`,
                   }}
                 >
                   <span className="font-sora text-5xl font-bold text-white/30">
@@ -208,11 +226,14 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
               )}
             </div>
             {props.coach_name && (
-              <div className="absolute -bottom-3 left-3 right-3 rounded-xl border border-white/10 bg-zinc-900/95 px-4 py-3 backdrop-blur">
+              <div
+                className="absolute -bottom-3 left-3 right-3 rounded-xl border border-white/10 px-4 py-3 backdrop-blur"
+                style={{ backgroundColor: `${theme.card}f2` }}
+              >
                 <p className="font-sora text-sm font-semibold text-white">
                   {props.coach_name}
                 </p>
-                <div className="mt-0.5 flex items-center gap-1 text-xs text-orange-400">
+                <div className="mt-0.5 flex items-center gap-1 text-xs" style={{ color: accent }}>
                   <Star className="h-3 w-3 fill-current" />
                   <Star className="h-3 w-3 fill-current" />
                   <Star className="h-3 w-3 fill-current" />
@@ -230,7 +251,7 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
 
       {/* ── Metrics row ─────────────────────────────────────────────── */}
       {(props.metric1_value || props.metric2_value || props.metric3_value) && (
-        <section className="bg-zinc-950 py-10">
+        <section className="border-y border-white/10 bg-black/30 py-10">
           <div className="mx-auto grid max-w-3xl grid-cols-1 gap-6 px-6 text-center md:grid-cols-3">
             {[
               [props.metric1_value, props.metric1_label],
@@ -239,7 +260,7 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
             ].map(([v, l], i) =>
               v ? (
                 <div key={i}>
-                  <div className="font-sora text-3xl font-bold text-orange-500">
+                  <div className="font-sora text-3xl font-bold" style={{ color: accent }}>
                     {v}
                   </div>
                   <div className="text-sm text-zinc-400">{l}</div>
@@ -254,7 +275,7 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
           "Is this for you?" — two-column comparison
           ==================================================================== */}
       {(yesItems.length > 0 || noItems.length > 0) && (
-        <section className="bg-zinc-800 py-16">
+        <section className="bg-black/20 py-16">
           <div className="mx-auto max-w-5xl px-6">
             {formeTitle && (
               <h2 className="text-center font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
@@ -311,7 +332,7 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
           ==================================================================== */}
       <section
         id="book"
-        className="scroll-mt-16 bg-zinc-900 px-4 pb-32 pt-16 md:pb-20"
+        className="scroll-mt-16 px-4 pb-32 pt-16 md:pb-20"
       >
         <div className="mx-auto max-w-3xl">
           {props.checkout_title && (
@@ -333,9 +354,10 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
               <span className="text-sm text-zinc-500">one-time</span>
             </div>
 
-            {props.pageId && props.product && !props.isPreview ? (
+            {props.product ? (
               <CheckoutForm
-                pageId={props.pageId}
+                pageId={props.pageId ?? "preview"}
+                  preview={props.isPreview}
                 productId={props.product.id}
                 productName={props.product.name}
                 productDescription={props.product.description}
@@ -347,6 +369,7 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
                     ? { ...props.bumpRuntime, ready: true }
                     : undefined
                 }
+                primaryColor={accent}
               />
             ) : (
               <p className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-4 text-center text-sm text-zinc-500">
@@ -356,30 +379,19 @@ export function PaymentCoachingPage(props: PaymentCoachingPageProps) {
               </p>
             )}
 
-            <div className="mt-5 border-t border-zinc-100 pt-4">
-              <p className="flex items-center justify-center gap-1.5 text-xs text-zinc-500">
-                <Lock className="h-3 w-3" /> SSL Encrypted · Powered by Razorpay
-              </p>
-              <div className="mt-3 flex items-center justify-center gap-2">
-                {["UPI", "Visa", "Mastercard", "RuPay"].map((m) => (
-                  <span
-                    key={m}
-                    className="rounded-md border border-zinc-200 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-700"
-                  >
-                    {m}
-                  </span>
-                ))}
-              </div>
-            </div>
+            <SecureFooter accent={accent} />
           </div>
         </div>
       </section>
+
+      </div>
 
       <StickyCheckoutBar
         targetId="book"
         priceLabel={price ? `₹${price.toLocaleString("en-IN")}` : "Book"}
         cta={heroCta}
-        buttonClassName="bg-orange-500 text-white"
+        buttonClassName="text-white"
+        buttonStyle={{ backgroundColor: accent }}
       />
     </div>
   );

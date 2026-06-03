@@ -1,19 +1,29 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { format, subMonths } from "date-fns";
 import {
   AlertCircle,
   ArrowRight,
   CreditCard,
   FileText,
+  Handshake,
+  IndianRupee,
   Inbox,
+  Layers,
+  Magnet,
+  Receipt,
   Send,
+  ShoppingCart,
+  Tag,
   TrendingUp,
+  Trophy,
   Users,
   Wallet,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import { EarningsCard, type EarningsPoint } from "@/components/dashboard/EarningsCard";
 import { RevenueBars } from "@/components/dashboard/RevenueBars";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import {
@@ -30,6 +40,7 @@ import {
   getTopPages,
 } from "@/lib/dashboard/queries";
 import { createClient } from "@/lib/supabase/server";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDateTime, formatINR, truncate } from "@/lib/utils";
 import {
@@ -67,12 +78,20 @@ export default async function DashboardOverview() {
   if (!user) redirect("/login");
 
   const admin = createAdminClient();
+  const yearAgo = subMonths(new Date(), 11);
+  const yearStart = new Date(
+    yearAgo.getFullYear(),
+    yearAgo.getMonth(),
+    1,
+  ).toISOString();
   const [
     metrics,
     recent,
     topPages,
     { data: profile },
     { count: pagesCount },
+    { data: yearOrders },
+    { count: leadsCount },
   ] = await Promise.all([
     getDashboardMetrics(user.id),
     getRecentTransactions(user.id, 10),
@@ -88,7 +107,46 @@ export default async function DashboardOverview() {
       .from("pages")
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id),
+    // Paid orders over the trailing 12 months — drives the earnings chart,
+    // this-month order count, and average order value.
+    admin
+      .from("orders")
+      .select("amount, created_at")
+      .eq("seller_user_id", user.id)
+      .eq("status", "paid")
+      .gte("created_at", yearStart),
+    admin
+      .from("lead_captures")
+      .select("id", { count: "exact", head: true })
+      .eq("seller_user_id", user.id),
   ]);
+
+  // ── Earnings series (last 12 months) + derived KPIs ──────────────────
+  const paidYear = (yearOrders ?? []) as Array<{
+    amount: number;
+    created_at: string;
+  }>;
+  const byMonth = new Map<string, number>();
+  for (const o of paidYear) {
+    const k = String(o.created_at).slice(0, 7); // yyyy-MM
+    byMonth.set(k, (byMonth.get(k) ?? 0) + Number(o.amount ?? 0));
+  }
+  const earnings: EarningsPoint[] = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = subMonths(new Date(), i);
+    const key = format(d, "yyyy-MM");
+    earnings.push({
+      key,
+      label: d.getMonth() === 0 ? format(d, "MMM yy") : format(d, "MMM"),
+      value: byMonth.get(key) ?? 0,
+    });
+  }
+  const thisMonthKey = format(new Date(), "yyyy-MM");
+  const ordersThisMonth = paidYear.filter(
+    (o) => String(o.created_at).slice(0, 7) === thisMonthKey,
+  ).length;
+  const avgOrderValue =
+    ordersThisMonth > 0 ? metrics.revenueThisMonth / ordersThisMonth : 0;
 
   const onboardingProfile = {
     full_name: profile?.full_name ?? null,
@@ -134,13 +192,11 @@ export default async function DashboardOverview() {
       )}
 
       {/* ── Page heading ─────────────────────────────────────────────── */}
-      <div
-        className="animate-in-up"
-        style={{ animationDelay: "50ms" }}
-      >
-        <h1 className="page-title">Overview</h1>
-        <p className="page-subtitle">A snapshot of your store this month.</p>
-      </div>
+      <DashboardHero
+        title="Overview"
+        gradient="from-indigo-600 via-violet-600 to-purple-600"
+        blurb="A snapshot of your store this month."
+      />
 
       {/* ── 2. Metrics grid ──────────────────────────────────────────── */}
       <div
@@ -182,6 +238,46 @@ export default async function DashboardOverview() {
         />
       </div>
 
+      {/* ── 2b. Secondary KPIs ───────────────────────────────────────── */}
+      <div
+        className="grid grid-cols-2 gap-4 animate-in-up lg:grid-cols-4"
+        style={{ animationDelay: "150ms" }}
+      >
+        <MetricCard
+          label="Orders (this month)"
+          value={ordersThisMonth.toLocaleString("en-IN")}
+          icon={ShoppingCart}
+          accentColor="indigo"
+          hint="Paid orders since the 1st"
+        />
+        <MetricCard
+          label="Avg Order Value"
+          value={rupees(avgOrderValue)}
+          icon={IndianRupee}
+          accentColor="emerald"
+          hint="Revenue ÷ orders this month"
+        />
+        <MetricCard
+          label="Total Leads"
+          value={(leadsCount ?? 0).toLocaleString("en-IN")}
+          icon={Magnet}
+          accentColor="amber"
+          hint="Captured across all pages"
+        />
+        <MetricCard
+          label="Active Pages"
+          value={metrics.activePages.toLocaleString("en-IN")}
+          icon={Layers}
+          accentColor="violet"
+          hint="Published & collecting"
+        />
+      </div>
+
+      {/* ── 2c. Earnings trend ────────────────────────────────────────── */}
+      <div className="animate-in-up" style={{ animationDelay: "180ms" }}>
+        <EarningsCard series={earnings} />
+      </div>
+
       {/* ── 3. Recent transactions + Top pages ───────────────────────── */}
       <div
         className="grid gap-6 animate-in-up lg:grid-cols-3"
@@ -190,7 +286,15 @@ export default async function DashboardOverview() {
         {/* LEFT — Recent transactions (2/3 width) */}
         <div className="card-surface overflow-hidden lg:col-span-2">
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
-            <h2 className="section-title">Recent Transactions</h2>
+            <div className="flex items-center gap-2.5">
+              <span
+                aria-hidden
+                className="tile-indigo flex h-8 w-8 items-center justify-center rounded-lg"
+              >
+                <Receipt className="h-4 w-4" />
+              </span>
+              <h2 className="section-title">Recent Transactions</h2>
+            </div>
             <Link
               href="/dashboard/transactions"
               className="text-sm font-medium text-primary hover:underline"
@@ -225,7 +329,10 @@ export default async function DashboardOverview() {
                 </TableHeader>
                 <TableBody>
                   {recent.map((row) => (
-                    <TableRow key={row.id} className="border-border">
+                    <TableRow
+                      key={row.id}
+                      className="border-border transition-colors hover:bg-muted/30"
+                    >
                       <TableCell className="py-3">
                         <div className="font-medium text-foreground">
                           {row.buyer_name ?? row.buyer_email}
@@ -263,8 +370,16 @@ export default async function DashboardOverview() {
 
         {/* RIGHT — Top pages (1/3 width) */}
         <div className="card-surface p-5">
-          <h2 className="section-title">Top Pages by Revenue</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2.5">
+            <span
+              aria-hidden
+              className="tile-amber flex h-8 w-8 items-center justify-center rounded-lg"
+            >
+              <Trophy className="h-4 w-4" />
+            </span>
+            <h2 className="section-title">Top Pages by Revenue</h2>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
             Sorted by lifetime revenue
           </p>
           <div className="mt-4">
@@ -279,6 +394,22 @@ export default async function DashboardOverview() {
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           )}
+        </div>
+      </div>
+
+      {/* ── 3b. Quick links — always available shortcuts ─────────────── */}
+      <div
+        className="card-surface p-5 animate-in-up"
+        style={{ animationDelay: "250ms" }}
+      >
+        <h2 className="section-title mb-4">Quick links</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <Shortcut href="/dashboard/pages/new" icon={CreditCard} accent="indigo" label="New Page" />
+          <Shortcut href="/dashboard/payouts" icon={Wallet} accent="emerald" label="Payouts" />
+          <Shortcut href="/dashboard/coupons" icon={Tag} accent="amber" label="Coupons" />
+          <Shortcut href="/dashboard/affiliates" icon={Handshake} accent="violet" label="Affiliates" />
+          <Shortcut href="/dashboard/telegram" icon={Send} accent="indigo" label="Telegram" />
+          <Shortcut href="/dashboard/customers" icon={Users} accent="emerald" label="Customers" />
         </div>
       </div>
 
@@ -353,6 +484,42 @@ const QUICK_TILE: Record<QuickActionAccent, string> = {
   amber: "tile-amber",
   emerald: "tile-emerald",
 };
+
+const SHORTCUT_TILE: Record<"indigo" | "emerald" | "amber" | "violet", string> = {
+  indigo: "tile-indigo",
+  emerald: "tile-emerald",
+  amber: "tile-amber",
+  violet: "tile-violet",
+};
+
+function Shortcut({
+  href,
+  icon: Icon,
+  accent,
+  label,
+}: {
+  href: string;
+  icon: typeof CreditCard;
+  accent: "indigo" | "emerald" | "amber" | "violet";
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="card-surface card-surface-hover group flex flex-col items-center gap-2 p-4 text-center hover:border-primary/30"
+    >
+      <span
+        aria-hidden
+        className={`flex h-10 w-10 items-center justify-center rounded-xl ${SHORTCUT_TILE[accent]}`}
+      >
+        <Icon className="h-5 w-5" strokeWidth={2} />
+      </span>
+      <span className="text-xs font-medium text-foreground transition-colors group-hover:text-primary">
+        {label}
+      </span>
+    </Link>
+  );
+}
 
 function QuickAction({
   href,

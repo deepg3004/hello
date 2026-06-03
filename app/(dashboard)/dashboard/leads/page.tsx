@@ -1,10 +1,15 @@
 import { redirect } from "next/navigation";
 
-import { MetricCard } from "@/components/dashboard/MetricCard";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
+import { PageStatCard } from "@/components/dashboard/pages/PageStatCard";
 import { LeadsTable, type LeadRow } from "@/components/dashboard/leads/LeadsTable";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { ExportCsvButton } from "@/components/dashboard/ExportCsvButton";
+import { dailySeries, seriesTrend } from "@/lib/dashboard/spark";
+
+const HERO_BTN =
+  "border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white";
 
 export const metadata = { title: "Leads" };
 
@@ -77,26 +82,56 @@ export default async function LeadsPage() {
   const last7d = rows.filter(
     (r) => Date.parse(r.created_at) > Date.now() - 7 * 86_400_000,
   ).length;
+  const confirmed = rows.filter((r) => r.confirmed_at).length;
+  const sparkLeads = dailySeries(rows, (r) => r.created_at);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-sora font-semibold tracking-tight">Leads</h1>
-          <p className="text-sm text-muted-foreground">
-            Every email captured by your landing and lead-magnet pages.
-          </p>
-        </div>
-        <ExportCsvButton type="leads" />
+      <DashboardHero
+        title="Leads"
+        blurb="Every email captured by your landing and lead-magnet pages."
+        gradient="from-amber-500 via-orange-500 to-rose-500"
+      >
+        <ExportCsvButton type="leads" className={HERO_BTN} />
+      </DashboardHero>
+
+      <div
+        className="flex flex-wrap gap-4 animate-in-up"
+        style={{ animationDelay: "60ms" }}
+      >
+        <PageStatCard
+          label="Total Leads"
+          value={total.toLocaleString("en-IN")}
+          trendPct={seriesTrend(sparkLeads)}
+          spark={sparkLeads}
+          color="#f59e0b"
+        />
+        <PageStatCard
+          label="Last 7 Days"
+          value={last7d.toLocaleString("en-IN")}
+          trendPct={null}
+          spark={sparkLeads}
+          color="#6366f1"
+        />
+        <PageStatCard
+          label="Unique Emails"
+          value={uniqueEmails.toLocaleString("en-IN")}
+          trendPct={null}
+          spark={sparkLeads}
+          color="#10b981"
+        />
+        <PageStatCard
+          label="Confirmed"
+          value={confirmed.toLocaleString("en-IN")}
+          trendPct={null}
+          spark={sparkLeads}
+          color="#8b5cf6"
+        />
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <MetricCard label="Total leads" value={total.toLocaleString("en-IN")} />
-        <MetricCard label="Unique emails" value={uniqueEmails.toLocaleString("en-IN")} />
-        <MetricCard label="Last 7 days" value={last7d.toLocaleString("en-IN")} />
+      <div className="animate-in-up" style={{ animationDelay: "120ms" }}>
+        <LeadsTable leads={rows} pages={pagesRaw ?? []} />
       </div>
-
-      <LeadsTable leads={rows} pages={pagesRaw ?? []} />
     </div>
   );
 }

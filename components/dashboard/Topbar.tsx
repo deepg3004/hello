@@ -77,8 +77,8 @@ export function Topbar({ profile, onMenuClick }: TopbarProps) {
   return (
     <header
       className={cn(
-        "glass sticky top-0 z-20 flex h-16 items-center justify-between gap-3",
-        "border-b px-4 md:px-6",
+        "glass sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between gap-3",
+        "border-b border-border px-4 md:px-6",
       )}
     >
       {/* Left: hamburger (mobile) / breadcrumb (desktop) */}

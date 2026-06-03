@@ -567,8 +567,10 @@ export async function getChannelDashboardAction(
     { count: viewCount },
   ] = await Promise.all([
     pageId
-      ? admin.from("pages").select("slug").eq("id", pageId).maybeSingle()
-      : Promise.resolve({ data: null } as { data: { slug: string } | null }),
+      ? admin.from("pages").select("slug, view_count").eq("id", pageId).maybeSingle()
+      : Promise.resolve(
+          { data: null } as { data: { slug: string; view_count: number } | null },
+        ),
     admin
       .from("telegram_subscription_plans")
       .select("id, name, price, duration_label, subscriber_count, product_id")
@@ -625,7 +627,15 @@ export async function getChannelDashboardAction(
     (pid && planNameByProduct.get(pid)) || "Plan";
 
   const totalSales = paid.reduce((a, o) => a + Number(o.amount ?? 0), 0);
-  const activeMembers = mems.filter((m) => m.status === "active").length;
+  // "Active members" = current paying subscribers: anyone with valid access
+  // (joined OR invited-but-not-yet-joined) whose plan hasn't expired. Counting
+  // only status==="active" under-reported when join-binding lagged the payment.
+  const nowMs = Date.now();
+  const activeMembers = mems.filter(
+    (m) =>
+      (m.status === "active" || m.status === "invited") &&
+      (!m.expires_at || new Date(m.expires_at).getTime() > nowMs),
+  ).length;
 
   // Churn over the last 30 days.
   const cutoff = Date.now() - 30 * 86_400_000;
@@ -714,7 +724,10 @@ export async function getChannelDashboardAction(
       },
       plans,
       stats: {
-        totalPageViews: Number(group.total_page_views ?? 0) || (viewCount ?? 0),
+        totalPageViews:
+          Number(pageRow?.view_count ?? 0) ||
+          Number(group.total_page_views ?? 0) ||
+          (viewCount ?? 0),
         totalSales,
         totalSubscriptions: paid.length,
         activeMembers,

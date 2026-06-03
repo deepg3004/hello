@@ -41,49 +41,18 @@ interface Notif {
 
 // Per-type icon + tinted tile. Keys mirror lib/notifications/events.ts. Any
 // unknown type falls back to a neutral bell so a new event never renders bare.
-const ICONS: Record<string, { Icon: LucideIcon; tile: string; icon: string }> = {
-  payment_received: {
-    Icon: IndianRupee,
-    tile: "from-emerald-50 to-emerald-100/60 ring-emerald-200/70",
-    icon: "text-emerald-600",
-  },
-  page_created: {
-    Icon: FileText,
-    tile: "from-indigo-50 to-indigo-100/60 ring-indigo-200/70",
-    icon: "text-indigo-600",
-  },
-  kyc_approved: {
-    Icon: ShieldCheck,
-    tile: "from-emerald-50 to-emerald-100/60 ring-emerald-200/70",
-    icon: "text-emerald-600",
-  },
-  kyc_rejected: {
-    Icon: ShieldX,
-    tile: "from-rose-50 to-rose-100/60 ring-rose-200/70",
-    icon: "text-rose-600",
-  },
-  kyc_flagged: {
-    Icon: ShieldAlert,
-    tile: "from-amber-50 to-amber-100/60 ring-amber-200/70",
-    icon: "text-amber-600",
-  },
-  kyc_rekyc: {
-    Icon: RotateCcw,
-    tile: "from-amber-50 to-amber-100/60 ring-amber-200/70",
-    icon: "text-amber-600",
-  },
-  telegram_join: {
-    Icon: Send,
-    tile: "from-sky-50 to-sky-100/60 ring-sky-200/70",
-    icon: "text-sky-600",
-  },
+// Dark-aware tile classes (globals.css) carry the gradient + ring + icon colour.
+const ICONS: Record<string, { Icon: LucideIcon; tile: string }> = {
+  payment_received: { Icon: IndianRupee, tile: "tile-emerald" },
+  page_created: { Icon: FileText, tile: "tile-indigo" },
+  kyc_approved: { Icon: ShieldCheck, tile: "tile-emerald" },
+  kyc_rejected: { Icon: ShieldX, tile: "tile-rose" },
+  kyc_flagged: { Icon: ShieldAlert, tile: "tile-amber" },
+  kyc_rekyc: { Icon: RotateCcw, tile: "tile-amber" },
+  telegram_join: { Icon: Send, tile: "tile-indigo" },
 };
 
-const FALLBACK = {
-  Icon: Bell,
-  tile: "from-slate-50 to-slate-100/60 ring-slate-200/70",
-  icon: "text-slate-600",
-};
+const FALLBACK = { Icon: Bell, tile: "tile-neutral" };
 
 function iconFor(type: string) {
   return ICONS[type] ?? FALLBACK;
@@ -127,47 +96,25 @@ export function NotificationBell({ accent = "indigo" }: NotificationBellProps) {
   // Read inside the realtime closure without re-subscribing on toggle.
   const soundRef = useRef(true);
 
-  const refresh = useCallback(
-    async (uid?: string) => {
-      if (inflight.current) return;
-      inflight.current = true;
-      try {
-        let id = uid ?? userId;
-        if (!id) {
-          const {
-            data: { user },
-          } = await supabase.auth.getUser();
-          if (!user) {
-            setLoading(false);
-            return;
-          }
-          id = user.id;
-          setUserId(id);
-        }
-        const [{ data }, { count }] = await Promise.all([
-          supabase
-            .from("notifications")
-            .select("id, type, title, body, link, read_at, created_at")
-            .eq("user_id", id)
-            .order("created_at", { ascending: false })
-            .limit(20),
-          supabase
-            .from("notifications")
-            .select("id", { count: "exact", head: true })
-            .eq("user_id", id)
-            .is("read_at", null),
-        ]);
-        setItems((data as Notif[]) ?? []);
-        setUnread(count ?? 0);
-      } catch (e) {
-        console.error("[bell] refresh failed", e);
-      } finally {
-        setLoading(false);
-        inflight.current = false;
+  // Read through the server route (authed via the session cookie) so the feed
+  // never comes back empty due to a browser-side RLS/session quirk.
+  const refresh = useCallback(async () => {
+    if (inflight.current) return;
+    inflight.current = true;
+    try {
+      const res = await fetch("/api/notifications", { cache: "no-store" });
+      if (res.ok) {
+        const json = (await res.json()) as { items: Notif[]; unread: number };
+        setItems(json.items ?? []);
+        setUnread(json.unread ?? 0);
       }
-    },
-    [supabase, userId],
-  );
+    } catch (e) {
+      console.error("[bell] refresh failed", e);
+    } finally {
+      setLoading(false);
+      inflight.current = false;
+    }
+  }, []);
 
   // Mount: portal flag, sound preference, audio unlock on first gesture.
   useEffect(() => {
@@ -194,6 +141,17 @@ export function NotificationBell({ accent = "indigo" }: NotificationBellProps) {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Resolve the user id once — drives the realtime channel filter below.
+  useEffect(() => {
+    let active = true;
+    void supabase.auth.getUser().then(({ data: { user } }) => {
+      if (active && user) setUserId(user.id);
+    });
+    return () => {
+      active = false;
+    };
+  }, [supabase]);
 
   const dismissPopup = useCallback((id: string) => {
     setPopups((prev) => prev.filter((p) => p.id !== id));
@@ -227,13 +185,13 @@ export function NotificationBell({ accent = "indigo" }: NotificationBellProps) {
             pushPopup(row);
             if (soundRef.current) playOrderSound();
           }
-          void refresh(userId);
+          void refresh();
         },
       )
       .subscribe();
 
-    const interval = setInterval(() => void refresh(userId), 60_000);
-    const onFocus = () => void refresh(userId);
+    const interval = setInterval(() => void refresh(), 60_000);
+    const onFocus = () => void refresh();
     window.addEventListener("focus", onFocus);
 
     return () => {
@@ -261,15 +219,15 @@ export function NotificationBell({ accent = "indigo" }: NotificationBellProps) {
   }
 
   async function markAllRead() {
-    if (!userId || unread === 0) return;
+    if (unread === 0) return;
     const now = new Date().toISOString();
     setItems((prev) => prev.map((n) => (n.read_at ? n : { ...n, read_at: now })));
     setUnread(0);
-    await supabase
-      .from("notifications")
-      .update({ read_at: now })
-      .eq("user_id", userId)
-      .is("read_at", null);
+    await fetch("/api/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ all: true }),
+    });
   }
 
   const markReadById = useCallback(
@@ -279,13 +237,13 @@ export function NotificationBell({ accent = "indigo" }: NotificationBellProps) {
         prev.map((x) => (x.id === id && !x.read_at ? { ...x, read_at: now } : x)),
       );
       setUnread((u) => Math.max(0, u - 1));
-      void supabase
-        .from("notifications")
-        .update({ read_at: now })
-        .eq("id", id)
-        .is("read_at", null);
+      void fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
     },
-    [supabase],
+    [],
   );
 
   return (
@@ -294,7 +252,7 @@ export function NotificationBell({ accent = "indigo" }: NotificationBellProps) {
         open={open}
         onOpenChange={(o) => {
           setOpen(o);
-          if (o) void refresh(userId ?? undefined);
+          if (o) void refresh();
         }}
       >
         <DropdownMenuTrigger asChild>
@@ -374,8 +332,8 @@ export function NotificationBell({ accent = "indigo" }: NotificationBellProps) {
               </div>
             ) : items.length === 0 ? (
               <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
-                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-indigo-50 to-indigo-100/60 ring-1 ring-inset ring-indigo-200/70">
-                  <Bell className="h-5 w-5 text-indigo-500" />
+                <span className="flex h-11 w-11 items-center justify-center rounded-full tile-indigo">
+                  <Bell className="h-5 w-5" />
                 </span>
                 <p className="text-sm font-medium text-foreground">All caught up</p>
                 <p className="text-xs text-muted-foreground">
@@ -391,17 +349,17 @@ export function NotificationBell({ accent = "indigo" }: NotificationBellProps) {
                       className={cn(
                         "flex items-start gap-3 px-4 py-3 transition-colors",
                         n.link && "cursor-pointer hover:bg-muted/50",
-                        !n.read_at && "bg-indigo-50/40",
+                        !n.read_at && "bg-indigo-500/[0.06] dark:bg-indigo-500/10",
                       )}
                     >
                       <span
                         aria-hidden
                         className={cn(
-                          "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ring-1 ring-inset",
+                          "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
                           cfg.tile,
                         )}
                       >
-                        <cfg.Icon className={cn("h-4 w-4", cfg.icon)} strokeWidth={2.25} />
+                        <cfg.Icon className="h-4 w-4" strokeWidth={2.25} />
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
@@ -466,11 +424,11 @@ export function NotificationBell({ accent = "indigo" }: NotificationBellProps) {
                   <span
                     aria-hidden
                     className={cn(
-                      "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ring-1 ring-inset",
+                      "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
                       cfg.tile,
                     )}
                   >
-                    <cfg.Icon className={cn("h-4 w-4", cfg.icon)} strokeWidth={2.25} />
+                    <cfg.Icon className="h-4 w-4" strokeWidth={2.25} />
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold leading-snug text-foreground">

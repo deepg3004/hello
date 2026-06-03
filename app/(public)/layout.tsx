@@ -29,5 +29,10 @@ export default async function PublicLayout({
     if (!isAdmin) redirect("/maintenance");
   }
 
-  return <div className="min-h-screen bg-background">{children}</div>;
+  // overflow-x-clip stops decorative blur-glows on the templates from causing
+  // horizontal scroll on phones (clip doesn't create a scroll container or
+  // affect sticky/fixed CTAs, unlike overflow-x-hidden).
+  return (
+    <div className="min-h-screen overflow-x-clip bg-background">{children}</div>
+  );
 }

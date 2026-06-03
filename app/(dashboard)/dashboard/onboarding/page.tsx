@@ -88,13 +88,13 @@ export default async function OnboardingPage() {
         {steps.map((step) => (
           <Card
             key={step.key}
-            className={step.done ? "border-emerald-200" : undefined}
+            className={step.done ? "border-emerald-200 dark:border-emerald-500/30" : undefined}
           >
             <CardHeader className="pb-3">
               <div className="flex items-start gap-3">
                 <div className="mt-0.5">
                   {step.done ? (
-                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-300" />
                   ) : (
                     <Circle className="h-5 w-5 text-muted-foreground" />
                   )}

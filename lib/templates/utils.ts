@@ -20,7 +20,16 @@ export function readField<T>(
   fallback: T,
 ): T {
   const v = values[key];
-  return v === undefined || v === null ? fallback : (v as T);
+  if (v === undefined || v === null) return fallback;
+  // Guard against legacy / wrong-type stored values that would crash a template
+  // at render time (e.g. a list field saved as a string → `.map` throws, which
+  // 500s the page and surfaces as a Cloudflare 520 in the live preview).
+  if (Array.isArray(fallback) && !Array.isArray(v)) return fallback;
+  if (typeof fallback === "number" && typeof v !== "number") {
+    const n = Number(v);
+    return (Number.isFinite(n) ? n : fallback) as T;
+  }
+  return v as T;
 }
 
 /** Encode customisation values into a URL-safe base64 string (for preview iframe). */

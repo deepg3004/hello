@@ -32,6 +32,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { publicPagePath } from "@/lib/page-url";
 
 import {
   promoteWinnerAction,
@@ -239,13 +240,13 @@ export function ABTestClient(props: Props) {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">Variant A · live page</CardTitle>
                 <CardDescription>
-                  Current /p/{props.slug}. Read-only here — edit on the page
-                  editor.
+                  Current {publicPagePath(props.pageType, props.slug, props.templateId)}.
+                  Read-only here — edit on the page editor.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <a
-                  href={`/p/${props.slug}`}
+                  href={publicPagePath(props.pageType, props.slug, props.templateId)}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 text-sm text-primary hover:underline"

@@ -1,6 +1,7 @@
 // Telegram VIP — definition + adapter.
 
 import { TelegramVipPage } from "@/components/templates/TelegramVipPage";
+import { designSection } from "@/lib/templates/design";
 import { extractDefaults, readField } from "@/lib/templates/utils";
 import type { Template, TemplateDefinition, TemplateRender } from "@/lib/templates/types";
 
@@ -21,6 +22,7 @@ const definition: TemplateDefinition = {
         { key: "group_name", label: "Group name", type: "text", defaultValue: "Founders Inner Circle" },
         { key: "group_avatar", label: "Group avatar URL", type: "image", defaultValue: "" },
         { key: "members_label", label: "Members line", type: "text", defaultValue: "1,284 paying members" },
+        { key: "category", label: "Category badge", type: "text", defaultValue: "Telegram", hint: "Small label shown next to the group name." },
         {
           key: "what_shared",
           label: "What gets shared (one item per line)",
@@ -36,6 +38,7 @@ const definition: TemplateDefinition = {
       type: "benefits",
       fields: [
         { key: "benefits_title", label: "Section title", type: "text", defaultValue: "Why join" },
+        { key: "description", label: "Extra description (optional)", type: "textarea", defaultValue: "", hint: "One feature per line. Used to fill the list when no Benefits are added above." },
         {
           key: "benefits_items",
           label: "Benefits",
@@ -57,8 +60,10 @@ const definition: TemplateDefinition = {
       fields: [
         { key: "join_title", label: "Section title", type: "text", defaultValue: "Join the group" },
         { key: "join_note", label: "Card note", type: "text", defaultValue: "Invite link sent to your email after payment." },
+        { key: "offer_ends_at", label: "Offer ends (optional)", type: "text", defaultValue: "", hint: "Limited-time countdown. ISO date, e.g. 2026-12-31T23:59. Leave blank for none." },
       ],
     },
+    designSection("purple"),
   ],
 };
 
@@ -80,7 +85,6 @@ const Render: TemplateRender = ({ values, pageId, slug, product, products, isPre
     join_note={readField(values, "join_note", "")}
     description={readField(values, "description", "")}
     category={readField(values, "category", "")}
-    active_members={readField(values, "active_members", undefined)}
     offer_ends_at={readField(values, "offer_ends_at", null)}
     theme_key={readField(values, "theme", "purple")}
     bg_animation={readField(values, "bg_animation", "none")}

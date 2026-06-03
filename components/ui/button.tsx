@@ -10,19 +10,19 @@ const buttonVariants = cva(
     variants: {
       variant: {
         // Charcoal-black CTA (#121214) → white in dark mode. The signature
-        // premium-monochrome button.
+        // premium-monochrome button. `btn-shine` adds the looping white strip.
         default:
-          "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:shadow-card-md",
+          "btn-shine bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:shadow-card-md",
         // White secondary — surface fill + ultra-light border.
         outline:
-          "border border-border bg-card text-foreground shadow-sm hover:bg-secondary",
+          "btn-shine border border-border bg-card text-foreground shadow-sm hover:bg-secondary",
         // Optional purple accent CTA, when a brand moment is wanted.
         gradient:
-          "bg-brand-gradient text-white shadow-sm hover:-translate-y-0.5 hover:shadow-glow",
+          "btn-shine bg-brand-gradient text-white shadow-sm hover:-translate-y-0.5 hover:shadow-glow",
         destructive:
-          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
+          "btn-shine bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
         secondary:
-          "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
+          "btn-shine bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-foreground underline-offset-4 hover:underline",
       },

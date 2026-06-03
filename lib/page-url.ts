@@ -1,13 +1,15 @@
 // Public page URL prefixes by page kind:
 //   /p  — payment pages
 //   /tg — Telegram VIP pages (a payment page on the telegram-vip template)
-//   /ln — landing / lead-magnet pages
+//   /ln — landing pages
+//   /ld — lead-magnet (lead-capture) pages
 //
-// All three resolve to the same renderer (slugs are unique); the prefix is a
-// human-readable, shareable categorisation. /p is kept working for every page
-// so existing links never break.
+// All resolve to the same renderer (slugs are unique). Each page has ONE
+// canonical prefix (above); the renderer redirects a page served on the wrong
+// prefix to its canonical URL. /p still resolves any page as a safety net so
+// older shared links never 404 — they just redirect to the canonical prefix.
 
-export type PagePrefix = "p" | "tg" | "ln";
+export type PagePrefix = "p" | "tg" | "ln" | "ld";
 
 const TELEGRAM_TEMPLATES = new Set(["telegram-vip", "telegram_vip"]);
 
@@ -16,7 +18,8 @@ export function pagePrefix(
   templateId?: string | null,
 ): PagePrefix {
   if (templateId && TELEGRAM_TEMPLATES.has(templateId)) return "tg";
-  if (type === "landing" || type === "lead_magnet") return "ln";
+  if (type === "lead_magnet") return "ld";
+  if (type === "landing") return "ln";
   return "p";
 }
 

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
+  banMember,
   generateInviteLink,
   getBotInfo,
   kickMember,
@@ -537,4 +538,146 @@ export async function regenerateMemberInviteAction(
 
   revalidatePath(`/dashboard/telegram/${group.id}`);
   return { ok: true, data: { invite_link: invite.invite_link } };
+}
+
+// ----------------------------------------------------------------------------
+// Seller member management (ownership-checked — vs the admin-only versions
+// above). Powers the Members tab: Convert plan / Mark joined / Revoke / Ban.
+// ----------------------------------------------------------------------------
+
+interface SellerMembershipCtx {
+  userId: string;
+  admin: ReturnType<typeof createAdminClient>;
+  membership: {
+    id: string;
+    telegram_user_id: string | null;
+    status: string;
+    telegram_group_id: string;
+  };
+  botToken: string | null;
+  chatId: string | null;
+  groupId: string;
+}
+
+/** Load a membership and verify the current user owns its channel. */
+async function loadSellerMembership(
+  membershipId: string,
+): Promise<SellerMembershipCtx | { error: string }> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in" };
+
+  const admin = createAdminClient();
+  const { data: m } = await admin
+    .from("telegram_memberships")
+    .select("id, telegram_user_id, status, telegram_group_id, group_chat_id, bot_token_snapshot")
+    .eq("id", membershipId)
+    .maybeSingle();
+  if (!m) return { error: "Member not found" };
+
+  const { data: g } = await admin
+    .from("telegram_vip_groups")
+    .select("user_id, bot_token, group_chat_id, group_id")
+    .eq("id", m.telegram_group_id)
+    .maybeSingle();
+  if (!g || g.user_id !== user.id) return { error: "Member not found" };
+
+  return {
+    userId: user.id,
+    admin,
+    membership: {
+      id: m.id,
+      telegram_user_id: m.telegram_user_id,
+      status: m.status,
+      telegram_group_id: m.telegram_group_id,
+    },
+    botToken: (m.bot_token_snapshot as string | null) ?? g.bot_token ?? null,
+    chatId:
+      (m.group_chat_id as string | null) ?? g.group_chat_id ?? g.group_id ?? null,
+    groupId: m.telegram_group_id,
+  };
+}
+
+/** Change a member's plan length. `days <= 0` = lifetime. Sets a fresh term
+ *  from now and (re)activates the membership. */
+export async function sellerConvertPlanAction(
+  membershipId: string,
+  days: number,
+): Promise<ActionResult> {
+  const ctx = await loadSellerMembership(membershipId);
+  if ("error" in ctx) return { ok: false, message: ctx.error };
+  const expires =
+    !days || days <= 0
+      ? null
+      : new Date(Date.now() + days * 86_400_000).toISOString();
+  await ctx.admin
+    .from("telegram_memberships")
+    .update({ expires_at: expires, status: "active" })
+    .eq("id", membershipId);
+  revalidatePath(`/dashboard/telegram/${ctx.groupId}`);
+  return { ok: true };
+}
+
+/** Manual join-status override — instant fix when the webhook missed a join
+ *  (the seller can see the person is in the channel). */
+export async function sellerSetJoinedAction(
+  membershipId: string,
+  joined: boolean,
+): Promise<ActionResult> {
+  const ctx = await loadSellerMembership(membershipId);
+  if ("error" in ctx) return { ok: false, message: ctx.error };
+  await ctx.admin
+    .from("telegram_memberships")
+    .update(
+      joined
+        ? { status: "active", joined_at: new Date().toISOString() }
+        : { status: "invited", joined_at: null },
+    )
+    .eq("id", membershipId);
+  revalidatePath(`/dashboard/telegram/${ctx.groupId}`);
+  return { ok: true };
+}
+
+/** Remove a member (kick — can rejoin on renewal). */
+export async function sellerRevokeMembershipAction(
+  membershipId: string,
+): Promise<ActionResult> {
+  const ctx = await loadSellerMembership(membershipId);
+  if ("error" in ctx) return { ok: false, message: ctx.error };
+  if (ctx.botToken && ctx.chatId && ctx.membership.telegram_user_id) {
+    try {
+      await kickMember(ctx.botToken, ctx.chatId, Number(ctx.membership.telegram_user_id));
+    } catch {
+      /* best-effort — still mark removed */
+    }
+  }
+  await ctx.admin
+    .from("telegram_memberships")
+    .update({ status: "removed", removed_at: new Date().toISOString() })
+    .eq("id", membershipId);
+  revalidatePath(`/dashboard/telegram/${ctx.groupId}`);
+  return { ok: true };
+}
+
+/** Permanently ban a member (cannot rejoin until unbanned). */
+export async function sellerBanMembershipAction(
+  membershipId: string,
+): Promise<ActionResult> {
+  const ctx = await loadSellerMembership(membershipId);
+  if ("error" in ctx) return { ok: false, message: ctx.error };
+  if (ctx.botToken && ctx.chatId && ctx.membership.telegram_user_id) {
+    try {
+      await banMember(ctx.botToken, ctx.chatId, Number(ctx.membership.telegram_user_id));
+    } catch {
+      /* best-effort — still mark banned */
+    }
+  }
+  await ctx.admin
+    .from("telegram_memberships")
+    .update({ status: "banned", removed_at: new Date().toISOString() })
+    .eq("id", membershipId);
+  revalidatePath(`/dashboard/telegram/${ctx.groupId}`);
+  return { ok: true };
 }

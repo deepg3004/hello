@@ -2,11 +2,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   AlertTriangle,
+  ArrowLeft,
   Calendar,
   Check,
   CreditCard,
+  FileText,
+  IndianRupee,
+  Layers,
   Mail,
   Phone,
+  Receipt,
   ShieldCheck,
   Wallet,
   X,
@@ -31,10 +36,10 @@ const rupees = (n: number) => formatINR(n * 100);
 
 // Plan badge palette — shared with UsersTable
 const PLAN_BADGE: Record<string, string> = {
-  free: "bg-zinc-100 text-zinc-700 border-zinc-200",
-  starter: "bg-sky-50 text-sky-700 border-sky-200",
-  pro: "bg-indigo-50 text-indigo-700 border-indigo-200",
-  business: "bg-amber-50 text-amber-700 border-amber-200",
+  free: "bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-500/15 dark:text-zinc-300 dark:border-zinc-500/30",
+  starter: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30",
+  pro: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:border-indigo-500/30",
+  business: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30",
 };
 
 const AVATAR_GRADIENTS = [
@@ -78,6 +83,7 @@ export default async function AdminUserDetailPage({
     { data: notes },
     { data: kyc },
     { data: auditTrail },
+    { count: totalOrders },
   ] = await Promise.all([
     admin.from("user_profiles").select("*").eq("id", params.id).single(),
     admin
@@ -116,6 +122,10 @@ export default async function AdminUserDetailPage({
       .or(`target_id.eq.${params.id},admin_id.eq.${params.id}`)
       .order("created_at", { ascending: false })
       .limit(100),
+    admin
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .eq("seller_user_id", params.id),
   ]);
 
   if (!profile) notFound();
@@ -127,32 +137,64 @@ export default async function AdminUserDetailPage({
 
   return (
     <div className="space-y-6">
-      {/* ── Header ─────────────────────────────────────────────────── */}
+      {/* ── Back link ──────────────────────────────────────────────── */}
+      <Link
+        href="/admin/users"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" /> Back to users
+      </Link>
+
+      {/* ── Hero banner — colourful, per-user gradient ─────────────── */}
       <div
-        className="flex flex-wrap items-start justify-between gap-3 animate-in-up"
+        className={cn(
+          "relative overflow-hidden rounded-2xl bg-gradient-to-br p-6 text-white shadow-card-lg ring-1 ring-white/15 animate-in-up sm:p-8",
+          gradientFor(profile.email ?? ""),
+        )}
         style={{ animationDelay: "0ms" }}
       >
-        <div className="flex items-center gap-4">
+        <div aria-hidden className="pointer-events-none absolute -right-16 -top-24 h-56 w-56 rounded-full bg-white/20 blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-24 left-1/4 h-44 w-44 rounded-full bg-black/20 blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+        <div className="relative flex flex-wrap items-center gap-4">
           <span
             aria-hidden
-            className={cn(
-              "flex h-14 w-14 shrink-0 items-center justify-center rounded-full",
-              "bg-gradient-to-br text-base font-semibold text-white shadow-md",
-              gradientFor(profile.email ?? ""),
-            )}
+            className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white/15 text-lg font-bold text-white ring-2 ring-inset ring-white/30 backdrop-blur-sm"
           >
             {initials(profile.full_name ?? profile.email ?? "?")}
           </span>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-              User detail
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-white/70">
+              Seller profile
             </p>
-            <h1 className="font-sora text-2xl font-semibold tracking-tight">
+            <h1 className="truncate font-sora text-2xl font-bold tracking-tight drop-shadow-sm sm:text-3xl">
               {profile.full_name ?? profile.email}
             </h1>
-            <p className="text-sm text-muted-foreground">{profile.email}</p>
+            <p className="truncate text-sm text-white/80">{profile.email}</p>
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+              <HeroChip icon={CreditCard}>{planEntry.name}</HeroChip>
+              <HeroChip>
+                {(profile.subscription_status ?? "inactive").replace(/_/g, " ")}
+              </HeroChip>
+              <HeroChip icon={ShieldCheck}>
+                KYC L{Number(profile.kyc_level ?? 0)}
+                {profile.payouts_enabled ? " · payouts on" : ""}
+              </HeroChip>
+              {profile.suspended_at && (
+                <HeroChip className="bg-rose-500/40 ring-rose-200/40">
+                  Suspended
+                </HeroChip>
+              )}
+            </div>
           </div>
         </div>
+      </div>
+
+      {/* ── Action toolbar ─────────────────────────────────────────── */}
+      <div
+        className="flex flex-wrap justify-end gap-2 animate-in-up"
+        style={{ animationDelay: "60ms" }}
+      >
         <UserActions
           userId={profile.id}
           userEmail={profile.email}
@@ -164,9 +206,20 @@ export default async function AdminUserDetailPage({
         />
       </div>
 
+      {/* ── Stat cards ─────────────────────────────────────────────── */}
+      <div
+        className="grid grid-cols-2 gap-3 animate-in-up lg:grid-cols-4"
+        style={{ animationDelay: "80ms" }}
+      >
+        <DetailStat label="Lifetime Revenue" value={rupees(Number(profile.total_revenue ?? 0))} tile="tile-emerald" icon={IndianRupee} />
+        <DetailStat label="Orders" value={(totalOrders ?? 0).toLocaleString("en-IN")} tile="tile-indigo" icon={Receipt} />
+        <DetailStat label="Pages" value={(pages?.length ?? 0).toLocaleString("en-IN")} tile="tile-violet" icon={FileText} />
+        <DetailStat label="KYC Level" value={`L${Number(profile.kyc_level ?? 0)} / 3`} tile="tile-amber" icon={Layers} />
+      </div>
+
       {/* Suspended banner */}
       {profile.suspended_at && (
-        <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900 animate-in-up">
+        <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900 animate-in-up dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
             <p className="font-semibold">Account suspended</p>
@@ -487,7 +540,7 @@ export default async function AdminUserDetailPage({
                             Submitted {formatDateTime(k.created_at)}
                           </p>
                           {k.rejection_reason && (
-                            <p className="mt-1 text-xs text-rose-700">
+                            <p className="mt-1 text-xs text-rose-700 dark:text-rose-300">
                               Rejection reason: {k.rejection_reason}
                             </p>
                           )}
@@ -535,7 +588,7 @@ export default async function AdminUserDetailPage({
                     <li key={a.id} className="relative pl-6 text-sm">
                       <span
                         aria-hidden
-                        className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-indigo-500 shadow-sm"
+                        className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-indigo-500 shadow-sm"
                       />
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -565,6 +618,62 @@ export default async function AdminUserDetailPage({
 }
 
 // ── Sub-components ──────────────────────────────────────────────────────
+
+function HeroChip({
+  icon: Icon,
+  className,
+  children,
+}: {
+  icon?: React.ComponentType<{ className?: string }>;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-medium capitalize text-white ring-1 ring-inset ring-white/20",
+        className,
+      )}
+    >
+      {Icon && <Icon className="h-3 w-3" />}
+      {children}
+    </span>
+  );
+}
+
+function DetailStat({
+  label,
+  value,
+  tile,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  tile: string;
+  icon: React.ComponentType<{ className?: string }>;
+}) {
+  return (
+    <div className="card-surface flex items-center gap-3 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-md">
+      <span
+        aria-hidden
+        className={cn(
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+          tile,
+        )}
+      >
+        <Icon className="h-[18px] w-[18px]" />
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </p>
+        <p className="mt-0.5 font-sora text-lg font-bold tabular-nums text-foreground">
+          {value}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function ProfileLine({
   icon: Icon,
@@ -629,14 +738,14 @@ function BankBlock({ verified }: { verified: boolean }) {
       className={cn(
         "rounded-lg border p-3",
         verified
-          ? "border-emerald-200 bg-emerald-50"
+          ? "border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10"
           : "border-border bg-muted/20",
       )}
     >
       <p
         className={cn(
           "text-[10px] font-semibold uppercase tracking-widest",
-          verified ? "text-emerald-700" : "text-muted-foreground",
+          verified ? "text-emerald-700 dark:text-emerald-300" : "text-muted-foreground",
         )}
       >
         Bank
@@ -644,7 +753,7 @@ function BankBlock({ verified }: { verified: boolean }) {
       <div
         className={cn(
           "mt-1.5 inline-flex items-center gap-1 text-sm font-semibold",
-          verified ? "text-emerald-700" : "text-muted-foreground",
+          verified ? "text-emerald-700 dark:text-emerald-300" : "text-muted-foreground",
         )}
       >
         {verified ? (
@@ -752,7 +861,7 @@ function DocChip({ ok, label }: { ok: boolean; label: string }) {
       className={cn(
         "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
         ok
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+          ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
           : "border-border bg-muted/30 text-muted-foreground",
       )}
     >

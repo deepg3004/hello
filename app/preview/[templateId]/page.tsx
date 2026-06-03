@@ -10,7 +10,11 @@ import { notFound } from "next/navigation";
 import { Eye } from "lucide-react";
 
 import { getTemplate } from "@/lib/templates/registry";
+import { PageSkin } from "@/components/templates/PageSkin";
+import { CheckoutConfigProvider } from "@/components/pages/CheckoutConfig";
+import { checkoutConfigFromValues } from "@/lib/checkout-config";
 import { decodeValues } from "@/lib/templates/utils";
+import { getPreview } from "@/lib/preview-store";
 
 export const dynamic = "force-dynamic";
 
@@ -19,15 +23,27 @@ export default function PreviewPage({
   searchParams,
 }: {
   params: { templateId: string };
-  searchParams: { v?: string; chrome?: string };
+  searchParams: { v?: string; k?: string; chrome?: string };
 }) {
   const template = getTemplate(params.templateId);
   if (!template) notFound();
 
-  const encoded = searchParams.v ?? "";
-  const values = encoded
-    ? decodeValues(encoded)
-    : { ...template.defaultValues };
+  // Preferred path: a short token (?k=) whose values were POSTed to
+  // /api/preview-token — keeps this URL tiny. Falls back to the inline ?v=
+  // payload (older clients / the external "Open" link) or defaults.
+  let values: Record<string, unknown> = { ...template.defaultValues };
+  if (searchParams.k) {
+    const json = getPreview(searchParams.k);
+    if (json) {
+      try {
+        values = JSON.parse(json) as Record<string, unknown>;
+      } catch {
+        /* keep defaults */
+      }
+    }
+  } else if (searchParams.v) {
+    values = decodeValues(searchParams.v);
+  }
   const showChrome = searchParams.chrome !== "0";
 
   const stubProduct = {
@@ -49,7 +65,17 @@ export default function PreviewPage({
           </span>
         </div>
       )}
-      <template.Render values={values} pageId="preview" product={stubProduct} isPreview />
+      <PageSkin values={values as Record<string, unknown>}>
+        <CheckoutConfigProvider config={checkoutConfigFromValues(values)}>
+          <template.Render
+            values={values}
+            pageId="preview"
+            product={stubProduct}
+            products={[stubProduct]}
+            isPreview
+          />
+        </CheckoutConfigProvider>
+      </PageSkin>
     </div>
   );
 }

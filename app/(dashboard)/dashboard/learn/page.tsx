@@ -83,7 +83,7 @@ export default async function LearnPage() {
       </section>
 
       {/* White content area (Sections B–D) */}
-      <div className="min-h-[60vh] bg-white px-4 pb-12 pt-7 md:px-8">
+      <div className="min-h-[60vh] bg-card px-4 pb-12 pt-7 md:px-8">
         <LearnClient
           featured={featured}
           useInvoxai={useInvoxai}
