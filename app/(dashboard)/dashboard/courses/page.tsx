@@ -29,18 +29,56 @@ export default async function CoursesPage() {
     .eq("seller_user_id", user.id)
     .order("created_at", { ascending: false });
 
-  const courses = (data ?? []) as CourseRow[];
+  const courses = (data ?? []) as Array<{
+    id: string;
+    title: string;
+    status: "draft" | "published";
+    created_at: string;
+  }>;
   const ids = courses.map((c) => c.id);
 
-  let students = 0;
+  // Per-course lesson + student (enrollment) counts.
+  const lessonByCourse = new Map<string, number>();
+  const studentByCourse = new Map<string, number>();
   if (ids.length) {
-    const { count } = await admin
-      .from("course_enrollments")
-      .select("id", { count: "exact", head: true })
+    const { data: mods } = await admin
+      .from("course_modules")
+      .select("id, course_id")
       .in("course_id", ids);
-    students = count ?? 0;
+    const modToCourse = new Map(
+      (mods ?? []).map((m) => [m.id as string, m.course_id as string]),
+    );
+    const modIds = (mods ?? []).map((m) => m.id);
+    if (modIds.length) {
+      const { data: les } = await admin
+        .from("course_lessons")
+        .select("module_id")
+        .in("module_id", modIds);
+      for (const l of les ?? []) {
+        const cid = modToCourse.get(l.module_id as string);
+        if (cid) lessonByCourse.set(cid, (lessonByCourse.get(cid) ?? 0) + 1);
+      }
+    }
+    const { data: enr } = await admin
+      .from("course_enrollments")
+      .select("course_id")
+      .in("course_id", ids);
+    for (const e of enr ?? []) {
+      const cid = e.course_id as string;
+      studentByCourse.set(cid, (studentByCourse.get(cid) ?? 0) + 1);
+    }
   }
-  const published = courses.filter((c) => c.status === "published").length;
+
+  const rows: CourseRow[] = courses.map((c) => ({
+    id: c.id,
+    title: c.title,
+    status: c.status,
+    students: studentByCourse.get(c.id) ?? 0,
+    lessons: lessonByCourse.get(c.id) ?? 0,
+  }));
+
+  const published = rows.filter((c) => c.status === "published").length;
+  const students = [...studentByCourse.values()].reduce((a, b) => a + b, 0);
 
   return (
     <div className="space-y-6">
@@ -55,31 +93,13 @@ export default async function CoursesPage() {
         className="flex flex-wrap gap-4 animate-in-up"
         style={{ animationDelay: "60ms" }}
       >
-        <PageStatCard
-          label="Courses"
-          value={courses.length.toLocaleString("en-IN")}
-          trendPct={null}
-          spark={SPARK}
-          color="#8b5cf6"
-        />
-        <PageStatCard
-          label="Published"
-          value={published.toLocaleString("en-IN")}
-          trendPct={null}
-          spark={SPARK}
-          color="#10b981"
-        />
-        <PageStatCard
-          label="Students"
-          value={students.toLocaleString("en-IN")}
-          trendPct={null}
-          spark={SPARK}
-          color="#6366f1"
-        />
+        <PageStatCard label="Courses" value={rows.length.toLocaleString("en-IN")} trendPct={null} spark={SPARK} color="#8b5cf6" />
+        <PageStatCard label="Published" value={published.toLocaleString("en-IN")} trendPct={null} spark={SPARK} color="#10b981" />
+        <PageStatCard label="Students" value={students.toLocaleString("en-IN")} trendPct={null} spark={SPARK} color="#6366f1" />
       </div>
 
       <div className="animate-in-up" style={{ animationDelay: "120ms" }}>
-        <CoursesClient courses={courses} />
+        <CoursesClient courses={rows} />
       </div>
     </div>
   );
