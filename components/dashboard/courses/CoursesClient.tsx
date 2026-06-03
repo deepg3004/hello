@@ -3,11 +3,19 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { GraduationCap, Loader2, Plus } from "lucide-react";
+import {
+  BookOpen,
+  CheckCircle2,
+  GraduationCap,
+  Loader2,
+  Plus,
+  Users,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import { createCourseAction } from "@/actions/courses";
 
 export interface CourseRow {
@@ -17,7 +25,19 @@ export interface CourseRow {
   created_at: string;
 }
 
-export function CoursesClient({ courses }: { courses: CourseRow[] }) {
+interface Stats {
+  total: number;
+  published: number;
+  students: number;
+}
+
+export function CoursesClient({
+  courses,
+  stats,
+}: {
+  courses: CourseRow[];
+  stats: Stats;
+}) {
   const router = useRouter();
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
@@ -41,10 +61,18 @@ export function CoursesClient({ courses }: { courses: CourseRow[] }) {
 
   return (
     <div className="space-y-4">
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        <Stat label="Courses" value={stats.total} tile="tile-indigo" Icon={BookOpen} />
+        <Stat label="Published" value={stats.published} tile="tile-emerald" Icon={CheckCircle2} />
+        <Stat label="Students" value={stats.students} tile="tile-violet" Icon={Users} />
+      </div>
+
+      {/* Create */}
       <div className="card-surface p-4">
         {open ? (
           <div className="flex flex-wrap items-end gap-2">
-            <div className="flex-1 min-w-48">
+            <div className="min-w-48 flex-1">
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -67,13 +95,15 @@ export function CoursesClient({ courses }: { courses: CourseRow[] }) {
         )}
       </div>
 
+      {/* Grid */}
       {courses.length === 0 ? (
         <div className="card-surface flex flex-col items-center gap-3 px-6 py-16 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full tile-indigo">
             <GraduationCap className="h-5 w-5" />
           </div>
           <p className="text-sm text-muted-foreground">
-            No courses yet. Create one and link it to a product.
+            No courses yet. Create one and link it to a product so buyers get
+            access on purchase.
           </p>
         </div>
       ) : (
@@ -82,10 +112,12 @@ export function CoursesClient({ courses }: { courses: CourseRow[] }) {
             <Link
               key={c.id}
               href={`/dashboard/courses/${c.id}`}
-              className="card-surface block p-4 transition hover:border-primary/50"
+              className="card-surface group block p-4 transition hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-card-md"
             >
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="font-medium">{c.title}</h3>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg tile-indigo">
+                  <BookOpen className="h-4 w-4" />
+                </div>
                 <span
                   className={
                     c.status === "published"
@@ -96,11 +128,42 @@ export function CoursesClient({ courses }: { courses: CourseRow[] }) {
                   {c.status}
                 </span>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">Edit course →</p>
+              <h3 className="mt-3 font-sora font-semibold tracking-tight group-hover:text-primary">
+                {c.title}
+              </h3>
+              <p className="mt-1 text-xs text-muted-foreground">Edit course →</p>
             </Link>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  tile,
+  Icon,
+}: {
+  label: string;
+  value: number;
+  tile: string;
+  Icon: React.ComponentType<{ className?: string }>;
+}) {
+  return (
+    <div className="card-surface flex items-center gap-3 p-4">
+      <span className={cn("flex h-10 w-10 items-center justify-center rounded-xl", tile)}>
+        <Icon className="h-[18px] w-[18px]" />
+      </span>
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </p>
+        <p className="font-sora text-lg font-bold tabular-nums">
+          {value.toLocaleString("en-IN")}
+        </p>
+      </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import {
   CoursesClient,
   type CourseRow,
@@ -23,16 +24,34 @@ export default async function CoursesPage() {
     .eq("seller_user_id", user.id)
     .order("created_at", { ascending: false });
 
+  const courses = (data ?? []) as CourseRow[];
+  const ids = courses.map((c) => c.id);
+
+  let students = 0;
+  if (ids.length) {
+    const { count } = await admin
+      .from("course_enrollments")
+      .select("id", { count: "exact", head: true })
+      .in("course_id", ids);
+    students = count ?? 0;
+  }
+  const published = courses.filter((c) => c.status === "published").length;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-sora font-semibold tracking-tight">Courses</h1>
-        <p className="text-sm text-muted-foreground">
-          Build a course, link it to a product, and buyers get instant access
-          after purchase.
-        </p>
+      <div className="animate-in-up" style={{ animationDelay: "0ms" }}>
+        <DashboardHero
+          title="Courses"
+          blurb="Build a course, link it to a product, and buyers get instant access after they purchase."
+          resourcesHref={null}
+        />
       </div>
-      <CoursesClient courses={(data ?? []) as CourseRow[]} />
+      <div className="animate-in-up" style={{ animationDelay: "100ms" }}>
+        <CoursesClient
+          courses={courses}
+          stats={{ total: courses.length, published, students }}
+        />
+      </div>
     </div>
   );
 }
