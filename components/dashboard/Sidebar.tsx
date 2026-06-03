@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  BookOpen,
   Coins,
   CreditCard,
   FileText,
@@ -40,6 +41,7 @@ interface NavItem {
 const NAV_MAIN: NavItem[] = [
   { href: "/dashboard", label: "Overview", Icon: LayoutDashboard },
   { href: "/dashboard/pages", label: "Pages", Icon: FileText },
+  { href: "/dashboard/courses", label: "Courses", Icon: BookOpen },
   { href: "/dashboard/transactions", label: "Transactions", Icon: CreditCard },
   { href: "/dashboard/customers", label: "Customers", Icon: Users },
   { href: "/dashboard/leads", label: "Leads", Icon: Magnet },

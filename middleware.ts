@@ -231,6 +231,7 @@ export async function middleware(request: NextRequest) {
         pathname.startsWith("/tg/") ||
         pathname.startsWith("/ld/") ||
         pathname.startsWith("/order/") ||
+        pathname.startsWith("/course/") ||
         pathname.startsWith("/affiliate/") ||
         pathname === "/maintenance" ||
         pathname.startsWith("/seller-host/") ||
@@ -264,13 +265,15 @@ export async function middleware(request: NextRequest) {
         pathname.startsWith("/auth/");
       const isSubdomainRoute = pathname.startsWith("/seller-host/");
       const isMaintenance = pathname === "/maintenance";
+      const isCourse = pathname.startsWith("/course/");
       if (
         !isDashboard &&
         !isAdmin &&
         !isAuth &&
         !isSubdomainRoute &&
         !isMaintenance &&
-        !isPolicy
+        !isPolicy &&
+        !isCourse
       ) {
         const lookup = await lookupHost(request, rawHost);
         if (lookup?.user_id && lookup.username) {

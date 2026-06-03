@@ -588,6 +588,23 @@ export async function POST(request: Request) {
     console.error("[verify-payment] telegram invite failed", e);
   }
 
+  // 6b. LMS — if the purchased product is linked to a published course, enroll
+  //     the buyer (idempotent, best-effort). Access link is shown on the
+  //     receipt page (/order/[id]).
+  try {
+    const { createEnrollmentForOrder } = await import("@/lib/courses");
+    await createEnrollmentForOrder(
+      {
+        id: order.id,
+        product_id: order.product_id,
+        buyer_email: order.buyer_email,
+      },
+      admin,
+    );
+  } catch (e) {
+    console.error("[verify-payment] course enrollment failed", e);
+  }
+
   // 7. OTO — if the page has an OTO configured AND this is the original
   // (non-OTO) order, mint a 15-min signed cookie and redirect to /p/<slug>/oto.
   let redirectTarget = redirectUrl(order_id, order.page_id);

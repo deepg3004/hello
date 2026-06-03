@@ -1,0 +1,84 @@
+import { notFound, redirect } from "next/navigation";
+
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  CourseEditor,
+  type EditorCourse,
+  type EditorModule,
+} from "@/components/dashboard/courses/CourseEditor";
+
+export const metadata = { title: "Edit course" };
+
+export default async function CourseEditPage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const admin = createAdminClient();
+  const { data: course } = await admin
+    .from("courses")
+    .select("id, seller_user_id, product_id, title, description, thumbnail_url, status")
+    .eq("id", params.id)
+    .single();
+  if (!course || course.seller_user_id !== user.id) notFound();
+
+  const { data: modules } = await admin
+    .from("course_modules")
+    .select("id, title, sort_order")
+    .eq("course_id", course.id)
+    .order("sort_order", { ascending: true });
+
+  const moduleIds = (modules ?? []).map((m) => m.id);
+  const { data: lessons } = moduleIds.length
+    ? await admin
+        .from("course_lessons")
+        .select("id, module_id, title, video_url, content, duration_label, sort_order")
+        .in("module_id", moduleIds)
+        .order("sort_order", { ascending: true })
+    : { data: [] as never[] };
+
+  const { data: products } = await admin
+    .from("products")
+    .select("id, name")
+    .eq("user_id", user.id)
+    .eq("active", true)
+    .order("created_at", { ascending: false });
+
+  const editorModules: EditorModule[] = (modules ?? []).map((m) => ({
+    id: m.id,
+    title: m.title,
+    lessons: (lessons ?? [])
+      .filter((l) => l.module_id === m.id)
+      .map((l) => ({
+        id: l.id,
+        title: l.title,
+        video_url: l.video_url ?? "",
+        content: l.content ?? "",
+        duration_label: l.duration_label ?? "",
+      })),
+  }));
+
+  const editorCourse: EditorCourse = {
+    id: course.id,
+    title: course.title,
+    description: course.description ?? "",
+    thumbnail_url: course.thumbnail_url ?? "",
+    status: course.status as "draft" | "published",
+    product_id: course.product_id ?? "",
+  };
+
+  return (
+    <CourseEditor
+      course={editorCourse}
+      modules={editorModules}
+      products={(products ?? []) as { id: string; name: string }[]}
+    />
+  );
+}

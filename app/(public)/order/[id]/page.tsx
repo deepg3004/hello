@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { PaymentSuccessShare } from "@/components/pages/PaymentSuccessShare";
 import { TelegramInviteCard } from "@/components/pages/TelegramInviteCard";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { courseForProduct } from "@/lib/courses";
+import { signCourseToken } from "@/lib/course-token";
 import { publicPageUrl } from "@/lib/page-url";
 import { cn, formatDateTime } from "@/lib/utils";
 
@@ -63,6 +65,19 @@ export default async function OrderConfirmationPage({
   ]);
 
   const productName = productResult.data?.name ?? "Your purchase";
+
+  // Course unlocked by this product (if any) — buyers access via a signed link.
+  const course = order.product_id
+    ? await courseForProduct(order.product_id, admin)
+    : null;
+  const courseHref =
+    course && order.status === "paid"
+      ? `/course/${course.id}?t=${signCourseToken({
+          course_id: course.id,
+          order_id: order.id,
+          email: order.buyer_email,
+        })}`
+      : null;
 
   type PageJoin = {
     slug: string;
@@ -170,6 +185,20 @@ export default async function OrderConfirmationPage({
             </span>
           </div>
         </div>
+
+        {/* Course access — only when the product unlocks a course and paid */}
+        {courseHref && (
+          <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-5 text-sm">
+            <p className="font-semibold text-indigo-900">🎓 Your course is ready</p>
+            <p className="mt-1 text-indigo-800">
+              Access <span className="font-medium">{course!.title}</span> any time
+              from this link (bookmark it).
+            </p>
+            <Button asChild className="mt-3 bg-indigo-600 text-white hover:bg-indigo-700">
+              <Link href={courseHref}>Access your course →</Link>
+            </Button>
+          </div>
+        )}
 
         {/* Telegram invite card — only when present and order is paid */}
         {paid && order.telegram_invite_link && (
