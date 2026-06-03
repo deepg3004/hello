@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  Coins,
   CreditCard,
   FileText,
   GraduationCap,
@@ -57,6 +58,7 @@ const NAV_GROWTH: NavItem[] = [
 const NAV_ACCOUNT: NavItem[] = [
   { href: "/dashboard/kyc", label: "KYC", Icon: ShieldCheck },
   { href: "/dashboard/payouts", label: "Payouts", Icon: Wallet },
+  { href: "/dashboard/wallet", label: "Wallet", Icon: Coins },
   { href: "/dashboard/settings", label: "Settings", Icon: Settings },
 ];
 

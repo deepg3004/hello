@@ -17,6 +17,9 @@ export const LOW_BALANCE_ALERT_THRESHOLDS_PAISE = [20000, 10000, 5000];
 /** Balance at or below which the seller's store should be paused. */
 export const STORE_PAUSE_THRESHOLD_PAISE = 0;
 
+/** Allowed wallet top-up amounts in paise — ₹500, ₹1,000, ₹2,000, ₹5,000, ₹10,000. */
+export const RECHARGE_AMOUNTS_PAISE = [50000, 100000, 200000, 500000, 1000000];
+
 /** Platform fee per completed order, in paise, for a given seller plan. */
 export function getWalletFeePaise(plan: PlanKey): number {
   return PLANS[plan]?.wallet_fee_paise ?? PLANS.free.wallet_fee_paise;

@@ -102,6 +102,23 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">Payment Gateway</CardTitle>
+          <CardDescription>
+            Connect Razorpay or Cashfree to receive buyer payments directly.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-sm">
+          <Link
+            href="/dashboard/settings/gateway"
+            className="text-primary underline"
+          >
+            Configure gateway →
+          </Link>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">Tax &amp; Billing</CardTitle>
           <CardDescription>
             GST profile that drives every invoice we generate.
