@@ -298,17 +298,36 @@ export async function POST(request: Request) {
       // RPC missing (pre-migration) or DB error — log and carry on.
       console.error("[verify-payment] wallet deduction RPC failed", deductErr);
     } else if (deducted === false) {
-      // Insufficient balance / no wallet row — alert the seller, don't block.
+      // Insufficient balance / no wallet row. Alert the seller — but throttle
+      // to at most once per 24h, and ONLY when a wallet row exists, so a
+      // seller who hasn't onboarded to the wallet model isn't notified on
+      // every order. The guarded UPDATE is the gate: it stamps
+      // last_low_balance_alert_at and returns a row only when an alert is due;
+      // no wallet row / recently alerted → no row → no notification.
       console.warn(
         "[verify-payment] wallet insufficient for seller",
         order.seller_user_id,
       );
-      void notifyLowWalletBalance(
-        { sellerId: order.seller_user_id },
-        admin,
-      ).catch((e) =>
-        console.error("[verify-payment] low-balance notify failed", e),
-      );
+      const alertCutoff = new Date(
+        Date.now() - 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const { data: alertRow } = await admin
+        .from("seller_wallets")
+        .update({ last_low_balance_alert_at: new Date().toISOString() })
+        .eq("seller_user_id", order.seller_user_id)
+        .or(
+          `last_low_balance_alert_at.is.null,last_low_balance_alert_at.lt.${alertCutoff}`,
+        )
+        .select("id")
+        .maybeSingle();
+      if (alertRow) {
+        void notifyLowWalletBalance(
+          { sellerId: order.seller_user_id },
+          admin,
+        ).catch((e) =>
+          console.error("[verify-payment] low-balance notify failed", e),
+        );
+      }
     }
   } catch (e) {
     console.error("[verify-payment] wallet deduction failed", e);
