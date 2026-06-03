@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Plus, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, Eye, Loader2, Plus, Trash2, Upload } from "lucide-react";
 
 import {
   Card,
@@ -101,12 +101,19 @@ export function CourseEditor({
 
   return (
     <div className="space-y-6">
-      <Link
-        href="/dashboard/courses"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back to courses
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href="/dashboard/courses"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to courses
+        </Link>
+        <Button asChild variant="outline" size="sm">
+          <a href={`/dashboard/courses/${course.id}/preview`} target="_blank" rel="noopener noreferrer">
+            <Eye className="mr-1.5 h-4 w-4" /> Preview
+          </a>
+        </Button>
+      </div>
 
       <Card>
         <CardHeader>

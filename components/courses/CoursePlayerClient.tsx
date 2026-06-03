@@ -25,11 +25,14 @@ export function CoursePlayerClient({
   title,
   description,
   modules,
+  preview = false,
 }: {
   token: string;
   title: string;
   description: string | null;
   modules: PlayerModule[];
+  /** Seller preview — no enrollment; hides progress/mark-complete. */
+  preview?: boolean;
 }) {
   const flat = useMemo(() => modules.flatMap((m) => m.lessons), [modules]);
   const [done, setDone] = useState<Set<string>>(
@@ -45,7 +48,7 @@ export function CoursePlayerClient({
   const pct = total > 0 ? Math.round((completedCount / total) * 100) : 0;
 
   async function markComplete() {
-    if (!active || done.has(active.id)) return;
+    if (preview || !active || done.has(active.id)) return;
     setMarking(true);
     try {
       const res = await fetch("/api/courses/progress", {
@@ -70,14 +73,20 @@ export function CoursePlayerClient({
         {description && (
           <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         )}
-        <div className="mt-3 flex items-center gap-3">
-          <div className="h-2 w-48 overflow-hidden rounded-full bg-muted">
-            <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
-          </div>
-          <span className="text-xs text-muted-foreground">
-            {completedCount}/{total} complete
+        {preview ? (
+          <span className="mt-3 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+            Preview mode — this is how buyers see your course
           </span>
-        </div>
+        ) : (
+          <div className="mt-3 flex items-center gap-3">
+            <div className="h-2 w-48 overflow-hidden rounded-full bg-muted">
+              <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {completedCount}/{total} complete
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -108,6 +117,7 @@ export function CoursePlayerClient({
             <div className="mt-4">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="font-sora text-lg font-semibold">{active.title}</h2>
+                {!preview && (
                 <button
                   onClick={markComplete}
                   disabled={marking || done.has(active.id)}
@@ -127,6 +137,7 @@ export function CoursePlayerClient({
                   )}
                   {done.has(active.id) ? "Completed" : "Mark complete"}
                 </button>
+                )}
               </div>
               {active.content && (
                 <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
