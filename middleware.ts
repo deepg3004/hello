@@ -193,6 +193,15 @@ async function lookupHost(
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Policy pages must resolve on EVERY host (apex, app.*, and seller
+  // subdomains / custom domains) — payment-gateway reviewers visit a seller's
+  // branded page and follow these links. Without this, the host-routing
+  // rewrites below would send /privacy → /seller-host/<user>/privacy (404).
+  const isPolicy =
+    pathname === "/privacy" ||
+    pathname === "/terms" ||
+    pathname === "/refund";
+
   // Allow public APIs and assets through untouched.
   if (
     pathname.startsWith("/api") ||
@@ -225,7 +234,8 @@ export async function middleware(request: NextRequest) {
         pathname.startsWith("/affiliate/") ||
         pathname === "/maintenance" ||
         pathname.startsWith("/seller-host/") ||
-        pathname.startsWith("/preview/");
+        pathname.startsWith("/preview/") ||
+        isPolicy;
       if (!isAlready && !isAuth && !isPublic) {
         const url = request.nextUrl.clone();
         url.pathname = pathname === "/" ? prefix : `${prefix}${pathname}`;
@@ -259,7 +269,8 @@ export async function middleware(request: NextRequest) {
         !isAdmin &&
         !isAuth &&
         !isSubdomainRoute &&
-        !isMaintenance
+        !isMaintenance &&
+        !isPolicy
       ) {
         const lookup = await lookupHost(request, rawHost);
         if (lookup?.user_id && lookup.username) {

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { isMaintenanceOn } from "@/lib/maintenance";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { PolicyFooter } from "@/components/public/PolicyFooter";
 
 export default async function PublicLayout({
   children,
@@ -33,6 +34,9 @@ export default async function PublicLayout({
   // horizontal scroll on phones (clip doesn't create a scroll container or
   // affect sticky/fixed CTAs, unlike overflow-x-hidden).
   return (
-    <div className="min-h-screen overflow-x-clip bg-background">{children}</div>
+    <div className="min-h-screen overflow-x-clip bg-background">
+      {children}
+      <PolicyFooter />
+    </div>
   );
 }
