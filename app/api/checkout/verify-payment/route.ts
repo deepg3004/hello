@@ -9,7 +9,8 @@
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { verifyPayment } from "@/lib/razorpay";
+import { verifyPayment, verifyPaymentWithSecret } from "@/lib/razorpay";
+import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
 import {
   notifyPaymentReceived,
   notifyLowWalletBalance,
@@ -52,20 +53,39 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!verifyPayment({ razorpay_order_id, razorpay_payment_id, razorpay_signature })) {
-    return NextResponse.json({ error: "Signature mismatch" }, { status: 401 });
-  }
-
   const admin = createAdminClient();
   const { data: order } = await admin
     .from("orders")
     .select(
-      "id, page_id, seller_user_id, product_id, amount, platform_commission, seller_amount, currency, coupon_id, status, buyer_email, buyer_name, buyer_address, source",
+      "id, page_id, seller_user_id, product_id, amount, platform_commission, seller_amount, currency, coupon_id, status, buyer_email, buyer_name, buyer_address, source, gateway_owner",
     )
     .eq("id", order_id)
     .single();
   if (!order) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  }
+
+  // Verify the in-checkout signature with the secret of the gateway the order
+  // was created on (Phase 4). Platform orders use the platform secret; orders
+  // created on a seller's own gateway must be checked with the seller's secret.
+  let signatureValid: boolean;
+  if (order.gateway_owner === "seller") {
+    const keys = await loadSellerGatewayKeys(order.seller_user_id);
+    signatureValid = keys
+      ? verifyPaymentWithSecret(
+          { razorpay_order_id, razorpay_payment_id, razorpay_signature },
+          keys.key_secret,
+        )
+      : false;
+  } else {
+    signatureValid = verifyPayment({
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+    });
+  }
+  if (!signatureValid) {
+    return NextResponse.json({ error: "Signature mismatch" }, { status: 401 });
   }
 
   if (order.status === "paid") {

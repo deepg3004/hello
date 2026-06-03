@@ -51,8 +51,50 @@ export function verifyPayment(args: {
 }): boolean {
   const secret = process.env.RAZORPAY_KEY_SECRET;
   if (!secret) return false;
+  return verifyPaymentWithSecret(args, secret);
+}
+
+/**
+ * Same as verifyPayment but against an explicit key secret — used when an order
+ * was created on a SELLER's own gateway (Phase 4, multi-gateway checkout), so
+ * the signature must be checked with the seller's secret, not the platform's.
+ */
+export function verifyPaymentWithSecret(
+  args: {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+  },
+  secret: string,
+): boolean {
+  if (!secret) return false;
   const payload = `${args.razorpay_order_id}|${args.razorpay_payment_id}`;
   return timingSafeHmacEq(payload, args.razorpay_signature, secret);
+}
+
+/**
+ * Create a Razorpay order on an arbitrary key pair (a seller's own gateway).
+ * No Route transfers — in seller-gateway mode the full amount lands in the
+ * seller's account and InvoxAI's revenue is collected via the wallet fee.
+ */
+export async function createOrderOnKeys(
+  keys: { key_id: string; key_secret: string },
+  args: { amount: number; currency?: string; receipt?: string; notes?: Record<string, string> },
+) {
+  const client = new Razorpay({
+    key_id: keys.key_id,
+    key_secret: keys.key_secret,
+  });
+  const body = {
+    amount: args.amount,
+    currency: args.currency ?? "INR",
+    receipt: args.receipt,
+    notes: args.notes,
+    payment_capture: 1,
+  };
+  return client.orders.create(
+    body as unknown as Parameters<typeof client.orders.create>[0],
+  );
 }
 
 function timingSafeHmacEq(

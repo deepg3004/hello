@@ -15,7 +15,8 @@ import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createOrder } from "@/lib/razorpay";
+import { createOrder, createOrderOnKeys } from "@/lib/razorpay";
+import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
 import {
   reserveCoupon,
   releaseCoupon,
@@ -281,13 +282,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Seller missing" }, { status: 404 });
   }
 
+  // Phase 4 — multi-gateway. When the flag is on AND the seller has an active
+  // Razorpay gateway connected, route the order through THEIR gateway: the full
+  // amount lands in the seller's own account, so there is NO platform
+  // commission split — InvoxAI's revenue is the per-order wallet fee
+  // (migration 040) instead. Flag off / no gateway → unchanged platform path.
+  const multiGatewayOn = process.env.MULTI_GATEWAY_CHECKOUT === "true";
+  let sellerGateway: { key_id: string; key_secret: string } | null = null;
+  if (multiGatewayOn) {
+    const keys = await loadSellerGatewayKeys(seller.id);
+    if (keys && keys.gateway_type === "razorpay") {
+      sellerGateway = { key_id: keys.key_id, key_secret: keys.key_secret };
+    }
+  }
+  const gatewayOwner: "platform" | "seller" = sellerGateway
+    ? "seller"
+    : "platform";
+
   const { defaultPercent, perPlan } = await getCommissionConfig();
   const planKey = (seller.subscription_plan ?? "free") as PlanKey;
-  const commissionPct = resolveCommissionPercent(
-    planKey,
-    defaultPercent,
-    perPlan,
-  );
+  const commissionPct = sellerGateway
+    ? 0
+    : resolveCommissionPercent(planKey, defaultPercent, perPlan);
   // Commission rounded once, in paise. Seller share is the exact remainder
   // so commission + seller = amount with zero drift.
   const commissionPaise = Math.round((amountPaise * commissionPct) / 100);
@@ -303,33 +319,44 @@ export async function POST(request: Request) {
   // 6. Razorpay order — include Route transfer to the seller's linked account
   //    if we have one. If we don't, the platform keeps the full amount in
   //    escrow until the seller verifies their bank (manual payout later).
+  const sharedNotes = {
+    invoxai_order_id: orderId,
+    invoxai_page_id: page_id,
+    invoxai_product_id: product_id,
+    invoxai_seller_id: seller.id,
+    invoxai_bump_amount: String(bumpAmount),
+    buyer_email,
+  };
   let razorpayOrder: { id: string; amount: number | string } | null = null;
   try {
-    razorpayOrder = (await createOrder({
-      amount: amountPaise,
-      currency,
-      receipt: shortReceipt,
-      notes: {
-        invoxai_order_id: orderId,
-        invoxai_page_id: page_id,
-        invoxai_product_id: product_id,
-        invoxai_seller_id: seller.id,
-        invoxai_bump_amount: String(bumpAmount),
-        buyer_email,
-      },
-      transfers:
-        seller.razorpay_linked_account_id && sellerAmountPaise > 0
-          ? [
-              {
-                account: seller.razorpay_linked_account_id,
-                amount: sellerAmountPaise,
-                currency,
-                on_hold: 0,
-                notes: { invoxai_order_id: orderId },
-              },
-            ]
-          : undefined,
-    })) as unknown as { id: string; amount: number | string };
+    if (sellerGateway) {
+      // Seller's own gateway — no Route transfer (the seller is the merchant).
+      razorpayOrder = (await createOrderOnKeys(sellerGateway, {
+        amount: amountPaise,
+        currency,
+        receipt: shortReceipt,
+        notes: sharedNotes,
+      })) as unknown as { id: string; amount: number | string };
+    } else {
+      razorpayOrder = (await createOrder({
+        amount: amountPaise,
+        currency,
+        receipt: shortReceipt,
+        notes: sharedNotes,
+        transfers:
+          seller.razorpay_linked_account_id && sellerAmountPaise > 0
+            ? [
+                {
+                  account: seller.razorpay_linked_account_id,
+                  amount: sellerAmountPaise,
+                  currency,
+                  on_hold: 0,
+                  notes: { invoxai_order_id: orderId },
+                },
+              ]
+            : undefined,
+      })) as unknown as { id: string; amount: number | string };
+    }
   } catch (err) {
     if (couponId) await releaseCoupon(couponId, buyer_email);
     // Log the real gateway error server-side; never surface its text to the
@@ -357,6 +384,7 @@ export async function POST(request: Request) {
     currency,
     status: "pending",
     payment_gateway: "razorpay",
+    gateway_owner: gatewayOwner,
     gateway_order_id: razorpayOrder.id,
     coupon_id: couponId,
     discount_amount: discountAmount,
@@ -399,6 +427,7 @@ export async function POST(request: Request) {
       currency,
       status: "pending",
       payment_gateway: "razorpay",
+      gateway_owner: gatewayOwner,
       gateway_order_id: razorpayOrder.id,
       ip_address: ip,
     });
@@ -423,7 +452,8 @@ export async function POST(request: Request) {
     order_id: orderId,
     amount: amountPaise,
     currency,
-    key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+    // Seller-gateway orders must open Checkout with the SELLER's key id.
+    key: sellerGateway?.key_id ?? process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
     name: "InvoxAI",
     description: product.name,
     buyer_name: buyer_name ?? "",
