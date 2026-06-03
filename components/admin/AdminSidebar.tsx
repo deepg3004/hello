@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   ArrowLeft,
+  Coins,
   CreditCard,
   FileText,
   GraduationCap,
@@ -10,6 +11,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   Mail,
+  Plug,
   ScrollText,
   Send,
   ShieldCheck,
@@ -61,6 +63,8 @@ export function AdminSidebar({
         { href: "/admin/pages", label: "Pages", Icon: FileText },
         { href: "/admin/transactions", label: "Transactions", Icon: CreditCard },
         { href: "/admin/payouts", label: "Payouts", Icon: Wallet },
+        { href: "/admin/seller-wallets", label: "Seller Wallets", Icon: Coins },
+        { href: "/admin/gateways", label: "Gateways", Icon: Plug },
       ],
     },
     {

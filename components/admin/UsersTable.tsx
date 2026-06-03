@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { PLANS, type PlanKey } from "@/lib/plans";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, formatDate, formatINR } from "@/lib/utils";
 
 export interface AdminUserRow {
   id: string;
@@ -49,6 +49,8 @@ export interface AdminUserRow {
   is_admin: boolean;
   suspended: boolean;
   total_revenue: number;
+  /** Wallet balance in paise (0 when the seller has no wallet row yet). */
+  wallet_balance_paise: number;
   created_at: string;
 }
 
@@ -330,6 +332,7 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
                   <Th>KYC</Th>
                   <Th>Status</Th>
                   <Th className="text-right">Revenue</Th>
+                  <Th className="text-right">Wallet</Th>
                   <Th>Joined</Th>
                   <Th className="w-8 sr-only">Actions</Th>
                 </tr>
@@ -490,6 +493,19 @@ function UserRow({ user: u }: { user: AdminUserRow }) {
       <td className="px-4 py-3 text-right">
         <span className="font-mono text-sm text-foreground">
           ₹{u.total_revenue.toLocaleString("en-IN")}
+        </span>
+      </td>
+      {/* Wallet balance */}
+      <td className="px-4 py-3 text-right">
+        <span
+          className={cn(
+            "font-mono text-sm",
+            u.wallet_balance_paise <= 20000
+              ? "text-amber-600"
+              : "text-foreground",
+          )}
+        >
+          {formatINR(u.wallet_balance_paise)}
         </span>
       </td>
       {/* Joined date */}

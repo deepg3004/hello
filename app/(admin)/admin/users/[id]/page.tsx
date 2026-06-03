@@ -84,6 +84,8 @@ export default async function AdminUserDetailPage({
     { data: kyc },
     { data: auditTrail },
     { count: totalOrders },
+    { data: walletRow },
+    { data: gatewayRow },
   ] = await Promise.all([
     admin.from("user_profiles").select("*").eq("id", params.id).single(),
     admin
@@ -126,6 +128,16 @@ export default async function AdminUserDetailPage({
       .from("orders")
       .select("id", { count: "exact", head: true })
       .eq("seller_user_id", params.id),
+    admin
+      .from("seller_wallets")
+      .select("balance_paise, last_low_balance_alert_at")
+      .eq("seller_user_id", params.id)
+      .maybeSingle(),
+    admin
+      .from("seller_gateway_config")
+      .select("gateway_type, is_active, is_verified")
+      .eq("seller_user_id", params.id)
+      .maybeSingle(),
   ]);
 
   if (!profile) notFound();
@@ -297,6 +309,33 @@ export default async function AdminUserDetailPage({
                 value={profile.razorpay_linked_account_id ?? "—"}
                 mono
               />
+            </div>
+
+            <div className="mt-5 space-y-3 border-t border-border pt-4 text-sm">
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                Wallet &amp; gateway
+              </p>
+              <ProfileLine
+                icon={Wallet}
+                label="Wallet balance"
+                value={formatINR(Number(walletRow?.balance_paise ?? 0))}
+                mono
+              />
+              <ProfileLine
+                icon={CreditCard}
+                label="Gateway"
+                value={
+                  gatewayRow
+                    ? `${gatewayRow.gateway_type}${gatewayRow.is_verified ? " · verified" : " · unverified"}${gatewayRow.is_active ? "" : " · inactive"}`
+                    : "Not connected"
+                }
+              />
+              <Link
+                href="/admin/seller-wallets"
+                className="inline-block text-xs font-medium text-primary hover:underline"
+              >
+                Manage wallet →
+              </Link>
             </div>
           </div>
 
