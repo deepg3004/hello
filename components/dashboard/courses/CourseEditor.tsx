@@ -66,6 +66,8 @@ export function CourseEditor({
   const [status, setStatus] = useState(course.status);
   const [productId, setProductId] = useState(course.product_id);
   const [newModule, setNewModule] = useState("");
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io";
+  const publicLink = `${appUrl}/course/${course.id}`;
 
   function saveCourse() {
     startTransition(async () => {
@@ -173,6 +175,18 @@ export function CourseEditor({
             {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save
           </Button>
+
+          <div className="border-t pt-4">
+            <Label className="text-xs">Public course link (share this)</Label>
+            <code className="mt-1 block break-all rounded bg-muted px-3 py-2 text-xs">
+              {publicLink}
+            </code>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Live once the course is <strong>Published</strong>. Anyone who opens
+              it sees the course landing page; buyers who purchased the linked
+              product get the full lessons.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
