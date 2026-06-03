@@ -11,12 +11,8 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyPayment, verifyPaymentWithSecret } from "@/lib/razorpay";
 import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
-import {
-  notifyPaymentReceived,
-  notifyLowWalletBalance,
-} from "@/lib/notifications/events";
-import { getWalletFeePaise } from "@/lib/wallet";
-import type { PlanKey } from "@/lib/plans";
+import { notifyPaymentReceived } from "@/lib/notifications/events";
+import { chargePlatformWalletFee } from "@/lib/order-fulfillment";
 import { settleCoupon } from "@/lib/coupons";
 import { getRedis } from "@/lib/redis";
 import {
@@ -269,70 +265,13 @@ export async function POST(request: Request) {
     }
   }
 
-  // 4b. Wallet — deduct the platform fee instantly via the atomic RPC
-  //     (migration 040). Best-effort by design: the buyer has already been
-  //     charged, so a wallet problem must NEVER fail this request. It's a
-  //     safe no-op until migration 040 is applied and the seller funds a
-  //     wallet — a missing table / empty wallet just logs and (once) alerts
-  //     the seller to recharge.
-  try {
-    const { data: sellerProfile } = await admin
-      .from("user_profiles")
-      .select("subscription_plan")
-      .eq("id", order.seller_user_id)
-      .single();
-    const plan = (sellerProfile?.subscription_plan ?? "free") as PlanKey;
-    const feePaise = getWalletFeePaise(plan);
-
-    const { data: deducted, error: deductErr } = await admin.rpc(
-      "deduct_wallet_balance",
-      {
-        p_seller_id: order.seller_user_id,
-        p_amount_paise: feePaise,
-        p_order_id: order_id,
-        p_description: `Platform fee — Order #${order_id.slice(-8).toUpperCase()}`,
-      },
-    );
-
-    if (deductErr) {
-      // RPC missing (pre-migration) or DB error — log and carry on.
-      console.error("[verify-payment] wallet deduction RPC failed", deductErr);
-    } else if (deducted === false) {
-      // Insufficient balance / no wallet row. Alert the seller — but throttle
-      // to at most once per 24h, and ONLY when a wallet row exists, so a
-      // seller who hasn't onboarded to the wallet model isn't notified on
-      // every order. The guarded UPDATE is the gate: it stamps
-      // last_low_balance_alert_at and returns a row only when an alert is due;
-      // no wallet row / recently alerted → no row → no notification.
-      console.warn(
-        "[verify-payment] wallet insufficient for seller",
-        order.seller_user_id,
-      );
-      const alertCutoff = new Date(
-        Date.now() - 24 * 60 * 60 * 1000,
-      ).toISOString();
-      const { data: alertRow } = await admin
-        .from("seller_wallets")
-        .update({ last_low_balance_alert_at: new Date().toISOString() })
-        .eq("seller_user_id", order.seller_user_id)
-        .or(
-          `last_low_balance_alert_at.is.null,last_low_balance_alert_at.lt.${alertCutoff}`,
-        )
-        .select("id")
-        .maybeSingle();
-      if (alertRow) {
-        void notifyLowWalletBalance(
-          { sellerId: order.seller_user_id },
-          admin,
-        ).catch((e) =>
-          console.error("[verify-payment] low-balance notify failed", e),
-        );
-      }
-    }
-  } catch (e) {
-    console.error("[verify-payment] wallet deduction failed", e);
-    // Payment is already complete — never fail the request over the wallet.
-  }
+  // 4b. Wallet — deduct the platform fee (migration 040). Shared with the
+  //     seller-gateway webhook so the revenue logic can't drift. Best-effort:
+  //     never throws; safe no-op until migration 040 + a funded wallet exist.
+  await chargePlatformWalletFee(
+    { sellerUserId: order.seller_user_id, orderId: order_id },
+    admin,
+  );
 
   // 5. Settle coupon usage_count in Postgres — atomic UPDATE that refuses to
   //    cross the total_limit. If two checkouts race for the last slot, the

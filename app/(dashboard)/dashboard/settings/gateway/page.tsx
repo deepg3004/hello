@@ -38,6 +38,20 @@ export default async function GatewaySettingsPage() {
       </div>
 
       <GatewaySettingsForm existing={(existing ?? null) as ExistingGateway | null} />
+
+      <div className="rounded-lg border bg-muted/40 p-4 text-sm">
+        <p className="font-medium">Webhook setup (recommended)</p>
+        <p className="mt-1 text-muted-foreground">
+          In your Razorpay dashboard → Settings → Webhooks, add this URL with the{" "}
+          <code className="rounded bg-background px-1">payment.captured</code> event, and
+          set the webhook secret to the same value you entered above. This confirms
+          orders even if a buyer closes the tab right after paying.
+        </p>
+        <code className="mt-2 block break-all rounded bg-background px-2 py-1 text-xs">
+          {process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io"}
+          /api/webhooks/razorpay/seller
+        </code>
+      </div>
     </div>
   );
 }

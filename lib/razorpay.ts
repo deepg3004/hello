@@ -33,7 +33,23 @@ export function verifyWebhookSignature(
   rawBody: string,
   signatureHeader: string | null,
 ): boolean {
-  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  return verifyWebhookSignatureWithSecret(
+    rawBody,
+    signatureHeader,
+    process.env.RAZORPAY_WEBHOOK_SECRET,
+  );
+}
+
+/**
+ * Verify a Razorpay webhook signature against an explicit secret — used for
+ * the seller-gateway webhook (Phase 4), where each seller's payments are signed
+ * with that seller's own webhook secret (seller_gateway_config.webhook_secret_enc).
+ */
+export function verifyWebhookSignatureWithSecret(
+  rawBody: string,
+  signatureHeader: string | null,
+  secret: string | undefined,
+): boolean {
   if (!secret || !signatureHeader) return false;
   return timingSafeHmacEq(rawBody, signatureHeader, secret);
 }
