@@ -1,23 +1,25 @@
-// Seller "home" — rendered when a buyer hits the root of a seller's
-// subdomain (rahul.invoxai.io) or custom domain (pages.rahul.com).
-//
-// We surface every published page the seller has — minimal directory so
-// they always have something to land on.
+// Seller "home" = their public STORE. Rendered at the root of a seller's
+// subdomain (rahul.invoxai.io) or custom domain. Shows every active product
+// from their published pages, grouped by category. Each card links to that
+// product's checkout page (bare /<slug>, which middleware resolves on the
+// subdomain).
 
 import { notFound } from "next/navigation";
-import Link from "next/link";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  PAGE_CATEGORIES,
+  pageMatchesCategory,
+  type PageCategoryKey,
+} from "@/lib/dashboard/page-categories";
+import {
+  StoreGrid,
+  type StoreProduct,
+  type StoreSection,
+} from "@/components/store/StoreGrid";
 
 interface Props {
   params: { username: string };
-}
-
-interface PageRow {
-  slug: string;
-  title: string;
-  meta_description: string | null;
-  thumbnail_url: string | null;
 }
 
 export const dynamic = "force-dynamic";
@@ -30,13 +32,21 @@ export async function generateMetadata({ params }: Props) {
     .eq("subdomain", params.username)
     .maybeSingle();
   const title =
-    profile?.legal_business_name ??
-    profile?.full_name ??
-    params.username;
-  return { title };
+    profile?.legal_business_name ?? profile?.full_name ?? params.username;
+  return { title: `${title} — Store` };
 }
 
-export default async function SellerHome({ params }: Props) {
+type PageJoin = {
+  slug: string;
+  type: string | null;
+  template_id: string | null;
+  status: string | null;
+};
+
+// Catalog section order.
+const SECTION_ORDER: PageCategoryKey[] = ["payment", "telegram", "landing", "leads"];
+
+export default async function SellerStore({ params }: Props) {
   const admin = createAdminClient();
   const { data: profile } = await admin
     .from("user_profiles")
@@ -45,19 +55,49 @@ export default async function SellerHome({ params }: Props) {
     .maybeSingle();
   if (!profile?.id) notFound();
 
-  const { data: pages } = await admin
-    .from("pages")
-    .select("slug, title, meta_description, thumbnail_url")
+  const { data: productsRaw } = await admin
+    .from("products")
+    .select(
+      "id, name, description, image_url, price, original_price, is_popular, sort_order, page_id, pages!products_page_id_fkey(slug, type, template_id, status)",
+    )
     .eq("user_id", profile.id)
-    .eq("status", "published")
-    .order("created_at", { ascending: false });
+    .eq("active", true)
+    .order("sort_order", { ascending: true });
+
+  // Keep only products whose page is published; attach the page for grouping.
+  const withPage = (productsRaw ?? [])
+    .map((r) => {
+      const rel = (r as { pages?: PageJoin | PageJoin[] | null }).pages;
+      const page = (Array.isArray(rel) ? rel[0] : rel) ?? null;
+      return page && page.status === "published" ? { row: r, page } : null;
+    })
+    .filter(Boolean) as { row: Record<string, unknown>; page: PageJoin }[];
+
+  const sections: StoreSection[] = SECTION_ORDER.map((key) => {
+    const products: StoreProduct[] = withPage
+      .filter(({ page }) =>
+        pageMatchesCategory({ type: page.type ?? "", template_id: page.template_id }, key),
+      )
+      .map(({ row, page }) => ({
+        id: String(row.id),
+        name: String(row.name ?? "Untitled"),
+        description: (row.description as string | null) ?? null,
+        image_url: (row.image_url as string | null) ?? null,
+        price: Number(row.price ?? 0),
+        original_price:
+          row.original_price != null ? Number(row.original_price) : null,
+        is_popular: !!row.is_popular,
+        slug: page.slug,
+      }));
+    return { key, label: PAGE_CATEGORIES[key].label, products };
+  }).filter((s) => s.products.length > 0);
 
   const sellerName =
     profile.legal_business_name ?? profile.full_name ?? params.username;
-  const list = (pages ?? []) as PageRow[];
+  const totalProducts = sections.reduce((n, s) => n + s.products.length, 0);
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-16">
+    <main className="mx-auto max-w-5xl px-6 py-16">
       <div className="mb-10 flex items-center gap-4">
         {profile.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -72,50 +112,23 @@ export default async function SellerHome({ params }: Props) {
           </div>
         )}
         <div>
-          <h1 className="text-2xl font-sora font-semibold tracking-tight">
+          <h1 className="font-sora text-2xl font-semibold tracking-tight">
             {sellerName}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Published pages from {sellerName}.
+            {totalProducts > 0
+              ? `${totalProducts} product${totalProducts === 1 ? "" : "s"} available`
+              : `Store by ${sellerName}`}
           </p>
         </div>
       </div>
 
-      {list.length === 0 ? (
+      {totalProducts === 0 ? (
         <p className="text-muted-foreground">
-          No pages live yet. Check back soon.
+          No products live yet. Check back soon.
         </p>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {list.map((p) => (
-            <Link
-              key={p.slug}
-              href={`/${p.slug}`}
-              className="group block overflow-hidden rounded-lg border bg-white shadow-sm transition hover:border-primary hover:shadow"
-            >
-              {p.thumbnail_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={p.thumbnail_url}
-                  alt={p.title}
-                  className="aspect-[16/9] w-full object-cover"
-                />
-              ) : (
-                <div className="aspect-[16/9] w-full bg-zinc-100" />
-              )}
-              <div className="p-4">
-                <h3 className="text-base font-sora font-semibold tracking-tight group-hover:text-primary">
-                  {p.title}
-                </h3>
-                {p.meta_description && (
-                  <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                    {p.meta_description}
-                  </p>
-                )}
-              </div>
-            </Link>
-          ))}
-        </div>
+        <StoreGrid sections={sections} />
       )}
     </main>
   );
