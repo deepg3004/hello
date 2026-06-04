@@ -52,6 +52,7 @@ async function requireUser() {
 export async function createSitePageAction(input: {
   title?: string;
   blocks?: unknown;
+  publish?: boolean;
 }): Promise<Result> {
   const user = await requireUser();
   if (!user) return { ok: false, message: "Not signed in" };
@@ -88,7 +89,7 @@ export async function createSitePageAction(input: {
       is_home: isFirst, // first page becomes the home page
       sort_order: (existing ?? []).length,
       blocks: Array.isArray(input.blocks) ? input.blocks : [],
-      status: "draft",
+      status: input.publish ? "published" : "draft",
     })
     .select("id")
     .single();

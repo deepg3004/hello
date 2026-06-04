@@ -113,15 +113,37 @@ export function SitePagesManager({
 
   async function addFromPreset(blocks: unknown) {
     setBusy(true);
-    const r = await createSitePageAction({ title: "Home", blocks });
+    // Publish immediately so the seller's site goes live right away; they can
+    // keep editing afterwards.
+    const r = await createSitePageAction({ title: "Home", blocks, publish: true });
     setBusy(false);
     if (!r.ok) {
       toast({ title: "Couldn't create", description: r.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Homepage created", description: "Edit the sections below." });
+    toast({ title: "Homepage published 🎉", description: "It's live on your site now." });
     router.refresh();
   }
+
+  async function togglePublish(p: SitePage) {
+    setBusy(true);
+    const r = await updateSitePageAction({
+      id: p.id,
+      status: p.status === "published" ? "draft" : "published",
+    });
+    setBusy(false);
+    if (!r.ok) {
+      toast({ title: "Couldn't update", description: r.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: p.status === "published" ? "Unpublished" : "Published — now live" });
+    router.refresh();
+  }
+
+  // Is the live site actually showing the builder? Only when the home page is
+  // published. Otherwise the subdomain falls back to the product store.
+  const homePage = initialPages.find((p) => p.is_home);
+  const homeLive = homePage?.status === "published";
 
   async function save(publish?: boolean) {
     if (!editingId) return;
@@ -183,6 +205,22 @@ export function SitePagesManager({
           Add page
         </Button>
       </div>
+
+      {initialPages.length > 0 && !homeLive && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-900 dark:border-yellow-500/40 dark:bg-yellow-500/10 dark:text-yellow-200">
+          <span>
+            <strong>Your website isn&apos;t live yet.</strong>{" "}
+            {homePage
+              ? "Your home page is a draft — visitors still see your product store until you publish it."
+              : "Set one page as Home, then publish it to go live."}
+          </span>
+          {homePage && (
+            <Button size="sm" onClick={() => togglePublish(homePage)} disabled={busy}>
+              Publish home page
+            </Button>
+          )}
+        </div>
+      )}
 
       {initialPages.length === 0 ? (
         <div className="rounded-lg border border-dashed bg-muted/30 p-5">
@@ -258,6 +296,14 @@ export function SitePagesManager({
                 <span className="text-xs text-muted-foreground">/{p.slug}</span>
               </div>
               <div className="flex items-center gap-1">
+                <Button
+                  variant={p.status === "published" ? "ghost" : "default"}
+                  size="sm"
+                  onClick={() => togglePublish(p)}
+                  disabled={busy}
+                >
+                  {p.status === "published" ? "Unpublish" : "Publish"}
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -343,14 +389,14 @@ export function SitePagesManager({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => save()} disabled={busy}>
+            <Button onClick={() => save(true)} disabled={busy}>
               {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save draft
-            </Button>
-            <Button onClick={() => save(true)} disabled={busy} variant="default">
               Save &amp; publish
             </Button>
-            <Button onClick={() => save(false)} disabled={busy} variant="outline">
+            <Button onClick={() => save()} disabled={busy} variant="outline">
+              Save draft
+            </Button>
+            <Button onClick={() => save(false)} disabled={busy} variant="ghost">
               Unpublish
             </Button>
             <Button onClick={() => setEditingId(null)} disabled={busy} variant="ghost">
