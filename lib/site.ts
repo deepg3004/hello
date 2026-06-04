@@ -1,5 +1,7 @@
 // Server-side loaders for the seller website builder (subdomain / custom domain).
 
+import { unstable_noStore as noStore } from "next/cache";
+
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SiteProductLite } from "@/components/templates/blocks/registry";
 import type { SiteNavPage } from "@/components/site/SiteRenderer";
@@ -17,6 +19,7 @@ export interface SellerSite {
 
 /** Resolve a seller by their subdomain handle, with branding. */
 export async function loadSellerSite(username: string): Promise<SellerSite | null> {
+  noStore(); // always read fresh — branding/theme must reflect edits immediately
   const admin = createAdminClient();
   const { data } = await admin
     .from("user_profiles")
@@ -41,6 +44,7 @@ export async function loadSellerSite(username: string): Promise<SellerSite | nul
 
 /** Published site pages for the top nav, ordered. */
 export async function loadNavPages(userId: string): Promise<SiteNavPage[]> {
+  noStore();
   const admin = createAdminClient();
   const { data } = await admin
     .from("site_pages")
@@ -58,6 +62,7 @@ export async function loadNavPages(userId: string): Promise<SiteNavPage[]> {
 
 /** The seller's live products (active + on a published page) for the products block. */
 export async function loadSellerProducts(userId: string): Promise<SiteProductLite[]> {
+  noStore();
   const admin = createAdminClient();
   const { data } = await admin
     .from("products")
@@ -97,6 +102,7 @@ export async function loadSitePage(
   title: string;
   slug: string;
 } | null> {
+  noStore();
   const admin = createAdminClient();
   let q = admin
     .from("site_pages")
