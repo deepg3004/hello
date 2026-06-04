@@ -17,6 +17,13 @@ import {
   type StoreProduct,
   type StoreSection,
 } from "@/components/store/StoreGrid";
+import { SiteRenderer } from "@/components/site/SiteRenderer";
+import {
+  loadSellerSite,
+  loadSitePage,
+  loadNavPages,
+  loadSellerProducts,
+} from "@/lib/site";
 
 interface Props {
   params: { username: string };
@@ -47,6 +54,30 @@ type PageJoin = {
 const SECTION_ORDER: PageCategoryKey[] = ["payment", "telegram", "landing", "leads"];
 
 export default async function SellerStore({ params }: Props) {
+  // If the seller has built + published a Home page in the website builder,
+  // render that instead of the auto product store.
+  const site = await loadSellerSite(params.username);
+  if (!site) notFound();
+
+  const home = await loadSitePage(site.id, { home: true });
+  if (home) {
+    const [products, navPages] = await Promise.all([
+      loadSellerProducts(site.id),
+      loadNavPages(site.id),
+    ]);
+    return (
+      <SiteRenderer
+        blocks={home.blocks}
+        brandColor={site.brand_color}
+        seller={{ name: site.name, avatar: site.avatar }}
+        socialLinks={site.social_links}
+        products={products}
+        navPages={navPages}
+      />
+    );
+  }
+
+  // Fallback: the auto-generated product store (unchanged behaviour).
   const admin = createAdminClient();
   const { data: profile } = await admin
     .from("user_profiles")

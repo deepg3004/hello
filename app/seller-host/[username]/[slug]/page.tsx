@@ -24,6 +24,13 @@ import {
 } from "@/lib/social-proof";
 import { PixelScripts } from "@/components/pages/PixelScripts";
 import { ReferralTracker } from "@/components/pages/ReferralTracker";
+import { SiteRenderer } from "@/components/site/SiteRenderer";
+import {
+  loadSellerSite,
+  loadSitePage,
+  loadNavPages,
+  loadSellerProducts,
+} from "@/lib/site";
 
 interface Props {
   params: { username: string; slug: string };
@@ -131,6 +138,30 @@ export async function generateMetadata({
 }
 
 export default async function SellerPageRender({ params }: Props) {
+  // A published website page (site_pages) takes precedence over a product page
+  // with the same slug.
+  const site = await loadSellerSite(params.username);
+  if (site) {
+    const sitePage = await loadSitePage(site.id, { slug: params.slug });
+    if (sitePage) {
+      const [products, navPages] = await Promise.all([
+        loadSellerProducts(site.id),
+        loadNavPages(site.id),
+      ]);
+      return (
+        <SiteRenderer
+          blocks={sitePage.blocks}
+          brandColor={site.brand_color}
+          seller={{ name: site.name, avatar: site.avatar }}
+          socialLinks={site.social_links}
+          products={products}
+          navPages={navPages}
+          currentSlug={params.slug}
+        />
+      );
+    }
+  }
+
   const result = await loadPage(params.username, params.slug);
   if (!result) notFound();
   const { page, product, pixel } = result;

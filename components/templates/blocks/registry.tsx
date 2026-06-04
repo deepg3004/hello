@@ -1,14 +1,37 @@
 import type { ReactNode } from "react";
-import { Check, Star } from "lucide-react";
+import Link from "next/link";
+import {
+  Check,
+  Star,
+  Instagram,
+  Youtube,
+  Twitter,
+  Linkedin,
+  Send,
+  Globe,
+} from "lucide-react";
 
 import { LeadCaptureForm } from "@/components/pages/LeadCaptureForm";
+import { formatINR } from "@/lib/utils";
 import type { FieldConfig } from "@/lib/templates/types";
 import type { TgTheme } from "@/lib/telegram-themes";
 
-// ── Block system for the "Build from scratch" template ──────────────────────
+// ── Block system ────────────────────────────────────────────────────────────
 // Each block has: a field schema (edited with the standard FieldEditor), a
-// default data object, and a themed Render. The custom page stores an ordered
-// list of { id, type, data } in page_config.blocks.
+// default data object, and a themed Render. Used by the "Build from scratch"
+// page template AND the seller website builder (site_pages.blocks). Both store
+// an ordered list of { id, type, data }.
+
+export interface SiteProductLite {
+  id: string;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  price: number; // rupees
+  original_price: number | null;
+  is_popular?: boolean;
+  slug: string;
+}
 
 export interface BlockContext {
   accent: string;
@@ -16,6 +39,12 @@ export interface BlockContext {
   pageId?: string;
   slug?: string;
   isPreview?: boolean;
+  /** Seller's live products — fed to the "products" block on website pages. */
+  products?: SiteProductLite[];
+  /** Seller identity — used by the "about" block defaults. */
+  seller?: { name: string; avatar: string | null };
+  /** Social handles/URLs — used by the "social" block. */
+  socialLinks?: Record<string, string> | null;
 }
 
 export interface BlockDef {
@@ -292,6 +321,294 @@ export const BLOCKS: Record<string, BlockDef> = {
       </section>
     ),
   },
+
+  about: {
+    type: "about",
+    label: "About / Bio",
+    defaultData: {
+      heading: "About me",
+      body: "Tell visitors who you are and what you do.",
+      image: "",
+    },
+    fields: [
+      { key: "heading", label: "Heading", type: "text", defaultValue: "" },
+      { key: "body", label: "Bio", type: "textarea", defaultValue: "" },
+      { key: "image", label: "Photo URL (optional)", type: "image", defaultValue: "" },
+    ],
+    Render: (d, { seller }) => {
+      const img = s(d.image) || seller?.avatar || "";
+      return (
+        <Section>
+          <div className="grid items-center gap-8 md:grid-cols-2">
+            {img && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={img}
+                alt=""
+                className="mx-auto w-full max-w-sm rounded-2xl object-cover ring-1 ring-white/10"
+              />
+            )}
+            <div className={img ? "" : "md:col-span-2 mx-auto max-w-2xl text-center"}>
+              {s(d.heading) && (
+                <h2 className="font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                  {s(d.heading)}
+                </h2>
+              )}
+              {s(d.body) && (
+                <p className="mt-4 whitespace-pre-line text-zinc-300">{s(d.body)}</p>
+              )}
+            </div>
+          </div>
+        </Section>
+      );
+    },
+  },
+
+  products: {
+    type: "products",
+    label: "Products / Store",
+    defaultData: { title: "What I offer" },
+    fields: [
+      { key: "title", label: "Section title", type: "text", defaultValue: "" },
+    ],
+    Render: (d, { accent, products }) => {
+      const list = products ?? [];
+      if (list.length === 0) {
+        return (
+          <Section>
+            {s(d.title) && (
+              <h2 className="text-center font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                {s(d.title)}
+              </h2>
+            )}
+            <p className="mt-6 text-center text-sm text-zinc-400">
+              Your live products will appear here.
+            </p>
+          </Section>
+        );
+      }
+      return (
+        <Section>
+          {s(d.title) && (
+            <h2 className="mb-8 text-center font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              {s(d.title)}
+            </h2>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {list.map((p) => (
+              <Link
+                key={p.id}
+                href={`/${p.slug}`}
+                className="group block overflow-hidden rounded-xl border border-white/10 bg-white/5 transition hover:border-white/30"
+              >
+                <div className="relative aspect-[16/9] w-full bg-black/20">
+                  {p.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.image_url} alt={p.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="h-full w-full bg-gradient-to-br from-white/10 to-white/0" />
+                  )}
+                  {p.is_popular && (
+                    <span className="absolute left-2 top-2 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-900">
+                      Popular
+                    </span>
+                  )}
+                </div>
+                <div className="p-4">
+                  <h3 className="font-sora font-semibold tracking-tight text-white">
+                    {p.name}
+                  </h3>
+                  {p.description && (
+                    <p className="mt-1 line-clamp-2 text-sm text-zinc-400">
+                      {p.description}
+                    </p>
+                  )}
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-lg font-bold" style={{ color: accent }}>
+                      {formatINR(Math.round(p.price * 100))}
+                    </span>
+                    {p.original_price && p.original_price > p.price && (
+                      <span className="text-sm text-zinc-500 line-through">
+                        {formatINR(Math.round(p.original_price * 100))}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </Section>
+      );
+    },
+  },
+
+  social: {
+    type: "social",
+    label: "Social links",
+    defaultData: { title: "Find me online" },
+    fields: [
+      { key: "title", label: "Section title", type: "text", defaultValue: "" },
+    ],
+    Render: (d, { accent, socialLinks }) => {
+      const links = socialLinks ?? {};
+      const ICONS: Record<string, typeof Globe> = {
+        instagram: Instagram,
+        youtube: Youtube,
+        twitter: Twitter,
+        linkedin: Linkedin,
+        telegram: Send,
+        website: Globe,
+      };
+      const entries = Object.entries(links).filter(([, v]) => !!v);
+      if (entries.length === 0) return null;
+      return (
+        <Section>
+          {s(d.title) && (
+            <h2 className="mb-6 text-center font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              {s(d.title)}
+            </h2>
+          )}
+          <div className="flex flex-wrap justify-center gap-3">
+            {entries.map(([k, url]) => {
+              const Icon = ICONS[k] ?? Globe;
+              const href = /^https?:\/\//.test(url) ? url : `https://${url}`;
+              return (
+                <a
+                  key={k}
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white transition hover:scale-110"
+                  style={{ color: accent }}
+                  aria-label={k}
+                >
+                  <Icon className="h-5 w-5" />
+                </a>
+              );
+            })}
+          </div>
+        </Section>
+      );
+    },
+  },
+
+  richtext: {
+    type: "richtext",
+    label: "Text block",
+    defaultData: { heading: "", body: "Write anything you like here." },
+    fields: [
+      { key: "heading", label: "Heading (optional)", type: "text", defaultValue: "" },
+      { key: "body", label: "Text", type: "textarea", defaultValue: "" },
+    ],
+    Render: (d) => (
+      <Section>
+        <div className="mx-auto max-w-2xl">
+          {s(d.heading) && (
+            <h2 className="font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              {s(d.heading)}
+            </h2>
+          )}
+          {s(d.body) && (
+            <p className="mt-4 whitespace-pre-line text-zinc-300">{s(d.body)}</p>
+          )}
+        </div>
+      </Section>
+    ),
+  },
+
+  gallery: {
+    type: "gallery",
+    label: "Image gallery",
+    defaultData: { title: "Gallery", items: [] },
+    fields: [
+      { key: "title", label: "Section title", type: "text", defaultValue: "" },
+      {
+        key: "items",
+        label: "Images",
+        type: "list",
+        itemLabel: "image",
+        itemFields: [
+          { key: "image", label: "Image URL", type: "image", defaultValue: "" },
+          { key: "caption", label: "Caption (optional)", type: "text", defaultValue: "" },
+        ],
+        defaultValue: [],
+      },
+    ],
+    Render: (d) => {
+      const items = arr<{ image?: string; caption?: string }>(d.items).filter((i) => s(i.image));
+      if (items.length === 0) return null;
+      return (
+        <Section>
+          {s(d.title) && (
+            <h2 className="mb-8 text-center font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              {s(d.title)}
+            </h2>
+          )}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {items.map((it, i) => (
+              <figure key={i} className="overflow-hidden rounded-xl border border-white/10">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={s(it.image)} alt={s(it.caption)} className="aspect-square w-full object-cover" />
+                {s(it.caption) && (
+                  <figcaption className="bg-white/5 px-3 py-2 text-xs text-zinc-300">
+                    {s(it.caption)}
+                  </figcaption>
+                )}
+              </figure>
+            ))}
+          </div>
+        </Section>
+      );
+    },
+  },
+
+  video: {
+    type: "video",
+    label: "Video",
+    defaultData: { title: "", url: "", caption: "" },
+    fields: [
+      { key: "title", label: "Title (optional)", type: "text", defaultValue: "" },
+      { key: "url", label: "YouTube / Vimeo URL", type: "text", defaultValue: "" },
+      { key: "caption", label: "Caption (optional)", type: "text", defaultValue: "" },
+    ],
+    Render: (d) => {
+      const embed = toEmbedUrl(s(d.url));
+      if (!embed) return null;
+      return (
+        <Section>
+          <div className="mx-auto max-w-3xl">
+            {s(d.title) && (
+              <h2 className="mb-6 text-center font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                {s(d.title)}
+              </h2>
+            )}
+            <div className="aspect-video w-full overflow-hidden rounded-2xl ring-1 ring-white/10">
+              <iframe
+                src={embed}
+                title={s(d.title, "Video")}
+                className="h-full w-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+            {s(d.caption) && (
+              <p className="mt-3 text-center text-sm text-zinc-400">{s(d.caption)}</p>
+            )}
+          </div>
+        </Section>
+      );
+    },
+  },
 };
+
+/** Convert a YouTube/Vimeo watch URL to an embeddable URL. Returns "" if unknown. */
+function toEmbedUrl(url: string): string {
+  if (!url) return "";
+  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]{6,})/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+  const vimeo = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+  if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
+  return "";
+}
 
 export const BLOCK_LIST = Object.values(BLOCKS);

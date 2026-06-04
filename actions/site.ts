@@ -1,0 +1,210 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+
+import { createClient as createServerClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+interface Ok {
+  ok: true;
+  message?: string;
+  pageId?: string;
+}
+interface Err {
+  ok: false;
+  message: string;
+}
+type Result = Ok | Err;
+
+const RESERVED_SITE_SLUGS = new Set([
+  "course",
+  "p",
+  "tg",
+  "ln",
+  "ld",
+  "order",
+  "affiliate",
+  "preview",
+  "privacy",
+  "terms",
+  "refund",
+]);
+
+function slugify(input: string): string {
+  return (input || "page")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/g, "") || "page";
+}
+
+async function requireUser() {
+  const supabase = createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user;
+}
+
+/** Create a new site page with a unique slug. */
+export async function createSitePageAction(input: {
+  title?: string;
+}): Promise<Result> {
+  const user = await requireUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+  const admin = createAdminClient();
+
+  const title = input.title?.trim() || "New page";
+  const base = slugify(title);
+
+  // Dedupe slug against this seller's existing pages + reserved roots.
+  const { data: existing } = await admin
+    .from("site_pages")
+    .select("slug")
+    .eq("user_id", user.id);
+  const taken = new Set([
+    ...RESERVED_SITE_SLUGS,
+    ...((existing ?? []).map((r) => r.slug).filter(Boolean) as string[]),
+  ]);
+  let slug = base;
+  let n = 1;
+  while (taken.has(slug)) {
+    n += 1;
+    slug = `${base}-${n}`;
+  }
+
+  const isFirst = (existing ?? []).length === 0;
+
+  const { data, error } = await admin
+    .from("site_pages")
+    .insert({
+      user_id: user.id,
+      slug,
+      title,
+      nav_label: title,
+      is_home: isFirst, // first page becomes the home page
+      sort_order: (existing ?? []).length,
+      blocks: [],
+      status: "draft",
+    })
+    .select("id")
+    .single();
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/dashboard/website");
+  return { ok: true, pageId: data.id };
+}
+
+/** Update a site page's content / metadata. Session-scoped. */
+export async function updateSitePageAction(input: {
+  id: string;
+  title?: string;
+  nav_label?: string;
+  blocks?: unknown;
+  status?: "draft" | "published";
+  show_in_nav?: boolean;
+  seo_title?: string | null;
+  seo_description?: string | null;
+}): Promise<Result> {
+  const user = await requireUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+  const admin = createAdminClient();
+
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (input.title !== undefined) patch.title = input.title.trim() || "Untitled";
+  if (input.nav_label !== undefined) patch.nav_label = input.nav_label.trim() || null;
+  if (input.blocks !== undefined)
+    patch.blocks = Array.isArray(input.blocks) ? input.blocks : [];
+  if (input.status !== undefined) patch.status = input.status;
+  if (input.show_in_nav !== undefined) patch.show_in_nav = input.show_in_nav;
+  if (input.seo_title !== undefined) patch.seo_title = input.seo_title;
+  if (input.seo_description !== undefined) patch.seo_description = input.seo_description;
+
+  const { error } = await admin
+    .from("site_pages")
+    .update(patch)
+    .eq("id", input.id)
+    .eq("user_id", user.id);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/dashboard/website");
+  return { ok: true };
+}
+
+/** Delete a site page. */
+export async function deleteSitePageAction(id: string): Promise<Result> {
+  const user = await requireUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("site_pages")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/dashboard/website");
+  return { ok: true };
+}
+
+/** Make a page the home page (rendered at the subdomain root). */
+export async function setHomeSitePageAction(id: string): Promise<Result> {
+  const user = await requireUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+  const admin = createAdminClient();
+
+  // Clear any existing home first to satisfy the partial-unique index.
+  await admin
+    .from("site_pages")
+    .update({ is_home: false })
+    .eq("user_id", user.id)
+    .eq("is_home", true);
+  const { error } = await admin
+    .from("site_pages")
+    .update({ is_home: true })
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/dashboard/website");
+  return { ok: true };
+}
+
+/** Save the seller's branding/profile fields used by their website. */
+export async function saveBrandingAction(input: {
+  bio?: string;
+  tagline?: string;
+  brand_color?: string;
+  avatar_url?: string;
+  social_links?: Record<string, string>;
+}): Promise<Result> {
+  const user = await requireUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+  const admin = createAdminClient();
+
+  const patch: Record<string, unknown> = {};
+  if (input.bio !== undefined) patch.bio = input.bio.trim() || null;
+  if (input.tagline !== undefined) patch.tagline = input.tagline.trim() || null;
+  if (input.brand_color !== undefined) patch.brand_color = input.brand_color.trim() || null;
+  if (input.avatar_url !== undefined) patch.avatar_url = input.avatar_url.trim() || null;
+  if (input.social_links !== undefined) {
+    // Keep only non-empty string values for known platforms.
+    const allowed = ["instagram", "youtube", "twitter", "linkedin", "telegram", "website"];
+    const clean: Record<string, string> = {};
+    for (const k of allowed) {
+      const v = input.social_links[k]?.trim();
+      if (v) clean[k] = v;
+    }
+    patch.social_links = clean;
+  }
+
+  const { error } = await admin
+    .from("user_profiles")
+    .update(patch)
+    .eq("id", user.id);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/dashboard/website");
+  revalidatePath("/dashboard/settings");
+  return { ok: true };
+}
