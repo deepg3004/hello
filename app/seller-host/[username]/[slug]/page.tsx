@@ -168,6 +168,7 @@ export default async function SellerPageRender({ params }: Props) {
           brandColor={site.brand_color}
           seller={{ name: site.name, avatar: site.avatar }}
           socialLinks={site.social_links}
+          tagline={site.tagline}
           products={products}
           navPages={navPages}
           currentSlug={params.slug}

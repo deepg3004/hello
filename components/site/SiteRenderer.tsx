@@ -7,6 +7,7 @@
 import Link from "next/link";
 
 import { BLOCKS, type SiteProductLite } from "@/components/templates/blocks/registry";
+import { SiteNav } from "@/components/site/SiteNav";
 import {
   getSiteTheme,
   siteThemeStyle,
@@ -33,6 +34,7 @@ export function SiteRenderer(props: {
   brandColor?: string | null;
   seller: { name: string; avatar: string | null };
   socialLinks?: Record<string, string> | null;
+  tagline?: string | null;
   products?: SiteProductLite[];
   navPages?: SiteNavPage[];
   /** Current page slug; undefined on the home page. */
@@ -49,44 +51,13 @@ export function SiteRenderer(props: {
   return (
     <div className="relative min-h-screen" style={rootStyle}>
       <div className="flex min-h-screen flex-col">
-        {/* Top navigation */}
-        <header className="sticky top-0 z-20 border-b border-[color:var(--s-border)] bg-[var(--s-surface)] backdrop-blur">
-          <nav className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
-            <Link
-              href="/"
-              className="flex items-center gap-2 font-sora font-semibold text-[color:var(--s-fg)]"
-            >
-              {props.seller.avatar && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={props.seller.avatar}
-                  alt=""
-                  className="h-7 w-7 rounded-full object-cover ring-1 ring-[color:var(--s-border)]"
-                />
-              )}
-              <span className="truncate">{props.seller.name}</span>
-            </Link>
-            {nav.length > 0 && (
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                {nav.map((p) => {
-                  const isCurrent = p.isHome
-                    ? !props.currentSlug
-                    : props.currentSlug === p.slug;
-                  return (
-                    <Link
-                      key={p.slug}
-                      href={p.isHome ? "/" : `/${p.slug}`}
-                      className="text-[color:var(--s-fg-muted)] transition hover:text-[color:var(--s-fg)]"
-                      style={isCurrent ? { color: accent } : undefined}
-                    >
-                      {p.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </nav>
-        </header>
+        {/* Top navigation (responsive — hamburger on mobile) */}
+        <SiteNav
+          seller={props.seller}
+          navPages={nav}
+          accent={accent}
+          currentSlug={props.currentSlug}
+        />
 
         {/* Content blocks */}
         <main className="flex-1">
@@ -120,11 +91,29 @@ export function SiteRenderer(props: {
         </main>
 
         {/* Footer */}
-        <footer className="border-t border-[color:var(--s-border)] px-4 py-8 text-center text-xs text-[color:var(--s-fg-dim)]">
-          © {props.seller.name} · Powered by{" "}
-          <span className="font-sora font-semibold text-[color:var(--s-fg-muted)]">
-            InvoxAI
-          </span>
+        <footer className="border-t border-[color:var(--s-border)] px-4 py-10 text-center">
+          {props.tagline && (
+            <p className="text-sm text-[color:var(--s-fg-muted)]">{props.tagline}</p>
+          )}
+          {nav.length > 0 && (
+            <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-1 text-sm">
+              {nav.map((p) => (
+                <Link
+                  key={p.slug}
+                  href={p.isHome ? "/" : `/${p.slug}`}
+                  className="text-[color:var(--s-fg-dim)] transition hover:text-[color:var(--s-fg)]"
+                >
+                  {p.label}
+                </Link>
+              ))}
+            </div>
+          )}
+          <p className="mt-5 text-xs text-[color:var(--s-fg-dim)]">
+            © {props.seller.name} · Powered by{" "}
+            <span className="font-sora font-semibold text-[color:var(--s-fg-muted)]">
+              InvoxAI
+            </span>
+          </p>
         </footer>
       </div>
     </div>
