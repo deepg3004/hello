@@ -47,15 +47,19 @@ const NAV_MAIN: NavItem[] = [
   { href: "/dashboard/store", label: "Store", Icon: Store },
   { href: "/dashboard/website", label: "Website", Icon: Globe },
   { href: "/dashboard/transactions", label: "Transactions", Icon: CreditCard },
+  { href: "/dashboard/learn", label: "Learn", Icon: GraduationCap },
+];
+
+// CRM — the people side: who's bought, who's interested, who dropped off.
+const NAV_CRM: NavItem[] = [
   { href: "/dashboard/customers", label: "Customers", Icon: Users },
   { href: "/dashboard/leads", label: "Leads", Icon: Magnet },
-  { href: "/dashboard/learn", label: "Learn", Icon: GraduationCap },
+  { href: "/dashboard/analytics", label: "Recovery", Icon: LineChart },
 ];
 
 const NAV_GROWTH: NavItem[] = [
   { href: "/dashboard/coupons", label: "Coupons", Icon: Tag },
   { href: "/dashboard/affiliates", label: "Affiliates", Icon: Handshake },
-  { href: "/dashboard/analytics", label: "Recovery", Icon: LineChart },
   { href: "/dashboard/telegram", label: "Telegram", Icon: Send },
 ];
 
@@ -164,6 +168,16 @@ export function Sidebar({
                 </div>
               )}
           </div>
+        ))}
+
+        <SectionLabel>CRM</SectionLabel>
+        {NAV_CRM.map((item) => (
+          <NavRow
+            key={item.href}
+            item={item}
+            pathname={pathname}
+            onNavigate={onNavigate}
+          />
         ))}
 
         <SectionLabel>Growth</SectionLabel>
