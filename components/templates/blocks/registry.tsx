@@ -56,6 +56,8 @@ export interface BlockContext {
    *  EditableText and call onEditField(key, value) on blur. */
   editable?: boolean;
   onEditField?: (key: string, value: string) => void;
+  /** Commit an edit to a list item's sub-field (e.g. items[2].quote). */
+  onEditItem?: (listKey: string, index: number, subKey: string, value: string) => void;
 }
 
 // Inline-editable text helper for blocks: contentEditable in editor preview,
@@ -74,6 +76,30 @@ function et(
         value={value}
         className={className}
         onCommit={(v) => ctx.onEditField!(key, v)}
+      />
+    );
+  }
+  const Tag = as;
+  return <Tag className={className}>{value}</Tag>;
+}
+
+// Inline-editable text for a list item's sub-field (items[index][subKey]).
+function eti(
+  ctx: BlockContext,
+  listKey: string,
+  index: number,
+  subKey: string,
+  value: string,
+  className: string,
+  as: "span" | "h1" | "h2" | "h3" | "p" = "span",
+): ReactNode {
+  if (ctx.editable && ctx.onEditItem) {
+    return (
+      <EditableText
+        as={as}
+        value={value}
+        className={className}
+        onCommit={(v) => ctx.onEditItem!(listKey, index, subKey, v)}
       />
     );
   }
@@ -212,12 +238,9 @@ export const BLOCKS: Record<string, BlockDef> = {
                 >
                   <Check className="h-4 w-4" strokeWidth={3} />
                 </span>
-                <p className="font-sora text-sm font-semibold text-[color:var(--s-fg)]">
-                  {s(it.title)}
-                </p>
-                {s(it.text) && (
-                  <p className="mt-1 text-sm text-[color:var(--s-fg-muted)]">{s(it.text)}</p>
-                )}
+                {eti(ctx, "items", i, "title", s(it.title), "font-sora text-sm font-semibold text-[color:var(--s-fg)]", "p")}
+                {s(it.text) &&
+                  eti(ctx, "items", i, "text", s(it.text), "mt-1 text-sm text-[color:var(--s-fg-muted)]", "p")}
               </div>
             ))}
           </div>
@@ -274,9 +297,11 @@ export const BLOCKS: Record<string, BlockDef> = {
                     <Star key={k} className="h-3.5 w-3.5 fill-current" />
                   ))}
                 </div>
-                <p className="mt-3 text-sm text-[color:var(--s-fg-muted)]">“{s(it.quote)}”</p>
+                <p className="mt-3 text-sm text-[color:var(--s-fg-muted)]">
+                  “{eti(ctx, "items", i, "quote", s(it.quote), "", "span")}”
+                </p>
                 <p className="mt-3 text-sm font-semibold text-[color:var(--s-fg)]">
-                  {s(it.author)}
+                  {eti(ctx, "items", i, "author", s(it.author), "", "span")}
                   {s(it.role) && (
                     <span className="font-normal text-[color:var(--s-fg-dim)]"> · {s(it.role)}</span>
                   )}
@@ -328,12 +353,9 @@ export const BLOCKS: Record<string, BlockDef> = {
                 key={i}
                 className="rounded-xl border border-[color:var(--s-border)] bg-[var(--s-surface)] p-4"
               >
-                <p className="font-sora text-sm font-semibold text-[color:var(--s-fg)]">
-                  {s(it.q)}
-                </p>
-                {s(it.a) && (
-                  <p className="mt-1.5 text-sm text-[color:var(--s-fg-muted)]">{s(it.a)}</p>
-                )}
+                {eti(ctx, "items", i, "q", s(it.q), "font-sora text-sm font-semibold text-[color:var(--s-fg)]", "p")}
+                {s(it.a) &&
+                  eti(ctx, "items", i, "a", s(it.a), "mt-1.5 text-sm text-[color:var(--s-fg-muted)]", "p")}
               </div>
             ))}
           </div>
@@ -749,7 +771,8 @@ export const BLOCKS: Record<string, BlockDef> = {
         defaultValue: [],
       },
     ],
-    Render: (d, { accent }) => {
+    Render: (d, ctx) => {
+      const { accent } = ctx;
       const items = arr<{ value?: string; label?: string }>(d.items).filter((i) => s(i.value));
       if (items.length === 0) return null;
       return (
@@ -761,9 +784,9 @@ export const BLOCKS: Record<string, BlockDef> = {
                 className="rounded-xl border border-[color:var(--s-border)] bg-[var(--s-surface)] p-6 text-center"
               >
                 <p className="font-sora text-3xl font-extrabold" style={{ color: accent }}>
-                  {s(it.value)}
+                  {eti(ctx, "items", i, "value", s(it.value), "", "span")}
                 </p>
-                <p className="mt-1 text-sm text-[color:var(--s-fg-muted)]">{s(it.label)}</p>
+                {eti(ctx, "items", i, "label", s(it.label), "mt-1 text-sm text-[color:var(--s-fg-muted)]", "p")}
               </div>
             ))}
           </div>
@@ -977,7 +1000,7 @@ export const BLOCKS: Record<string, BlockDef> = {
                       : { borderColor: "var(--s-border)" }
                   }
                 >
-                  <p className="font-sora text-sm font-semibold text-[color:var(--s-fg)]">{s(it.name)}</p>
+                  {eti(ctx, "items", i, "name", s(it.name), "font-sora text-sm font-semibold text-[color:var(--s-fg)]", "p")}
                   <p className="mt-2">
                     <span className="font-sora text-3xl font-extrabold text-[color:var(--s-fg)]">{s(it.price)}</span>
                     <span className="text-sm text-[color:var(--s-fg-dim)]">{s(it.period)}</span>

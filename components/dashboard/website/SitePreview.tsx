@@ -80,6 +80,17 @@ export function SitePreview({
             onEditField: editable
               ? (k, v) => onEditBlock!(id, { ...(b.data ?? {}), [k]: v })
               : undefined,
+            onEditItem: editable
+              ? (listKey, index, subKey, v) => {
+                  const data = b.data ?? {};
+                  const listRaw = data[listKey];
+                  const listArr = Array.isArray(listRaw)
+                    ? [...(listRaw as Array<Record<string, unknown>>)]
+                    : [];
+                  listArr[index] = { ...(listArr[index] ?? {}), [subKey]: v };
+                  onEditBlock!(id, { ...data, [listKey]: listArr });
+                }
+              : undefined,
           });
           if (!interactive) {
             return (
