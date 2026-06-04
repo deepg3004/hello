@@ -123,6 +123,17 @@ function starterBlocks(copy: Copy): SiteBlock[] {
       data: { _bg: "subtle", title: copy.productsTitle },
     },
     {
+      id: "pricing",
+      type: "pricing",
+      data: {
+        title: "Simple pricing",
+        items: [
+          { name: "Starter", price: "₹499", period: "", features: "Core access\nEmail support", cta_label: "Get Starter", url: "", highlighted: false },
+          { name: "Pro", price: "₹1,499", period: "", features: "Everything in Starter\nPriority support\nBonus material", cta_label: "Get Pro", url: "", highlighted: true },
+        ],
+      },
+    },
+    {
       id: "testimonials",
       type: "testimonials",
       data: {

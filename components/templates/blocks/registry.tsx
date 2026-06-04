@@ -13,6 +13,8 @@ import {
 
 import { LeadCaptureForm } from "@/components/pages/LeadCaptureForm";
 import { Carousel } from "@/components/templates/blocks/Carousel";
+import { CountdownBlock } from "@/components/templates/blocks/CountdownBlock";
+import { SiteContactForm } from "@/components/templates/blocks/SiteContactForm";
 import { formatINR } from "@/lib/utils";
 import type { FieldConfig } from "@/lib/templates/types";
 import type { TgTheme } from "@/lib/telegram-themes";
@@ -609,7 +611,7 @@ export const BLOCKS: Record<string, BlockDef> = {
     defaultData: { label: "Get in touch", url: "", align: "center" },
     fields: [
       { key: "label", label: "Button text", type: "text", defaultValue: "" },
-      { key: "url", label: "Link URL or /slug", type: "text", defaultValue: "" },
+      { key: "url", label: "Links to", type: "pagepicker", defaultValue: "" },
       {
         key: "align",
         label: "Alignment",
@@ -794,7 +796,7 @@ export const BLOCKS: Record<string, BlockDef> = {
       { key: "title", label: "Title", type: "text", defaultValue: "" },
       { key: "description", label: "Description", type: "textarea", defaultValue: "" },
       { key: "cta_label", label: "Button text", type: "text", defaultValue: "" },
-      { key: "url", label: "Page URL (paste from your dashboard)", type: "text", defaultValue: "" },
+      { key: "url", label: "Links to", type: "pagepicker", defaultValue: "" },
       { key: "image", label: "Image URL (optional)", type: "image", defaultValue: "" },
     ],
     Render: (d, { accent }) => {
@@ -835,6 +837,238 @@ export const BLOCKS: Record<string, BlockDef> = {
         </Section>
       );
     },
+  },
+
+  pricing: {
+    type: "pricing",
+    label: "Pricing table",
+    defaultData: {
+      title: "Pricing",
+      items: [
+        { name: "Basic", price: "₹499", period: "/mo", features: "Feature one\nFeature two", cta_label: "Choose", url: "", highlighted: false },
+        { name: "Pro", price: "₹999", period: "/mo", features: "Everything in Basic\nPriority support", cta_label: "Choose", url: "", highlighted: true },
+      ],
+    },
+    fields: [
+      { key: "title", label: "Section title", type: "text", defaultValue: "" },
+      {
+        key: "items",
+        label: "Plans",
+        type: "list",
+        itemLabel: "plan",
+        itemFields: [
+          { key: "name", label: "Plan name", type: "text", defaultValue: "" },
+          { key: "price", label: "Price", type: "text", defaultValue: "" },
+          { key: "period", label: "Period (e.g. /mo)", type: "text", defaultValue: "" },
+          { key: "features", label: "Features (one per line)", type: "textarea", defaultValue: "" },
+          { key: "cta_label", label: "Button text", type: "text", defaultValue: "" },
+          { key: "url", label: "Links to", type: "pagepicker", defaultValue: "" },
+          { key: "highlighted", label: "Highlight this plan", type: "toggle", defaultValue: false },
+        ],
+        defaultValue: [],
+      },
+    ],
+    Render: (d, { accent }) => {
+      const items = arr<{ name?: string; price?: string; period?: string; features?: string; cta_label?: string; url?: string; highlighted?: boolean }>(d.items);
+      if (items.length === 0) return null;
+      return (
+        <Section>
+          {s(d.title) && (
+            <h2 className="mb-8 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
+              {s(d.title)}
+            </h2>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {items.map((it, i) => {
+              const feats = s(it.features).split("\n").map((x) => x.trim()).filter(Boolean);
+              const url = s(it.url);
+              const href = url ? (/^https?:\/\//.test(url) ? url : `https://${url}`) : "#";
+              return (
+                <div
+                  key={i}
+                  className="flex flex-col rounded-2xl border p-6"
+                  style={
+                    it.highlighted
+                      ? { borderColor: accent, boxShadow: `0 0 0 1px ${accent}` }
+                      : { borderColor: "var(--s-border)" }
+                  }
+                >
+                  <p className="font-sora text-sm font-semibold text-[color:var(--s-fg)]">{s(it.name)}</p>
+                  <p className="mt-2">
+                    <span className="font-sora text-3xl font-extrabold text-[color:var(--s-fg)]">{s(it.price)}</span>
+                    <span className="text-sm text-[color:var(--s-fg-dim)]">{s(it.period)}</span>
+                  </p>
+                  <ul className="mt-4 flex-1 space-y-2">
+                    {feats.map((f, k) => (
+                      <li key={k} className="flex items-start gap-2 text-sm text-[color:var(--s-fg-muted)]">
+                        <Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: accent }} strokeWidth={3} />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  {s(it.cta_label) && (
+                    <a
+                      href={href}
+                      className="mt-6 inline-flex justify-center rounded-xl px-5 py-3 text-sm font-semibold text-white"
+                      style={{ backgroundColor: accent }}
+                    >
+                      {s(it.cta_label)}
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Section>
+      );
+    },
+  },
+
+  logos: {
+    type: "logos",
+    label: "Logo strip",
+    defaultData: { title: "As seen on", items: [] },
+    fields: [
+      { key: "title", label: "Section title (optional)", type: "text", defaultValue: "" },
+      {
+        key: "items",
+        label: "Logos",
+        type: "list",
+        itemLabel: "logo",
+        itemFields: [
+          { key: "image", label: "Logo image URL", type: "image", defaultValue: "" },
+          { key: "url", label: "Link (optional)", type: "text", defaultValue: "" },
+        ],
+        defaultValue: [],
+      },
+    ],
+    Render: (d) => {
+      const items = arr<{ image?: string; url?: string }>(d.items).filter((x) => s(x.image));
+      if (items.length === 0) return null;
+      return (
+        <Section>
+          {s(d.title) && (
+            <p className="mb-6 text-center text-xs font-semibold uppercase tracking-widest text-[color:var(--s-fg-dim)]">
+              {s(d.title)}
+            </p>
+          )}
+          <div className="flex flex-wrap items-center justify-center gap-8 opacity-70">
+            {items.map((it, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={i} src={s(it.image)} alt="" className="h-8 w-auto object-contain grayscale" />
+            ))}
+          </div>
+        </Section>
+      );
+    },
+  },
+
+  countdown: {
+    type: "countdown",
+    label: "Countdown timer",
+    defaultData: { title: "Offer ends soon", to: "", subtitle: "" },
+    fields: [
+      { key: "title", label: "Title", type: "text", defaultValue: "" },
+      { key: "to", label: "End date/time (e.g. 2026-12-31T23:59)", type: "text", defaultValue: "" },
+      { key: "subtitle", label: "Subtitle (optional)", type: "text", defaultValue: "" },
+    ],
+    Render: (d, { accent }) => {
+      if (!s(d.to)) return null;
+      return (
+        <Section>
+          <div className="text-center">
+            {s(d.title) && (
+              <h2 className="mb-6 font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
+                {s(d.title)}
+              </h2>
+            )}
+            <CountdownBlock to={s(d.to)} accent={accent} />
+            {s(d.subtitle) && (
+              <p className="mt-4 text-sm text-[color:var(--s-fg-dim)]">{s(d.subtitle)}</p>
+            )}
+          </div>
+        </Section>
+      );
+    },
+  },
+
+  videos: {
+    type: "videos",
+    label: "Video gallery",
+    defaultData: { title: "Videos", items: [] },
+    fields: [
+      { key: "title", label: "Section title", type: "text", defaultValue: "" },
+      {
+        key: "items",
+        label: "Videos",
+        type: "list",
+        itemLabel: "video",
+        itemFields: [
+          { key: "url", label: "YouTube / Vimeo URL", type: "text", defaultValue: "" },
+        ],
+        defaultValue: [],
+      },
+    ],
+    Render: (d) => {
+      const items = arr<{ url?: string }>(d.items)
+        .map((x) => toEmbedUrl(s(x.url)))
+        .filter(Boolean);
+      if (items.length === 0) return null;
+      return (
+        <Section>
+          {s(d.title) && (
+            <h2 className="mb-8 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
+              {s(d.title)}
+            </h2>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {items.map((embed, i) => (
+              <div key={i} className="aspect-video overflow-hidden rounded-2xl ring-1 ring-[color:var(--s-border)]">
+                <iframe
+                  src={embed}
+                  title={`Video ${i + 1}`}
+                  className="h-full w-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            ))}
+          </div>
+        </Section>
+      );
+    },
+  },
+
+  contact: {
+    type: "contact",
+    label: "Contact form",
+    defaultData: {
+      title: "Get in touch",
+      subtitle: "Send me a message and I'll reply by email.",
+      cta_label: "Send message",
+    },
+    fields: [
+      { key: "title", label: "Title", type: "text", defaultValue: "" },
+      { key: "subtitle", label: "Subtitle", type: "textarea", defaultValue: "" },
+      { key: "cta_label", label: "Button text", type: "text", defaultValue: "" },
+    ],
+    Render: (d, { accent }) => (
+      <Section>
+        <div className="mx-auto max-w-md text-center">
+          {s(d.title) && (
+            <h2 className="font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
+              {s(d.title)}
+            </h2>
+          )}
+          {s(d.subtitle) && (
+            <p className="mt-2 text-[color:var(--s-fg-muted)]">{s(d.subtitle)}</p>
+          )}
+          <div className="mt-6 text-left">
+            <SiteContactForm ctaLabel={s(d.cta_label, "Send message")} accent={accent} />
+          </div>
+        </div>
+      </Section>
+    ),
   },
 };
 

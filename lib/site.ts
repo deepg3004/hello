@@ -3,6 +3,7 @@
 import { unstable_noStore as noStore } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { platformRootDomain } from "@/lib/domains";
 import type { SiteProductLite } from "@/components/templates/blocks/registry";
 import type { SiteNavPage } from "@/components/site/SiteRenderer";
 
@@ -18,6 +19,7 @@ export interface SellerSite {
   font: string | null;
   footer_text: string | null;
   footer_links: Array<{ label: string; url: string }>;
+  footer_columns: Array<{ title: string; links: Array<{ label: string; url: string }> }>;
   favicon: string | null;
   og_image: string | null;
 }
@@ -48,6 +50,12 @@ export async function loadSellerSite(username: string): Promise<SellerSite | nul
     footer_text: (siteConfig.footer_text as string) ?? null,
     footer_links: Array.isArray(siteConfig.footer_links)
       ? (siteConfig.footer_links as Array<{ label: string; url: string }>)
+      : [],
+    footer_columns: Array.isArray(siteConfig.footer_columns)
+      ? (siteConfig.footer_columns as Array<{
+          title: string;
+          links: Array<{ label: string; url: string }>;
+        }>)
       : [],
     favicon: (siteConfig.favicon as string) ?? null,
     og_image: (siteConfig.og_image as string) ?? null,
@@ -101,6 +109,54 @@ export async function loadSellerProducts(userId: string): Promise<SiteProductLit
       } satisfies SiteProductLite;
     })
     .filter(Boolean) as SiteProductLite[];
+}
+
+/** The seller's linkable pages (for the in-editor page picker): store home,
+ *  published pages, and published courses — as branded subdomain URLs. */
+export async function loadSellerLinks(
+  userId: string,
+): Promise<Array<{ label: string; url: string; group: string }>> {
+  noStore();
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("user_profiles")
+    .select("subdomain")
+    .eq("id", userId)
+    .single();
+  const base = profile?.subdomain
+    ? `https://${profile.subdomain}.${platformRootDomain()}`
+    : "";
+  const out: Array<{ label: string; url: string; group: string }> = [];
+  if (base) out.push({ group: "Store", label: "Store home", url: base });
+
+  const { data: pages } = await admin
+    .from("pages")
+    .select("title, slug, status")
+    .eq("user_id", userId)
+    .eq("status", "published")
+    .order("created_at", { ascending: false })
+    .limit(50);
+  for (const p of pages ?? []) {
+    out.push({
+      group: "Pages",
+      label: (p.title as string) || (p.slug as string),
+      url: base ? `${base}/${p.slug}` : `/${p.slug}`,
+    });
+  }
+
+  const { data: courses } = await admin
+    .from("courses")
+    .select("id, title, status")
+    .eq("seller_user_id", userId)
+    .eq("status", "published");
+  for (const c of courses ?? []) {
+    out.push({
+      group: "Courses",
+      label: (c.title as string) || "Course",
+      url: base ? `${base}/course/${c.id}` : `/course/${c.id}`,
+    });
+  }
+  return out;
 }
 
 /** A published site page by slug for a seller, or null. */

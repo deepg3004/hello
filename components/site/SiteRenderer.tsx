@@ -37,6 +37,7 @@ export function SiteRenderer(props: {
   tagline?: string | null;
   footerText?: string | null;
   footerLinks?: Array<{ label: string; url: string }>;
+  footerColumns?: Array<{ title: string; links: Array<{ label: string; url: string }> }>;
   products?: SiteProductLite[];
   navPages?: SiteNavPage[];
   /** Current page slug; undefined on the home page. */
@@ -93,7 +94,33 @@ export function SiteRenderer(props: {
         </main>
 
         {/* Footer */}
-        <footer className="border-t border-[color:var(--s-border)] px-4 py-10 text-center">
+        <footer className="border-t border-[color:var(--s-border)] px-4 py-10">
+          {(props.footerColumns?.length ?? 0) > 0 && (
+            <div className="mx-auto mb-8 grid max-w-5xl gap-8 sm:grid-cols-2 lg:grid-cols-4">
+              {props.footerColumns!.map((col, ci) => (
+                <div key={ci}>
+                  {col.title && (
+                    <p className="mb-2 text-sm font-semibold text-[color:var(--s-fg)]">
+                      {col.title}
+                    </p>
+                  )}
+                  <ul className="space-y-1.5">
+                    {col.links.map((l, li) => (
+                      <li key={li}>
+                        <a
+                          href={/^https?:\/\//.test(l.url) ? l.url : `https://${l.url}`}
+                          className="text-sm text-[color:var(--s-fg-dim)] transition hover:text-[color:var(--s-fg)]"
+                        >
+                          {l.label}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="text-center">
           {props.tagline && (
             <p className="text-sm text-[color:var(--s-fg-muted)]">{props.tagline}</p>
           )}
@@ -130,6 +157,7 @@ export function SiteRenderer(props: {
               InvoxAI
             </span>
           </p>
+          </div>
         </footer>
       </div>
     </div>

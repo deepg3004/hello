@@ -127,6 +127,15 @@ export default async function WebsitePage() {
                 ? ((profile?.site_config as Record<string, unknown>)
                     .footer_links as Array<{ label: string; url: string }>)
                 : [],
+              footer_columns: Array.isArray(
+                (profile?.site_config as Record<string, unknown>)?.footer_columns,
+              )
+                ? ((profile?.site_config as Record<string, unknown>)
+                    .footer_columns as Array<{
+                    title: string;
+                    links: Array<{ label: string; url: string }>;
+                  }>)
+                : [],
             }}
           />
         </CardContent>

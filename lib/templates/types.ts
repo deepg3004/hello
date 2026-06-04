@@ -20,6 +20,7 @@ export type FieldType =
   | "toggle"
   | "number"
   | "select"
+  | "pagepicker"
   | "list";
 
 export interface FieldConfig {

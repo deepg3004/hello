@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { platformRootDomain } from "@/lib/domains";
-import { loadSellerProducts } from "@/lib/site";
+import { loadSellerProducts, loadSellerLinks } from "@/lib/site";
 import {
   SiteFullEditor,
   type EditorPage,
@@ -23,7 +23,7 @@ export default async function WebsitePageEditor({
   if (!user) redirect(`/login?next=/dashboard/website/${params.id}/edit`);
 
   const admin = createAdminClient();
-  const [{ data: page }, { data: profile }, products] = await Promise.all([
+  const [{ data: page }, { data: profile }, products, links] = await Promise.all([
     admin
       .from("site_pages")
       .select("id, user_id, slug, title, nav_label, is_home, status, blocks, seo_title, seo_description")
@@ -35,6 +35,7 @@ export default async function WebsitePageEditor({
       .eq("id", user.id)
       .single(),
     loadSellerProducts(user.id),
+    loadSellerLinks(user.id),
   ]);
 
   if (!page) notFound();
@@ -67,6 +68,7 @@ export default async function WebsitePageEditor({
       page={page as EditorPage}
       preview={previewMeta}
       publicUrl={publicUrl}
+      links={links}
     />
   );
 }

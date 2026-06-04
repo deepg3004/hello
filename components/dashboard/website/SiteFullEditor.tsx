@@ -10,6 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BlockEditor } from "@/components/dashboard/PageBuilder/BlockEditor";
 import { SitePreview } from "@/components/dashboard/website/SitePreview";
+import {
+  SiteLinksProvider,
+  type SiteLink,
+} from "@/components/dashboard/website/SiteLinksContext";
 import type { PreviewMeta } from "@/components/dashboard/website/SitePagesManager";
 import { useToast } from "@/hooks/use-toast";
 
@@ -35,10 +39,12 @@ export function SiteFullEditor({
   page,
   preview,
   publicUrl,
+  links,
 }: {
   page: EditorPage;
   preview: PreviewMeta;
   publicUrl: string | null;
+  links: SiteLink[];
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -131,7 +137,9 @@ export function SiteFullEditor({
               </div>
             </div>
 
-            <BlockEditor blocks={blocks} onChange={setBlocks} />
+            <SiteLinksProvider links={links}>
+              <BlockEditor blocks={blocks} onChange={setBlocks} />
+            </SiteLinksProvider>
 
             <div className="grid gap-4 border-t pt-4">
               <div className="space-y-1.5">

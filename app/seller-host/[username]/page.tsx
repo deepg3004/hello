@@ -80,6 +80,7 @@ export default async function SellerStore({ params }: Props) {
         tagline={site.tagline}
         footerText={site.footer_text}
         footerLinks={site.footer_links}
+        footerColumns={site.footer_columns}
         products={products}
         navPages={navPages}
       />

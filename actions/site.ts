@@ -262,6 +262,7 @@ export async function saveSiteAppearanceAction(input: {
 export async function saveSiteSettingsAction(input: {
   footer_text?: string;
   footer_links?: Array<{ label: string; url: string }>;
+  footer_columns?: Array<{ title: string; links: Array<{ label: string; url: string }> }>;
   favicon?: string;
   og_image?: string;
 }): Promise<Result> {
@@ -283,6 +284,16 @@ export async function saveSiteSettingsAction(input: {
     cfg.footer_links = input.footer_links
       .map((l) => ({ label: (l.label ?? "").trim(), url: (l.url ?? "").trim() }))
       .filter((l) => l.label && l.url);
+  }
+  if (input.footer_columns !== undefined) {
+    cfg.footer_columns = input.footer_columns
+      .map((c) => ({
+        title: (c.title ?? "").trim(),
+        links: (c.links ?? [])
+          .map((l) => ({ label: (l.label ?? "").trim(), url: (l.url ?? "").trim() }))
+          .filter((l) => l.label && l.url),
+      }))
+      .filter((c) => c.title || c.links.length);
   }
 
   const { error } = await admin

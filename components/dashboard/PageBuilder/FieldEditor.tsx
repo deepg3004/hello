@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { defaultPlaceholder } from "@/lib/templates/utils";
+import { useSiteLinks } from "@/components/dashboard/website/SiteLinksContext";
 import type { FieldConfig } from "@/lib/templates/types";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +20,40 @@ interface FieldEditorProps {
 }
 
 export function FieldEditor({ field, value, onChange, compact }: FieldEditorProps) {
+  const siteLinks = useSiteLinks();
   switch (field.type) {
+    case "pagepicker": {
+      const groups = Array.from(new Set(siteLinks.map((l) => l.group)));
+      return (
+        <Wrap field={field} compact={compact}>
+          {siteLinks.length > 0 && (
+            <select
+              value=""
+              onChange={(e) => e.target.value && onChange(e.target.value)}
+              className="mb-2 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+            >
+              <option value="">Pick one of your pages…</option>
+              {groups.map((g) => (
+                <optgroup key={g} label={g}>
+                  {siteLinks
+                    .filter((l) => l.group === g)
+                    .map((l) => (
+                      <option key={l.url} value={l.url}>
+                        {l.label}
+                      </option>
+                    ))}
+                </optgroup>
+              ))}
+            </select>
+          )}
+          <Input
+            value={(value as string) ?? ""}
+            placeholder="or paste any URL"
+            onChange={(e) => onChange(e.target.value)}
+          />
+        </Wrap>
+      );
+    }
     case "text":
       return (
         <Wrap field={field} compact={compact}>

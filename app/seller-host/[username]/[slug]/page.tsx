@@ -173,6 +173,7 @@ export default async function SellerPageRender({ params }: Props) {
           tagline={site.tagline}
           footerText={site.footer_text}
           footerLinks={site.footer_links}
+          footerColumns={site.footer_columns}
           products={products}
           navPages={navPages}
           currentSlug={params.slug}
