@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, GripVertical, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -23,13 +23,25 @@ interface Block {
 export function BlockEditor({
   blocks,
   onChange,
+  selectedId,
+  onSelect,
 }: {
   blocks: unknown;
   onChange: (next: Block[]) => void;
+  /** Selected block id (click-to-edit from the preview). */
+  selectedId?: string | null;
+  onSelect?: (id: string) => void;
 }) {
   const list: Block[] = Array.isArray(blocks) ? (blocks as Block[]) : [];
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    if (selectedId && cardRefs.current[selectedId]) {
+      cardRefs.current[selectedId]!.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [selectedId]);
 
   function reorder(from: number, to: number) {
     if (from === to) return;
@@ -94,6 +106,9 @@ export function BlockEditor({
         return (
           <Card
             key={b.id}
+            ref={(el) => {
+              cardRefs.current[b.id] = el;
+            }}
             onDragOver={(e) => {
               if (dragIndex === null) return;
               e.preventDefault();
@@ -109,10 +124,12 @@ export function BlockEditor({
                 ? "ring-2 ring-primary"
                 : dragIndex === i
                   ? "opacity-50"
-                  : undefined
+                  : selectedId === b.id
+                    ? "ring-2 ring-indigo-500"
+                    : undefined
             }
           >
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3" onClick={() => onSelect?.(b.id)}>
               <div className="flex items-center justify-between gap-2">
                 <CardTitle className="flex items-center gap-1.5 text-sm">
                   <span

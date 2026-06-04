@@ -59,6 +59,7 @@ export function SiteFullEditor({
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(page.status);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   async function save(publish?: boolean) {
     setBusy(true);
@@ -138,7 +139,12 @@ export function SiteFullEditor({
             </div>
 
             <SiteLinksProvider links={links}>
-              <BlockEditor blocks={blocks} onChange={setBlocks} />
+              <BlockEditor
+                blocks={blocks}
+                onChange={setBlocks}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+              />
             </SiteLinksProvider>
 
             <div className="grid gap-4 border-t pt-4">
@@ -192,6 +198,8 @@ export function SiteFullEditor({
                 seller={preview.seller}
                 socialLinks={preview.socialLinks}
                 products={preview.products}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
               />
             </div>
           </div>
