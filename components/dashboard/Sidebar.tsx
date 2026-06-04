@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   BookOpen,
+  Boxes,
   Coins,
   CreditCard,
   FileText,
@@ -13,7 +14,6 @@ import {
   LineChart,
   LogOut,
   Magnet,
-  Send,
   Settings,
   Sparkles,
   Store,
@@ -60,7 +60,7 @@ const NAV_CRM: NavItem[] = [
 const NAV_GROWTH: NavItem[] = [
   { href: "/dashboard/coupons", label: "Coupons", Icon: Tag },
   { href: "/dashboard/affiliates", label: "Affiliates", Icon: Handshake },
-  { href: "/dashboard/telegram", label: "Telegram", Icon: Send },
+  { href: "/dashboard/telegram", label: "Group Integrations", Icon: Boxes },
 ];
 
 const NAV_ACCOUNT: NavItem[] = [

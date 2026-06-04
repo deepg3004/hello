@@ -54,7 +54,7 @@ const SECTION_NAMES: Record<string, string> = {
   coupons: "Coupons",
   affiliates: "Affiliates",
   analytics: "Recovery",
-  telegram: "Telegram",
+  telegram: "Group Integrations",
   wallet: "Wallet",
   settings: "Settings",
   upgrade: "Upgrade",

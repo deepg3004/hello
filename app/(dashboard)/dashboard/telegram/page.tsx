@@ -5,6 +5,7 @@ import {
   type ListChannel,
 } from "@/components/dashboard/telegram/TelegramListClient";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
+import { IntegrationTabs } from "@/components/dashboard/integrations/IntegrationTabs";
 import { PageStatCard } from "@/components/dashboard/pages/PageStatCard";
 import { getCategoryDashboard } from "@/lib/dashboard/page-category-queries";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -122,10 +123,12 @@ export default async function TelegramListPage() {
   return (
     <div className="space-y-6">
       <DashboardHero
-        title="Telegram Channels"
-        blurb="Paid access, auto-invite on payment, and auto-removal on expiry."
+        title="Group Integrations"
+        blurb="Connect your community platforms. Telegram: paid access, auto-invite on payment, auto-removal on expiry."
         gradient="from-sky-600 via-indigo-600 to-violet-600"
       />
+
+      <IntegrationTabs />
 
       <div
         className="flex flex-wrap gap-4 animate-in-up"
