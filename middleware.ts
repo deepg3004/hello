@@ -9,7 +9,7 @@ import {
   newVisitorId,
   variantCookieName,
 } from "@/lib/ab";
-import { appHostPrefix, isPlatformOwnHost } from "@/lib/domains";
+import { appHostPrefix, isPlatformOwnHost, extractSubdomain } from "@/lib/domains";
 import { safeNext } from "@/lib/safe-redirect";
 
 const AUTH_ROUTES = ["/login", "/signup", "/forgot-password"];
@@ -288,11 +288,22 @@ export async function middleware(request: NextRequest) {
         !isCourse &&
         !isPublicPrefixed
       ) {
-        const lookup = await lookupHost(request, rawHost);
-        if (lookup?.user_id && lookup.username) {
+        // For *.invoxai.io subdomains, resolve the seller handle LOCALLY from the
+        // hostname — no network call. This is critical: a runtime fetch to
+        // /api/domains/lookup can be cold/slow right after a deploy, and if it
+        // returned null the request fell through to the marketing landing page
+        // (which is cacheable), so browsers cached the wrong page for the
+        // subdomain. Local resolution can never do that. Custom domains (not
+        // *.invoxai.io) still use the API lookup.
+        let username = extractSubdomain(rawHost);
+        if (!username) {
+          const lookup = await lookupHost(request, rawHost);
+          username = lookup?.user_id ? lookup.username : null;
+        }
+        if (username) {
           const url = request.nextUrl.clone();
           const segments = pathname.split("/").filter(Boolean);
-          url.pathname = `/seller-host/${lookup.username}${segments.length ? "/" + segments.join("/") : ""}`;
+          url.pathname = `/seller-host/${username}${segments.length ? "/" + segments.join("/") : ""}`;
           return NextResponse.rewrite(url);
         }
       }
