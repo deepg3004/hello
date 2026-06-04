@@ -257,3 +257,40 @@ export async function saveSiteAppearanceAction(input: {
   revalidatePath("/dashboard/website");
   return { ok: true };
 }
+
+/** Save website-wide settings: footer text/links, favicon, OG image. */
+export async function saveSiteSettingsAction(input: {
+  footer_text?: string;
+  footer_links?: Array<{ label: string; url: string }>;
+  favicon?: string;
+  og_image?: string;
+}): Promise<Result> {
+  const user = await requireUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+  const admin = createAdminClient();
+
+  const { data: prof } = await admin
+    .from("user_profiles")
+    .select("site_config")
+    .eq("id", user.id)
+    .single();
+  const cfg = ((prof?.site_config as Record<string, unknown>) ?? {}) as Record<string, unknown>;
+
+  if (input.footer_text !== undefined) cfg.footer_text = input.footer_text.trim() || null;
+  if (input.favicon !== undefined) cfg.favicon = input.favicon.trim() || null;
+  if (input.og_image !== undefined) cfg.og_image = input.og_image.trim() || null;
+  if (input.footer_links !== undefined) {
+    cfg.footer_links = input.footer_links
+      .map((l) => ({ label: (l.label ?? "").trim(), url: (l.url ?? "").trim() }))
+      .filter((l) => l.label && l.url);
+  }
+
+  const { error } = await admin
+    .from("user_profiles")
+    .update({ site_config: cfg })
+    .eq("id", user.id);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/dashboard/website");
+  return { ok: true };
+}

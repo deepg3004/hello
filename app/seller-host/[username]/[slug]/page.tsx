@@ -127,6 +127,8 @@ export async function generateMetadata({
       return {
         title: sp.seo_title ?? `${sp.title} · ${site.name}`,
         description: sp.seo_description ?? undefined,
+        icons: site.favicon ? { icon: site.favicon } : undefined,
+        openGraph: site.og_image ? { images: [{ url: site.og_image }] } : undefined,
       };
     }
   }
@@ -169,6 +171,8 @@ export default async function SellerPageRender({ params }: Props) {
           seller={{ name: site.name, avatar: site.avatar }}
           socialLinks={site.social_links}
           tagline={site.tagline}
+          footerText={site.footer_text}
+          footerLinks={site.footer_links}
           products={products}
           navPages={navPages}
           currentSlug={params.slug}

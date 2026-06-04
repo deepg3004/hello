@@ -16,6 +16,10 @@ export interface SellerSite {
   social_links: Record<string, string> | null;
   theme: string | null;
   font: string | null;
+  footer_text: string | null;
+  footer_links: Array<{ label: string; url: string }>;
+  favicon: string | null;
+  og_image: string | null;
 }
 
 /** Resolve a seller by their subdomain handle, with branding. */
@@ -41,6 +45,12 @@ export async function loadSellerSite(username: string): Promise<SellerSite | nul
     social_links: (data.social_links as Record<string, string>) ?? null,
     theme: (siteConfig.theme as string) ?? null,
     font: (siteConfig.font as string) ?? null,
+    footer_text: (siteConfig.footer_text as string) ?? null,
+    footer_links: Array.isArray(siteConfig.footer_links)
+      ? (siteConfig.footer_links as Array<{ label: string; url: string }>)
+      : [],
+    favicon: (siteConfig.favicon as string) ?? null,
+    og_image: (siteConfig.og_image as string) ?? null,
   };
 }
 

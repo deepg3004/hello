@@ -34,14 +34,17 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: Props) {
   const site = await loadSellerSite(params.username);
   if (!site) return { title: params.username };
+  const icons = site.favicon ? { icon: site.favicon } : undefined;
   const home = await loadSitePage(site.id, { home: true });
   if (home) {
     return {
       title: home.seo_title ?? site.name,
       description: home.seo_description ?? site.tagline ?? undefined,
+      icons,
+      openGraph: site.og_image ? { images: [{ url: site.og_image }] } : undefined,
     };
   }
-  return { title: `${site.name} — Store` };
+  return { title: `${site.name} — Store`, icons };
 }
 
 type PageJoin = {
@@ -75,6 +78,8 @@ export default async function SellerStore({ params }: Props) {
         seller={{ name: site.name, avatar: site.avatar }}
         socialLinks={site.social_links}
         tagline={site.tagline}
+        footerText={site.footer_text}
+        footerLinks={site.footer_links}
         products={products}
         navPages={navPages}
       />

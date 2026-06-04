@@ -19,6 +19,7 @@ import {
   type SitePage,
 } from "@/components/dashboard/website/SitePagesManager";
 import { AppearanceForm } from "@/components/dashboard/website/AppearanceForm";
+import { SiteSettingsForm } from "@/components/dashboard/website/SiteSettingsForm";
 
 export const metadata = { title: "Website — InvoxAI" };
 
@@ -98,6 +99,33 @@ export default async function WebsitePage() {
             initialFont={
               ((profile?.site_config as Record<string, unknown>)?.font as string) ?? null
             }
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Footer & site settings</CardTitle>
+          <CardDescription>
+            Footer text & links, favicon, and the image shown when your site is shared.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SiteSettingsForm
+            initial={{
+              footer_text:
+                ((profile?.site_config as Record<string, unknown>)?.footer_text as string) ?? "",
+              favicon:
+                ((profile?.site_config as Record<string, unknown>)?.favicon as string) ?? "",
+              og_image:
+                ((profile?.site_config as Record<string, unknown>)?.og_image as string) ?? "",
+              footer_links: Array.isArray(
+                (profile?.site_config as Record<string, unknown>)?.footer_links,
+              )
+                ? ((profile?.site_config as Record<string, unknown>)
+                    .footer_links as Array<{ label: string; url: string }>)
+                : [],
+            }}
           />
         </CardContent>
       </Card>

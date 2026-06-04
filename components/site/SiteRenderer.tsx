@@ -35,6 +35,8 @@ export function SiteRenderer(props: {
   seller: { name: string; avatar: string | null };
   socialLinks?: Record<string, string> | null;
   tagline?: string | null;
+  footerText?: string | null;
+  footerLinks?: Array<{ label: string; url: string }>;
   products?: SiteProductLite[];
   navPages?: SiteNavPage[];
   /** Current page slug; undefined on the home page. */
@@ -95,7 +97,7 @@ export function SiteRenderer(props: {
           {props.tagline && (
             <p className="text-sm text-[color:var(--s-fg-muted)]">{props.tagline}</p>
           )}
-          {nav.length > 0 && (
+          {(nav.length > 0 || (props.footerLinks?.length ?? 0) > 0) && (
             <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-1 text-sm">
               {nav.map((p) => (
                 <Link
@@ -106,7 +108,21 @@ export function SiteRenderer(props: {
                   {p.label}
                 </Link>
               ))}
+              {(props.footerLinks ?? []).map((l, i) => (
+                <a
+                  key={`f${i}`}
+                  href={/^https?:\/\//.test(l.url) ? l.url : `https://${l.url}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[color:var(--s-fg-dim)] transition hover:text-[color:var(--s-fg)]"
+                >
+                  {l.label}
+                </a>
+              ))}
             </div>
+          )}
+          {props.footerText && (
+            <p className="mt-3 text-xs text-[color:var(--s-fg-dim)]">{props.footerText}</p>
           )}
           <p className="mt-5 text-xs text-[color:var(--s-fg-dim)]">
             © {props.seller.name} · Powered by{" "}
