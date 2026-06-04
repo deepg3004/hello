@@ -7,7 +7,12 @@
 // step 1 + 3 are done) OR profile.welcome_dismissed_at is set.
 // =============================================================================
 
-export type OnboardingStepKey = "profile" | "kyc" | "page" | "payouts";
+export type OnboardingStepKey =
+  | "profile"
+  | "category"
+  | "kyc"
+  | "page"
+  | "payouts";
 
 export interface OnboardingProfile {
   /** From user_profiles. */
@@ -20,6 +25,8 @@ export interface OnboardingProfile {
   razorpay_linked_account_id?: string | null;
   onboarded_at?: string | null;
   welcome_dismissed_at?: string | null;
+  /** Self-selected niche — drives the "category" step. */
+  creator_category?: string | null;
   /** Total pages — drives the "first page" step. */
   pages_count: number;
 }
@@ -52,8 +59,19 @@ export function buildOnboardingSteps(
       skippable: false,
     },
     {
-      key: "page",
+      key: "category",
       index: 2,
+      title: "Pick your creator category",
+      description:
+        "Tell us your niche so we can tailor templates and tips to your business. You can change it any time in Settings.",
+      cta_label: "Choose category",
+      cta_href: "/dashboard/settings",
+      done: !!profile.creator_category,
+      skippable: true,
+    },
+    {
+      key: "page",
+      index: 3,
       title: "Create your first page",
       description:
         "Pick a template, name your product, hit Publish. Pre-filled defaults so you can be live in 60 seconds.",

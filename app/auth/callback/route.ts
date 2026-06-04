@@ -10,6 +10,24 @@ import { type EmailOtpType } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
 import { safeNext } from "@/lib/safe-redirect";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+// Ensure the just-authenticated user has a personal subdomain. Best-effort and
+// non-blocking — covers OAuth / email-confirm / magic-link signups.
+async function ensureSubdomain(supabase: SupabaseClient): Promise<void> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+    const { ensureSubdomainForUser } = await import("@/lib/subdomain");
+    const seed =
+      (user.user_metadata?.full_name as string | undefined) ?? user.email ?? "seller";
+    await ensureSubdomainForUser(user.id, seed);
+  } catch {
+    /* best-effort */
+  }
+}
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
@@ -32,6 +50,7 @@ export async function GET(request: NextRequest) {
         new URL(`/login?error=${encodeURIComponent(error.message)}`, url.origin),
       );
     }
+    await ensureSubdomain(supabase);
     return NextResponse.redirect(redirect);
   }
 
@@ -42,6 +61,9 @@ export async function GET(request: NextRequest) {
         new URL(`/login?error=${encodeURIComponent(error.message)}`, url.origin),
       );
     }
+    // Only signup/confirm flows should mint a subdomain; recovery just resets a
+    // password. ensureSubdomainForUser is idempotent so this is harmless either way.
+    if (type !== "recovery") await ensureSubdomain(supabase);
     return NextResponse.redirect(redirect);
   }
 

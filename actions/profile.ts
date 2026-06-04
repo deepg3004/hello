@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isValidGstin, isValidPhone } from "@/lib/validators";
+import { isCreatorCategory } from "@/lib/creator-categories";
 
 interface Result {
   ok: boolean;
@@ -15,6 +16,8 @@ export interface ProfileInput {
   full_name: string;
   phone?: string;
   gstin?: string;
+  /** Creator niche key (see lib/creator-categories). Empty string clears it. */
+  creator_category?: string;
 }
 
 /**
@@ -42,10 +45,20 @@ export async function updateProfileAction(input: ProfileInput): Promise<Result> 
     return { ok: false, message: "That doesn't look like a valid 15-character GSTIN" };
   }
 
+  // Creator category — only persist a recognised key; empty clears it.
+  const rawCategory = input.creator_category?.trim() ?? "";
+  let creator_category: string | null = null;
+  if (rawCategory) {
+    if (!isCreatorCategory(rawCategory)) {
+      return { ok: false, message: "Pick a valid category" };
+    }
+    creator_category = rawCategory;
+  }
+
   const admin = createAdminClient();
   const { error } = await admin
     .from("user_profiles")
-    .update({ full_name, phone, gstin })
+    .update({ full_name, phone, gstin, creator_category })
     .eq("id", user.id);
   if (error) return { ok: false, message: error.message };
 

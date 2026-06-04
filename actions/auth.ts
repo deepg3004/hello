@@ -61,6 +61,17 @@ export async function signUpAction(input: SignUpInput): Promise<ActionResult> {
     }
   }
 
+  // Auto-assign a personal subdomain so the seller's store is live immediately.
+  // Best-effort — onboarding / the dashboard layout reconcile if this misses.
+  if (data.user?.id) {
+    try {
+      const { ensureSubdomainForUser } = await import("@/lib/subdomain");
+      await ensureSubdomainForUser(data.user.id, input.fullName || input.email);
+    } catch {
+      /* best-effort */
+    }
+  }
+
   // Welcome email to the new seller (best-effort — never block signup).
   try {
     const { enqueueEmail } = await import("@/lib/queues/email");

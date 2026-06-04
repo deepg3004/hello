@@ -29,7 +29,7 @@ export default async function SettingsPage() {
   const { data: profile } = await admin
     .from("user_profiles")
     .select(
-      "full_name, email, phone, kyc_level, bank_verified, pan_verified, gstin, razorpay_linked_account_id",
+      "full_name, email, phone, kyc_level, bank_verified, pan_verified, gstin, razorpay_linked_account_id, creator_category",
     )
     .eq("id", user.id)
     .single();
@@ -47,7 +47,8 @@ export default async function SettingsPage() {
         <CardHeader>
           <CardTitle className="text-base">Profile</CardTitle>
           <CardDescription>
-            Your name, phone, and GSTIN — used on invoices and the dashboard.
+            Your name, phone, GSTIN, and creator category — used on invoices and
+            across the dashboard.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -55,6 +56,7 @@ export default async function SettingsPage() {
             initialName={profile?.full_name ?? ""}
             initialPhone={profile?.phone ?? ""}
             initialGstin={profile?.gstin ?? ""}
+            initialCategory={profile?.creator_category ?? ""}
           />
           <div className="border-t pt-3 text-sm">
             <Row k="Email" v={profile?.email ?? user.email ?? ""} />

@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 
 import { updateProfileAction } from "@/actions/profile";
 import { createClient } from "@/lib/supabase/client";
+import { CREATOR_CATEGORIES } from "@/lib/creator-categories";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,13 +16,15 @@ interface Props {
   initialName: string;
   initialPhone: string;
   initialGstin: string;
+  initialCategory: string;
 }
 
-/** Editable profile (name / phone / GSTIN) + a password-change block. */
+/** Editable profile (name / phone / GSTIN / category) + a password-change block. */
 export function ProfileSettingsForm({
   initialName,
   initialPhone,
   initialGstin,
+  initialCategory,
 }: Props) {
   const router = useRouter();
   const { toast } = useToast();
@@ -29,14 +32,23 @@ export function ProfileSettingsForm({
   const [name, setName] = useState(initialName);
   const [phone, setPhone] = useState(initialPhone);
   const [gstin, setGstin] = useState(initialGstin);
+  const [category, setCategory] = useState(initialCategory);
   const [saving, setSaving] = useState(false);
 
   const dirty =
-    name !== initialName || phone !== initialPhone || gstin !== initialGstin;
+    name !== initialName ||
+    phone !== initialPhone ||
+    gstin !== initialGstin ||
+    category !== initialCategory;
 
   async function save() {
     setSaving(true);
-    const r = await updateProfileAction({ full_name: name, phone, gstin });
+    const r = await updateProfileAction({
+      full_name: name,
+      phone,
+      gstin,
+      creator_category: category,
+    });
     setSaving(false);
     if (!r.ok) {
       toast({ title: "Couldn't save", description: r.message, variant: "destructive" });
@@ -63,6 +75,20 @@ export function ProfileSettingsForm({
             maxLength={15}
             className="font-mono uppercase"
           />
+        </Field>
+        <Field label="Creator category">
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <option value="">— Select your niche —</option>
+            {CREATOR_CATEGORIES.map((c) => (
+              <option key={c.key} value={c.key}>
+                {c.label}
+              </option>
+            ))}
+          </select>
         </Field>
       </div>
       <Button onClick={save} disabled={!dirty || saving}>

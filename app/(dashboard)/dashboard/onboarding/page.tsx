@@ -35,7 +35,7 @@ export default async function OnboardingPage() {
     admin
       .from("user_profiles")
       .select(
-        "full_name, phone, avatar_url, kyc_level, bank_verified, razorpay_linked_account_id, onboarded_at, welcome_dismissed_at",
+        "full_name, phone, avatar_url, kyc_level, bank_verified, razorpay_linked_account_id, onboarded_at, welcome_dismissed_at, creator_category",
       )
       .eq("id", user.id)
       .single(),
@@ -54,6 +54,7 @@ export default async function OnboardingPage() {
     razorpay_linked_account_id: profile?.razorpay_linked_account_id ?? null,
     onboarded_at: profile?.onboarded_at ?? null,
     welcome_dismissed_at: profile?.welcome_dismissed_at ?? null,
+    creator_category: profile?.creator_category ?? null,
     pages_count: pagesCount ?? 0,
   });
 

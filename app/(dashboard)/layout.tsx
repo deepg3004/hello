@@ -22,10 +22,21 @@ export default async function DashboardLayout({
   const { data: profileRow } = await admin
     .from("user_profiles")
     .select(
-      "id, full_name, email, avatar_url, subscription_plan, subscription_status, is_admin, phone_verified",
+      "id, full_name, email, avatar_url, subscription_plan, subscription_status, is_admin, phone_verified, subdomain",
     )
     .eq("id", user.id)
     .single();
+
+  // Safety net — guarantee every seller has a subdomain even if the signup /
+  // callback hooks and the backfill all missed them. Non-blocking.
+  if (profileRow && !profileRow.subdomain) {
+    void import("@/lib/subdomain").then(({ ensureSubdomainForUser }) =>
+      ensureSubdomainForUser(
+        user.id,
+        profileRow.full_name ?? profileRow.email ?? "seller",
+      ),
+    );
+  }
 
   // Maintenance gate — admins bypass so they can flip the flag back off.
   if (!profileRow?.is_admin && (await isMaintenanceOn())) {
