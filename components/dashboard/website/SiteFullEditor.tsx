@@ -61,6 +61,10 @@ export function SiteFullEditor({
   const [status, setStatus] = useState(page.status);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  function editBlock(id: string, data: Record<string, unknown>) {
+    setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, data } : b)));
+  }
+
   async function save(publish?: boolean) {
     setBusy(true);
     const r = await updateSitePageAction({
@@ -200,6 +204,7 @@ export function SiteFullEditor({
                 products={preview.products}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
+                onEditBlock={editBlock}
               />
             </div>
           </div>

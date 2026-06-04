@@ -28,6 +28,7 @@ export function SitePreview({
   products,
   selectedId,
   onSelect,
+  onEditBlock,
 }: {
   blocks: unknown;
   theme?: string | null;
@@ -40,6 +41,8 @@ export function SitePreview({
    *  outlined — used by the editor for click-to-edit. */
   selectedId?: string | null;
   onSelect?: (id: string) => void;
+  /** Commit an in-canvas edit to a block's data (by id). */
+  onEditBlock?: (id: string, data: Record<string, unknown>) => void;
 }) {
   const interactive = typeof onSelect === "function";
   const t = getSiteTheme(theme);
@@ -63,12 +66,20 @@ export function SitePreview({
           const def = b && b.type ? BLOCKS[b.type] : undefined;
           if (!def) return null;
           const id = b.id ?? String(i);
+          const selected = interactive && selectedId === id;
+          // The selected block becomes editable (text blocks render inline
+          // contentEditable and commit on blur via onEditBlock).
+          const editable = !!selected && typeof onEditBlock === "function";
           const rendered = def.Render(b.data ?? {}, {
             accent,
             isPreview: true,
             products,
             seller,
             socialLinks,
+            editable,
+            onEditField: editable
+              ? (k, v) => onEditBlock!(id, { ...(b.data ?? {}), [k]: v })
+              : undefined,
           });
           if (!interactive) {
             return (
@@ -77,26 +88,28 @@ export function SitePreview({
               </div>
             );
           }
-          const selected = selectedId === id;
           return (
             <div
               key={id}
               onClick={() => onSelect?.(id)}
               style={sectionBgStyle(b.data?._bg, accent)}
               className={`group relative cursor-pointer outline-offset-[-2px] transition ${
-                selected ? "outline outline-2 outline-indigo-500" : "hover:outline hover:outline-2 hover:outline-indigo-300"
+                selected
+                  ? "outline outline-2 outline-indigo-500"
+                  : "hover:outline hover:outline-2 hover:outline-indigo-300"
               }`}
             >
-              {/* Block label on hover/select */}
               <span
                 className={`absolute left-2 top-2 z-10 rounded bg-indigo-600 px-1.5 py-0.5 text-[10px] font-semibold text-white ${
                   selected ? "" : "opacity-0 group-hover:opacity-100"
                 }`}
               >
                 {def.label}
+                {selected ? " · click text to edit" : ""}
               </span>
-              {/* Inner content is non-interactive in the preview so clicks select. */}
-              <div className="pointer-events-none">{rendered}</div>
+              {/* Non-selected sections are non-interactive so clicks select them;
+                  the selected section is interactive so its text is editable. */}
+              <div className={selected ? "" : "pointer-events-none"}>{rendered}</div>
             </div>
           );
         })

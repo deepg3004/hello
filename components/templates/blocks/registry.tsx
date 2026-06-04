@@ -16,6 +16,7 @@ import { Carousel } from "@/components/templates/blocks/Carousel";
 import { VideoCarousel } from "@/components/templates/blocks/VideoCarousel";
 import { CountdownBlock } from "@/components/templates/blocks/CountdownBlock";
 import { SiteContactForm } from "@/components/templates/blocks/SiteContactForm";
+import { EditableText } from "@/components/templates/blocks/EditableText";
 import { formatINR } from "@/lib/utils";
 import type { FieldConfig } from "@/lib/templates/types";
 import type { TgTheme } from "@/lib/telegram-themes";
@@ -51,6 +52,33 @@ export interface BlockContext {
   seller?: { name: string; avatar: string | null };
   /** Social handles/URLs — used by the "social" block. */
   socialLinks?: Record<string, string> | null;
+  /** In-canvas editing (editor preview only): when true, text blocks render
+   *  EditableText and call onEditField(key, value) on blur. */
+  editable?: boolean;
+  onEditField?: (key: string, value: string) => void;
+}
+
+// Inline-editable text helper for blocks: contentEditable in editor preview,
+// plain text on the public site.
+function et(
+  ctx: BlockContext,
+  key: string,
+  value: string,
+  className: string,
+  as: "span" | "h1" | "h2" | "h3" | "p" = "span",
+): ReactNode {
+  if (ctx.editable && ctx.onEditField) {
+    return (
+      <EditableText
+        as={as}
+        value={value}
+        className={className}
+        onCommit={(v) => ctx.onEditField!(key, v)}
+      />
+    );
+  }
+  const Tag = as;
+  return <Tag className={className}>{value}</Tag>;
 }
 
 export interface BlockDef {
@@ -86,7 +114,9 @@ export const BLOCKS: Record<string, BlockDef> = {
       { key: "cta_label", label: "Button text", type: "text", defaultValue: "" },
       { key: "image", label: "Image URL (optional)", type: "image", defaultValue: "" },
     ],
-    Render: (d, { accent }) => (
+    Render: (d, ctx) => {
+      const { accent } = ctx;
+      return (
       <section className="mx-auto max-w-3xl px-4 py-16 text-center md:py-24">
         {s(d.eyebrow) && (
           <p
@@ -96,12 +126,20 @@ export const BLOCKS: Record<string, BlockDef> = {
             {s(d.eyebrow)}
           </p>
         )}
-        <h1 className="mt-3 font-sora text-4xl font-extrabold leading-tight tracking-tight text-[color:var(--s-fg)] sm:text-5xl">
-          {s(d.headline)}
-        </h1>
-        <p className="mx-auto mt-4 max-w-xl text-lg text-[color:var(--s-fg-muted)]">
-          {s(d.subheadline)}
-        </p>
+        {et(
+          ctx,
+          "headline",
+          s(d.headline),
+          "mt-3 font-sora text-4xl font-extrabold leading-tight tracking-tight text-[color:var(--s-fg)] sm:text-5xl",
+          "h1",
+        )}
+        {et(
+          ctx,
+          "subheadline",
+          s(d.subheadline),
+          "mx-auto mt-4 max-w-xl text-lg text-[color:var(--s-fg-muted)]",
+          "p",
+        )}
         {s(d.image) && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -120,7 +158,8 @@ export const BLOCKS: Record<string, BlockDef> = {
           </a>
         )}
       </section>
-    ),
+      );
+    },
   },
 
   features: {
@@ -341,7 +380,8 @@ export const BLOCKS: Record<string, BlockDef> = {
       { key: "body", label: "Bio", type: "textarea", defaultValue: "" },
       { key: "image", label: "Photo URL (optional)", type: "image", defaultValue: "" },
     ],
-    Render: (d, { seller }) => {
+    Render: (d, ctx) => {
+      const { seller } = ctx;
       const img = s(d.image) || seller?.avatar || "";
       return (
         <Section>
@@ -355,13 +395,19 @@ export const BLOCKS: Record<string, BlockDef> = {
               />
             )}
             <div className={img ? "" : "md:col-span-2 mx-auto max-w-2xl text-center"}>
-              {s(d.heading) && (
-                <h2 className="font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
-                  {s(d.heading)}
-                </h2>
+              {et(
+                ctx,
+                "heading",
+                s(d.heading),
+                "font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl",
+                "h2",
               )}
-              {s(d.body) && (
-                <p className="mt-4 whitespace-pre-line text-[color:var(--s-fg-muted)]">{s(d.body)}</p>
+              {et(
+                ctx,
+                "body",
+                s(d.body),
+                "mt-4 whitespace-pre-line text-[color:var(--s-fg-muted)]",
+                "p",
               )}
             </div>
           </div>
@@ -506,16 +552,22 @@ export const BLOCKS: Record<string, BlockDef> = {
       { key: "heading", label: "Heading (optional)", type: "text", defaultValue: "" },
       { key: "body", label: "Text", type: "textarea", defaultValue: "" },
     ],
-    Render: (d) => (
+    Render: (d, ctx) => (
       <Section>
         <div className="mx-auto max-w-2xl">
-          {s(d.heading) && (
-            <h2 className="font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
-              {s(d.heading)}
-            </h2>
+          {et(
+            ctx,
+            "heading",
+            s(d.heading),
+            "font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl",
+            "h2",
           )}
-          {s(d.body) && (
-            <p className="mt-4 whitespace-pre-line text-[color:var(--s-fg-muted)]">{s(d.body)}</p>
+          {et(
+            ctx,
+            "body",
+            s(d.body),
+            "mt-4 whitespace-pre-line text-[color:var(--s-fg-muted)]",
+            "p",
           )}
         </div>
       </Section>
