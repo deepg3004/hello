@@ -23,7 +23,7 @@ import {
   togglePagePublishAction,
 } from "@/actions/pages";
 import { Button } from "@/components/ui/button";
-import { publicPagePath } from "@/lib/page-url";
+import { usePublicPageUrl } from "@/components/dashboard/SellerContext";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -85,6 +85,8 @@ function bandKey(page: PageCardData): keyof typeof TYPE_BAND {
 export function PageCard({ page }: { page: PageCardData }) {
   const router = useRouter();
   const { toast } = useToast();
+  const buildPageUrl = usePublicPageUrl();
+  const publicUrl = buildPageUrl(page.type, page.slug, page.template_id);
   const [busy, setBusy] = useState<"toggle" | "duplicate" | "delete" | null>(
     null,
   );
@@ -145,7 +147,7 @@ export function PageCard({ page }: { page: PageCardData }) {
   }
 
   async function copyLink() {
-    const url = `${window.location.origin}${publicPagePath(page.type, page.slug, page.template_id)}`;
+    const url = publicUrl;
     try {
       await navigator.clipboard.writeText(url);
       toast({ title: "Link copied", description: url });
@@ -310,7 +312,7 @@ export function PageCard({ page }: { page: PageCardData }) {
               label="Edit"
             />
             <IconButton
-              href={publicPagePath(page.type, page.slug, page.template_id)}
+              href={publicUrl}
               external
               icon={ExternalLink}
               label="Preview"

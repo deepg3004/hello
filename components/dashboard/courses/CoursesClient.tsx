@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { useCourseUrl } from "@/components/dashboard/SellerContext";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -47,7 +48,7 @@ export function CoursesClient({ courses }: { courses: CourseRow[] }) {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<"students" | "lessons" | "name">("students");
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io";
+  const courseUrl = useCourseUrl();
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -157,7 +158,7 @@ export function CoursesClient({ courses }: { courses: CourseRow[] }) {
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {visible.map((c) => {
-            const publicLink = `${appUrl}/course/${c.id}`;
+            const publicLink = courseUrl(c.id);
             return (
               <Card key={c.id}>
                 <CardContent className="space-y-3 p-5">

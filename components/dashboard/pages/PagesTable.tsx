@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import type { DashboardPageRow } from "@/lib/dashboard/page-category-queries";
-import { publicPagePath } from "@/lib/page-url";
+import { usePublicPageUrl } from "@/components/dashboard/SellerContext";
 import { cn, formatINR } from "@/lib/utils";
 
 const STATUS_STYLE: Record<string, string> = {
@@ -78,6 +78,8 @@ export function PagesTable({ rows }: { rows: DashboardPageRow[] }) {
 function Row({ row }: { row: DashboardPageRow }) {
   const router = useRouter();
   const { toast } = useToast();
+  const buildPageUrl = usePublicPageUrl();
+  const publicUrl = buildPageUrl(row.type, row.slug, row.template_id);
   const [busy, setBusy] = useState<"toggle" | "duplicate" | "delete" | null>(
     null,
   );
@@ -119,7 +121,7 @@ function Row({ row }: { row: DashboardPageRow }) {
   }
 
   async function copyLink() {
-    const url = `${window.location.origin}${publicPagePath(row.type, row.slug, row.template_id)}`;
+    const url = publicUrl;
     try {
       await navigator.clipboard.writeText(url);
       toast({ title: "Link copied", description: url });
@@ -189,7 +191,7 @@ function Row({ row }: { row: DashboardPageRow }) {
       <TableCell>
         <div className="flex items-center justify-end gap-0.5">
           <a
-            href={publicPagePath(row.type, row.slug, row.template_id)}
+            href={publicUrl}
             target="_blank"
             rel="noreferrer"
             title="Open public page"
@@ -224,7 +226,7 @@ function Row({ row }: { row: DashboardPageRow }) {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <a href={publicPagePath(row.type, row.slug, row.template_id)} target="_blank" rel="noreferrer">
+                <a href={publicUrl} target="_blank" rel="noreferrer">
                   <ExternalLink className="mr-2 h-3.5 w-3.5" /> Preview
                 </a>
               </DropdownMenuItem>

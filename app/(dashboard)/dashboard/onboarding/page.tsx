@@ -14,6 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { platformRootDomain } from "@/lib/domains";
 import {
   buildOnboardingSteps,
   computeOnboardingProgress,
@@ -35,7 +36,7 @@ export default async function OnboardingPage() {
     admin
       .from("user_profiles")
       .select(
-        "full_name, phone, avatar_url, kyc_level, bank_verified, razorpay_linked_account_id, onboarded_at, welcome_dismissed_at, creator_category",
+        "full_name, phone, avatar_url, kyc_level, bank_verified, razorpay_linked_account_id, onboarded_at, welcome_dismissed_at, creator_category, subdomain",
       )
       .eq("id", user.id)
       .single(),
@@ -61,6 +62,11 @@ export default async function OnboardingPage() {
   const progress = computeOnboardingProgress(steps);
   const complete = isOnboardingComplete(steps);
 
+  const subdomain = profile?.subdomain ?? null;
+  const storeUrl = subdomain
+    ? `https://${subdomain}.${platformRootDomain()}`
+    : null;
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
@@ -83,6 +89,41 @@ export default async function OnboardingPage() {
           </div>
           <Progress value={progress} className="mt-2" />
         </CardHeader>
+      </Card>
+
+      {/* Store address — every seller gets a subdomain automatically; this is
+          where they can see it and claim a custom one. */}
+      <Card className="border-primary/30 bg-primary/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Your store address</CardTitle>
+          <CardDescription>
+            Every link you create — payment, leads, store, Telegram, courses —
+            lives here. Share this one address with your audience.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3">
+          {storeUrl ? (
+            <code className="truncate rounded-md bg-background px-3 py-2 text-sm font-medium">
+              {subdomain}.{platformRootDomain()}
+            </code>
+          ) : (
+            <span className="text-sm text-muted-foreground">
+              Setting up your address…
+            </span>
+          )}
+          <div className="flex gap-2">
+            {storeUrl && (
+              <Button asChild variant="outline">
+                <a href={storeUrl} target="_blank" rel="noreferrer">
+                  Visit store
+                </a>
+              </Button>
+            )}
+            <Button asChild>
+              <Link href="/dashboard/settings/domains">Claim / change address</Link>
+            </Button>
+          </div>
+        </CardContent>
       </Card>
 
       <div className="space-y-3">

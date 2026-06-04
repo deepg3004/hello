@@ -11,7 +11,7 @@ import { Customizer } from "./Customizer";
 import { useToast } from "@/hooks/use-toast";
 import { createPageAction } from "@/actions/pages";
 import { getTemplate } from "@/lib/templates/registry";
-import { publicPagePath } from "@/lib/page-url";
+import { usePublicPageUrl } from "@/components/dashboard/SellerContext";
 import { isValidSlug } from "@/lib/templates/utils";
 import type { PageDbType } from "@/lib/templates/types";
 import { cn } from "@/lib/utils";
@@ -30,6 +30,7 @@ export function PageBuilderWizard() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  const buildPageUrl = usePublicPageUrl();
   // When launched from a category dashboard the wizard is pre-scoped via query
   // params: ?type= pre-selects the kind (skip to template step), and ?template=
   // jumps straight into customising that specific template.
@@ -121,7 +122,7 @@ export function PageBuilderWizard() {
     toast({
       title: publish ? "Page published" : "Saved as draft",
       description: publish
-        ? `Live at ${publicPagePath(type, slug, templateId)}`
+        ? `Live at ${buildPageUrl(type, slug, templateId)}`
         : "You can edit it any time.",
     });
     router.push(`/dashboard/pages/${result.pageId}/edit`);

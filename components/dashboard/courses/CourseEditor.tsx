@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { useSellerOrigin } from "@/components/dashboard/SellerContext";
 import {
   addLessonAction,
   addModuleAction,
@@ -79,8 +80,10 @@ export function CourseEditor({
   const [origPrice, setOrigPrice] = useState(
     sale?.originalPrice ? String(sale.originalPrice) : "",
   );
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io";
-  const publicLink = `${appUrl}/course/${course.id}`;
+  const sellerOrigin = useSellerOrigin();
+  const base =
+    sellerOrigin ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io";
+  const publicLink = `${base}/course/${course.id}`;
 
   function makeSellable() {
     const p = Number(price);
@@ -263,11 +266,11 @@ export function CourseEditor({
             <>
               <div className="flex items-center gap-2">
                 <code className="flex-1 truncate rounded-md bg-muted px-3 py-2 text-xs">
-                  {appUrl}
+                  {base}
                   {sale.salesPath}
                 </code>
                 <Button asChild variant="outline" size="sm">
-                  <a href={sale.salesPath} target="_blank" rel="noopener noreferrer">
+                  <a href={`${base}${sale.salesPath}`} target="_blank" rel="noopener noreferrer">
                     View sales page
                   </a>
                 </Button>

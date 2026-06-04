@@ -32,7 +32,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { publicPagePath } from "@/lib/page-url";
+import { usePublicPageUrl } from "@/components/dashboard/SellerContext";
 
 import {
   promoteWinnerAction,
@@ -84,6 +84,8 @@ const pct = (n: number) => `${(n * 100).toFixed(2)}%`;
 
 export function ABTestClient(props: Props) {
   const { toast } = useToast();
+  const buildPageUrl = usePublicPageUrl();
+  const liveUrl = buildPageUrl(props.pageType, props.slug, props.templateId);
   const [pending, startTransition] = useTransition();
 
   const isRunning = props.experimentStatus === "running";
@@ -240,13 +242,13 @@ export function ABTestClient(props: Props) {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">Variant A · live page</CardTitle>
                 <CardDescription>
-                  Current {publicPagePath(props.pageType, props.slug, props.templateId)}.
+                  Current {liveUrl}.
                   Read-only here — edit on the page editor.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <a
-                  href={publicPagePath(props.pageType, props.slug, props.templateId)}
+                  href={liveUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 text-sm text-primary hover:underline"

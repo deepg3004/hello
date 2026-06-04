@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { SellerProvider } from "@/components/dashboard/SellerContext";
 import type { TopbarProfile } from "@/components/dashboard/Topbar";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isMaintenanceOn } from "@/lib/maintenance";
 import { getBranding } from "@/lib/settings";
+import { platformRootDomain } from "@/lib/domains";
 
 export default async function DashboardLayout({
   children,
@@ -31,13 +33,17 @@ export default async function DashboardLayout({
   // signup / callback hooks and the backfill all missed them, create it now and
   // wait, so the store URL is live the moment they land. Best-effort (never
   // throws); blocks only the (rare) first request that has no subdomain yet.
-  if (profileRow && !profileRow.subdomain) {
+  let subdomain = profileRow?.subdomain ?? null;
+  if (profileRow && !subdomain) {
     const { ensureSubdomainForUser } = await import("@/lib/subdomain");
-    await ensureSubdomainForUser(
+    subdomain = await ensureSubdomainForUser(
       user.id,
       profileRow.full_name ?? profileRow.email ?? "seller",
     );
   }
+  const sellerOrigin = subdomain
+    ? `https://${subdomain}.${platformRootDomain()}`
+    : null;
 
   // Maintenance gate — admins bypass so they can flip the flag back off.
   if (!profileRow?.is_admin && (await isMaintenanceOn())) {
@@ -60,7 +66,7 @@ export default async function DashboardLayout({
 
   return (
     <DashboardShell profile={profile} branding={branding}>
-      {children}
+      <SellerProvider origin={sellerOrigin}>{children}</SellerProvider>
     </DashboardShell>
   );
 }
