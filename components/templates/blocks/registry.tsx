@@ -13,6 +13,7 @@ import {
 
 import { LeadCaptureForm } from "@/components/pages/LeadCaptureForm";
 import { Carousel } from "@/components/templates/blocks/Carousel";
+import { VideoCarousel } from "@/components/templates/blocks/VideoCarousel";
 import { CountdownBlock } from "@/components/templates/blocks/CountdownBlock";
 import { SiteContactForm } from "@/components/templates/blocks/SiteContactForm";
 import { formatINR } from "@/lib/utils";
@@ -1034,6 +1035,41 @@ export const BLOCKS: Record<string, BlockDef> = {
               </div>
             ))}
           </div>
+        </Section>
+      );
+    },
+  },
+
+  videoslider: {
+    type: "videoslider",
+    label: "Video slider",
+    defaultData: { title: "", items: [] },
+    fields: [
+      { key: "title", label: "Section title (optional)", type: "text", defaultValue: "" },
+      {
+        key: "items",
+        label: "Videos",
+        type: "list",
+        itemLabel: "video",
+        itemFields: [
+          { key: "url", label: "YouTube / Vimeo URL", type: "text", defaultValue: "" },
+        ],
+        defaultValue: [],
+      },
+    ],
+    Render: (d, { accent }) => {
+      const embeds = arr<{ url?: string }>(d.items)
+        .map((x) => toEmbedUrl(s(x.url)))
+        .filter(Boolean);
+      if (embeds.length === 0) return null;
+      return (
+        <Section>
+          {s(d.title) && (
+            <h2 className="mb-8 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
+              {s(d.title)}
+            </h2>
+          )}
+          <VideoCarousel embeds={embeds} accent={accent} />
         </Section>
       );
     },
