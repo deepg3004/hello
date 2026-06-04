@@ -15,6 +15,7 @@ import {
   LineChart,
   LogOut,
   Magnet,
+  Megaphone,
   Settings,
   Sparkles,
   Store,
@@ -62,6 +63,7 @@ const NAV_CRM: NavItem[] = [
 const NAV_GROWTH: NavItem[] = [
   { href: "/dashboard/coupons", label: "Coupons", Icon: Tag },
   { href: "/dashboard/affiliates", label: "Affiliates", Icon: Handshake },
+  { href: "/dashboard/marketing", label: "Marketing", Icon: Megaphone },
   { href: "/dashboard/telegram", label: "Group Integrations", Icon: Boxes },
 ];
 

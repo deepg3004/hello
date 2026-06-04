@@ -24,6 +24,7 @@ import { verifyWebhookSignatureWithSecret } from "@/lib/razorpay";
 import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
 import { notifyPaymentReceived } from "@/lib/notifications/events";
 import { chargePlatformWalletFee, decrementStockForOrder } from "@/lib/order-fulfillment";
+import { fireMarketingWebhook } from "@/lib/marketing";
 
 interface PaymentEntity {
   id: string;
@@ -155,6 +156,12 @@ export async function POST(request: Request) {
     admin,
   );
   await decrementStockForOrder(order.id, admin);
+  await fireMarketingWebhook(order.seller_user_id, "order_paid", {
+    order_id: order.id,
+    amount: Number(order.amount ?? 0),
+    buyer_email: order.buyer_email,
+    page_id: order.page_id,
+  });
 
   await notifyPaymentReceived(
     {

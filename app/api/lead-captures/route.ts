@@ -20,6 +20,7 @@ import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { fireMarketingWebhook } from "@/lib/marketing";
 import { sendEmail } from "@/lib/email";
 import { renderEmail } from "@/lib/emails/render";
 import {
@@ -151,6 +152,14 @@ export async function POST(request: Request) {
     );
   }
   const leadId = insertedRaw.id as string;
+
+  // Marketing: outbound webhook (best-effort).
+  await fireMarketingWebhook(page.user_id, "lead_created", {
+    lead_id: leadId,
+    email,
+    name: name ?? null,
+    page_id,
+  });
 
   // 4. Generate a signed URL for the lead magnet (if any). Best-effort.
   let downloadUrl: string | undefined;

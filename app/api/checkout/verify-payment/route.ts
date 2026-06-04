@@ -13,6 +13,7 @@ import { verifyPayment, verifyPaymentWithSecret } from "@/lib/razorpay";
 import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
 import { notifyPaymentReceived } from "@/lib/notifications/events";
 import { chargePlatformWalletFee, decrementStockForOrder } from "@/lib/order-fulfillment";
+import { fireMarketingWebhook } from "@/lib/marketing";
 import { settleCoupon } from "@/lib/coupons";
 import { getRedis } from "@/lib/redis";
 import {
@@ -274,6 +275,13 @@ export async function POST(request: Request) {
   );
   // Inventory: decrement stock for physical products (no-op for digital).
   await decrementStockForOrder(order_id, admin);
+  // Marketing: outbound webhook (best-effort).
+  await fireMarketingWebhook(order.seller_user_id, "order_paid", {
+    order_id,
+    amount: Number(order.amount ?? 0),
+    buyer_email: order.buyer_email,
+    page_id: order.page_id,
+  });
 
   // 5. Settle coupon usage_count in Postgres — atomic UPDATE that refuses to
   //    cross the total_limit. If two checkouts race for the last slot, the

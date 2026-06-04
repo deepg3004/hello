@@ -14,6 +14,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
 import { createOrderOnKeys } from "@/lib/razorpay";
 import { generateSlots, type AvailabilityWindow } from "@/lib/booking";
+import { fireMarketingWebhook } from "@/lib/marketing";
 import { sendEmail } from "@/lib/email";
 import { SHELL } from "@/lib/emails/layout";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
@@ -118,6 +119,13 @@ export async function POST(request: Request) {
       );
     }
     await sendBookingEmail(email, bt.title, wanted, bt.location);
+    await fireMarketingWebhook(bt.user_id, "booking_created", {
+      booking_id: row.id,
+      title: bt.title,
+      start_at: wanted,
+      buyer_email: email,
+      amount: 0,
+    });
     return NextResponse.json({ ok: true, free: true, booking_id: row.id });
   }
 

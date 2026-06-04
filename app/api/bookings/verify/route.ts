@@ -12,6 +12,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
 import { verifyPaymentWithSecret } from "@/lib/razorpay";
 import { chargePlatformWalletFee } from "@/lib/order-fulfillment";
+import { fireMarketingWebhook } from "@/lib/marketing";
 
 export async function POST(request: Request) {
   let body: {
@@ -104,6 +105,12 @@ export async function POST(request: Request) {
       admin,
     );
   }
+
+  await fireMarketingWebhook(booking.seller_user_id, "booking_created", {
+    booking_id: booking.id,
+    buyer_email: booking.buyer_email,
+    amount: Number(booking.amount ?? 0),
+  });
 
   return NextResponse.json({ ok: true });
 }
