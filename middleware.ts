@@ -266,6 +266,18 @@ export async function middleware(request: NextRequest) {
       const isSubdomainRoute = pathname.startsWith("/seller-host/");
       const isMaintenance = pathname === "/maintenance";
       const isCourse = pathname.startsWith("/course/");
+      // Public, host-agnostic routes (slugs/ids are globally unique) — let these
+      // resolve directly on a seller's subdomain/custom domain too, so the SAME
+      // link works on the branded host AND the main domain. Bare slugs (no
+      // prefix) still fall through to the seller-host store/page rewrite below.
+      const isPublicPrefixed =
+        pathname.startsWith("/p/") ||
+        pathname.startsWith("/ln/") ||
+        pathname.startsWith("/tg/") ||
+        pathname.startsWith("/ld/") ||
+        pathname.startsWith("/order/") ||
+        pathname.startsWith("/affiliate/") ||
+        pathname.startsWith("/preview/");
       if (
         !isDashboard &&
         !isAdmin &&
@@ -273,7 +285,8 @@ export async function middleware(request: NextRequest) {
         !isSubdomainRoute &&
         !isMaintenance &&
         !isPolicy &&
-        !isCourse
+        !isCourse &&
+        !isPublicPrefixed
       ) {
         const lookup = await lookupHost(request, rawHost);
         if (lookup?.user_id && lookup.username) {

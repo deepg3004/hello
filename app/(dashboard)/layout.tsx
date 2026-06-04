@@ -27,14 +27,15 @@ export default async function DashboardLayout({
     .eq("id", user.id)
     .single();
 
-  // Safety net — guarantee every seller has a subdomain even if the signup /
-  // callback hooks and the backfill all missed them. Non-blocking.
+  // Guarantee every seller has a subdomain BEFORE the dashboard opens — if the
+  // signup / callback hooks and the backfill all missed them, create it now and
+  // wait, so the store URL is live the moment they land. Best-effort (never
+  // throws); blocks only the (rare) first request that has no subdomain yet.
   if (profileRow && !profileRow.subdomain) {
-    void import("@/lib/subdomain").then(({ ensureSubdomainForUser }) =>
-      ensureSubdomainForUser(
-        user.id,
-        profileRow.full_name ?? profileRow.email ?? "seller",
-      ),
+    const { ensureSubdomainForUser } = await import("@/lib/subdomain");
+    await ensureSubdomainForUser(
+      user.id,
+      profileRow.full_name ?? profileRow.email ?? "seller",
     );
   }
 
