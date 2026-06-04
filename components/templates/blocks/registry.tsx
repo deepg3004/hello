@@ -83,6 +83,65 @@ function et(
   return <Tag className={className}>{value}</Tag>;
 }
 
+// Click-to-change image (editor preview only): clicking the image prompts for a
+// new URL and commits it. On the public site it renders a plain <img>.
+function etImg(
+  ctx: BlockContext,
+  key: string,
+  value: string,
+  className: string,
+): ReactNode {
+  if (ctx.editable && ctx.onEditField) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={value}
+        alt=""
+        className={className}
+        style={{ cursor: "pointer" }}
+        title="Click to change image"
+        onClick={(e) => {
+          e.stopPropagation();
+          const u = window.prompt("Image URL", value || "");
+          if (u !== null) ctx.onEditField!(key, u);
+        }}
+      />
+    );
+  }
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={value} alt="" className={className} />;
+}
+
+function etiImg(
+  ctx: BlockContext,
+  listKey: string,
+  index: number,
+  subKey: string,
+  value: string,
+  className: string,
+  alt = "",
+): ReactNode {
+  if (ctx.editable && ctx.onEditItem) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={value}
+        alt={alt}
+        className={className}
+        style={{ cursor: "pointer" }}
+        title="Click to change image"
+        onClick={(e) => {
+          e.stopPropagation();
+          const u = window.prompt("Image URL", value || "");
+          if (u !== null) ctx.onEditItem!(listKey, index, subKey, u);
+        }}
+      />
+    );
+  }
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={value} alt={alt} className={className} />;
+}
+
 // Inline-editable text for a list item's sub-field (items[index][subKey]).
 function eti(
   ctx: BlockContext,
@@ -166,14 +225,13 @@ export const BLOCKS: Record<string, BlockDef> = {
           "mx-auto mt-4 max-w-xl text-lg text-[color:var(--s-fg-muted)]",
           "p",
         )}
-        {s(d.image) && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={s(d.image)}
-            alt=""
-            className="mx-auto mt-8 w-full max-w-2xl rounded-2xl ring-1 ring-[color:var(--s-border)]"
-          />
-        )}
+        {s(d.image) &&
+          etImg(
+            ctx,
+            "image",
+            s(d.image),
+            "mx-auto mt-8 w-full max-w-2xl rounded-2xl ring-1 ring-[color:var(--s-border)]",
+          )}
         {s(d.cta_label) && (
           <a
             href="#cta"
@@ -424,14 +482,13 @@ export const BLOCKS: Record<string, BlockDef> = {
       return (
         <Section>
           <div className="grid items-center gap-8 md:grid-cols-2">
-            {img && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={img}
-                alt=""
-                className="mx-auto w-full max-w-sm rounded-2xl object-cover ring-1 ring-[color:var(--s-border)]"
-              />
-            )}
+            {img &&
+              etImg(
+                ctx,
+                "image",
+                img,
+                "mx-auto w-full max-w-sm rounded-2xl object-cover ring-1 ring-[color:var(--s-border)]",
+              )}
             <div className={img ? "" : "md:col-span-2 mx-auto max-w-2xl text-center"}>
               {et(
                 ctx,
@@ -651,11 +708,10 @@ export const BLOCKS: Record<string, BlockDef> = {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((it, i) => (
               <figure key={i} className="overflow-hidden rounded-xl border border-[color:var(--s-border)]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={s(it.image)} alt={s(it.caption)} className="aspect-square w-full object-cover" />
+                {etiImg(ctx, "items", i, "image", s(it.image), "aspect-square w-full object-cover", s(it.caption))}
                 {s(it.caption) && (
                   <figcaption className="bg-[var(--s-surface)] px-3 py-2 text-xs text-[color:var(--s-fg-muted)]">
-                    {s(it.caption)}
+                    {eti(ctx, "items", i, "caption", s(it.caption), "", "span")}
                   </figcaption>
                 )}
               </figure>
@@ -1050,8 +1106,9 @@ export const BLOCKS: Record<string, BlockDef> = {
             et(ctx, "title", s(d.title), "mb-6 text-center text-xs font-semibold uppercase tracking-widest text-[color:var(--s-fg-dim)]", "p")}
           <div className="flex flex-wrap items-center justify-center gap-8 opacity-70">
             {items.map((it, i) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={i} src={s(it.image)} alt="" className="h-8 w-auto object-contain grayscale" />
+              <span key={i} className="contents">
+                {etiImg(ctx, "items", i, "image", s(it.image), "h-8 w-auto object-contain grayscale")}
+              </span>
             ))}
           </div>
         </Section>
