@@ -85,7 +85,19 @@ function starterBlocks(copy: Copy): SiteBlock[] {
         eyebrow: "Welcome",
         headline: copy.headline,
         subheadline: copy.subheadline,
-        cta_label: "Explore",
+        cta_label: "Get started",
+      },
+    },
+    {
+      id: "stats",
+      type: "stats",
+      data: {
+        _bg: "subtle",
+        items: [
+          { value: "500+", label: "Happy clients" },
+          { value: "4.9★", label: "Average rating" },
+          { value: "5+ yrs", label: "Experience" },
+        ],
       },
     },
     {
@@ -93,8 +105,54 @@ function starterBlocks(copy: Copy): SiteBlock[] {
       type: "about",
       data: { heading: "About me", body: copy.aboutBody },
     },
-    { id: "products", type: "products", data: { title: copy.productsTitle } },
-    { id: "social", type: "social", data: { title: "Find me online" } },
+    {
+      id: "features",
+      type: "features",
+      data: {
+        title: "Why work with me",
+        items: [
+          { title: "Proven results", text: "A track record you can trust." },
+          { title: "Personal support", text: "I'm with you at every step." },
+          { title: "Real value", text: "Practical, no-fluff outcomes." },
+        ],
+      },
+    },
+    {
+      id: "products",
+      type: "products",
+      data: { _bg: "subtle", title: copy.productsTitle },
+    },
+    {
+      id: "testimonials",
+      type: "testimonials",
+      data: {
+        title: "What people say",
+        items: [
+          { quote: "Exactly what I needed — highly recommend.", author: "A happy client", role: "" },
+        ],
+      },
+    },
+    {
+      id: "faq",
+      type: "faq",
+      data: {
+        title: "Questions & answers",
+        items: [
+          { q: "How do I get started?", a: "Pick an option above and check out — you get instant access." },
+          { q: "Can I get a refund?", a: "See our refund policy linked in the footer." },
+        ],
+      },
+    },
+    {
+      id: "cta",
+      type: "cta",
+      data: {
+        title: "Ready to begin?",
+        subtitle: "Drop your email and I'll be in touch.",
+        cta_label: "Count me in",
+      },
+    },
+    { id: "social", type: "social", data: { title: "Follow me" } },
   ];
 }
 

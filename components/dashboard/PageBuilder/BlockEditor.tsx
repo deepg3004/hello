@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { ArrowDown, ArrowUp, GripVertical, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +28,16 @@ export function BlockEditor({
   onChange: (next: Block[]) => void;
 }) {
   const list: Block[] = Array.isArray(blocks) ? (blocks as Block[]) : [];
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
+
+  function reorder(from: number, to: number) {
+    if (from === to) return;
+    const next = [...list];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved!);
+    onChange(next);
+  }
 
   function add(type: string) {
     const def = BLOCKS[type];
@@ -81,10 +92,42 @@ export function BlockEditor({
         const def = BLOCKS[b.type];
         if (!def) return null;
         return (
-          <Card key={b.id}>
+          <Card
+            key={b.id}
+            onDragOver={(e) => {
+              if (dragIndex === null) return;
+              e.preventDefault();
+              setOverIndex(i);
+            }}
+            onDrop={() => {
+              if (dragIndex !== null) reorder(dragIndex, i);
+              setDragIndex(null);
+              setOverIndex(null);
+            }}
+            className={
+              overIndex === i && dragIndex !== null && dragIndex !== i
+                ? "ring-2 ring-primary"
+                : dragIndex === i
+                  ? "opacity-50"
+                  : undefined
+            }
+          >
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-2">
-                <CardTitle className="text-sm">
+                <CardTitle className="flex items-center gap-1.5 text-sm">
+                  <span
+                    draggable
+                    onDragStart={() => setDragIndex(i)}
+                    onDragEnd={() => {
+                      setDragIndex(null);
+                      setOverIndex(null);
+                    }}
+                    aria-label="Drag to reorder"
+                    title="Drag to reorder"
+                    className="cursor-grab text-muted-foreground active:cursor-grabbing"
+                  >
+                    <GripVertical className="h-4 w-4" />
+                  </span>
                   {i + 1}. {def.label}
                 </CardTitle>
                 <div className="flex items-center gap-1">

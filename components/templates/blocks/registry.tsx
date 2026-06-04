@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { LeadCaptureForm } from "@/components/pages/LeadCaptureForm";
+import { Carousel } from "@/components/templates/blocks/Carousel";
 import { formatINR } from "@/lib/utils";
 import type { FieldConfig } from "@/lib/templates/types";
 import type { TgTheme } from "@/lib/telegram-themes";
@@ -729,6 +730,108 @@ export const BLOCKS: Record<string, BlockDef> = {
             // Seller's own embed on their own site.
             dangerouslySetInnerHTML={{ __html: html }}
           />
+        </Section>
+      );
+    },
+  },
+
+  slider: {
+    type: "slider",
+    label: "Image slider (auto)",
+    defaultData: {
+      title: "",
+      autoplay: true,
+      items: [
+        { image: "", caption: "", url: "" },
+        { image: "", caption: "", url: "" },
+      ],
+    },
+    fields: [
+      { key: "title", label: "Section title (optional)", type: "text", defaultValue: "" },
+      { key: "autoplay", label: "Auto-play", type: "toggle", defaultValue: true },
+      {
+        key: "items",
+        label: "Slides",
+        type: "list",
+        itemLabel: "slide",
+        itemFields: [
+          { key: "image", label: "Image URL", type: "image", defaultValue: "" },
+          { key: "caption", label: "Caption (optional)", type: "text", defaultValue: "" },
+          { key: "url", label: "Link (optional)", type: "text", defaultValue: "" },
+        ],
+        defaultValue: [],
+      },
+    ],
+    Render: (d, { accent }) => {
+      const slides = arr<{ image?: string; caption?: string; url?: string }>(d.items)
+        .filter((s2) => s(s2.image))
+        .map((s2) => ({ image: s(s2.image), caption: s(s2.caption), url: s(s2.url) || undefined }));
+      if (slides.length === 0) return null;
+      return (
+        <Section>
+          {s(d.title) && (
+            <h2 className="mb-8 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
+              {s(d.title)}
+            </h2>
+          )}
+          <Carousel slides={slides} autoplay={d.autoplay !== false} accent={accent} />
+        </Section>
+      );
+    },
+  },
+
+  pagelink: {
+    type: "pagelink",
+    label: "Link to a page / offer",
+    defaultData: {
+      title: "Check this out",
+      description: "Add a link to any of your pages — payment, store, course, Telegram, lead or landing.",
+      cta_label: "Open",
+      url: "",
+      image: "",
+    },
+    fields: [
+      { key: "title", label: "Title", type: "text", defaultValue: "" },
+      { key: "description", label: "Description", type: "textarea", defaultValue: "" },
+      { key: "cta_label", label: "Button text", type: "text", defaultValue: "" },
+      { key: "url", label: "Page URL (paste from your dashboard)", type: "text", defaultValue: "" },
+      { key: "image", label: "Image URL (optional)", type: "image", defaultValue: "" },
+    ],
+    Render: (d, { accent }) => {
+      const url = s(d.url);
+      if (!url && !s(d.title)) return null;
+      const href = url ? (/^https?:\/\//.test(url) ? url : `https://${url}`) : "#";
+      return (
+        <Section>
+          <div className="mx-auto flex max-w-3xl flex-col items-center gap-5 overflow-hidden rounded-2xl border border-[color:var(--s-border)] bg-[var(--s-surface)] p-6 sm:flex-row">
+            {s(d.image) && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={s(d.image)}
+                alt=""
+                className="h-28 w-full rounded-xl object-cover sm:h-24 sm:w-40"
+              />
+            )}
+            <div className="flex-1 text-center sm:text-left">
+              {s(d.title) && (
+                <h3 className="font-sora text-lg font-bold text-[color:var(--s-fg)]">
+                  {s(d.title)}
+                </h3>
+              )}
+              {s(d.description) && (
+                <p className="mt-1 text-sm text-[color:var(--s-fg-muted)]">{s(d.description)}</p>
+              )}
+            </div>
+            {s(d.cta_label) && (
+              <a
+                href={href}
+                className="btn-shine inline-flex shrink-0 rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-lg"
+                style={{ backgroundColor: accent }}
+              >
+                {s(d.cta_label)}
+              </a>
+            )}
+          </div>
         </Section>
       );
     },
