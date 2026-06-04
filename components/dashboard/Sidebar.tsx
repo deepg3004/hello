@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   BookOpen,
   Boxes,
+  CalendarClock,
   Coins,
   CreditCard,
   FileText,
@@ -46,6 +47,7 @@ const NAV_MAIN: NavItem[] = [
   { href: "/dashboard/courses", label: "Courses", Icon: BookOpen },
   { href: "/dashboard/store", label: "Store", Icon: Store },
   { href: "/dashboard/website", label: "Website", Icon: Globe },
+  { href: "/dashboard/booking", label: "Booking", Icon: CalendarClock },
   { href: "/dashboard/transactions", label: "Transactions", Icon: CreditCard },
   { href: "/dashboard/learn", label: "Learn", Icon: GraduationCap },
 ];
