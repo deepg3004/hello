@@ -26,7 +26,11 @@ const STEPS: Array<{ id: Step; label: string }> = [
 
 const VALID_TYPES: PageDbType[] = ["payment", "landing", "lead_magnet"];
 
-export function PageBuilderWizard() {
+export function PageBuilderWizard({
+  creatorCategory,
+}: {
+  creatorCategory?: string | null;
+} = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -203,6 +207,7 @@ export function PageBuilderWizard() {
             type={type}
             value={templateId}
             onChange={pickTemplate}
+            creatorCategory={creatorCategory}
           />
         </div>
       )}

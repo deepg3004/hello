@@ -9,6 +9,8 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { templatesForType } from "@/lib/templates/registry";
+import { templateMatchesCreator } from "@/lib/templates/creator-map";
+import { creatorCategoryLabel } from "@/lib/creator-categories";
 import type { PageDbType } from "@/lib/templates/types";
 import { cn } from "@/lib/utils";
 
@@ -16,10 +18,24 @@ interface TemplatePickerProps {
   type: PageDbType;
   value: string | null;
   onChange: (templateId: string) => void;
+  /** Seller's creator category — matching templates are surfaced first. */
+  creatorCategory?: string | null;
 }
 
-export function TemplatePicker({ type, value, onChange }: TemplatePickerProps) {
-  const templates = templatesForType(type);
+export function TemplatePicker({
+  type,
+  value,
+  onChange,
+  creatorCategory,
+}: TemplatePickerProps) {
+  const all = templatesForType(type);
+  // Recommended (matching the seller's niche) first, preserving original order.
+  const templates = [...all].sort((a, b) => {
+    const am = templateMatchesCreator(a.definition.id, creatorCategory) ? 0 : 1;
+    const bm = templateMatchesCreator(b.definition.id, creatorCategory) ? 0 : 1;
+    return am - bm;
+  });
+  const nicheLabel = creatorCategoryLabel(creatorCategory);
 
   if (templates.length === 0) {
     return (
@@ -33,6 +49,7 @@ export function TemplatePicker({ type, value, onChange }: TemplatePickerProps) {
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {templates.map((t) => {
         const selected = value === t.definition.id;
+        const recommended = templateMatchesCreator(t.definition.id, creatorCategory);
         return (
           <button
             key={t.definition.id}
@@ -58,9 +75,15 @@ export function TemplatePicker({ type, value, onChange }: TemplatePickerProps) {
                 </span>
               </div>
               <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <CardTitle className="text-base">{t.definition.name}</CardTitle>
-                  {selected && <Badge>Selected</Badge>}
+                  {selected ? (
+                    <Badge>Selected</Badge>
+                  ) : recommended && nicheLabel ? (
+                    <Badge variant="outline" className="shrink-0 text-emerald-600">
+                      Recommended
+                    </Badge>
+                  ) : null}
                 </div>
               </CardHeader>
               <CardContent>

@@ -32,7 +32,7 @@ export default async function WebsitePage() {
   const [{ data: profile }, { data: pages }] = await Promise.all([
     admin
       .from("user_profiles")
-      .select("subdomain, avatar_url, bio, tagline, brand_color, social_links")
+      .select("subdomain, avatar_url, bio, tagline, brand_color, social_links, creator_category")
       .eq("id", user.id)
       .single(),
     admin
@@ -94,6 +94,7 @@ export default async function WebsitePage() {
           <SitePagesManager
             initialPages={(pages ?? []) as SitePage[]}
             storeUrl={storeUrl}
+            creatorCategory={profile?.creator_category ?? null}
           />
         </CardContent>
       </Card>

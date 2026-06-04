@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { BlockEditor } from "@/components/dashboard/PageBuilder/BlockEditor";
+import { presetsForCategory } from "@/lib/site-presets";
 import { useToast } from "@/hooks/use-toast";
 
 interface Block {
@@ -37,9 +38,11 @@ export interface SitePage {
 export function SitePagesManager({
   initialPages,
   storeUrl,
+  creatorCategory,
 }: {
   initialPages: SitePage[];
   storeUrl: string | null;
+  creatorCategory?: string | null;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -58,6 +61,8 @@ export function SitePagesManager({
     setBlocks(Array.isArray(p.blocks) ? (p.blocks as Block[]) : []);
   }
 
+  const presets = presetsForCategory(creatorCategory);
+
   async function addPage() {
     setBusy(true);
     const r = await createSitePageAction({ title: "New page" });
@@ -67,6 +72,18 @@ export function SitePagesManager({
       return;
     }
     toast({ title: "Page created" });
+    router.refresh();
+  }
+
+  async function addFromPreset(blocks: unknown) {
+    setBusy(true);
+    const r = await createSitePageAction({ title: "Home", blocks });
+    setBusy(false);
+    if (!r.ok) {
+      toast({ title: "Couldn't create", description: r.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Homepage created", description: "Edit the sections below." });
     router.refresh();
   }
 
@@ -130,9 +147,39 @@ export function SitePagesManager({
       </div>
 
       {initialPages.length === 0 ? (
-        <p className="rounded-lg border border-dashed bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
-          No pages yet. Add your first page to start building your website.
-        </p>
+        <div className="rounded-lg border border-dashed bg-muted/30 p-5">
+          <p className="text-sm font-medium">Start from a template</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            One click to create a ready-made homepage you can then edit.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {presets.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => addFromPreset(p.blocks)}
+                disabled={busy}
+                className="rounded-lg border bg-card p-4 text-left transition hover:border-primary disabled:opacity-50"
+              >
+                <span className="font-medium">{p.label}</span>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  {p.description}
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="mt-4 text-center text-xs text-muted-foreground">
+            or{" "}
+            <button
+              type="button"
+              onClick={addPage}
+              disabled={busy}
+              className="underline hover:text-foreground"
+            >
+              start with a blank page
+            </button>
+          </div>
+        </div>
       ) : (
         <div className="space-y-2">
           {initialPages.map((p) => (
