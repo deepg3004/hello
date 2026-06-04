@@ -10,6 +10,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { platformRootDomain } from "@/lib/domains";
+import { loadSellerProducts } from "@/lib/site";
 import {
   ProfileBrandingForm,
   type BrandingInitial,
@@ -31,10 +32,12 @@ export default async function WebsitePage() {
   if (!user) redirect("/login");
 
   const admin = createAdminClient();
-  const [{ data: profile }, { data: pages }] = await Promise.all([
+  const [{ data: profile }, { data: pages }, products] = await Promise.all([
     admin
       .from("user_profiles")
-      .select("subdomain, avatar_url, bio, tagline, brand_color, social_links, creator_category, site_config")
+      .select(
+        "subdomain, full_name, legal_business_name, avatar_url, bio, tagline, brand_color, social_links, creator_category, site_config",
+      )
       .eq("id", user.id)
       .single(),
     admin
@@ -42,11 +45,29 @@ export default async function WebsitePage() {
       .select("id, slug, title, nav_label, is_home, show_in_nav, status, blocks, seo_title, seo_description")
       .eq("user_id", user.id)
       .order("sort_order", { ascending: true }),
+    loadSellerProducts(user.id),
   ]);
 
   const storeUrl = profile?.subdomain
     ? `https://${profile.subdomain}.${platformRootDomain()}`
     : null;
+
+  const cfg = (profile?.site_config as Record<string, unknown>) ?? {};
+  const previewMeta = {
+    theme: (cfg.theme as string) ?? null,
+    font: (cfg.font as string) ?? null,
+    brandColor: profile?.brand_color ?? null,
+    seller: {
+      name:
+        profile?.legal_business_name ??
+        profile?.full_name ??
+        profile?.subdomain ??
+        "Your store",
+      avatar: profile?.avatar_url ?? null,
+    },
+    socialLinks: (profile?.social_links as Record<string, string>) ?? null,
+    products,
+  };
 
   const branding: BrandingInitial = {
     avatar_url: profile?.avatar_url ?? "",
@@ -143,6 +164,7 @@ export default async function WebsitePage() {
             initialPages={(pages ?? []) as SitePage[]}
             storeUrl={storeUrl}
             creatorCategory={profile?.creator_category ?? null}
+            preview={previewMeta}
           />
         </CardContent>
       </Card>

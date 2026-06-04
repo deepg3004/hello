@@ -13,6 +13,8 @@ import {
   ArrowDown,
   Eye,
   EyeOff,
+  Monitor,
+  Smartphone,
 } from "lucide-react";
 
 import {
@@ -27,8 +29,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { BlockEditor } from "@/components/dashboard/PageBuilder/BlockEditor";
+import { SitePreview } from "@/components/dashboard/website/SitePreview";
 import { presetsForCategory } from "@/lib/site-presets";
+import type { SiteProductLite } from "@/components/templates/blocks/registry";
 import { useToast } from "@/hooks/use-toast";
+
+export interface PreviewMeta {
+  theme: string | null;
+  font: string | null;
+  brandColor: string | null;
+  seller: { name: string; avatar: string | null };
+  socialLinks: Record<string, string> | null;
+  products: SiteProductLite[];
+}
 
 interface Block {
   id: string;
@@ -53,15 +66,18 @@ export function SitePagesManager({
   initialPages,
   storeUrl,
   creatorCategory,
+  preview,
 }: {
   initialPages: SitePage[];
   storeUrl: string | null;
   creatorCategory?: string | null;
+  preview: PreviewMeta;
 }) {
   const router = useRouter();
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
 
   // Local editor state for the page being edited.
   const [title, setTitle] = useState("");
@@ -367,41 +383,96 @@ export function SitePagesManager({
             </div>
           </div>
 
-          <BlockEditor blocks={blocks} onChange={setBlocks} />
+          <div className="grid gap-5 lg:grid-cols-2">
+            {/* Left: the editor controls */}
+            <div className="space-y-4">
+              <BlockEditor blocks={blocks} onChange={setBlocks} />
 
-          <div className="grid gap-4 border-t pt-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">SEO title</Label>
-              <Input
-                value={seoTitle}
-                onChange={(e) => setSeoTitle(e.target.value)}
-                placeholder="Shown in search results & browser tab"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">SEO description</Label>
-              <Input
-                value={seoDesc}
-                onChange={(e) => setSeoDesc(e.target.value)}
-                placeholder="One-line summary for search engines"
-              />
-            </div>
-          </div>
+              <div className="grid gap-4 border-t pt-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">SEO title</Label>
+                  <Input
+                    value={seoTitle}
+                    onChange={(e) => setSeoTitle(e.target.value)}
+                    placeholder="Shown in search results & browser tab"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">SEO description</Label>
+                  <Input
+                    value={seoDesc}
+                    onChange={(e) => setSeoDesc(e.target.value)}
+                    placeholder="One-line summary for search engines"
+                  />
+                </div>
+              </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => save(true)} disabled={busy}>
-              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save &amp; publish
-            </Button>
-            <Button onClick={() => save()} disabled={busy} variant="outline">
-              Save draft
-            </Button>
-            <Button onClick={() => save(false)} disabled={busy} variant="ghost">
-              Unpublish
-            </Button>
-            <Button onClick={() => setEditingId(null)} disabled={busy} variant="ghost">
-              Close
-            </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button onClick={() => save(true)} disabled={busy}>
+                  {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Save &amp; publish
+                </Button>
+                <Button onClick={() => save()} disabled={busy} variant="outline">
+                  Save draft
+                </Button>
+                <Button onClick={() => save(false)} disabled={busy} variant="ghost">
+                  Unpublish
+                </Button>
+                <Button onClick={() => setEditingId(null)} disabled={busy} variant="ghost">
+                  Close
+                </Button>
+              </div>
+            </div>
+
+            {/* Right: live preview */}
+            <div className="space-y-2 lg:sticky lg:top-4 lg:self-start">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">
+                  Live preview
+                </span>
+                <div className="flex gap-1">
+                  <Button
+                    variant={device === "desktop" ? "default" : "ghost"}
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setDevice("desktop")}
+                    aria-label="Desktop preview"
+                  >
+                    <Monitor className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={device === "mobile" ? "default" : "ghost"}
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setDevice("mobile")}
+                    aria-label="Mobile preview"
+                  >
+                    <Smartphone className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="overflow-hidden rounded-xl border bg-muted/20">
+                <div className="h-[620px] overflow-y-auto">
+                  <div
+                    className="mx-auto bg-white"
+                    style={{ width: device === "mobile" ? 390 : "100%" }}
+                  >
+                    <SitePreview
+                      blocks={blocks}
+                      theme={preview.theme}
+                      font={preview.font}
+                      brandColor={preview.brandColor}
+                      seller={preview.seller}
+                      socialLinks={preview.socialLinks}
+                      products={preview.products}
+                    />
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Updates as you edit. Click <strong>Save &amp; publish</strong> to make it live.
+              </p>
+            </div>
           </div>
         </div>
       )}
