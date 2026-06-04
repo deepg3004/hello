@@ -641,16 +641,13 @@ export const BLOCKS: Record<string, BlockDef> = {
         defaultValue: [],
       },
     ],
-    Render: (d) => {
+    Render: (d, ctx) => {
       const items = arr<{ image?: string; caption?: string }>(d.items).filter((i) => s(i.image));
       if (items.length === 0) return null;
       return (
         <Section>
-          {s(d.title) && (
-            <h2 className="mb-8 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
-              {s(d.title)}
-            </h2>
-          )}
+          {s(d.title) &&
+            et(ctx, "title", s(d.title), "mb-8 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl", "h2")}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((it, i) => (
               <figure key={i} className="overflow-hidden rounded-xl border border-[color:var(--s-border)]">
@@ -867,18 +864,16 @@ export const BLOCKS: Record<string, BlockDef> = {
         defaultValue: [],
       },
     ],
-    Render: (d, { accent }) => {
+    Render: (d, ctx) => {
+      const { accent } = ctx;
       const slides = arr<{ image?: string; caption?: string; url?: string }>(d.items)
         .filter((s2) => s(s2.image))
         .map((s2) => ({ image: s(s2.image), caption: s(s2.caption), url: s(s2.url) || undefined }));
       if (slides.length === 0) return null;
       return (
         <Section>
-          {s(d.title) && (
-            <h2 className="mb-8 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
-              {s(d.title)}
-            </h2>
-          )}
+          {s(d.title) &&
+            et(ctx, "title", s(d.title), "mb-8 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl", "h2")}
           <Carousel slides={slides} autoplay={d.autoplay !== false} accent={accent} />
         </Section>
       );
@@ -902,7 +897,8 @@ export const BLOCKS: Record<string, BlockDef> = {
       { key: "url", label: "Links to", type: "pagepicker", defaultValue: "" },
       { key: "image", label: "Image URL (optional)", type: "image", defaultValue: "" },
     ],
-    Render: (d, { accent }) => {
+    Render: (d, ctx) => {
+      const { accent } = ctx;
       const url = s(d.url);
       if (!url && !s(d.title)) return null;
       const href = url ? (/^https?:\/\//.test(url) ? url : `https://${url}`) : "#";
@@ -918,14 +914,10 @@ export const BLOCKS: Record<string, BlockDef> = {
               />
             )}
             <div className="flex-1 text-center sm:text-left">
-              {s(d.title) && (
-                <h3 className="font-sora text-lg font-bold text-[color:var(--s-fg)]">
-                  {s(d.title)}
-                </h3>
-              )}
-              {s(d.description) && (
-                <p className="mt-1 text-sm text-[color:var(--s-fg-muted)]">{s(d.description)}</p>
-              )}
+              {s(d.title) &&
+                et(ctx, "title", s(d.title), "font-sora text-lg font-bold text-[color:var(--s-fg)]", "h3")}
+              {s(d.description) &&
+                et(ctx, "description", s(d.description), "mt-1 text-sm text-[color:var(--s-fg-muted)]", "p")}
             </div>
             {s(d.cta_label) && (
               <a
@@ -1002,8 +994,8 @@ export const BLOCKS: Record<string, BlockDef> = {
                 >
                   {eti(ctx, "items", i, "name", s(it.name), "font-sora text-sm font-semibold text-[color:var(--s-fg)]", "p")}
                   <p className="mt-2">
-                    <span className="font-sora text-3xl font-extrabold text-[color:var(--s-fg)]">{s(it.price)}</span>
-                    <span className="text-sm text-[color:var(--s-fg-dim)]">{s(it.period)}</span>
+                    {eti(ctx, "items", i, "price", s(it.price), "font-sora text-3xl font-extrabold text-[color:var(--s-fg)]", "span")}
+                    {eti(ctx, "items", i, "period", s(it.period), "text-sm text-[color:var(--s-fg-dim)]", "span")}
                   </p>
                   <ul className="mt-4 flex-1 space-y-2">
                     {feats.map((f, k) => (
@@ -1049,16 +1041,13 @@ export const BLOCKS: Record<string, BlockDef> = {
         defaultValue: [],
       },
     ],
-    Render: (d) => {
+    Render: (d, ctx) => {
       const items = arr<{ image?: string; url?: string }>(d.items).filter((x) => s(x.image));
       if (items.length === 0) return null;
       return (
         <Section>
-          {s(d.title) && (
-            <p className="mb-6 text-center text-xs font-semibold uppercase tracking-widest text-[color:var(--s-fg-dim)]">
-              {s(d.title)}
-            </p>
-          )}
+          {s(d.title) &&
+            et(ctx, "title", s(d.title), "mb-6 text-center text-xs font-semibold uppercase tracking-widest text-[color:var(--s-fg-dim)]", "p")}
           <div className="flex flex-wrap items-center justify-center gap-8 opacity-70">
             {items.map((it, i) => (
               // eslint-disable-next-line @next/next/no-img-element
@@ -1079,20 +1068,17 @@ export const BLOCKS: Record<string, BlockDef> = {
       { key: "to", label: "End date/time (e.g. 2026-12-31T23:59)", type: "text", defaultValue: "" },
       { key: "subtitle", label: "Subtitle (optional)", type: "text", defaultValue: "" },
     ],
-    Render: (d, { accent }) => {
+    Render: (d, ctx) => {
+      const { accent } = ctx;
       if (!s(d.to)) return null;
       return (
         <Section>
           <div className="text-center">
-            {s(d.title) && (
-              <h2 className="mb-6 font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
-                {s(d.title)}
-              </h2>
-            )}
+            {s(d.title) &&
+              et(ctx, "title", s(d.title), "mb-6 font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl", "h2")}
             <CountdownBlock to={s(d.to)} accent={accent} />
-            {s(d.subtitle) && (
-              <p className="mt-4 text-sm text-[color:var(--s-fg-dim)]">{s(d.subtitle)}</p>
-            )}
+            {s(d.subtitle) &&
+              et(ctx, "subtitle", s(d.subtitle), "mt-4 text-sm text-[color:var(--s-fg-dim)]", "p")}
           </div>
         </Section>
       );
@@ -1116,18 +1102,15 @@ export const BLOCKS: Record<string, BlockDef> = {
         defaultValue: [],
       },
     ],
-    Render: (d) => {
+    Render: (d, ctx) => {
       const items = arr<{ url?: string }>(d.items)
         .map((x) => toEmbedUrl(s(x.url)))
         .filter(Boolean);
       if (items.length === 0) return null;
       return (
         <Section>
-          {s(d.title) && (
-            <h2 className="mb-8 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
-              {s(d.title)}
-            </h2>
-          )}
+          {s(d.title) &&
+            et(ctx, "title", s(d.title), "mb-8 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl", "h2")}
           <div className="grid gap-4 sm:grid-cols-2">
             {items.map((embed, i) => (
               <div key={i} className="aspect-video overflow-hidden rounded-2xl ring-1 ring-[color:var(--s-border)]">
@@ -1163,18 +1146,16 @@ export const BLOCKS: Record<string, BlockDef> = {
         defaultValue: [],
       },
     ],
-    Render: (d, { accent }) => {
+    Render: (d, ctx) => {
+      const { accent } = ctx;
       const embeds = arr<{ url?: string }>(d.items)
         .map((x) => toEmbedUrl(s(x.url)))
         .filter(Boolean);
       if (embeds.length === 0) return null;
       return (
         <Section>
-          {s(d.title) && (
-            <h2 className="mb-8 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
-              {s(d.title)}
-            </h2>
-          )}
+          {s(d.title) &&
+            et(ctx, "title", s(d.title), "mb-8 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl", "h2")}
           <VideoCarousel embeds={embeds} accent={accent} />
         </Section>
       );

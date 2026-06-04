@@ -119,8 +119,23 @@ export function SitePreview({
                 {selected ? " · click text to edit" : ""}
               </span>
               {/* Non-selected sections are non-interactive so clicks select them;
-                  the selected section is interactive so its text is editable. */}
-              <div className={selected ? "" : "pointer-events-none"}>{rendered}</div>
+                  the selected section is interactive so its text is editable.
+                  In the selected section we block link/button navigation so the
+                  editor doesn't navigate away while you edit. */}
+              <div
+                className={selected ? "" : "pointer-events-none"}
+                onClick={
+                  selected
+                    ? (e) => {
+                        if ((e.target as HTMLElement).closest("a,button")) {
+                          e.preventDefault();
+                        }
+                      }
+                    : undefined
+                }
+              >
+                {rendered}
+              </div>
             </div>
           );
         })
