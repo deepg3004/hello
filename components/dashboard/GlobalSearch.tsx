@@ -14,7 +14,6 @@ import {
   Search,
   Send,
   Settings,
-  ShieldCheck,
   Tag,
   Users,
   Wallet,
@@ -41,7 +40,6 @@ const NAV: { label: string; href: string; Icon: LucideIcon }[] = [
   { label: "Affiliates", href: "/dashboard/affiliates", Icon: Handshake },
   { label: "Recovery", href: "/dashboard/analytics", Icon: LineChart },
   { label: "Telegram", href: "/dashboard/telegram", Icon: Send },
-  { label: "KYC", href: "/dashboard/kyc", Icon: ShieldCheck },
   { label: "Wallet", href: "/dashboard/wallet", Icon: Wallet },
   { label: "Settings", href: "/dashboard/settings", Icon: Settings },
 ];

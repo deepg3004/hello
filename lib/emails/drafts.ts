@@ -19,28 +19,6 @@ export const DEFAULT_DRAFT: Record<string, Draft> = {
 <p>Your {{brand_name}} account is ready. Add a product, share your page, and start taking payments.</p>
 ${btn("{{app_url}}/dashboard", "Open dashboard")}`,
   },
-  kyc_received: {
-    subject: "We've received your KYC ✅",
-    body_html: `<h2 style="margin:0 0 12px;font-size:20px">KYC submitted ✅</h2>
-<p>Hi {{seller_name}},</p>
-<p>We've received your KYC details and they're being verified. We'll email you the moment it's approved.</p>
-${btn("{{app_url}}/dashboard/kyc", "View KYC status")}`,
-  },
-  kyc_approved: {
-    subject: "KYC approved ✅",
-    body_html: `<h2 style="margin:0 0 12px;font-size:20px">KYC approved ✅</h2>
-<p>Hi {{seller_name}},</p>
-<p>Your identity is verified — payouts are now enabled.</p>
-${btn("{{app_url}}/dashboard", "Open dashboard")}`,
-  },
-  kyc_rejected: {
-    subject: "Your KYC needs attention",
-    body_html: `<h2 style="margin:0 0 12px;font-size:20px">KYC needs attention</h2>
-<p>Hi {{seller_name}},</p>
-<p>Your KYC couldn't be approved. Reason: {{reason}}</p>
-<p>Please review and resubmit.</p>
-${btn("{{app_url}}/dashboard/kyc", "Resubmit KYC")}`,
-  },
   order_confirmation: {
     subject: "Receipt — {{product_name}}",
     body_html: `<h2 style="margin:0 0 12px;font-size:20px">Thanks for your purchase 🎉</h2>

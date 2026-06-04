@@ -10,11 +10,9 @@ import { cookies } from "next/headers";
 import { nanoid } from "nanoid";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createOrder, createOrderOnKeys } from "@/lib/razorpay";
+import { createOrderOnKeys } from "@/lib/razorpay";
 import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
 import { verifyOtoToken, OTO_COOKIE_NAME } from "@/lib/oto-token";
-import { resolveCommissionPercent, type PlanKey } from "@/lib/plans";
-import { getCommissionConfig } from "@/lib/settings";
 
 interface OtoConfig {
   enabled?: boolean;
@@ -96,43 +94,38 @@ export async function POST() {
     return NextResponse.json({ error: "OTO price misconfigured" }, { status: 400 });
   }
 
-  // Seller for commission split.
+  // Seller — must have their OWN gateway connected (no-funds model, Session 3).
   const { data: seller } = await admin
     .from("user_profiles")
-    .select("id, subscription_plan, razorpay_linked_account_id")
+    .select("id, subscription_plan")
     .eq("id", page.user_id)
     .single();
   if (!seller) {
     return NextResponse.json({ error: "Seller missing" }, { status: 404 });
   }
 
-  // Phase 4 — multi-gateway. Mirrors /api/checkout/create-order: when the flag
-  // is on AND the seller has an active Razorpay gateway connected, route the OTO
-  // through THEIR gateway. The full amount lands in the seller's own account, so
-  // there is NO platform commission split — InvoxAI's revenue is the per-order
-  // wallet fee (migration 040). Flag off / no gateway → unchanged platform path.
-  const multiGatewayOn = process.env.MULTI_GATEWAY_CHECKOUT === "true";
-  let sellerGateway: { key_id: string; key_secret: string } | null = null;
-  if (multiGatewayOn) {
-    const keys = await loadSellerGatewayKeys(seller.id);
-    if (keys && keys.gateway_type === "razorpay") {
-      sellerGateway = { key_id: keys.key_id, key_secret: keys.key_secret };
-    }
+  // No-funds model: the OTO is created on the SELLER's own gateway. No platform
+  // collect/escrow path — a seller without a connected gateway can't sell.
+  const keys = await loadSellerGatewayKeys(seller.id);
+  const sellerGateway =
+    keys && keys.gateway_type === "razorpay"
+      ? { key_id: keys.key_id, key_secret: keys.key_secret }
+      : null;
+  if (!sellerGateway) {
+    return NextResponse.json(
+      {
+        error:
+          "This store can't accept payments yet — the seller hasn't connected a payment gateway.",
+      },
+      { status: 402 },
+    );
   }
-  const gatewayOwner: "platform" | "seller" = sellerGateway
-    ? "seller"
-    : "platform";
-
-  const { defaultPercent, perPlan } = await getCommissionConfig();
-  const planKey = (seller.subscription_plan ?? "free") as PlanKey;
-  const commissionPct = sellerGateway
-    ? 0
-    : resolveCommissionPercent(planKey, defaultPercent, perPlan);
-  // Compute the split in paise so commission + seller_amount = amount exactly.
+  const gatewayOwner: "seller" = "seller";
+  // Seller's own gateway → full amount is the seller's; no commission split.
   const amountPaise = Math.round(priceOverride * 100);
-  const commissionPaise = Math.round((amountPaise * commissionPct) / 100);
-  const sellerPaise = amountPaise - commissionPaise;
-  const commission = commissionPaise / 100;
+  const commissionPaise = 0;
+  const sellerPaise = amountPaise;
+  const commission = 0;
   const sellerAmount = sellerPaise / 100;
 
   const otoOrderId = crypto.randomUUID();
@@ -146,34 +139,13 @@ export async function POST() {
   };
   let razorpayOrder: { id: string };
   try {
-    if (sellerGateway) {
-      // Seller's own gateway — no Route transfer (the seller is the merchant).
-      razorpayOrder = (await createOrderOnKeys(sellerGateway, {
-        amount: amountPaise,
-        currency: otoCurrency,
-        receipt: nanoid(10),
-        notes: otoNotes,
-      })) as unknown as { id: string };
-    } else {
-      razorpayOrder = (await createOrder({
-        amount: amountPaise,
-        currency: otoCurrency,
-        receipt: nanoid(10),
-        notes: otoNotes,
-        transfers:
-          seller.razorpay_linked_account_id && sellerPaise > 0
-            ? [
-                {
-                  account: seller.razorpay_linked_account_id,
-                  amount: sellerPaise,
-                  currency: otoCurrency,
-                  on_hold: 0,
-                  notes: { invoxai_order_id: otoOrderId },
-                },
-              ]
-            : undefined,
-      })) as unknown as { id: string };
-    }
+    // Seller's own gateway — the seller is the merchant of record.
+    razorpayOrder = (await createOrderOnKeys(sellerGateway, {
+      amount: amountPaise,
+      currency: otoCurrency,
+      receipt: nanoid(10),
+      notes: otoNotes,
+    })) as unknown as { id: string };
   } catch (e) {
     console.error("[create-oto-order] razorpay createOrder failed", e);
     return NextResponse.json(

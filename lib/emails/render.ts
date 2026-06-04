@@ -16,9 +16,6 @@ import { primeEmailBranding } from "./branding";
 
 // Built-in template renderers (facade + the live legacy ones).
 import { welcomeEmail } from "./templates/welcome";
-import { kycReceivedEmail } from "./templates/kyc-received";
-import { kycApprovedEmail } from "./templates/kyc-approved";
-import { kycRejectedEmail } from "./templates/kyc-rejected";
 import { orderConfirmationEmail } from "./templates/order-confirmation";
 import { paymentFailedEmail } from "./templates/payment-failed";
 import { subscriptionRenewalEmail } from "./templates/subscription-renewal";
@@ -52,9 +49,6 @@ type Renderer = (data: Record<string, unknown>) => Rendered;
 export const CODE_TEMPLATES: Record<string, Renderer> = {
   // Facade
   welcome: (d) => welcomeEmail(d as never),
-  kyc_received: (d) => kycReceivedEmail(d as never),
-  kyc_approved: (d) => kycApprovedEmail(d as never),
-  kyc_rejected: (d) => kycRejectedEmail(d as never),
   order_confirmation: (d) => orderConfirmationEmail(d as never),
   payment_failed: (d) => paymentFailedEmail(d as never),
   subscription_renewal: (d) => subscriptionRenewalEmail(d as never),
@@ -81,9 +75,6 @@ export const GLOBAL_PLACEHOLDERS = ["brand_name", "app_url", "support_email", "y
 
 export const PLACEHOLDERS: Record<string, string[]> = {
   welcome: ["seller_name"],
-  kyc_received: ["seller_name", "manual"],
-  kyc_approved: ["seller_name", "level"],
-  kyc_rejected: ["seller_name", "level", "reason"],
   order_confirmation: ["buyer_name", "seller_name", "product_name", "amount", "currency", "order_id", "invoice_url", "telegram_invite_url"],
   payment_failed: ["buyer_name", "product_name", "amount", "currency", "retry_url", "reason"],
   subscription_renewal: ["seller_name", "plan", "renews_at", "amount", "currency"],
@@ -108,9 +99,6 @@ export const PLACEHOLDERS: Record<string, string[]> = {
 // sends so the {{placeholders}} resolve to realistic values.
 export const SAMPLE_DATA: Record<string, Record<string, unknown>> = {
   welcome: { seller_name: "Ravi Kumar" },
-  kyc_received: { seller_name: "Ravi Kumar", manual: true },
-  kyc_approved: { seller_name: "Ravi Kumar", level: 2 },
-  kyc_rejected: { seller_name: "Ravi Kumar", level: 2, reason: "Bank name didn't match PAN" },
   order_confirmation: { buyer_name: "Asha Patel", seller_name: "Acme Studio", product_name: "Pro Trading Course", amount: 1499, currency: "INR", order_id: "ord_abcdef123456", invoice_url: `${APP_URL}/api/orders/x/invoice` },
   payment_failed: { buyer_name: "Asha Patel", product_name: "Pro Trading Course", amount: 1499, currency: "INR", retry_url: `${APP_URL}/p/course/checkout`, reason: "Card declined" },
   subscription_renewal: { seller_name: "Ravi Kumar", plan: "Pro", renews_at: "2026-07-01", amount: 999, currency: "INR" },
@@ -149,9 +137,6 @@ export const BUILTIN_META: BuiltinMeta[] = [
   { key: "payout_completed", name: "Payout completed", audience: "Seller", role: "seller", live: true },
   { key: "payout_failed", name: "Payout failed / rejected", audience: "Seller", role: "seller", live: true },
   { key: "subscription_renewal", name: "Subscription renewal", audience: "Seller", role: "billing", live: false },
-  { key: "kyc_received", name: "KYC received", audience: "KYC", role: "kyc", live: true },
-  { key: "kyc_approved", name: "KYC approved", audience: "KYC", role: "kyc", live: true },
-  { key: "kyc_rejected", name: "KYC rejected", audience: "KYC", role: "kyc", live: true },
   { key: "sale_receipt", name: "Order receipt (buyer)", audience: "Billing", role: "billing", live: true },
   { key: "payment_failed", name: "Payment failed (buyer)", audience: "Billing", role: "billing", live: false },
   { key: "order_confirmation", name: "Order confirmation (alt)", audience: "Billing", role: "billing", live: false },

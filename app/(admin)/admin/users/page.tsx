@@ -10,7 +10,7 @@ export default async function AdminUsersPage() {
     admin
       .from("user_profiles")
       .select(
-        "id, full_name, email, phone, subscription_plan, subscription_status, kyc_level, is_admin, suspended_at, total_revenue, created_at",
+        "id, full_name, email, phone, subscription_plan, subscription_status, is_admin, suspended_at, total_revenue, created_at",
       )
       .order("created_at", { ascending: false }),
     admin.from("seller_wallets").select("seller_user_id, balance_paise"),
@@ -27,7 +27,6 @@ export default async function AdminUsersPage() {
     phone: u.phone,
     subscription_plan: u.subscription_plan ?? "free",
     subscription_status: u.subscription_status ?? "inactive",
-    kyc_level: Number(u.kyc_level ?? 0),
     is_admin: !!u.is_admin,
     suspended: !!u.suspended_at,
     total_revenue: Number(u.total_revenue ?? 0),

@@ -12,9 +12,6 @@ const ALL_TEMPLATES: TemplateKey[] = [
   "payment_failed",
   "welcome",
   "subscription_renewal",
-  "kyc_received",
-  "kyc_approved",
-  "kyc_rejected",
   "abandoned_recovery_1",
   "abandoned_recovery_2",
   "payout_initiated",
@@ -58,9 +55,7 @@ describe("TEMPLATE_ROLE", () => {
     expect(Object.keys(TEMPLATE_ROLE).sort()).toEqual([...ALL_TEMPLATES].sort());
   });
 
-  it("routes KYC, onboarding, billing and seller mail to their mailboxes", () => {
-    expect(TEMPLATE_ROLE.kyc_approved).toBe("kyc");
-    expect(TEMPLATE_ROLE.kyc_rejected).toBe("kyc");
+  it("routes onboarding, billing and seller mail to their mailboxes", () => {
     expect(TEMPLATE_ROLE.welcome).toBe("onboarding");
     expect(TEMPLATE_ROLE.order_confirmation).toBe("billing");
     expect(TEMPLATE_ROLE.payment_failed).toBe("billing");

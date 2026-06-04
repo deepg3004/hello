@@ -259,27 +259,5 @@ export async function notifyNewLead(lead: LeadForNotify): Promise<void> {
   }
 }
 
-// Payout notifications removed (Session 2): no seller payouts to notify about.
-
-// ---- Trigger: KYC update --------------------------------------------------
-
-export async function notifyKycUpdate(
-  userId: string,
-  status: "approved" | "rejected" | "pending",
-  reason?: string | null,
-): Promise<void> {
-  try {
-    const prefs = await loadSellerPrefs(userId);
-    if (!prefs) return;
-    const to = shouldFireWa(prefs, "kyc_update");
-    if (to) {
-      await sendWhatsApp(to, WA_TEMPLATES.KYC_UPDATE, [
-        status.toUpperCase(),
-        reason ?? "—",
-        formatIst(),
-      ]);
-    }
-  } catch (e) {
-    console.error("[notify] notifyKycUpdate failed", e);
-  }
-}
+// Payout & KYC notifications removed (Sessions 2 & 3): no seller payouts and
+// no KYC — sellers are gated on "own gateway connected AND wallet funded".

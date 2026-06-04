@@ -196,9 +196,6 @@ export default async function AdminUserDetailPage({
           userEmail={profile.email}
           currentPlan={profile.subscription_plan ?? "free"}
           suspended={!!profile.suspended_at}
-          kycVerified={
-            !!profile.payouts_enabled || Number(profile.kyc_level ?? 0) >= 2
-          }
         />
       </div>
 

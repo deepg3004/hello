@@ -29,7 +29,7 @@ export default async function SettingsPage() {
   const { data: profile } = await admin
     .from("user_profiles")
     .select(
-      "full_name, email, phone, kyc_level, bank_verified, pan_verified, gstin, razorpay_linked_account_id, creator_category",
+      "full_name, email, phone, gstin, creator_category",
     )
     .eq("id", user.id)
     .single();
@@ -122,7 +122,7 @@ export default async function SettingsPage() {
         <CardHeader>
           <CardTitle className="text-base">Notifications</CardTitle>
           <CardDescription>
-            WhatsApp + email alerts for sales, leads, payouts, and KYC updates.
+            WhatsApp + email alerts for sales and new leads.
           </CardDescription>
         </CardHeader>
         <CardContent className="text-sm">

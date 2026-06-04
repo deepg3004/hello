@@ -7,9 +7,6 @@ import { APP_URL } from "./layout";
 
 // Facade templates (lib/emails/templates/*)
 import { welcomeEmail } from "./templates/welcome";
-import { kycReceivedEmail } from "./templates/kyc-received";
-import { kycApprovedEmail } from "./templates/kyc-approved";
-import { kycRejectedEmail } from "./templates/kyc-rejected";
 import { orderConfirmationEmail } from "./templates/order-confirmation";
 import { paymentFailedEmail } from "./templates/payment-failed";
 import { subscriptionRenewalEmail } from "./templates/subscription-renewal";
@@ -85,37 +82,6 @@ export const EMAIL_CATALOG: CatalogEntry[] = [
         plan: "Pro",
         renews_at: "2026-07-01",
         amount: 999,
-      }),
-  },
-
-  // ── KYC ────────────────────────────────────────────────────────────────
-  {
-    key: "kyc_received",
-    label: "KYC received",
-    audience: "KYC",
-    live: true,
-    description: "Confirmation when a seller submits KYC for review.",
-    render: () => kycReceivedEmail({ seller_name: "Ravi Kumar", manual: true }),
-  },
-  {
-    key: "kyc_approved",
-    label: "KYC approved",
-    audience: "KYC",
-    live: true,
-    description: "Sent when an admin approves a seller's KYC.",
-    render: () => kycApprovedEmail({ seller_name: "Ravi Kumar", level: 2 }),
-  },
-  {
-    key: "kyc_rejected",
-    label: "KYC rejected",
-    audience: "KYC",
-    live: true,
-    description: "Sent when KYC is rejected and needs resubmission.",
-    render: () =>
-      kycRejectedEmail({
-        seller_name: "Ravi Kumar",
-        level: 2,
-        reason: "Bank account holder name doesn't match PAN.",
       }),
   },
 

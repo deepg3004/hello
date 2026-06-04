@@ -45,7 +45,6 @@ export interface AdminUserRow {
   phone: string | null;
   subscription_plan: string;
   subscription_status: string;
-  kyc_level: number;
   is_admin: boolean;
   suspended: boolean;
   total_revenue: number;
@@ -100,7 +99,6 @@ function makeInitials(s: string): string {
 export function UsersTable({ users }: { users: AdminUserRow[] }) {
   const [search, setSearch] = useState("");
   const [plan, setPlan] = useState("all");
-  const [kyc, setKyc] = useState("all");
   const [status, setStatus] = useState<string>("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -116,7 +114,6 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
       )
         return false;
       if (plan !== "all" && u.subscription_plan !== plan) return false;
-      if (kyc !== "all" && String(u.kyc_level) !== kyc) return false;
       if (status === "active" && u.suspended) return false;
       if (status === "suspended" && !u.suspended) return false;
       if (from && new Date(u.created_at) < new Date(from)) return false;
@@ -144,7 +141,7 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
         );
     }
     return sorted;
-  }, [users, search, plan, kyc, status, from, to, sort]);
+  }, [users, search, plan, status, from, to, sort]);
 
   // Platform summary for the stat cards (reflects the active filters).
   const summary = useMemo(() => {
@@ -165,12 +162,11 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
   }, [filtered]);
 
   const anyFilter =
-    !!search || plan !== "all" || kyc !== "all" || status !== "all" || !!from || !!to;
+    !!search || plan !== "all" || status !== "all" || !!from || !!to;
 
   function reset() {
     setSearch("");
     setPlan("all");
-    setKyc("all");
     setStatus("all");
     setFrom("");
     setTo("");
@@ -218,23 +214,6 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
                     {p.name}
                   </SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              KYC level
-            </Label>
-            <Select value={kyc} onValueChange={setKyc}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All levels</SelectItem>
-                <SelectItem value="0">Level 0 — none</SelectItem>
-                <SelectItem value="1">Level 1 — basic</SelectItem>
-                <SelectItem value="2">Level 2 — bank</SelectItem>
-                <SelectItem value="3">Level 3 — full</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -329,7 +308,6 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
                 <tr className="text-left">
                   <Th>User</Th>
                   <Th>Plan</Th>
-                  <Th>KYC</Th>
                   <Th>Status</Th>
                   <Th className="text-right">Revenue</Th>
                   <Th className="text-right">Wallet</Th>
@@ -477,10 +455,6 @@ function UserRow({ user: u }: { user: AdminUserRow }) {
           )}
         </div>
       </td>
-      {/* KYC level — 4 dots (0..3 filled) */}
-      <td className="px-4 py-3">
-        <KycDots level={u.kyc_level} />
-      </td>
       {/* Status — suspended takes priority */}
       <td className="px-4 py-3">
         {u.suspended ? (
@@ -557,29 +531,3 @@ function UserRow({ user: u }: { user: AdminUserRow }) {
   );
 }
 
-function KycDots({ level }: { level: number }) {
-  const lvl = Math.max(0, Math.min(3, level));
-  return (
-    <div
-      className="inline-flex items-center gap-1"
-      title={`KYC level ${lvl} of 3`}
-    >
-      {[1, 2, 3].map((i) => (
-        <span
-          key={i}
-          className={cn(
-            "h-2 w-2 rounded-full transition-colors",
-            i <= lvl
-              ? lvl === 3
-                ? "bg-emerald-500"
-                : "bg-indigo-500"
-              : "bg-muted",
-          )}
-        />
-      ))}
-      <span className="ml-1 text-xs font-medium text-muted-foreground">
-        L{lvl}
-      </span>
-    </div>
-  );
-}
