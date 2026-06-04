@@ -87,6 +87,6 @@ export async function updatePhoneAction(phoneRaw: string): Promise<Result> {
     .eq("id", user.id);
   if (error) return { ok: false, message: error.message };
 
-  revalidatePath("/dashboard/kyc");
+  revalidatePath("/dashboard/settings");
   return { ok: true };
 }
