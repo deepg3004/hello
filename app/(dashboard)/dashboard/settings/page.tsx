@@ -155,6 +155,20 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">Help &amp; Support</CardTitle>
+          <CardDescription>
+            Open a support ticket — we reply by email and in your dashboard.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-sm">
+          <Link href="/dashboard/support" className="text-primary underline">
+            Get help →
+          </Link>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">Password</CardTitle>
           <CardDescription>
             Change the password you use to sign in.

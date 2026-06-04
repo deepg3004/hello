@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  Activity,
   ArrowLeft,
   Coins,
   CreditCard,
@@ -11,6 +12,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   Mail,
+  Megaphone,
   Plug,
   ScrollText,
   Send,
@@ -67,6 +69,13 @@ export function AdminSidebar({
       items: [
         { href: "/admin/telegram", label: "Telegram", Icon: Send },
         { href: "/admin/support", label: "Support", Icon: LifeBuoy },
+      ],
+    },
+    {
+      label: "Ops",
+      items: [
+        { href: "/admin/system-health", label: "System Health", Icon: Activity },
+        { href: "/admin/broadcast", label: "Broadcast", Icon: Megaphone },
       ],
     },
     {
