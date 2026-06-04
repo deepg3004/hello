@@ -3,6 +3,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getRazorpay } from "@/lib/razorpay";
+import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
+import { getGateway } from "@/lib/gateways";
 import { refundReversal } from "@/lib/pricing";
 
 export interface TransactionsFilter {
@@ -188,7 +190,7 @@ export async function refundOrderAction(
   const { data: order, error: loadErr } = await admin
     .from("orders")
     .select(
-      "id, status, gateway_payment_id, amount, seller_amount, platform_commission, seller_user_id",
+      "id, status, gateway_payment_id, amount, seller_amount, platform_commission, seller_user_id, gateway_owner",
     )
     .eq("id", orderId)
     .single();
@@ -247,19 +249,34 @@ export async function refundOrderAction(
     }
   }
 
-  // ── Razorpay refund — surface failures BEFORE touching our ledger ───────
+  // ── Gateway refund — route through the order's OWN gateway. Seller-gateway
+  //    orders (gateway_owner='seller') were charged on the seller's account, so
+  //    they must be refunded there via the provider adapter; platform orders use
+  //    the platform Razorpay client. Surface failures BEFORE touching the ledger.
   let refundId: string;
   try {
-    const razorpay = getRazorpay();
-    const refund = await razorpay.payments.refund(order.gateway_payment_id, {
-      amount: Math.round(refundAmt * 100), // paise
-      speed: "normal",
-      notes: { invoxai_order_id: orderId, invoxai_initiator: user.id },
-    });
-    refundId = (refund as unknown as { id: string }).id;
+    if (order.gateway_owner === "seller") {
+      const keys = await loadSellerGatewayKeys(order.seller_user_id);
+      if (!keys) {
+        return { ok: false, message: "Seller gateway not connected — cannot refund." };
+      }
+      const r = await getGateway(keys.gateway_type).refund(keys, {
+        paymentId: order.gateway_payment_id,
+        amountPaise: Math.round(refundAmt * 100),
+        notes: { invoxai_order_id: orderId, invoxai_initiator: user.id },
+      });
+      refundId = r.refundId;
+    } else {
+      const razorpay = getRazorpay();
+      const refund = await razorpay.payments.refund(order.gateway_payment_id, {
+        amount: Math.round(refundAmt * 100), // paise
+        speed: "normal",
+        notes: { invoxai_order_id: orderId, invoxai_initiator: user.id },
+      });
+      refundId = (refund as unknown as { id: string }).id;
+    }
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Razorpay refund failed";
+    const message = err instanceof Error ? err.message : "Gateway refund failed";
     return { ok: false, message };
   }
 

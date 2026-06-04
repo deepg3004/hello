@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { saveGatewayConfigAction } from "@/actions/gateway";
+import { saveGatewayConfigAction, verifyGatewayAction } from "@/actions/gateway";
 
 const GATEWAYS = [
   { value: "razorpay", label: "Razorpay" },
@@ -24,6 +24,15 @@ const GATEWAYS = [
   { value: "instamojo", label: "Instamojo" },
   { value: "stripe", label: "Stripe" },
 ] as const;
+
+// Per-provider credential labels (each gateway names its keys differently).
+const FIELDS: Record<string, { id: string; secret: string; idPh: string }> = {
+  razorpay: { id: "Key ID", secret: "Key Secret", idPh: "rzp_live_xxxxxxxx" },
+  cashfree: { id: "App ID (x-client-id)", secret: "Secret Key (x-client-secret)", idPh: "CF…" },
+  payu: { id: "Merchant Key", secret: "Salt", idPh: "merchant key" },
+  instamojo: { id: "API Key", secret: "Auth Token", idPh: "api key" },
+  stripe: { id: "Publishable key", secret: "Secret key (sk_…)", idPh: "pk_live_…" },
+};
 
 export interface ExistingGateway {
   gateway_type: string;
@@ -49,6 +58,30 @@ export function GatewaySettingsForm({
   // Reflect a just-saved connection immediately, independent of the server
   // re-fetch (router-cache timing can otherwise leave the banner stale).
   const [saved, setSaved] = useState<ExistingGateway | null>(existing);
+  const [testing, setTesting] = useState(false);
+  const f = FIELDS[gatewayType] ?? FIELDS.razorpay!;
+
+  function test() {
+    if (!keyId.trim() || !keySecret.trim()) {
+      toast({ variant: "destructive", title: "Missing keys", description: "Enter both keys to test." });
+      return;
+    }
+    setTesting(true);
+    void verifyGatewayAction({
+      gateway_type: gatewayType,
+      key_id: keyId,
+      key_secret: keySecret,
+      webhook_secret: webhookSecret || undefined,
+    }).then((res) => {
+      setTesting(false);
+      toast(
+        res.ok
+          ? { title: "Connection OK ✅", description: res.message }
+          : { variant: "destructive", title: "Test failed", description: res.message },
+      );
+      if (res.ok) router.refresh();
+    });
+  }
 
   function save() {
     if (!keyId.trim() || !keySecret.trim()) {
@@ -134,18 +167,18 @@ export function GatewaySettingsForm({
         </div>
 
         <div>
-          <Label className="text-xs">Key ID</Label>
+          <Label className="text-xs">{f.id}</Label>
           <Input
             value={keyId}
             onChange={(e) => setKeyId(e.target.value)}
-            placeholder="rzp_live_xxxxxxxx"
+            placeholder={f.idPh}
             className="mt-1"
             autoComplete="off"
           />
         </div>
 
         <div>
-          <Label className="text-xs">Key Secret</Label>
+          <Label className="text-xs">{f.secret}</Label>
           <Input
             type="password"
             value={keySecret}
@@ -168,10 +201,16 @@ export function GatewaySettingsForm({
           />
         </div>
 
-        <Button onClick={save} disabled={pending}>
-          {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {existing ? "Update keys" : "Connect gateway"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={save} disabled={pending || testing}>
+            {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {existing ? "Update keys" : "Connect gateway"}
+          </Button>
+          <Button variant="outline" onClick={test} disabled={pending || testing}>
+            {testing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Test connection
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

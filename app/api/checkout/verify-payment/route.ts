@@ -9,8 +9,9 @@
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { verifyPayment, verifyPaymentWithSecret } from "@/lib/razorpay";
+import { verifyPayment } from "@/lib/razorpay";
 import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
+import { getGateway } from "@/lib/gateways";
 import { notifyPaymentReceived } from "@/lib/notifications/events";
 import { chargePlatformWalletFee } from "@/lib/order-fulfillment";
 import { settleCoupon } from "@/lib/coupons";
@@ -68,10 +69,11 @@ export async function POST(request: Request) {
   if (order.gateway_owner === "seller") {
     const keys = await loadSellerGatewayKeys(order.seller_user_id);
     signatureValid = keys
-      ? verifyPaymentWithSecret(
-          { razorpay_order_id, razorpay_payment_id, razorpay_signature },
-          keys.key_secret,
-        )
+      ? await getGateway(keys.gateway_type).verifyPayment(keys, {
+          orderId: razorpay_order_id,
+          paymentId: razorpay_payment_id,
+          signature: razorpay_signature,
+        })
       : false;
   } else {
     signatureValid = verifyPayment({

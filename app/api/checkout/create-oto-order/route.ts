@@ -10,8 +10,9 @@ import { cookies } from "next/headers";
 import { nanoid } from "nanoid";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createOrder, createOrderOnKeys } from "@/lib/razorpay";
-import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
+import { createOrder } from "@/lib/razorpay";
+import { loadSellerGatewayKeys, type GatewayKeys } from "@/lib/gateway-loader";
+import { getGateway, isLiveGateway } from "@/lib/gateways";
 import { verifyOtoToken, OTO_COOKIE_NAME } from "@/lib/oto-token";
 import { resolveCommissionPercent, type PlanKey } from "@/lib/plans";
 import { getCommissionConfig } from "@/lib/settings";
@@ -112,14 +113,15 @@ export async function POST() {
   // there is NO platform commission split — InvoxAI's revenue is the per-order
   // wallet fee (migration 040). Flag off / no gateway → unchanged platform path.
   const multiGatewayOn = process.env.MULTI_GATEWAY_CHECKOUT === "true";
-  let sellerGateway: { key_id: string; key_secret: string } | null = null;
+  let sellerKeys: GatewayKeys | null = null;
   if (multiGatewayOn) {
     const keys = await loadSellerGatewayKeys(seller.id);
-    if (keys && keys.gateway_type === "razorpay") {
-      sellerGateway = { key_id: keys.key_id, key_secret: keys.key_secret };
-    }
+    if (keys && isLiveGateway(keys.gateway_type)) sellerKeys = keys;
   }
-  const gatewayOwner: "platform" | "seller" = sellerGateway
+  const sellerGateway = sellerKeys
+    ? { key_id: sellerKeys.key_id, key_secret: sellerKeys.key_secret }
+    : null;
+  const gatewayOwner: "platform" | "seller" = sellerKeys
     ? "seller"
     : "platform";
 
@@ -146,14 +148,15 @@ export async function POST() {
   };
   let razorpayOrder: { id: string };
   try {
-    if (sellerGateway) {
-      // Seller's own gateway — no Route transfer (the seller is the merchant).
-      razorpayOrder = (await createOrderOnKeys(sellerGateway, {
-        amount: amountPaise,
+    if (sellerKeys) {
+      // Seller's own gateway via the adapter — no Route transfer.
+      const created = await getGateway(sellerKeys.gateway_type).createOrder(sellerKeys, {
+        amountPaise,
         currency: otoCurrency,
         receipt: nanoid(10),
         notes: otoNotes,
-      })) as unknown as { id: string };
+      });
+      razorpayOrder = { id: created.providerOrderId };
     } else {
       razorpayOrder = (await createOrder({
         amount: amountPaise,

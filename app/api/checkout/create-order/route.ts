@@ -15,8 +15,9 @@ import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createOrder, createOrderOnKeys } from "@/lib/razorpay";
-import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
+import { createOrder } from "@/lib/razorpay";
+import { loadSellerGatewayKeys, type GatewayKeys } from "@/lib/gateway-loader";
+import { getGateway, isLiveGateway } from "@/lib/gateways";
 import {
   reserveCoupon,
   releaseCoupon,
@@ -294,14 +295,17 @@ export async function POST(request: Request) {
   // commission split — InvoxAI's revenue is the per-order wallet fee
   // (migration 040) instead. Flag off / no gateway → unchanged platform path.
   const multiGatewayOn = process.env.MULTI_GATEWAY_CHECKOUT === "true";
-  let sellerGateway: { key_id: string; key_secret: string } | null = null;
+  let sellerKeys: GatewayKeys | null = null;
   if (multiGatewayOn) {
     const keys = await loadSellerGatewayKeys(seller.id);
-    if (keys && keys.gateway_type === "razorpay") {
-      sellerGateway = { key_id: keys.key_id, key_secret: keys.key_secret };
-    }
+    // Only providers whose buyer-facing checkout is fully wired/verified
+    // (LIVE_GATEWAYS — razorpay today) may route through the seller's gateway.
+    if (keys && isLiveGateway(keys.gateway_type)) sellerKeys = keys;
   }
-  const gatewayOwner: "platform" | "seller" = sellerGateway
+  const sellerGateway = sellerKeys
+    ? { key_id: sellerKeys.key_id, key_secret: sellerKeys.key_secret }
+    : null;
+  const gatewayOwner: "platform" | "seller" = sellerKeys
     ? "seller"
     : "platform";
 
@@ -373,14 +377,16 @@ export async function POST(request: Request) {
   };
   let razorpayOrder: { id: string; amount: number | string } | null = null;
   try {
-    if (sellerGateway) {
-      // Seller's own gateway — no Route transfer (the seller is the merchant).
-      razorpayOrder = (await createOrderOnKeys(sellerGateway, {
-        amount: amountPaise,
+    if (sellerKeys) {
+      // Seller's own gateway via the adapter — no Route transfer (the seller is
+      // the merchant). InvoxAI revenue comes from the wallet fee at fulfillment.
+      const created = await getGateway(sellerKeys.gateway_type).createOrder(sellerKeys, {
+        amountPaise,
         currency,
         receipt: shortReceipt,
         notes: sharedNotes,
-      })) as unknown as { id: string; amount: number | string };
+      });
+      razorpayOrder = { id: created.providerOrderId, amount: amountPaise };
     } else {
       razorpayOrder = (await createOrder({
         amount: amountPaise,
