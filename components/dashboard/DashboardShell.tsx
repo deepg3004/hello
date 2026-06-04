@@ -34,7 +34,7 @@ export function DashboardShell({
   // The page editor runs full-screen: hide the dashboard sidebar and the
   // max-width / padding so the 30/70 (controls / live-preview) split fills the
   // whole screen.
-  const isEditor = /\/dashboard\/pages\/[^/]+\/edit\/?$/.test(pathname);
+  const isEditor = /\/dashboard\/(pages|website)\/[^/]+\/edit\/?$/.test(pathname);
 
   return (
     <div className="dash-surface app-screen-h flex flex-col overflow-hidden bg-background text-foreground">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Loader2,
@@ -13,8 +14,6 @@ import {
   ArrowDown,
   Eye,
   EyeOff,
-  Monitor,
-  Smartphone,
 } from "lucide-react";
 
 import {
@@ -25,11 +24,7 @@ import {
   reorderSitePagesAction,
 } from "@/actions/site";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { BlockEditor } from "@/components/dashboard/PageBuilder/BlockEditor";
-import { SitePreview } from "@/components/dashboard/website/SitePreview";
 import { presetsForCategory } from "@/lib/site-presets";
 import type { SiteProductLite } from "@/components/templates/blocks/registry";
 import { useToast } from "@/hooks/use-toast";
@@ -41,12 +36,6 @@ export interface PreviewMeta {
   seller: { name: string; avatar: string | null };
   socialLinks: Record<string, string> | null;
   products: SiteProductLite[];
-}
-
-interface Block {
-  id: string;
-  type: string;
-  data: Record<string, unknown>;
 }
 
 export interface SitePage {
@@ -66,34 +55,18 @@ export function SitePagesManager({
   initialPages,
   storeUrl,
   creatorCategory,
-  preview,
 }: {
   initialPages: SitePage[];
   storeUrl: string | null;
   creatorCategory?: string | null;
-  preview: PreviewMeta;
 }) {
   const router = useRouter();
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
 
-  // Local editor state for the page being edited.
-  const [title, setTitle] = useState("");
-  const [navLabel, setNavLabel] = useState("");
-  const [blocks, setBlocks] = useState<Block[]>([]);
-  const [seoTitle, setSeoTitle] = useState("");
-  const [seoDesc, setSeoDesc] = useState("");
-
-  function startEdit(p: SitePage) {
-    setEditingId(p.id);
-    setTitle(p.title);
-    setNavLabel(p.nav_label ?? p.title);
-    setBlocks(Array.isArray(p.blocks) ? (p.blocks as Block[]) : []);
-    setSeoTitle(p.seo_title ?? "");
-    setSeoDesc(p.seo_description ?? "");
-  }
+  const presets = presetsForCategory(creatorCategory);
+  const homePage = initialPages.find((p) => p.is_home);
+  const homeLive = homePage?.status === "published";
 
   async function move(index: number, dir: -1 | 1) {
     const j = index + dir;
@@ -113,8 +86,6 @@ export function SitePagesManager({
     router.refresh();
   }
 
-  const presets = presetsForCategory(creatorCategory);
-
   async function addPage() {
     setBusy(true);
     const r = await createSitePageAction({ title: "New page" });
@@ -123,8 +94,9 @@ export function SitePagesManager({
       toast({ title: "Couldn't create", description: r.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Page created" });
-    router.refresh();
+    // Open the new page straight into the full-screen editor.
+    if (r.pageId) router.push(`/dashboard/website/${r.pageId}/edit`);
+    else router.refresh();
   }
 
   async function addFromPreset(blocks: unknown) {
@@ -137,8 +109,9 @@ export function SitePagesManager({
       toast({ title: "Couldn't create", description: r.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Homepage published 🎉", description: "It's live on your site now." });
-    router.refresh();
+    toast({ title: "Homepage published 🎉", description: "Opening the editor…" });
+    if (r.pageId) router.push(`/dashboard/website/${r.pageId}/edit`);
+    else router.refresh();
   }
 
   async function togglePublish(p: SitePage) {
@@ -153,33 +126,6 @@ export function SitePagesManager({
       return;
     }
     toast({ title: p.status === "published" ? "Unpublished" : "Published — now live" });
-    router.refresh();
-  }
-
-  // Is the live site actually showing the builder? Only when the home page is
-  // published. Otherwise the subdomain falls back to the product store.
-  const homePage = initialPages.find((p) => p.is_home);
-  const homeLive = homePage?.status === "published";
-
-  async function save(publish?: boolean) {
-    if (!editingId) return;
-    setBusy(true);
-    const r = await updateSitePageAction({
-      id: editingId,
-      title,
-      nav_label: navLabel,
-      blocks,
-      seo_title: seoTitle || null,
-      seo_description: seoDesc || null,
-      ...(publish !== undefined ? { status: publish ? "published" : "draft" } : {}),
-    });
-    setBusy(false);
-    if (!r.ok) {
-      toast({ title: "Couldn't save", description: r.message, variant: "destructive" });
-      return;
-    }
-    toast({ title: publish === true ? "Published" : publish === false ? "Unpublished" : "Saved" });
-    setEditingId(null);
     router.refresh();
   }
 
@@ -203,7 +149,6 @@ export function SitePagesManager({
       toast({ title: "Couldn't delete", description: r.message, variant: "destructive" });
       return;
     }
-    if (editingId === p.id) setEditingId(null);
     router.refresh();
   }
 
@@ -312,6 +257,11 @@ export function SitePagesManager({
                 <span className="text-xs text-muted-foreground">/{p.slug}</span>
               </div>
               <div className="flex items-center gap-1">
+                <Button asChild size="sm">
+                  <Link href={`/dashboard/website/${p.id}/edit`}>
+                    <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
+                  </Link>
+                </Button>
                 <Button
                   variant={p.status === "published" ? "ghost" : "default"}
                   size="sm"
@@ -350,9 +300,6 @@ export function SitePagesManager({
                     </a>
                   </Button>
                 )}
-                <Button variant="ghost" size="sm" onClick={() => startEdit(p)}>
-                  <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
-                </Button>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -366,114 +313,6 @@ export function SitePagesManager({
               </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {/* Inline editor for the selected page */}
-      {editingId && (
-        <div className="space-y-4 rounded-xl border bg-card p-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Page title</Label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Nav label</Label>
-              <Input value={navLabel} onChange={(e) => setNavLabel(e.target.value)} />
-            </div>
-          </div>
-
-          <div className="grid gap-5 lg:grid-cols-2">
-            {/* Left: the editor controls */}
-            <div className="space-y-4">
-              <BlockEditor blocks={blocks} onChange={setBlocks} />
-
-              <div className="grid gap-4 border-t pt-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-medium">SEO title</Label>
-                  <Input
-                    value={seoTitle}
-                    onChange={(e) => setSeoTitle(e.target.value)}
-                    placeholder="Shown in search results & browser tab"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-medium">SEO description</Label>
-                  <Input
-                    value={seoDesc}
-                    onChange={(e) => setSeoDesc(e.target.value)}
-                    placeholder="One-line summary for search engines"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <Button onClick={() => save(true)} disabled={busy}>
-                  {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Save &amp; publish
-                </Button>
-                <Button onClick={() => save()} disabled={busy} variant="outline">
-                  Save draft
-                </Button>
-                <Button onClick={() => save(false)} disabled={busy} variant="ghost">
-                  Unpublish
-                </Button>
-                <Button onClick={() => setEditingId(null)} disabled={busy} variant="ghost">
-                  Close
-                </Button>
-              </div>
-            </div>
-
-            {/* Right: live preview */}
-            <div className="space-y-2 lg:sticky lg:top-4 lg:self-start">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-muted-foreground">
-                  Live preview
-                </span>
-                <div className="flex gap-1">
-                  <Button
-                    variant={device === "desktop" ? "default" : "ghost"}
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setDevice("desktop")}
-                    aria-label="Desktop preview"
-                  >
-                    <Monitor className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant={device === "mobile" ? "default" : "ghost"}
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setDevice("mobile")}
-                    aria-label="Mobile preview"
-                  >
-                    <Smartphone className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-              <div className="overflow-hidden rounded-xl border bg-muted/20">
-                <div className="h-[620px] overflow-y-auto">
-                  <div
-                    className="mx-auto bg-white"
-                    style={{ width: device === "mobile" ? 390 : "100%" }}
-                  >
-                    <SitePreview
-                      blocks={blocks}
-                      theme={preview.theme}
-                      font={preview.font}
-                      brandColor={preview.brandColor}
-                      seller={preview.seller}
-                      socialLinks={preview.socialLinks}
-                      products={preview.products}
-                    />
-                  </div>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Updates as you edit. Click <strong>Save &amp; publish</strong> to make it live.
-              </p>
-            </div>
-          </div>
         </div>
       )}
     </div>
