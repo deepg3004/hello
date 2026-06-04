@@ -10,7 +10,8 @@ import { cookies } from "next/headers";
 import { nanoid } from "nanoid";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createOrder } from "@/lib/razorpay";
+import { createOrder, createOrderOnKeys } from "@/lib/razorpay";
+import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
 import { verifyOtoToken, OTO_COOKIE_NAME } from "@/lib/oto-token";
 import { resolveCommissionPercent, type PlanKey } from "@/lib/plans";
 import { getCommissionConfig } from "@/lib/settings";
@@ -104,13 +105,29 @@ export async function POST() {
   if (!seller) {
     return NextResponse.json({ error: "Seller missing" }, { status: 404 });
   }
+
+  // Phase 4 — multi-gateway. Mirrors /api/checkout/create-order: when the flag
+  // is on AND the seller has an active Razorpay gateway connected, route the OTO
+  // through THEIR gateway. The full amount lands in the seller's own account, so
+  // there is NO platform commission split — InvoxAI's revenue is the per-order
+  // wallet fee (migration 040). Flag off / no gateway → unchanged platform path.
+  const multiGatewayOn = process.env.MULTI_GATEWAY_CHECKOUT === "true";
+  let sellerGateway: { key_id: string; key_secret: string } | null = null;
+  if (multiGatewayOn) {
+    const keys = await loadSellerGatewayKeys(seller.id);
+    if (keys && keys.gateway_type === "razorpay") {
+      sellerGateway = { key_id: keys.key_id, key_secret: keys.key_secret };
+    }
+  }
+  const gatewayOwner: "platform" | "seller" = sellerGateway
+    ? "seller"
+    : "platform";
+
   const { defaultPercent, perPlan } = await getCommissionConfig();
   const planKey = (seller.subscription_plan ?? "free") as PlanKey;
-  const commissionPct = resolveCommissionPercent(
-    planKey,
-    defaultPercent,
-    perPlan,
-  );
+  const commissionPct = sellerGateway
+    ? 0
+    : resolveCommissionPercent(planKey, defaultPercent, perPlan);
   // Compute the split in paise so commission + seller_amount = amount exactly.
   const amountPaise = Math.round(priceOverride * 100);
   const commissionPaise = Math.round((amountPaise * commissionPct) / 100);
@@ -119,32 +136,44 @@ export async function POST() {
   const sellerAmount = sellerPaise / 100;
 
   const otoOrderId = crypto.randomUUID();
+  const otoCurrency = product.currency ?? "INR";
+  const otoNotes = {
+    invoxai_order_id: otoOrderId,
+    invoxai_page_id: page.id,
+    invoxai_parent_order: parent.id,
+    invoxai_seller_id: seller.id,
+    kind: "oto",
+  };
   let razorpayOrder: { id: string };
   try {
-    razorpayOrder = (await createOrder({
-      amount: amountPaise,
-      currency: product.currency ?? "INR",
-      receipt: nanoid(10),
-      notes: {
-        invoxai_order_id: otoOrderId,
-        invoxai_page_id: page.id,
-        invoxai_parent_order: parent.id,
-        invoxai_seller_id: seller.id,
-        kind: "oto",
-      },
-      transfers:
-        seller.razorpay_linked_account_id && sellerPaise > 0
-          ? [
-              {
-                account: seller.razorpay_linked_account_id,
-                amount: sellerPaise,
-                currency: product.currency ?? "INR",
-                on_hold: 0,
-                notes: { invoxai_order_id: otoOrderId },
-              },
-            ]
-          : undefined,
-    })) as unknown as { id: string };
+    if (sellerGateway) {
+      // Seller's own gateway — no Route transfer (the seller is the merchant).
+      razorpayOrder = (await createOrderOnKeys(sellerGateway, {
+        amount: amountPaise,
+        currency: otoCurrency,
+        receipt: nanoid(10),
+        notes: otoNotes,
+      })) as unknown as { id: string };
+    } else {
+      razorpayOrder = (await createOrder({
+        amount: amountPaise,
+        currency: otoCurrency,
+        receipt: nanoid(10),
+        notes: otoNotes,
+        transfers:
+          seller.razorpay_linked_account_id && sellerPaise > 0
+            ? [
+                {
+                  account: seller.razorpay_linked_account_id,
+                  amount: sellerPaise,
+                  currency: otoCurrency,
+                  on_hold: 0,
+                  notes: { invoxai_order_id: otoOrderId },
+                },
+              ]
+            : undefined,
+      })) as unknown as { id: string };
+    }
   } catch (e) {
     console.error("[create-oto-order] razorpay createOrder failed", e);
     return NextResponse.json(
@@ -166,9 +195,10 @@ export async function POST() {
     amount: priceOverride,
     platform_commission: commission,
     seller_amount: sellerAmount,
-    currency: product.currency ?? "INR",
+    currency: otoCurrency,
     status: "pending",
     payment_gateway: "razorpay",
+    gateway_owner: gatewayOwner,
     gateway_order_id: razorpayOrder.id,
   });
 
@@ -183,8 +213,8 @@ export async function POST() {
     razorpay_order_id: razorpayOrder.id,
     order_id: otoOrderId,
     amount: amountPaise,
-    currency: product.currency ?? "INR",
-    key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+    currency: otoCurrency,
+    key: sellerGateway?.key_id ?? process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
     name: "InvoxAI",
     description: product.name,
     buyer_name: parent.buyer_name ?? "",
