@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { nanoid } from "nanoid";
 
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireActor } from "@/lib/account-context";
 import { slugify } from "@/lib/templates/utils";
 
 interface Result {
@@ -14,12 +14,10 @@ interface Result {
   salesPath?: string;
 }
 
+// Effective account-owner id when the actor may manage courses, else null.
 async function currentUserId(): Promise<string | null> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id ?? null;
+  const actor = await requireActor("courses.manage");
+  return actor.ok ? actor.ctx.ownerId : null;
 }
 
 /** Returns the course id if the user owns the course/module/lesson, else null. */

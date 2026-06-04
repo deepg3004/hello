@@ -39,7 +39,7 @@ import {
   getRecentTransactions,
   getTopPages,
 } from "@/lib/dashboard/queries";
-import { createClient } from "@/lib/supabase/server";
+import { getActorContext } from "@/lib/account-context";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDateTime, formatINR, truncate } from "@/lib/utils";
@@ -71,11 +71,8 @@ function trendVsLastMonth(thisMonth: number, lastMonth: number) {
 }
 
 export default async function DashboardOverview() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await getActorContext();
+  if (!ctx) redirect("/login");
 
   const admin = createAdminClient();
   const yearAgo = subMonths(new Date(), 11);
@@ -93,32 +90,32 @@ export default async function DashboardOverview() {
     { data: yearOrders },
     { count: leadsCount },
   ] = await Promise.all([
-    getDashboardMetrics(user.id),
-    getRecentTransactions(user.id, 10),
-    getTopPages(user.id, 5),
+    getDashboardMetrics(ctx.ownerId),
+    getRecentTransactions(ctx.ownerId, 10),
+    getTopPages(ctx.ownerId, 5),
     admin
       .from("user_profiles")
       .select(
         "full_name, phone, avatar_url, kyc_level, bank_verified, razorpay_linked_account_id, onboarded_at, welcome_dismissed_at",
       )
-      .eq("id", user.id)
+      .eq("id", ctx.ownerId)
       .single(),
     admin
       .from("pages")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id),
+      .eq("user_id", ctx.ownerId),
     // Paid orders over the trailing 12 months — drives the earnings chart,
     // this-month order count, and average order value.
     admin
       .from("orders")
       .select("amount, created_at")
-      .eq("seller_user_id", user.id)
+      .eq("seller_user_id", ctx.ownerId)
       .eq("status", "paid")
       .gte("created_at", yearStart),
     admin
       .from("lead_captures")
       .select("id", { count: "exact", head: true })
-      .eq("seller_user_id", user.id),
+      .eq("seller_user_id", ctx.ownerId),
   ]);
 
   // ── Earnings series (last 12 months) + derived KPIs ──────────────────
@@ -176,7 +173,7 @@ export default async function DashboardOverview() {
       {showWelcome && (
         <div className="animate-in-up" style={{ animationDelay: "0ms" }}>
           <WelcomeBanner
-            name={profile?.full_name ?? user.email ?? "there"}
+            name={profile?.full_name ?? "there"}
             progress={onboardingProgress}
             next={
               nextStep

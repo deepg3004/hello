@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireActor } from "@/lib/account-context";
 
 // Tiny curated pool so the seed events look believable. Cities span India
 // metros + tier-2 so a buyer reading "Riya S. from Indore" doesn't smell
@@ -62,11 +62,9 @@ export interface SeedResult {
 export async function seedSocialProofAction(
   input: SeedInput,
 ): Promise<SeedResult> {
-  const supabase = createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, inserted: 0, message: "Not signed in" };
+  const actor = await requireActor("pages.manage");
+  if (!actor.ok) return { ok: false, inserted: 0, message: actor.error };
+  const { ctx } = actor;
 
   const count = Math.max(1, Math.min(10, Math.round(Number(input.count))));
   if (!input.page_id) {
@@ -79,7 +77,7 @@ export async function seedSocialProofAction(
     .select("id, user_id, title")
     .eq("id", input.page_id)
     .single();
-  if (!page || page.user_id !== user.id) {
+  if (!page || page.user_id !== ctx.ownerId) {
     return { ok: false, inserted: 0, message: "Not your page" };
   }
 

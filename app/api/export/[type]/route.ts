@@ -5,9 +5,10 @@
 
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getActorContext } from "@/lib/account-context";
 import { toCsv } from "@/lib/csv";
+import type { Capability } from "@/lib/rbac";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,11 +25,13 @@ export async function GET(
     return new Response("Unknown export type", { status: 404 });
   }
 
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await getActorContext();
+  if (!ctx) redirect("/login");
+  const needed: Capability =
+    type === "leads" ? "leads.view" : type === "customers" ? "customers.view" : "transactions.view";
+  if (!ctx.can(needed)) {
+    return new Response("Forbidden", { status: 403 });
+  }
 
   const admin = createAdminClient();
   let headers: string[] = [];
@@ -38,7 +41,7 @@ export async function GET(
     const { data } = await admin
       .from("orders")
       .select("created_at, buyer_name, buyer_email, buyer_phone, amount, status, coupon_code, pages(title)")
-      .eq("seller_user_id", user.id)
+      .eq("seller_user_id", ctx.ownerId)
       .order("created_at", { ascending: false })
       .limit(MAX_ROWS);
     headers = ["Date", "Buyer name", "Buyer email", "Phone", "Amount (INR)", "Status", "Coupon", "Page"];
@@ -60,7 +63,7 @@ export async function GET(
     const { data } = await admin
       .from("orders")
       .select("buyer_name, buyer_email, amount, created_at")
-      .eq("seller_user_id", user.id)
+      .eq("seller_user_id", ctx.ownerId)
       .eq("status", "paid")
       .order("created_at", { ascending: false })
       .limit(MAX_ROWS);
@@ -91,7 +94,7 @@ export async function GET(
     const { data } = await admin
       .from("lead_captures")
       .select("created_at, name, email, phone, utm_source, pages(title)")
-      .eq("seller_user_id", user.id)
+      .eq("seller_user_id", ctx.ownerId)
       .order("created_at", { ascending: false })
       .limit(MAX_ROWS);
     headers = ["Date", "Name", "Email", "Phone", "Source", "Page"];

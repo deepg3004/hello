@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { nanoid } from "nanoid";
 
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireActor } from "@/lib/account-context";
 
 interface Result {
   ok: boolean;
@@ -58,11 +58,9 @@ function cleanWindows(rows: AvailabilityInput[]): AvailabilityInput[] {
 export async function createBookingTypeAction(
   input: BookingTypeInput,
 ): Promise<Result> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("booking.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
   if (!input.title?.trim()) return { ok: false, message: "Title required" };
   if (!input.duration_min || input.duration_min <= 0) {
     return { ok: false, message: "Duration must be greater than 0" };
@@ -74,7 +72,7 @@ export async function createBookingTypeAction(
   const { data: bt, error } = await admin
     .from("booking_types")
     .insert({
-      user_id: user.id,
+      user_id: ctx.ownerId,
       slug,
       title: input.title.trim(),
       description: input.description?.trim() || null,
@@ -102,11 +100,9 @@ export async function updateBookingTypeAction(
   id: string,
   input: BookingTypeInput & { active?: boolean },
 ): Promise<Result> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("booking.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
   const { data: owned } = await admin
@@ -114,7 +110,7 @@ export async function updateBookingTypeAction(
     .select("id, user_id")
     .eq("id", id)
     .maybeSingle();
-  if (!owned || owned.user_id !== user.id) {
+  if (!owned || owned.user_id !== ctx.ownerId) {
     return { ok: false, message: "Not found" };
   }
 
@@ -147,18 +143,16 @@ export async function updateBookingTypeAction(
 }
 
 export async function deleteBookingTypeAction(id: string): Promise<Result> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("booking.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
   const { error } = await admin
     .from("booking_types")
     .delete()
     .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("user_id", ctx.ownerId);
   if (error) return { ok: false, message: error.message };
 
   revalidatePath("/dashboard/booking");
@@ -166,18 +160,16 @@ export async function deleteBookingTypeAction(id: string): Promise<Result> {
 }
 
 export async function cancelBookingAction(id: string): Promise<Result> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("booking.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
   const { error } = await admin
     .from("bookings")
     .update({ status: "cancelled" })
     .eq("id", id)
-    .eq("seller_user_id", user.id);
+    .eq("seller_user_id", ctx.ownerId);
   if (error) return { ok: false, message: error.message };
 
   revalidatePath("/dashboard/booking");

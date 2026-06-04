@@ -29,6 +29,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { PLANS, type PlanKey } from "@/lib/plans";
 import type { Branding } from "@/lib/settings";
+import { can, type Capability, type Module, type Role } from "@/lib/rbac";
 import { cn, truncate } from "@/lib/utils";
 
 import type { TopbarProfile } from "./Topbar";
@@ -37,6 +38,8 @@ interface NavItem {
   href: string;
   label: string;
   Icon: React.ComponentType<{ className?: string }>;
+  /** RBAC module gating visibility. Omitted = always visible to any actor. */
+  module?: Module;
 }
 
 // Three-section nav. The "Main" group is unlabeled so the first thing the eye
@@ -44,32 +47,42 @@ interface NavItem {
 // quiet uppercase section headers (sidebar-fg/50 via Tailwind opacity).
 const NAV_MAIN: NavItem[] = [
   { href: "/dashboard", label: "Overview", Icon: LayoutDashboard },
-  { href: "/dashboard/pages", label: "Pages", Icon: FileText },
-  { href: "/dashboard/courses", label: "Courses", Icon: BookOpen },
-  { href: "/dashboard/store", label: "Store", Icon: Store },
-  { href: "/dashboard/website", label: "Website", Icon: Globe },
-  { href: "/dashboard/booking", label: "Booking", Icon: CalendarClock },
-  { href: "/dashboard/transactions", label: "Transactions", Icon: CreditCard },
+  { href: "/dashboard/pages", label: "Pages", Icon: FileText, module: "pages" },
+  { href: "/dashboard/courses", label: "Courses", Icon: BookOpen, module: "courses" },
+  { href: "/dashboard/store", label: "Store", Icon: Store, module: "store" },
+  { href: "/dashboard/website", label: "Website", Icon: Globe, module: "website" },
+  { href: "/dashboard/booking", label: "Booking", Icon: CalendarClock, module: "booking" },
+  { href: "/dashboard/transactions", label: "Transactions", Icon: CreditCard, module: "transactions" },
   { href: "/dashboard/learn", label: "Learn", Icon: GraduationCap },
 ];
 
 // CRM — the people side: who's bought, who's interested, who dropped off.
 const NAV_CRM: NavItem[] = [
-  { href: "/dashboard/customers", label: "Customers", Icon: Users },
-  { href: "/dashboard/leads", label: "Leads", Icon: Magnet },
-  { href: "/dashboard/analytics", label: "Recovery", Icon: LineChart },
+  { href: "/dashboard/customers", label: "Customers", Icon: Users, module: "customers" },
+  { href: "/dashboard/leads", label: "Leads", Icon: Magnet, module: "leads" },
+  { href: "/dashboard/analytics", label: "Recovery", Icon: LineChart, module: "analytics" },
 ];
 
 const NAV_GROWTH: NavItem[] = [
-  { href: "/dashboard/coupons", label: "Coupons", Icon: Tag },
-  { href: "/dashboard/affiliates", label: "Affiliates", Icon: Handshake },
-  { href: "/dashboard/marketing", label: "Marketing", Icon: Megaphone },
-  { href: "/dashboard/telegram", label: "Group Integrations", Icon: Boxes },
+  { href: "/dashboard/coupons", label: "Coupons", Icon: Tag, module: "coupons" },
+  { href: "/dashboard/affiliates", label: "Affiliates", Icon: Handshake, module: "affiliates" },
+  { href: "/dashboard/marketing", label: "Marketing", Icon: Megaphone, module: "marketing" },
+  { href: "/dashboard/telegram", label: "Group Integrations", Icon: Boxes, module: "telegram" },
 ];
 
 const NAV_ACCOUNT: NavItem[] = [
-  { href: "/dashboard/wallet", label: "Wallet", Icon: Coins },
+  { href: "/dashboard/wallet", label: "Wallet", Icon: Coins, module: "wallet" },
   { href: "/dashboard/settings", label: "Settings", Icon: Settings },
+];
+
+// Settings is a hub — show it when the actor can reach at least one setting.
+const SETTINGS_MODULES: Module[] = [
+  "domains",
+  "notifications",
+  "email",
+  "billing",
+  "gateway",
+  "team",
 ];
 
 // Sub-links shown under "Pages" when the seller is inside that section.
@@ -83,6 +96,7 @@ interface SidebarProps {
   pathname: string;
   profile: TopbarProfile;
   branding: Branding;
+  role: Role;
   onNavigate?: () => void;
 }
 
@@ -90,6 +104,7 @@ export function Sidebar({
   pathname,
   profile,
   branding,
+  role,
   onNavigate,
 }: SidebarProps) {
   const plan = ((profile.subscription_plan ?? "free") as PlanKey) in PLANS
@@ -97,6 +112,22 @@ export function Sidebar({
     : "free";
   const planName = PLANS[plan].name;
   const showUpgrade = plan === "free" || plan === "starter";
+
+  // RBAC: hide nav the role can't even view. Settings shows when ANY setting
+  // is reachable. Upgrade card is owner-only (billing).
+  const visible = (item: NavItem) =>
+    !item.module || can(role, `${item.module}.view` as Capability);
+  const navMain = NAV_MAIN.filter(visible);
+  const navCrm = NAV_CRM.filter(visible);
+  const navGrowth = NAV_GROWTH.filter(visible);
+  const canSettings = SETTINGS_MODULES.some((m) =>
+    can(role, `${m}.view` as Capability),
+  );
+  const navAccount = NAV_ACCOUNT.filter(
+    (item) =>
+      (item.href !== "/dashboard/settings" || canSettings) && visible(item),
+  );
+  const canBilling = can(role, "billing.manage");
 
   return (
     <div
@@ -143,7 +174,7 @@ export function Sidebar({
         <p className="mb-1 px-3 text-[9px] font-semibold uppercase tracking-[0.12em] text-[hsl(var(--sidebar-fg))]/50">
           Main
         </p>
-        {NAV_MAIN.map((item) => (
+        {navMain.map((item) => (
           <div key={item.href}>
             <NavRow item={item} pathname={pathname} onNavigate={onNavigate} />
             {/* Pages expands into its per-category dashboards while you're in
@@ -174,8 +205,8 @@ export function Sidebar({
           </div>
         ))}
 
-        <SectionLabel>CRM</SectionLabel>
-        {NAV_CRM.map((item) => (
+        {navCrm.length > 0 && <SectionLabel>CRM</SectionLabel>}
+        {navCrm.map((item) => (
           <NavRow
             key={item.href}
             item={item}
@@ -184,8 +215,8 @@ export function Sidebar({
           />
         ))}
 
-        <SectionLabel>Growth</SectionLabel>
-        {NAV_GROWTH.map((item) => (
+        {navGrowth.length > 0 && <SectionLabel>Growth</SectionLabel>}
+        {navGrowth.map((item) => (
           <NavRow
             key={item.href}
             item={item}
@@ -194,8 +225,8 @@ export function Sidebar({
           />
         ))}
 
-        <SectionLabel>Account</SectionLabel>
-        {NAV_ACCOUNT.map((item) => (
+        {navAccount.length > 0 && <SectionLabel>Account</SectionLabel>}
+        {navAccount.map((item) => (
           <NavRow
             key={item.href}
             item={item}
@@ -209,7 +240,7 @@ export function Sidebar({
           Only shown to Free/Starter as an upgrade CTA. Once a seller is on
           Pro/Business the card is removed entirely (the menu simply ends at
           Settings) — per the owner's request, no "current plan" status card. */}
-      {showUpgrade && (
+      {showUpgrade && canBilling && (
         <div className="shrink-0 px-3 pt-2">
           <div className="rounded-xl bg-brand-gradient p-3 text-white shadow-lg shadow-black/30">
             <div className="flex items-center justify-between">

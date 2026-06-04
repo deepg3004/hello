@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   CourseEditor,
@@ -15,11 +15,7 @@ export default async function CourseEditPage({
 }: {
   params: { id: string };
 }) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await requirePageActor("courses.view", "/dashboard/courses");
 
   const admin = createAdminClient();
   const { data: course } = await admin
@@ -27,7 +23,7 @@ export default async function CourseEditPage({
     .select("id, seller_user_id, product_id, title, description, thumbnail_url, status")
     .eq("id", params.id)
     .single();
-  if (!course || course.seller_user_id !== user.id) notFound();
+  if (!course || course.seller_user_id !== ctx.ownerId) notFound();
 
   const { data: modules } = await admin
     .from("course_modules")
@@ -47,7 +43,7 @@ export default async function CourseEditPage({
   const { data: products } = await admin
     .from("products")
     .select("id, name")
-    .eq("user_id", user.id)
+    .eq("user_id", ctx.ownerId)
     .eq("active", true)
     .order("created_at", { ascending: false });
 

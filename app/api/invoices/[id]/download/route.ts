@@ -12,7 +12,7 @@
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { getActorContext } from "@/lib/account-context";
 import {
   generateInvoice,
   getInvoiceSignedUrl,
@@ -30,11 +30,8 @@ export async function GET(
   request: Request,
   { params }: { params: { id: string } },
 ) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const ctx = await getActorContext();
+  if (!ctx) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
 
@@ -48,13 +45,14 @@ export async function GET(
     return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
   }
 
-  // Authorisation: seller OR admin
+  // Authorisation: seller (or a team member with transactions access) OR admin
   const { data: caller } = await admin
     .from("user_profiles")
     .select("is_admin")
-    .eq("id", user.id)
+    .eq("id", ctx.authUserId)
     .single();
-  const isOwner = invoice.seller_user_id === user.id;
+  const isOwner =
+    invoice.seller_user_id === ctx.ownerId && ctx.can("transactions.view");
   const isAdmin = !!caller?.is_admin;
   if (!isOwner && !isAdmin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

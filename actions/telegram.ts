@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { requireActor } from "@/lib/account-context";
 import {
   banMember,
   generateInviteLink,
@@ -113,17 +114,15 @@ export interface SaveSetupInput {
 export async function saveTelegramSetupAction(
   input: SaveSetupInput,
 ): Promise<ActionResult<{ id: string }>> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("telegram.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
 
   // Insert / upsert by (user_id, group_id).
   const row = {
-    user_id: user.id,
+    user_id: ctx.ownerId,
     page_id: input.page_id ?? null,
     bot_token: input.bot_token,
     bot_username: input.bot_username ?? null,
@@ -179,7 +178,7 @@ export async function saveTelegramSetupAction(
       .from("pages")
       .update({ telegram_group_id: inserted.id })
       .eq("id", input.page_id)
-      .eq("user_id", user.id);
+      .eq("user_id", ctx.ownerId);
 
     // Create tier products if the seller defined plans. We deactivate any
     // pre-existing active products for the page so this run is the source
@@ -192,10 +191,10 @@ export async function saveTelegramSetupAction(
         .from("products")
         .update({ active: false })
         .eq("page_id", input.page_id)
-        .eq("user_id", user.id);
+        .eq("user_id", ctx.ownerId);
 
       const rows = plans.map((p, idx) => ({
-        user_id: user.id,
+        user_id: ctx.ownerId,
         page_id: input.page_id,
         name: `${p.label} VIP access`,
         display_label: p.label,

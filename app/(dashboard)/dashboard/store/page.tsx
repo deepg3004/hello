@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { platformRootDomain } from "@/lib/domains";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
@@ -26,17 +26,13 @@ export const metadata = { title: "Store" };
 const SPARK = [4, 6, 5, 7, 6, 8, 7, 9];
 
 export default async function StoreDashboardPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/dashboard/store");
+  const ctx = await requirePageActor("store.view", "/dashboard/store");
 
   const admin = createAdminClient();
   const { data: profile } = await admin
     .from("user_profiles")
     .select("subdomain, shipping_flat_fee, free_shipping_over")
-    .eq("id", user.id)
+    .eq("id", ctx.ownerId)
     .single();
 
   // Active products + which sit on a published page (what the store shows).
@@ -45,7 +41,7 @@ export default async function StoreDashboardPage() {
     .select(
       "id, name, requires_shipping, stock, sku, page_id, pages!products_page_id_fkey(status, title, type)",
     )
-    .eq("user_id", user.id)
+    .eq("user_id", ctx.ownerId)
     .eq("active", true);
   const totalActive = (productsRaw ?? []).length;
   type ProdRow = {

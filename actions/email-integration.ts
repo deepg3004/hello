@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireActor } from "@/lib/account-context";
 import { encryptValue, vaultConfigured } from "@/lib/admin/vault";
 import { loadSellerSmtp, sendViaSellerSmtp } from "@/lib/seller-smtp";
 
@@ -23,11 +23,9 @@ export async function saveSellerSmtpAction(input: {
   reply_to?: string | null;
   active: boolean;
 }): Promise<Result> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("email.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   if (!input.host?.trim() || !input.username?.trim() || !input.from_email?.trim()) {
     return { ok: false, message: "Host, username and from-email are required." };
@@ -46,7 +44,7 @@ export async function saveSellerSmtpAction(input: {
     const { data: existing } = await admin
       .from("seller_smtp")
       .select("password_enc")
-      .eq("user_id", user.id)
+      .eq("user_id", ctx.ownerId)
       .maybeSingle();
     password_enc = existing?.password_enc ?? null;
   }
@@ -56,7 +54,7 @@ export async function saveSellerSmtpAction(input: {
 
   const { error } = await admin.from("seller_smtp").upsert(
     {
-      user_id: user.id,
+      user_id: ctx.ownerId,
       host: input.host.trim(),
       port: Math.floor(Number(input.port) || 587),
       secure: !!input.secure,
@@ -77,18 +75,17 @@ export async function saveSellerSmtpAction(input: {
 }
 
 export async function testSellerSmtpAction(): Promise<Result> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("email.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
-  const cfg = await loadSellerSmtp(user.id);
+  const cfg = await loadSellerSmtp(ctx.ownerId);
   if (!cfg) {
     return { ok: false, message: "Save active SMTP settings first." };
   }
-  const to = user.email;
-  if (!to) return { ok: false, message: "No email on your account to send a test to." };
+  // Send the test to the address they configured as the sender — proves the
+  // SMTP works end-to-end into a mailbox they control.
+  const to = cfg.fromEmail;
 
   const res = await sendViaSellerSmtp(cfg, {
     to,

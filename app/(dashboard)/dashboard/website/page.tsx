@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { platformRootDomain } from "@/lib/domains";
 import {
@@ -24,11 +24,7 @@ import { SiteSettingsForm } from "@/components/dashboard/website/SiteSettingsFor
 export const metadata = { title: "Website — InvoxAI" };
 
 export default async function WebsitePage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await requirePageActor("website.view", "/dashboard/website");
 
   const admin = createAdminClient();
   const [{ data: profile }, { data: pages }] = await Promise.all([
@@ -37,12 +33,12 @@ export default async function WebsitePage() {
       .select(
         "subdomain, avatar_url, bio, tagline, brand_color, social_links, creator_category, site_config",
       )
-      .eq("id", user.id)
+      .eq("id", ctx.ownerId)
       .single(),
     admin
       .from("site_pages")
       .select("id, slug, title, nav_label, is_home, show_in_nav, status, blocks, seo_title, seo_description")
-      .eq("user_id", user.id)
+      .eq("user_id", ctx.ownerId)
       .order("sort_order", { ascending: true }),
   ]);
 

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { STATE_CODES, stateNameFromCode } from "@/lib/gst";
 import { TaxBillingForm } from "@/components/dashboard/TaxBillingForm";
 
@@ -17,11 +17,7 @@ interface GstAddress {
 }
 
 export default async function TaxBillingPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await requirePageActor("billing.view", "/dashboard/settings/tax-billing");
 
   const admin = createAdminClient();
   const { data: profile } = await admin
@@ -29,7 +25,7 @@ export default async function TaxBillingPage() {
     .select(
       "legal_business_name, gstin, gst_address, state_code, default_hsn_sac, default_gst_rate, gst_verified_at, full_name",
     )
-    .eq("id", user.id)
+    .eq("id", ctx.ownerId)
     .single();
 
   const address = (profile?.gst_address as GstAddress | null) ?? {};

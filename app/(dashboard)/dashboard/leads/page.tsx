@@ -4,7 +4,7 @@ import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { PageStatCard } from "@/components/dashboard/pages/PageStatCard";
 import { LeadsTable, type LeadRow } from "@/components/dashboard/leads/LeadsTable";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { ExportCsvButton } from "@/components/dashboard/ExportCsvButton";
 import { dailySeries, seriesTrend } from "@/lib/dashboard/spark";
 
@@ -14,11 +14,7 @@ const HERO_BTN =
 export const metadata = { title: "Leads" };
 
 export default async function LeadsPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await requirePageActor("leads.view", "/dashboard/leads");
 
   const admin = createAdminClient();
   const [{ data: rowsRaw }, { data: pagesRaw }] = await Promise.all([
@@ -27,13 +23,13 @@ export default async function LeadsPage() {
       .select(
         "id, page_id, name, email, phone, tags, notes, custom_fields, source, utm, confirmed_at, delivered_magnet, created_at, pages(title)",
       )
-      .eq("seller_user_id", user.id)
+      .eq("seller_user_id", ctx.ownerId)
       .order("created_at", { ascending: false })
       .limit(5000),
     admin
       .from("pages")
       .select("id, title")
-      .eq("user_id", user.id)
+      .eq("user_id", ctx.ownerId)
       .in("type", ["landing", "lead_magnet"])
       .order("created_at", { ascending: false }),
   ]);

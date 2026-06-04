@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   CoursePlayerClient,
@@ -16,11 +16,7 @@ export default async function CoursePreviewPage({
 }: {
   params: { id: string };
 }) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await requirePageActor("courses.view", "/dashboard/courses");
 
   const admin = createAdminClient();
   const { data: course } = await admin
@@ -28,7 +24,7 @@ export default async function CoursePreviewPage({
     .select("id, seller_user_id, title, description")
     .eq("id", params.id)
     .single();
-  if (!course || course.seller_user_id !== user.id) notFound();
+  if (!course || course.seller_user_id !== ctx.ownerId) notFound();
 
   const { data: modules } = await admin
     .from("course_modules")

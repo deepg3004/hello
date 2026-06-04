@@ -4,7 +4,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ShoppingCart, TrendingUp, IndianRupee, MailOpen } from "lucide-react";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import {
@@ -59,18 +59,14 @@ const fmt = (n: number) =>
 const inr = (n: number) => `₹${fmt(n)}`;
 
 export default async function AnalyticsPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await requirePageActor("analytics.view", "/dashboard/analytics");
 
   const admin = createAdminClient();
 
   const { data: meRow } = await admin
     .from("user_profiles")
     .select("is_admin")
-    .eq("id", user.id)
+    .eq("id", ctx.ownerId)
     .single();
   const isAdmin = !!meRow?.is_admin;
 
@@ -90,7 +86,7 @@ export default async function AnalyticsPage() {
   // Recent table — 25 rows
   const recentQ = isAdmin
     ? baseQuery.limit(25)
-    : baseQuery.eq("seller_user_id", user.id).limit(25);
+    : baseQuery.eq("seller_user_id", ctx.ownerId).limit(25);
   const { data: recentRaw } = await recentQ;
   const recent = (recentRaw ?? []) as JoinedRow[];
 
@@ -101,7 +97,7 @@ export default async function AnalyticsPage() {
     .gte("created_at", monthStart);
   const finalMonthQ = isAdmin
     ? monthQ
-    : monthQ.eq("seller_user_id", user.id);
+    : monthQ.eq("seller_user_id", ctx.ownerId);
   const { data: month } = await finalMonthQ;
 
   const total = month?.length ?? 0;

@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireActor } from "@/lib/account-context";
 
 interface Result {
   ok: boolean;
@@ -20,11 +20,9 @@ export async function updateProductPhysicalAction(input: {
   stock: number | null;
   sku?: string | null;
 }): Promise<Result> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("store.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
   // Verify the seller owns this page (and thus its product).
@@ -33,7 +31,7 @@ export async function updateProductPhysicalAction(input: {
     .select("id, user_id")
     .eq("id", input.page_id)
     .maybeSingle();
-  if (!page || page.user_id !== user.id) {
+  if (!page || page.user_id !== ctx.ownerId) {
     return { ok: false, message: "Page not found" };
   }
 
@@ -50,7 +48,7 @@ export async function updateProductPhysicalAction(input: {
       sku: input.sku?.trim() || null,
     })
     .eq("page_id", input.page_id)
-    .eq("user_id", user.id);
+    .eq("user_id", ctx.ownerId);
   if (error) return { ok: false, message: error.message };
 
   revalidatePath(`/dashboard/pages/${input.page_id}/edit`);
@@ -62,11 +60,9 @@ export async function updateShippingConfigAction(input: {
   shipping_flat_fee: number;
   free_shipping_over: number | null;
 }): Promise<Result> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("store.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
   const { error } = await admin
@@ -78,7 +74,7 @@ export async function updateShippingConfigAction(input: {
           ? Number(input.free_shipping_over)
           : null,
     })
-    .eq("id", user.id);
+    .eq("id", ctx.ownerId);
   if (error) return { ok: false, message: error.message };
 
   revalidatePath("/dashboard/store");
@@ -92,11 +88,9 @@ export async function updateFulfillmentAction(input: {
   tracking_number?: string | null;
   tracking_url?: string | null;
 }): Promise<Result> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("store.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
   const patch: Record<string, unknown> = {
@@ -112,7 +106,7 @@ export async function updateFulfillmentAction(input: {
     .from("orders")
     .update(patch)
     .eq("id", input.order_id)
-    .eq("seller_user_id", user.id);
+    .eq("seller_user_id", ctx.ownerId);
   if (error) return { ok: false, message: error.message };
 
   revalidatePath("/dashboard/store/orders");

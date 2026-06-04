@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireActor } from "@/lib/account-context";
 import type {
   NotificationEventKey,
   NotificationEventToggles,
@@ -44,17 +44,15 @@ function sanitiseToggles(
 export async function updateNotificationPrefsAction(
   input: UpdateInput,
 ): Promise<{ ok: boolean; message?: string }> {
-  const supabase = createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("notifications.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
   const { data: profile } = await admin
     .from("user_profiles")
     .select("notifications_config, whatsapp_verified_number")
-    .eq("id", user.id)
+    .eq("id", ctx.ownerId)
     .single();
 
   const current = (profile?.notifications_config as NotificationsConfig | null) ?? {};
@@ -71,7 +69,7 @@ export async function updateNotificationPrefsAction(
   const { error } = await admin
     .from("user_profiles")
     .update({ notifications_config: next })
-    .eq("id", user.id);
+    .eq("id", ctx.ownerId);
   if (error) return { ok: false, message: error.message };
 
   revalidatePath("/dashboard/settings/notifications");
@@ -86,17 +84,15 @@ export async function removeWhatsAppNumberAction(): Promise<{
   ok: boolean;
   message?: string;
 }> {
-  const supabase = createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("notifications.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
   const { data: profile } = await admin
     .from("user_profiles")
     .select("notifications_config")
-    .eq("id", user.id)
+    .eq("id", ctx.ownerId)
     .single();
   const current = (profile?.notifications_config as NotificationsConfig | null) ?? {};
   const next: NotificationsConfig = { ...current };
@@ -114,7 +110,7 @@ export async function removeWhatsAppNumberAction(): Promise<{
       whatsapp_otp_expires_at: null,
       whatsapp_otp_attempts: 0,
     })
-    .eq("id", user.id);
+    .eq("id", ctx.ownerId);
   if (error) return { ok: false, message: error.message };
 
   revalidatePath("/dashboard/settings/notifications");

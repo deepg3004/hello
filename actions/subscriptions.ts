@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { requireActor } from "@/lib/account-context";
 import { type PlanKey } from "@/lib/plans";
 
 export interface StartUpgradeInput {
@@ -20,6 +21,10 @@ export interface StartUpgradeResult {
 export async function startUpgradeAction(
   input: StartUpgradeInput,
 ): Promise<StartUpgradeResult> {
+  // Billing is owner-only (billing.manage ⇒ acting on one's own account).
+  const actor = await requireActor("billing.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+
   const supabase = createClient();
   const {
     data: { user },

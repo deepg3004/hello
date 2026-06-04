@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import {
   DEFAULT_EVENT_TOGGLES,
   EVENTS,
@@ -12,11 +12,7 @@ import { NotificationsSettingsForm } from "@/components/dashboard/NotificationsS
 export const metadata = { title: "Notifications · Settings" };
 
 export default async function NotificationsSettingsPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await requirePageActor("notifications.view", "/dashboard/settings/notifications");
 
   const admin = createAdminClient();
   const { data: profile } = await admin
@@ -24,7 +20,7 @@ export default async function NotificationsSettingsPage() {
     .select(
       "notifications_config, whatsapp_verified_number, whatsapp_verified_at, whatsapp_pending_number, whatsapp_otp_expires_at, phone",
     )
-    .eq("id", user.id)
+    .eq("id", ctx.ownerId)
     .single();
 
   const cfg = (profile?.notifications_config as NotificationsConfig | null) ?? {};

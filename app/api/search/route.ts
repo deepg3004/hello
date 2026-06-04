@@ -7,8 +7,8 @@
 
 import { NextResponse } from "next/server";
 
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getActorContext } from "@/lib/account-context";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -21,11 +21,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ pages: [], customers: [], transactions: [] });
   }
 
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const ctx = await getActorContext();
+  if (!ctx) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -36,14 +33,14 @@ export async function GET(request: Request) {
     admin
       .from("pages")
       .select("id, title, type")
-      .eq("user_id", user.id)
+      .eq("user_id", ctx.ownerId)
       .ilike("title", like)
       .order("created_at", { ascending: false })
       .limit(6),
     admin
       .from("orders")
       .select("id, buyer_name, buyer_email, amount, status, created_at")
-      .eq("seller_user_id", user.id)
+      .eq("seller_user_id", ctx.ownerId)
       .or(`buyer_name.ilike.${like},buyer_email.ilike.${like}`)
       .order("created_at", { ascending: false })
       .limit(10),

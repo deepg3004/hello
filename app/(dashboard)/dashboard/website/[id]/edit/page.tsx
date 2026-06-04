@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { platformRootDomain } from "@/lib/domains";
 import { loadSellerProducts, loadSellerLinks } from "@/lib/site";
@@ -16,11 +16,7 @@ export default async function WebsitePageEditor({
 }: {
   params: { id: string };
 }) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect(`/login?next=/dashboard/website/${params.id}/edit`);
+  const ctx = await requirePageActor("website.view", "/dashboard/website");
 
   const admin = createAdminClient();
   const [{ data: page }, { data: profile }, products, links] = await Promise.all([
@@ -32,14 +28,14 @@ export default async function WebsitePageEditor({
     admin
       .from("user_profiles")
       .select("subdomain, full_name, legal_business_name, avatar_url, brand_color, social_links, site_config")
-      .eq("id", user.id)
+      .eq("id", ctx.ownerId)
       .single(),
-    loadSellerProducts(user.id),
-    loadSellerLinks(user.id),
+    loadSellerProducts(ctx.ownerId),
+    loadSellerLinks(ctx.ownerId),
   ]);
 
   if (!page) notFound();
-  if (page.user_id !== user.id) redirect("/dashboard/website");
+  if (page.user_id !== ctx.ownerId) redirect("/dashboard/website");
 
   const cfg = (profile?.site_config as Record<string, unknown>) ?? {};
   const previewMeta = {

@@ -9,17 +9,13 @@ import { IntegrationTabs } from "@/components/dashboard/integrations/Integration
 import { PageStatCard } from "@/components/dashboard/pages/PageStatCard";
 import { getCategoryDashboard } from "@/lib/dashboard/page-category-queries";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { formatINR } from "@/lib/utils";
 
 export const metadata = { title: "Telegram" };
 
 export default async function TelegramListPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await requirePageActor("telegram.view", "/dashboard/telegram");
 
   const admin = createAdminClient();
 
@@ -27,14 +23,14 @@ export default async function TelegramListPage() {
     admin
       .from("telegram_user_sessions")
       .select("telegram_username")
-      .eq("user_id", user.id)
+      .eq("user_id", ctx.ownerId)
       .maybeSingle(),
     admin
       .from("telegram_vip_groups")
       .select(
         "id, group_name, group_id, channel_type, channel_username, logo_url, active_members, total_member_count, setup_complete, auto_page_id, page_id",
       )
-      .eq("user_id", user.id)
+      .eq("user_id", ctx.ownerId)
       // Only show set-up (bot-connected, published) channels — hide drafts.
       .eq("setup_complete", true)
       .order("created_at", { ascending: false }),
@@ -68,14 +64,14 @@ export default async function TelegramListPage() {
         ? admin
             .from("orders")
             .select("page_id, amount")
-            .eq("seller_user_id", user.id)
+            .eq("seller_user_id", ctx.ownerId)
             .eq("status", "paid")
             .in("page_id", pageIds)
         : Promise.resolve({ data: [] as Array<{ page_id: string; amount: number }> }),
       admin
         .from("telegram_subscription_plans")
         .select("group_id, name, price, sort_order")
-        .eq("user_id", user.id)
+        .eq("user_id", ctx.ownerId)
         .order("sort_order", { ascending: true }),
     ]);
 
@@ -115,7 +111,7 @@ export default async function TelegramListPage() {
 
   // Headline stats — revenue/sales sparklines come from the shared telegram
   // category query; channel + member counts from the groups above.
-  const { stats } = await getCategoryDashboard(user.id, "telegram");
+  const { stats } = await getCategoryDashboard(ctx.ownerId, "telegram");
   const totalMembers = channels.reduce((a, c) => a + c.activeMembers, 0);
   const salesSpark = stats.spark.map((s) => s.sales);
   const revenueSpark = stats.spark.map((s) => s.revenue);

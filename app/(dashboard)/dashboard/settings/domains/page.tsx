@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { appRootHost, platformRootDomain } from "@/lib/domains";
 import { DomainSettingsForm } from "@/components/dashboard/DomainSettingsForm";
@@ -16,11 +16,7 @@ import { DomainSettingsForm } from "@/components/dashboard/DomainSettingsForm";
 export const metadata = { title: "Domains · Settings" };
 
 export default async function DomainsSettingsPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/dashboard/settings/domains");
+  const ctx = await requirePageActor("domains.view", "/dashboard/settings/domains");
 
   const admin = createAdminClient();
   const [{ data: profile }, { data: flag }] = await Promise.all([
@@ -29,7 +25,7 @@ export default async function DomainsSettingsPage() {
       .select(
         "subdomain, subdomain_claimed_at, custom_domain, custom_domain_verified_at, custom_domain_cert_status, custom_domain_last_checked_at, custom_domain_last_error, subscription_plan",
       )
-      .eq("id", user.id)
+      .eq("id", ctx.ownerId)
       .single(),
     admin
       .from("platform_settings")

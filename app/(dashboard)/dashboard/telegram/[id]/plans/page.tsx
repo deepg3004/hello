@@ -2,16 +2,12 @@ import { notFound, redirect } from "next/navigation";
 
 import { PlansEditor } from "@/components/dashboard/telegram/PlansEditor";
 import { getChannelPlansAction } from "@/actions/telegram-channels";
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 
 export const metadata = { title: "Edit plans" };
 
 export default async function EditPlansPage({ params }: { params: { id: string } }) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await requirePageActor("telegram.view", "/dashboard/telegram");
 
   const res = await getChannelPlansAction(params.id);
   if (!res.ok || !res.data) notFound();

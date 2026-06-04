@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireActor } from "@/lib/account-context";
 import {
   ALLOWED_GST_RATES,
   GSTIN_REGEX,
@@ -35,11 +35,9 @@ const PINCODE_RE = /^[1-9][0-9]{5}$/;
 export async function saveGstProfileAction(
   input: SaveGstProfileInput,
 ): Promise<SaveGstProfileResult> {
-  const supabase = createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("billing.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const legal = (input.legal_business_name ?? "").trim();
   if (legal.length < 3) {
@@ -106,7 +104,7 @@ export async function saveGstProfileAction(
       default_gst_rate: input.default_gst_rate,
       gst_verified_at: new Date().toISOString(),
     })
-    .eq("id", user.id);
+    .eq("id", ctx.ownerId);
   if (error) return { ok: false, message: error.message };
 
   revalidatePath("/dashboard/settings/tax-billing");

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createClient as createServerClient } from "@/lib/supabase/server";
+import { requireActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getRedis } from "@/lib/redis";
 import {
@@ -46,11 +46,9 @@ async function loadPageForOwner(pageId: string): Promise<
     }
   | Err
 > {
-  const supabase = createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("pages.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
   const { data: page } = await admin
@@ -61,10 +59,10 @@ async function loadPageForOwner(pageId: string): Promise<
     .eq("id", pageId)
     .single();
   if (!page) return { ok: false, message: "Page not found" };
-  if (page.user_id !== user.id) {
+  if (page.user_id !== ctx.ownerId) {
     return { ok: false, message: "Not your page" };
   }
-  return { ok: true, page, uid: user.id };
+  return { ok: true, page, uid: ctx.ownerId };
 }
 
 async function resetCounters(slug: string): Promise<void> {

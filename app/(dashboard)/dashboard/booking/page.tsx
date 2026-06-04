@@ -3,7 +3,7 @@
 
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { platformRootDomain } from "@/lib/domains";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
@@ -16,11 +16,7 @@ import {
 export const metadata = { title: "Booking" };
 
 export default async function BookingDashboardPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/dashboard/booking");
+  const ctx = await requirePageActor("booking.view", "/dashboard/booking");
 
   const admin = createAdminClient();
   const [{ data: types }, { data: profile }] = await Promise.all([
@@ -29,9 +25,9 @@ export default async function BookingDashboardPage() {
       .select(
         "id, slug, title, description, duration_min, buffer_min, price, location, active, booking_availability(weekday, start_min, end_min)",
       )
-      .eq("user_id", user.id)
+      .eq("user_id", ctx.ownerId)
       .order("created_at", { ascending: false }),
-    admin.from("user_profiles").select("subdomain").eq("id", user.id).maybeSingle(),
+    admin.from("user_profiles").select("subdomain").eq("id", ctx.ownerId).maybeSingle(),
   ]);
 
   const typeIds = (types ?? []).map((t) => t.id);
@@ -39,7 +35,7 @@ export default async function BookingDashboardPage() {
     ? await admin
         .from("bookings")
         .select("id, booking_type_id, buyer_name, buyer_email, start_at, status, amount")
-        .eq("seller_user_id", user.id)
+        .eq("seller_user_id", ctx.ownerId)
         .in("status", ["confirmed", "pending"])
         .gte("start_at", new Date().toISOString())
         .order("start_at", { ascending: true })

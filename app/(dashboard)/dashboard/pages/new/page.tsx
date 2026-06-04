@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 
 import { PageBuilderWizard } from "@/components/dashboard/PageBuilder/Wizard";
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const metadata = {
@@ -9,21 +9,15 @@ export const metadata = {
 };
 
 export default async function NewPagePage() {
+  const ctx = await requirePageActor("pages.manage", "/dashboard/pages");
   // Seller's creator category drives which templates are recommended first.
-  let creatorCategory: string | null = null;
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (user) {
-    const admin = createAdminClient();
-    const { data } = await admin
-      .from("user_profiles")
-      .select("creator_category")
-      .eq("id", user.id)
-      .single();
-    creatorCategory = data?.creator_category ?? null;
-  }
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("user_profiles")
+    .select("creator_category")
+    .eq("id", ctx.ownerId)
+    .single();
+  const creatorCategory = data?.creator_category ?? null;
 
   return (
     <div className="space-y-6">

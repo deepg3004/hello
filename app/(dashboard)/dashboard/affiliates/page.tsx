@@ -1,18 +1,14 @@
 import { redirect } from "next/navigation";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { AffiliatesDashboard } from "@/components/dashboard/AffiliatesDashboard";
 
 export const metadata = { title: "Affiliates · Dashboard" };
 
 export default async function AffiliatesPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/dashboard/affiliates");
+  const ctx = await requirePageActor("affiliates.view", "/dashboard/affiliates");
 
   const admin = createAdminClient();
 
@@ -20,7 +16,7 @@ export default async function AffiliatesPage() {
   const { data: pages } = await admin
     .from("pages")
     .select("id, title, slug, type, status")
-    .eq("user_id", user.id)
+    .eq("user_id", ctx.ownerId)
     .in("type", ["payment", "landing"])
     .order("created_at", { ascending: false });
 
@@ -28,7 +24,7 @@ export default async function AffiliatesPage() {
   const { data: programs } = await admin
     .from("affiliates")
     .select("id, page_id, commission_type, commission_value, status, terms")
-    .eq("user_id", user.id);
+    .eq("user_id", ctx.ownerId);
 
   // 3. Per-affiliate roll-up.
   const programIds = (programs ?? []).map((p) => p.id);

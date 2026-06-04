@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireActor } from "@/lib/account-context";
 import type { MarketingEvent } from "@/lib/marketing";
 
 interface Result {
@@ -27,11 +27,9 @@ export async function saveMarketingIntegrationsAction(input: {
   webhook_events?: string[];
   active?: boolean;
 }): Promise<Result> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("marketing.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const url = input.webhook_url?.trim() || null;
   if (url && !/^https?:\/\//i.test(url)) {
@@ -44,7 +42,7 @@ export async function saveMarketingIntegrationsAction(input: {
   const admin = createAdminClient();
   const { error } = await admin.from("marketing_integrations").upsert(
     {
-      user_id: user.id,
+      user_id: ctx.ownerId,
       meta_pixel_id: input.meta_pixel_id?.trim() || null,
       ga4_id: input.ga4_id?.trim() || null,
       google_ads_id: input.google_ads_id?.trim() || null,

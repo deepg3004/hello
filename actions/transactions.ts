@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { requireActor } from "@/lib/account-context";
 import { getRazorpay } from "@/lib/razorpay";
 import { refundReversal } from "@/lib/pricing";
 
@@ -29,11 +30,9 @@ const csvEscape = (s: unknown): string => {
 export async function exportTransactionsCsvAction(
   filter: TransactionsFilter,
 ): Promise<ExportResult> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("transactions.view");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
   let query = admin
@@ -41,7 +40,7 @@ export async function exportTransactionsCsvAction(
     .select(
       "id, buyer_name, buyer_email, buyer_phone, amount, platform_commission, seller_amount, status, payment_gateway, gateway_payment_id, currency, coupon_id, discount_amount, utm_source, utm_medium, utm_campaign, created_at, paid_at, pages(title, slug)",
     )
-    .eq("seller_user_id", user.id)
+    .eq("seller_user_id", ctx.ownerId)
     .order("created_at", { ascending: false })
     .limit(10000);
 

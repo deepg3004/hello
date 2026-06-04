@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   GatewaySettingsForm,
@@ -10,18 +10,14 @@ import {
 export const metadata = { title: "Payment Gateway · Settings" };
 
 export default async function GatewaySettingsPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/dashboard/settings/gateway");
+  const ctx = await requirePageActor("gateway.view", "/dashboard/settings/gateway");
 
   const admin = createAdminClient();
   // Only non-secret status fields — the encrypted keys never leave the server.
   const { data: existing } = await admin
     .from("seller_gateway_config")
     .select("gateway_type, is_active, is_verified")
-    .eq("seller_user_id", user.id)
+    .eq("seller_user_id", ctx.ownerId)
     .maybeSingle();
 
   return (

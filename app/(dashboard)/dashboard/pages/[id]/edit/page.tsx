@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 
 import { PageEditorTabs, type ExistingPage } from "@/components/dashboard/PageBuilder/EditorTabs";
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const metadata = {
@@ -13,11 +13,7 @@ export default async function EditPageRoute({
 }: {
   params: { id: string };
 }) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect(`/login?next=/dashboard/pages/${params.id}/edit`);
+  const ctx = await requirePageActor("pages.view", "/dashboard/pages");
 
   const admin = createAdminClient();
   const { data: page } = await admin
@@ -29,7 +25,7 @@ export default async function EditPageRoute({
     .single();
 
   if (!page) notFound();
-  if (page.user_id !== user.id) redirect("/dashboard");
+  if (page.user_id !== ctx.ownerId) redirect("/dashboard");
 
   const [
     { data: pixel },
@@ -49,18 +45,18 @@ export default async function EditPageRoute({
     admin
       .from("products")
       .select("id, name, price")
-      .eq("user_id", user.id)
+      .eq("user_id", ctx.ownerId)
       .eq("active", true)
       .order("created_at", { ascending: false }),
     admin
       .from("coupons")
       .select("code")
-      .eq("user_id", user.id)
+      .eq("user_id", ctx.ownerId)
       .eq("active", true),
     admin
       .from("user_profiles")
       .select("subscription_plan")
-      .eq("id", user.id)
+      .eq("id", ctx.ownerId)
       .single(),
     admin
       .from("platform_settings")

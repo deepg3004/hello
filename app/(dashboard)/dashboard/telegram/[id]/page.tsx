@@ -33,7 +33,7 @@ import {
 import { AutoRefresh } from "@/components/dashboard/telegram/AutoRefresh";
 import { getChannelDashboardAction } from "@/actions/telegram-channels";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { cn, formatDate, formatINR } from "@/lib/utils";
 
 export const metadata = { title: "Telegram channel" };
@@ -52,11 +52,7 @@ export default async function TelegramChannelPage({
   params: { id: string };
   searchParams: { tab?: string };
 }) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await requirePageActor("telegram.view", "/dashboard/telegram");
 
   const res = await getChannelDashboardAction(params.id);
   if (!res.ok || !res.data) notFound();
