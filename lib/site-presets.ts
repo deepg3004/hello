@@ -276,6 +276,87 @@ const GENERIC: Copy = {
   aboutBody: "Share your story, experience and what makes your work valuable.",
 };
 
+// ── Structure-distinct templates (available to every niche) ─────────────────
+
+/** Link-in-bio: ultra-short — hero, your products as link cards, socials. */
+function linkInBioBlocks(copy: Copy): SiteBlock[] {
+  return [
+    {
+      id: "hero",
+      type: "hero",
+      data: {
+        eyebrow: "",
+        headline: copy.label,
+        subheadline: copy.subheadline,
+        cta_label: "See what I offer",
+      },
+    },
+    { id: "products", type: "products", data: { title: copy.productsTitle } },
+    {
+      id: "cta",
+      type: "cta",
+      data: {
+        _bg: "subtle",
+        title: "Work with me",
+        subtitle: "Drop your email and I'll be in touch.",
+        cta_label: "Get in touch",
+      },
+    },
+    { id: "social", type: "social", data: { title: "Find me online" } },
+  ];
+}
+
+/** Storefront: commerce-forward — products + pricing + proof + FAQ + CTA. */
+function storefrontBlocks(copy: Copy): SiteBlock[] {
+  return [
+    {
+      id: "hero",
+      type: "hero",
+      data: { eyebrow: "Shop", headline: copy.headline, subheadline: copy.subheadline, cta_label: "Browse" },
+    },
+    { id: "products", type: "products", data: { _bg: "subtle", title: copy.productsTitle } },
+    {
+      id: "pricing",
+      type: "pricing",
+      data: {
+        title: "Pick your plan",
+        items: [
+          { name: "Starter", price: "₹499", period: "", features: "Core access\nEmail support", cta_label: "Get Starter", url: "", highlighted: false },
+          { name: "Pro", price: "₹1,499", period: "", features: "Everything in Starter\nPriority support", cta_label: "Get Pro", url: "", highlighted: true },
+          { name: "VIP", price: "₹4,999", period: "", features: "Everything in Pro\n1:1 sessions", cta_label: "Go VIP", url: "", highlighted: false },
+        ],
+      },
+    },
+    {
+      id: "testimonials",
+      type: "testimonials",
+      data: { _bg: "subtle", title: "Loved by customers", items: [{ quote: "Exactly what I needed.", author: "A happy buyer", role: "" }] },
+    },
+    {
+      id: "faq",
+      type: "faq",
+      data: { title: "FAQ", items: [{ q: "How do I get access?", a: "Check out and get instant access." }] },
+    },
+    { id: "cta", type: "cta", data: { title: "Ready to buy?", subtitle: "", cta_label: "Shop now" } },
+  ];
+}
+
+/** Showcase: visual-first — hero, gallery, about, products, contact. */
+function showcaseBlocks(copy: Copy): SiteBlock[] {
+  return [
+    {
+      id: "hero",
+      type: "hero",
+      data: { eyebrow: "Portfolio", headline: copy.headline, subheadline: copy.subheadline, cta_label: "View work" },
+    },
+    { id: "gallery", type: "gallery", data: { title: "Selected work", images: [] } },
+    { id: "about", type: "about", data: { _bg: "subtle", heading: "About me", body: copy.aboutBody } },
+    { id: "products", type: "products", data: { title: copy.productsTitle } },
+    { id: "contact", type: "contact", data: { _bg: "subtle", title: "Get in touch" } },
+    { id: "social", type: "social", data: { title: "Follow along" } },
+  ];
+}
+
 /** Presets to offer a seller: their niche preset (if any) first, then generic. */
 export function presetsForCategory(category?: string | null): SitePreset[] {
   const out: SitePreset[] = [];
@@ -299,6 +380,27 @@ export function presetsForCategory(category?: string | null): SitePreset[] {
     label: "Starter homepage",
     description: "Hero, about, your products and social links.",
     blocks: starterBlocks(GENERIC),
+  });
+  // Structure-distinct templates — available to every niche (use niche copy
+  // when known, else generic).
+  const c = copy ?? GENERIC;
+  out.push({
+    key: "link-in-bio",
+    label: "Link-in-bio",
+    description: "Ultra-short — hero, your offers as cards, and social links.",
+    blocks: linkInBioBlocks(c),
+  });
+  out.push({
+    key: "storefront",
+    label: "Storefront",
+    description: "Commerce-first — products, pricing, reviews, FAQ and a buy CTA.",
+    blocks: storefrontBlocks(c),
+  });
+  out.push({
+    key: "showcase",
+    label: "Showcase / portfolio",
+    description: "Visual-first — hero, gallery, about, products and contact.",
+    blocks: showcaseBlocks(c),
   });
   return out;
 }
