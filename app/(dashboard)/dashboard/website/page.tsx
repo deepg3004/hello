@@ -38,7 +38,7 @@ export default async function WebsitePage() {
       .single(),
     admin
       .from("site_pages")
-      .select("id, slug, title, nav_label, is_home, show_in_nav, status, blocks")
+      .select("id, slug, title, nav_label, is_home, show_in_nav, status, blocks, seo_title, seo_description")
       .eq("user_id", user.id)
       .order("sort_order", { ascending: true }),
   ]);

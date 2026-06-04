@@ -32,15 +32,16 @@ interface Props {
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: Props) {
-  const admin = createAdminClient();
-  const { data: profile } = await admin
-    .from("user_profiles")
-    .select("full_name, legal_business_name")
-    .eq("subdomain", params.username)
-    .maybeSingle();
-  const title =
-    profile?.legal_business_name ?? profile?.full_name ?? params.username;
-  return { title: `${title} — Store` };
+  const site = await loadSellerSite(params.username);
+  if (!site) return { title: params.username };
+  const home = await loadSitePage(site.id, { home: true });
+  if (home) {
+    return {
+      title: home.seo_title ?? site.name,
+      description: home.seo_description ?? site.tagline ?? undefined,
+    };
+  }
+  return { title: `${site.name} — Store` };
 }
 
 type PageJoin = {

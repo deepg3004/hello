@@ -2,13 +2,25 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Home, Trash2, ExternalLink, Pencil } from "lucide-react";
+import {
+  Loader2,
+  Plus,
+  Home,
+  Trash2,
+  ExternalLink,
+  Pencil,
+  ArrowUp,
+  ArrowDown,
+  Eye,
+  EyeOff,
+} from "lucide-react";
 
 import {
   createSitePageAction,
   updateSitePageAction,
   deleteSitePageAction,
   setHomeSitePageAction,
+  reorderSitePagesAction,
 } from "@/actions/site";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +45,8 @@ export interface SitePage {
   show_in_nav: boolean;
   status: "draft" | "published";
   blocks: unknown;
+  seo_title: string | null;
+  seo_description: string | null;
 }
 
 export function SitePagesManager({
@@ -53,12 +67,34 @@ export function SitePagesManager({
   const [title, setTitle] = useState("");
   const [navLabel, setNavLabel] = useState("");
   const [blocks, setBlocks] = useState<Block[]>([]);
+  const [seoTitle, setSeoTitle] = useState("");
+  const [seoDesc, setSeoDesc] = useState("");
 
   function startEdit(p: SitePage) {
     setEditingId(p.id);
     setTitle(p.title);
     setNavLabel(p.nav_label ?? p.title);
     setBlocks(Array.isArray(p.blocks) ? (p.blocks as Block[]) : []);
+    setSeoTitle(p.seo_title ?? "");
+    setSeoDesc(p.seo_description ?? "");
+  }
+
+  async function move(index: number, dir: -1 | 1) {
+    const j = index + dir;
+    if (j < 0 || j >= initialPages.length) return;
+    const ids = initialPages.map((p) => p.id);
+    [ids[index], ids[j]] = [ids[j]!, ids[index]!];
+    setBusy(true);
+    await reorderSitePagesAction(ids);
+    setBusy(false);
+    router.refresh();
+  }
+
+  async function toggleNav(p: SitePage) {
+    setBusy(true);
+    await updateSitePageAction({ id: p.id, show_in_nav: !p.show_in_nav });
+    setBusy(false);
+    router.refresh();
   }
 
   const presets = presetsForCategory(creatorCategory);
@@ -95,6 +131,8 @@ export function SitePagesManager({
       title,
       nav_label: navLabel,
       blocks,
+      seo_title: seoTitle || null,
+      seo_description: seoDesc || null,
       ...(publish !== undefined ? { status: publish ? "published" : "draft" } : {}),
     });
     setBusy(false);
@@ -182,12 +220,32 @@ export function SitePagesManager({
         </div>
       ) : (
         <div className="space-y-2">
-          {initialPages.map((p) => (
+          {initialPages.map((p, i) => (
             <div
               key={p.id}
               className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-4 py-3"
             >
               <div className="flex items-center gap-2">
+                <div className="mr-1 flex flex-col">
+                  <button
+                    type="button"
+                    onClick={() => move(i, -1)}
+                    disabled={busy || i === 0}
+                    aria-label="Move up"
+                    className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                  >
+                    <ArrowUp className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => move(i, 1)}
+                    disabled={busy || i === initialPages.length - 1}
+                    aria-label="Move down"
+                    className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                  >
+                    <ArrowDown className="h-3 w-3" />
+                  </button>
+                </div>
                 <span className="font-medium">{p.title}</span>
                 {p.is_home && (
                   <Badge variant="outline" className="gap-1">
@@ -200,6 +258,19 @@ export function SitePagesManager({
                 <span className="text-xs text-muted-foreground">/{p.slug}</span>
               </div>
               <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => toggleNav(p)}
+                  disabled={busy}
+                  title={p.show_in_nav ? "Shown in nav" : "Hidden from nav"}
+                >
+                  {p.show_in_nav ? (
+                    <Eye className="h-3.5 w-3.5" />
+                  ) : (
+                    <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                  )}
+                </Button>
                 {!p.is_home && (
                   <Button variant="ghost" size="sm" onClick={() => setHome(p.id)} disabled={busy}>
                     <Home className="mr-1 h-3.5 w-3.5" /> Set home
@@ -251,6 +322,25 @@ export function SitePagesManager({
           </div>
 
           <BlockEditor blocks={blocks} onChange={setBlocks} />
+
+          <div className="grid gap-4 border-t pt-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">SEO title</Label>
+              <Input
+                value={seoTitle}
+                onChange={(e) => setSeoTitle(e.target.value)}
+                placeholder="Shown in search results & browser tab"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">SEO description</Label>
+              <Input
+                value={seoDesc}
+                onChange={(e) => setSeoDesc(e.target.value)}
+                placeholder="One-line summary for search engines"
+              />
+            </div>
+          </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <Button onClick={() => save()} disabled={busy}>

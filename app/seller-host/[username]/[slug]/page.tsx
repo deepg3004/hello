@@ -119,6 +119,18 @@ async function loadPage(username: string, slug: string) {
 export async function generateMetadata({
   params,
 }: Props): Promise<Metadata> {
+  // Website (site_pages) metadata takes precedence over a product page.
+  const site = await loadSellerSite(params.username);
+  if (site) {
+    const sp = await loadSitePage(site.id, { slug: params.slug });
+    if (sp) {
+      return {
+        title: sp.seo_title ?? `${sp.title} · ${site.name}`,
+        description: sp.seo_description ?? undefined,
+      };
+    }
+  }
+
   const result = await loadPage(params.username, params.slug);
   if (!result) {
     return { title: params.slug };

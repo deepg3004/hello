@@ -149,6 +149,24 @@ export async function deleteSitePageAction(id: string): Promise<Result> {
   return { ok: true };
 }
 
+/** Reorder site pages — `ids` in the desired order sets sort_order = index. */
+export async function reorderSitePagesAction(ids: string[]): Promise<Result> {
+  const user = await requireUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+  const admin = createAdminClient();
+  await Promise.all(
+    ids.map((id, i) =>
+      admin
+        .from("site_pages")
+        .update({ sort_order: i })
+        .eq("id", id)
+        .eq("user_id", user.id),
+    ),
+  );
+  revalidatePath("/dashboard/website");
+  return { ok: true };
+}
+
 /** Make a page the home page (rendered at the subdomain root). */
 export async function setHomeSitePageAction(id: string): Promise<Result> {
   const user = await requireUser();
