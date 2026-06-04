@@ -95,6 +95,9 @@ export default async function WebsitePage() {
             initialTheme={
               ((profile?.site_config as Record<string, unknown>)?.theme as string) ?? null
             }
+            initialFont={
+              ((profile?.site_config as Record<string, unknown>)?.font as string) ?? null
+            }
           />
         </CardContent>
       </Card>

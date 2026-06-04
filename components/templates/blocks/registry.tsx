@@ -601,6 +601,138 @@ export const BLOCKS: Record<string, BlockDef> = {
       );
     },
   },
+
+  button: {
+    type: "button",
+    label: "Button",
+    defaultData: { label: "Get in touch", url: "", align: "center" },
+    fields: [
+      { key: "label", label: "Button text", type: "text", defaultValue: "" },
+      { key: "url", label: "Link URL or /slug", type: "text", defaultValue: "" },
+      {
+        key: "align",
+        label: "Alignment",
+        type: "select",
+        defaultValue: "center",
+        options: [
+          { value: "left", label: "Left" },
+          { value: "center", label: "Center" },
+          { value: "right", label: "Right" },
+        ],
+      },
+    ],
+    Render: (d, { accent }) => {
+      if (!s(d.label)) return null;
+      const url = s(d.url) || "#";
+      const align = s(d.align, "center");
+      const justify =
+        align === "left" ? "justify-start" : align === "right" ? "justify-end" : "justify-center";
+      return (
+        <Section>
+          <div className={`flex ${justify}`}>
+            <a
+              href={url}
+              className="btn-shine inline-flex rounded-xl px-8 py-4 text-base font-semibold text-white shadow-lg"
+              style={{ backgroundColor: accent }}
+            >
+              {s(d.label)}
+            </a>
+          </div>
+        </Section>
+      );
+    },
+  },
+
+  stats: {
+    type: "stats",
+    label: "Stats / numbers",
+    defaultData: {
+      items: [
+        { value: "10k+", label: "Students" },
+        { value: "4.9★", label: "Average rating" },
+        { value: "7 yrs", label: "Experience" },
+      ],
+    },
+    fields: [
+      {
+        key: "items",
+        label: "Stats",
+        type: "list",
+        itemLabel: "stat",
+        itemFields: [
+          { key: "value", label: "Number", type: "text", defaultValue: "" },
+          { key: "label", label: "Label", type: "text", defaultValue: "" },
+        ],
+        defaultValue: [],
+      },
+    ],
+    Render: (d, { accent }) => {
+      const items = arr<{ value?: string; label?: string }>(d.items).filter((i) => s(i.value));
+      if (items.length === 0) return null;
+      return (
+        <Section>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {items.map((it, i) => (
+              <div
+                key={i}
+                className="rounded-xl border border-[color:var(--s-border)] bg-[var(--s-surface)] p-6 text-center"
+              >
+                <p className="font-sora text-3xl font-extrabold" style={{ color: accent }}>
+                  {s(it.value)}
+                </p>
+                <p className="mt-1 text-sm text-[color:var(--s-fg-muted)]">{s(it.label)}</p>
+              </div>
+            ))}
+          </div>
+        </Section>
+      );
+    },
+  },
+
+  divider: {
+    type: "divider",
+    label: "Divider / spacer",
+    defaultData: { line: true },
+    fields: [
+      { key: "line", label: "Show a line", type: "toggle", defaultValue: true },
+    ],
+    Render: (d) => (
+      <div className="mx-auto max-w-5xl px-4 py-6">
+        {d.line === false ? (
+          <div className="h-px" />
+        ) : (
+          <hr className="border-[color:var(--s-border)]" />
+        )}
+      </div>
+    ),
+  },
+
+  embed: {
+    type: "embed",
+    label: "Embed / custom HTML",
+    defaultData: { html: "" },
+    fields: [
+      {
+        key: "html",
+        label: "HTML embed code",
+        type: "textarea",
+        defaultValue: "",
+      },
+    ],
+    Render: (d) => {
+      const html = s(d.html);
+      if (!html) return null;
+      return (
+        <Section>
+          <div
+            className="mx-auto max-w-3xl [&_iframe]:w-full"
+            // Seller's own embed on their own site.
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        </Section>
+      );
+    },
+  },
 };
 
 /** Convert a YouTube/Vimeo watch URL to an embeddable URL. Returns "" if unknown. */

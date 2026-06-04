@@ -229,9 +229,10 @@ export async function saveBrandingAction(input: {
   return { ok: true };
 }
 
-/** Save the website appearance (theme palette) into site_config. */
+/** Save the website appearance (theme palette + font) into site_config. */
 export async function saveSiteAppearanceAction(input: {
   theme?: string;
+  font?: string;
 }): Promise<Result> {
   const user = await requireUser();
   if (!user) return { ok: false, message: "Not signed in" };
@@ -244,6 +245,7 @@ export async function saveSiteAppearanceAction(input: {
     .single();
   const cfg = ((prof?.site_config as Record<string, unknown>) ?? {}) as Record<string, unknown>;
   if (input.theme !== undefined) cfg.theme = input.theme;
+  if (input.font !== undefined) cfg.font = input.font;
 
   const { error } = await admin
     .from("user_profiles")

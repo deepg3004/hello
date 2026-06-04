@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 
 import { tgTheme } from "@/lib/telegram-themes";
+import { sectionBgStyle } from "@/lib/site-themes";
 import { BgAnimation } from "@/components/templates/BgAnimation";
 import { SecureFooter } from "@/components/templates/shared/SecureFooter";
 import { BLOCKS } from "@/components/templates/blocks/registry";
@@ -55,7 +56,7 @@ export function CustomBuilderPage(props: {
             const def = b && b.type ? BLOCKS[b.type] : undefined;
             if (!def) return null;
             return (
-              <div key={b.id ?? i}>
+              <div key={b.id ?? i} style={sectionBgStyle(b.data?._bg, accent)}>
                 {def.Render(b.data ?? {}, {
                   accent,
                   theme,

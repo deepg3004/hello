@@ -57,6 +57,32 @@ export function getSiteTheme(key?: string | null): SiteTheme {
   return SITE_THEMES[key ?? ""] ?? SITE_THEMES[DEFAULT_SITE_THEME]!;
 }
 
+// ── Fonts ───────────────────────────────────────────────────────────────────
+export const SITE_FONTS: Array<{ key: string; label: string; stack: string }> = [
+  { key: "sans", label: "Sans (default)", stack: "" },
+  { key: "serif", label: "Serif", stack: 'Georgia, Cambria, "Times New Roman", serif' },
+  {
+    key: "rounded",
+    label: "Rounded",
+    stack: 'ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif',
+  },
+  { key: "mono", label: "Mono", stack: 'ui-monospace, "SFMono-Regular", Menlo, monospace' },
+];
+
+export function siteFontStack(key?: string | null): string | undefined {
+  return SITE_FONTS.find((f) => f.key === key)?.stack || undefined;
+}
+
+/** Background style for a per-section appearance choice (data._bg). */
+export function sectionBgStyle(
+  bg: unknown,
+  accent: string,
+): CSSProperties | undefined {
+  if (bg === "subtle") return { background: "var(--s-surface)" };
+  if (bg === "accent") return { background: `${accent}14` };
+  return undefined;
+}
+
 /** Inline style setting the block CSS variables + page background. `accent`
  *  (e.g. the seller's brand colour) overrides the theme accent when provided. */
 export function siteThemeStyle(

@@ -7,7 +7,12 @@
 import Link from "next/link";
 
 import { BLOCKS, type SiteProductLite } from "@/components/templates/blocks/registry";
-import { getSiteTheme, siteThemeStyle } from "@/lib/site-themes";
+import {
+  getSiteTheme,
+  siteThemeStyle,
+  sectionBgStyle,
+  siteFontStack,
+} from "@/lib/site-themes";
 
 interface Block {
   id?: string;
@@ -24,6 +29,7 @@ export interface SiteNavPage {
 export function SiteRenderer(props: {
   blocks: unknown;
   themeKey?: string | null;
+  fontKey?: string | null;
   brandColor?: string | null;
   seller: { name: string; avatar: string | null };
   socialLinks?: Record<string, string> | null;
@@ -37,9 +43,11 @@ export function SiteRenderer(props: {
   const accent = props.brandColor || theme.accent;
   const blocks = Array.isArray(props.blocks) ? (props.blocks as Block[]) : [];
   const nav = props.navPages ?? [];
+  const fontStack = siteFontStack(props.fontKey);
+  const rootStyle = { ...siteThemeStyle(theme, props.brandColor), ...(fontStack ? { fontFamily: fontStack } : {}) };
 
   return (
-    <div className="relative min-h-screen" style={siteThemeStyle(theme, props.brandColor)}>
+    <div className="relative min-h-screen" style={rootStyle}>
       <div className="flex min-h-screen flex-col">
         {/* Top navigation */}
         <header className="sticky top-0 z-20 border-b border-[color:var(--s-border)] bg-[var(--s-surface)] backdrop-blur">
@@ -96,7 +104,7 @@ export function SiteRenderer(props: {
               const def = b && b.type ? BLOCKS[b.type] : undefined;
               if (!def) return null;
               return (
-                <div key={b.id ?? i}>
+                <div key={b.id ?? i} style={sectionBgStyle(b.data?._bg, accent)}>
                   {def.Render(b.data ?? {}, {
                     accent,
                     slug: props.currentSlug,

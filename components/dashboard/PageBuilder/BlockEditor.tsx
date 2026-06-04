@@ -128,6 +128,22 @@ export function BlockEditor({
                   }
                 />
               ))}
+              <div className="space-y-1.5 border-t pt-3">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Section background
+                </label>
+                <select
+                  value={String((b.data ?? {})._bg ?? "default")}
+                  onChange={(e) =>
+                    update(i, { ...(b.data ?? {}), _bg: e.target.value })
+                  }
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="default">Default</option>
+                  <option value="subtle">Subtle</option>
+                  <option value="accent">Accent tint</option>
+                </select>
+              </div>
             </CardContent>
           </Card>
         );

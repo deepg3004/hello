@@ -5,20 +5,28 @@ import { useRouter } from "next/navigation";
 import { Check, Loader2 } from "lucide-react";
 
 import { saveSiteAppearanceAction } from "@/actions/site";
-import { SITE_THEME_LIST, DEFAULT_SITE_THEME } from "@/lib/site-themes";
+import { SITE_THEME_LIST, DEFAULT_SITE_THEME, SITE_FONTS } from "@/lib/site-themes";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 
-/** Theme palette picker for the seller's website. */
-export function AppearanceForm({ initialTheme }: { initialTheme: string | null }) {
+/** Theme palette + font picker for the seller's website. */
+export function AppearanceForm({
+  initialTheme,
+  initialFont,
+}: {
+  initialTheme: string | null;
+  initialFont: string | null;
+}) {
   const router = useRouter();
   const { toast } = useToast();
   const [theme, setTheme] = useState(initialTheme || DEFAULT_SITE_THEME);
+  const [font, setFont] = useState(initialFont || "sans");
   const [saving, setSaving] = useState(false);
 
   async function save() {
     setSaving(true);
-    const r = await saveSiteAppearanceAction({ theme });
+    const r = await saveSiteAppearanceAction({ theme, font });
     setSaving(false);
     if (!r.ok) {
       toast({ title: "Couldn't save", description: r.message, variant: "destructive" });
@@ -64,6 +72,20 @@ export function AppearanceForm({ initialTheme }: { initialTheme: string | null }
             </button>
           );
         })}
+      </div>
+      <div className="max-w-xs space-y-1.5">
+        <Label className="text-sm font-medium">Font</Label>
+        <select
+          value={font}
+          onChange={(e) => setFont(e.target.value)}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+        >
+          {SITE_FONTS.map((f) => (
+            <option key={f.key} value={f.key}>
+              {f.label}
+            </option>
+          ))}
+        </select>
       </div>
       <p className="text-xs text-muted-foreground">
         Your brand colour (set above) overrides the theme accent on your site.

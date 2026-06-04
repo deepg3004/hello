@@ -15,6 +15,7 @@ export interface SellerSite {
   brand_color: string | null;
   social_links: Record<string, string> | null;
   theme: string | null;
+  font: string | null;
 }
 
 /** Resolve a seller by their subdomain handle, with branding. */
@@ -39,6 +40,7 @@ export async function loadSellerSite(username: string): Promise<SellerSite | nul
     brand_color: data.brand_color ?? null,
     social_links: (data.social_links as Record<string, string>) ?? null,
     theme: (siteConfig.theme as string) ?? null,
+    font: (siteConfig.font as string) ?? null,
   };
 }
 

@@ -164,6 +164,7 @@ export default async function SellerPageRender({ params }: Props) {
         <SiteRenderer
           blocks={sitePage.blocks}
           themeKey={site.theme}
+          fontKey={site.font}
           brandColor={site.brand_color}
           seller={{ name: site.name, avatar: site.avatar }}
           socialLinks={site.social_links}
