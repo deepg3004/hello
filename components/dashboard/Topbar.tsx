@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronRight, Menu, User2 } from "lucide-react";
+import { ChevronRight, Menu, User2, Wallet } from "lucide-react";
 
 import { signOutAction } from "@/actions/auth";
+import { formatINR } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,8 +33,14 @@ export interface TopbarProfile {
 
 interface TopbarProps {
   profile: TopbarProfile;
+  /** Seller wallet balance in paise — rendered as a live chip. */
+  walletBalancePaise: number;
   onMenuClick: () => void;
 }
+
+// Low-balance thresholds mirror lib/wallet (₹200 warn, ₹50 critical).
+const WALLET_WARN_PAISE = 20000;
+const WALLET_CRIT_PAISE = 5000;
 
 // Map first path segment after /dashboard to a friendly section name.
 // Add a row here whenever you add a new top-level dashboard route.
@@ -48,8 +55,7 @@ const SECTION_NAMES: Record<string, string> = {
   affiliates: "Affiliates",
   analytics: "Recovery",
   telegram: "Telegram",
-  kyc: "KYC",
-  payouts: "Payouts",
+  wallet: "Wallet",
   settings: "Settings",
   upgrade: "Upgrade",
   onboarding: "Get started",
@@ -69,10 +75,21 @@ function capitalize(s: string): string {
   return s ? s[0]!.toUpperCase() + s.slice(1) : "Dashboard";
 }
 
-export function Topbar({ profile, onMenuClick }: TopbarProps) {
+export function Topbar({
+  profile,
+  walletBalancePaise,
+  onMenuClick,
+}: TopbarProps) {
   const pathname = usePathname();
   const section = deriveSection(pathname);
   const initials = makeInitials(profile.full_name ?? profile.email);
+
+  const walletTone =
+    walletBalancePaise <= WALLET_CRIT_PAISE
+      ? "border-rose-500/40 bg-rose-500/10 text-rose-600 hover:bg-rose-500/15"
+      : walletBalancePaise <= WALLET_WARN_PAISE
+        ? "border-amber-500/40 bg-amber-500/10 text-amber-700 hover:bg-amber-500/15"
+        : "border-border bg-muted/40 text-foreground hover:bg-muted";
 
   return (
     <header
@@ -119,8 +136,22 @@ export function Topbar({ profile, onMenuClick }: TopbarProps) {
         </nav>
       </div>
 
-      {/* Right: search · notifications · avatar */}
+      {/* Right: wallet · search · notifications · avatar */}
       <div className="flex items-center gap-1.5">
+        {/* Wallet balance chip — links to the wallet page; tints amber/red as
+            the balance falls toward the per-order fee floor. */}
+        <Link
+          href="/dashboard/wallet"
+          title="InvoxAI wallet — recharge to keep your store active"
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-semibold transition-colors",
+            walletTone,
+          )}
+        >
+          <Wallet className="h-3.5 w-3.5" />
+          <span className="tabular-nums">{formatINR(walletBalancePaise)}</span>
+        </Link>
+
         <GlobalSearch />
 
         <ThemeToggle />

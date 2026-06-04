@@ -14,6 +14,8 @@ import { Topbar, type TopbarProfile } from "./Topbar";
 interface DashboardShellProps {
   profile: TopbarProfile;
   branding: Branding;
+  /** Seller wallet balance (paise) — shown as a chip in the header. */
+  walletBalancePaise: number;
   children: ReactNode;
 }
 
@@ -26,6 +28,7 @@ interface DashboardShellProps {
 export function DashboardShell({
   profile,
   branding,
+  walletBalancePaise,
   children,
 }: DashboardShellProps) {
   const pathname = usePathname();
@@ -90,7 +93,11 @@ export function DashboardShell({
 
         {/* Main column — fixed header, independently scrolling content. */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <Topbar profile={profile} onMenuClick={() => setMobileOpen(true)} />
+          <Topbar
+            profile={profile}
+            walletBalancePaise={walletBalancePaise}
+            onMenuClick={() => setMobileOpen(true)}
+          />
           <main
             className={cn(
               "flex-1 overflow-y-auto overscroll-contain bg-background",

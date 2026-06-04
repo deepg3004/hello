@@ -56,6 +56,15 @@ export default async function DashboardLayout({
 
   const branding = await getBranding();
 
+  // Wallet balance for the header chip. Best-effort — a missing row (wallet not
+  // created yet) or a pre-migration DB reads as ₹0 rather than breaking chrome.
+  const { data: walletRow } = await admin
+    .from("seller_wallets")
+    .select("balance_paise")
+    .eq("seller_user_id", user.id)
+    .maybeSingle();
+  const walletBalancePaise = Number(walletRow?.balance_paise ?? 0);
+
   const profile: TopbarProfile = {
     full_name: profileRow?.full_name ?? null,
     email: profileRow?.email ?? user.email ?? "",
@@ -65,7 +74,11 @@ export default async function DashboardLayout({
   };
 
   return (
-    <DashboardShell profile={profile} branding={branding}>
+    <DashboardShell
+      profile={profile}
+      branding={branding}
+      walletBalancePaise={walletBalancePaise}
+    >
       <SellerProvider origin={sellerOrigin}>{children}</SellerProvider>
     </DashboardShell>
   );
