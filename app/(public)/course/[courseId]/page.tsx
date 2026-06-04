@@ -1,8 +1,9 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyCourseToken } from "@/lib/course-token";
-import { publicPageUrl, publicPagePath } from "@/lib/page-url";
+import { createEnrollmentForOrder } from "@/lib/courses";
+import { publicPageUrl } from "@/lib/page-url";
 import {
   CoursePlayerClient,
   type PlayerModule,
@@ -64,6 +65,41 @@ export default async function CoursePage({
       .eq("order_id", payload.order_id)
       .maybeSingle();
     enrollmentId = enrollment?.id ?? null;
+
+    // Just-in-time enrollment heal. The token is HMAC-signed by us and bound to
+    // this course + order, so it's trustworthy. A row can be legitimately
+    // missing when the buyer paid BEFORE the seller published/linked the course
+    // — the post-payment hook only enrolls for an already-published course, so
+    // those earlier buyers had none created. Without this they'd bounce to the
+    // sales page (e.g. the telegram-vip page) instead of reaching their course.
+    if (!enrollmentId) {
+      const { data: order } = await admin
+        .from("orders")
+        .select("id, status, product_id, buyer_email")
+        .eq("id", payload.order_id)
+        .maybeSingle();
+      if (
+        order &&
+        order.status === "paid" &&
+        order.product_id === course.product_id
+      ) {
+        await createEnrollmentForOrder(
+          {
+            id: order.id,
+            product_id: order.product_id,
+            buyer_email: order.buyer_email,
+          },
+          admin,
+        );
+        const { data: healed } = await admin
+          .from("course_enrollments")
+          .select("id")
+          .eq("course_id", course.id)
+          .eq("order_id", payload.order_id)
+          .maybeSingle();
+        enrollmentId = healed?.id ?? null;
+      }
+    }
   }
 
   // ── Enrolled → full student player ──
@@ -124,11 +160,11 @@ export default async function CoursePage({
       ? product.pages[0]
       : product.pages
     : null;
-  // A published sales page IS the proper landing — send visitors there.
-  if (page && page.status === "published") {
-    redirect(publicPagePath(page.type, page.slug, page.template_id));
-  }
-
+  // Render the public course landing (curriculum preview + buy CTA) — do NOT
+  // redirect to the sales page. The bare /course/<id> link is the shareable
+  // landing; redirecting sent every visitor straight to the sales page (e.g. a
+  // telegram-vip page), which is the "course link → telegram" bug. The buy CTA
+  // below links to that sales page for visitors who want to purchase.
   const checkoutUrl =
     page && page.status === "published"
       ? publicPageUrl(page.type, page.slug, page.template_id)
