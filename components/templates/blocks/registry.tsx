@@ -779,7 +779,8 @@ export const BLOCKS: Record<string, BlockDef> = {
         ],
       },
     ],
-    Render: (d, { accent }) => {
+    Render: (d, ctx) => {
+      const { accent } = ctx;
       if (!s(d.label)) return null;
       const url = s(d.url) || "#";
       const align = s(d.align, "center");
@@ -793,7 +794,7 @@ export const BLOCKS: Record<string, BlockDef> = {
               className="btn-shine inline-flex rounded-xl px-8 py-4 text-base font-semibold text-white shadow-lg"
               style={{ backgroundColor: accent }}
             >
-              {s(d.label)}
+              {et(ctx, "label", s(d.label), "", "span")}
             </a>
           </div>
         </Section>
@@ -981,7 +982,7 @@ export const BLOCKS: Record<string, BlockDef> = {
                 className="btn-shine inline-flex shrink-0 rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-lg"
                 style={{ backgroundColor: accent }}
               >
-                {s(d.cta_label)}
+                {et(ctx, "cta_label", s(d.cta_label), "", "span")}
               </a>
             )}
           </div>
@@ -1057,7 +1058,18 @@ export const BLOCKS: Record<string, BlockDef> = {
                     {feats.map((f, k) => (
                       <li key={k} className="flex items-start gap-2 text-sm text-[color:var(--s-fg-muted)]">
                         <Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: accent }} strokeWidth={3} />
-                        {f}
+                        {ctx.editable && ctx.onEditItem ? (
+                          <EditableText
+                            value={f}
+                            onCommit={(v) => {
+                              const next = [...feats];
+                              next[k] = v;
+                              ctx.onEditItem!("items", i, "features", next.join("\n"));
+                            }}
+                          />
+                        ) : (
+                          f
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -1067,7 +1079,7 @@ export const BLOCKS: Record<string, BlockDef> = {
                       className="mt-6 inline-flex justify-center rounded-xl px-5 py-3 text-sm font-semibold text-white"
                       style={{ backgroundColor: accent }}
                     >
-                      {s(it.cta_label)}
+                      {eti(ctx, "items", i, "cta_label", s(it.cta_label), "", "span")}
                     </a>
                   )}
                 </div>
