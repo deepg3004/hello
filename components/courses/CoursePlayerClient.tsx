@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Circle, Loader2, PlayCircle } from "lucide-react";
 
 import { resolvePlaySource } from "@/lib/learn/video";
@@ -26,6 +26,7 @@ export function CoursePlayerClient({
   description,
   modules,
   preview = false,
+  watermark,
 }: {
   token: string;
   title: string;
@@ -33,6 +34,8 @@ export function CoursePlayerClient({
   modules: PlayerModule[];
   /** Seller preview — no enrollment; hides progress/mark-complete. */
   preview?: boolean;
+  /** Buyer identity (email) stamped over the video as an anti-piracy overlay. */
+  watermark?: string | null;
 }) {
   const flat = useMemo(() => modules.flatMap((m) => m.lessons), [modules]);
   const [done, setDone] = useState<Set<string>>(
@@ -92,7 +95,7 @@ export function CoursePlayerClient({
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         {/* Player */}
         <div className="min-w-0">
-          <div className="aspect-video w-full overflow-hidden rounded-xl bg-black">
+          <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black">
             {!source ? (
               <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-white/70">
                 <PlayCircle className="h-8 w-8" />
@@ -101,7 +104,9 @@ export function CoursePlayerClient({
                 </p>
               </div>
             ) : source.kind === "file" ? (
-              <video src={source.src} controls className="h-full w-full" />
+              <video src={source.src} controls controlsList="nodownload" className="h-full w-full" />
+            ) : source.kind === "signed" ? (
+              <SignedVideo src={source.src} token={token} />
             ) : (
               <iframe
                 src={source.src}
@@ -111,6 +116,7 @@ export function CoursePlayerClient({
                 className="h-full w-full"
               />
             )}
+            {source && watermark ? <Watermark label={watermark} /> : null}
           </div>
 
           {active && (
@@ -194,5 +200,85 @@ export function CoursePlayerClient({
         </aside>
       </div>
     </main>
+  );
+}
+
+/** Exchanges a private `cmedia:` source for a short-lived signed URL, then plays
+ *  it. Re-fetches when the source changes (switching lessons). */
+function SignedVideo({ src, token }: { src: string; token: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setUrl(null);
+    setError(false);
+    (async () => {
+      try {
+        const res = await fetch("/api/courses/video-url", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ src, t: token }),
+        });
+        const body = (await res.json()) as { url?: string };
+        if (cancelled) return;
+        if (res.ok && body.url) setUrl(body.url);
+        else setError(true);
+      } catch {
+        if (!cancelled) setError(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [src, token]);
+
+  if (error) {
+    return (
+      <div className="flex h-full w-full items-center justify-center text-sm text-white/60">
+        Couldn&apos;t load this video. Refresh to try again.
+      </div>
+    );
+  }
+  if (!url) {
+    return (
+      <div className="flex h-full w-full items-center justify-center text-white/60">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  }
+  return (
+    <video src={url} controls controlsList="nodownload" className="h-full w-full" />
+  );
+}
+
+/** Anti-piracy overlay: the buyer's email, faint and drifting between corners so
+ *  it can't be cropped out and survives screen-recording. pointer-events-none so
+ *  it never blocks the video controls. */
+function Watermark({ label }: { label: string }) {
+  const positions = [
+    "top-3 left-3",
+    "top-3 right-3",
+    "bottom-12 left-3",
+    "bottom-12 right-3",
+  ];
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setI((p) => (p + 1) % positions.length), 7000);
+    return () => clearInterval(id);
+    // positions is a stable literal — safe to omit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div className="pointer-events-none absolute inset-0 select-none">
+      <span
+        className={cn(
+          "absolute rounded bg-black/20 px-1.5 py-0.5 text-[10px] font-medium text-white/40 transition-all duration-1000",
+          positions[i],
+        )}
+      >
+        {label}
+      </span>
+    </div>
   );
 }

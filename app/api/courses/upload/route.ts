@@ -13,7 +13,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Images (thumbnails) stay in the public bucket so <img> works everywhere.
+// Course VIDEOS go to a private bucket and play only via signed URLs (Session 9
+// — Course DRM). The stored video_url uses a `cmedia:` sentinel so the player
+// knows to exchange it for a short-lived signed URL.
 const BUCKET = "learn-media";
+const VIDEO_BUCKET = "course-media";
+const CMEDIA_PREFIX = "cmedia:";
 
 const EXT: Record<string, string> = {
   "image/png": "png",
@@ -62,19 +68,30 @@ export async function POST(req: Request) {
 
   const bytes = Buffer.from(await file.arrayBuffer());
   const path = `course/${user.id}/${isVideo ? "video" : "image"}/${nanoid(12)}.${ext}`;
+  const bucket = isVideo ? VIDEO_BUCKET : BUCKET;
 
   const admin = createAdminClient();
   const { error } = await admin.storage
-    .from(BUCKET)
+    .from(bucket)
     .upload(path, bytes, { contentType: file.type, upsert: true });
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (isVideo) {
+    // Private bucket — store a sentinel, NOT a public URL. The player exchanges
+    // it for a short-lived signed URL via /api/courses/video-url.
+    return NextResponse.json({
+      ok: true,
+      url: `${CMEDIA_PREFIX}${path}`,
+      kind: "video",
+    });
   }
 
   const { data } = admin.storage.from(BUCKET).getPublicUrl(path);
   return NextResponse.json({
     ok: true,
     url: data.publicUrl,
-    kind: isVideo ? "video" : "image",
+    kind: "image",
   });
 }

@@ -130,6 +130,7 @@ export default async function CoursePage({
         title={course.title}
         description={course.description ?? null}
         modules={playerModules}
+        watermark={payload?.email ?? null}
       />
     );
   }

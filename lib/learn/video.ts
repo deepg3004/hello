@@ -2,11 +2,17 @@
 // playable, and for deriving a thumbnail. Supports YouTube, Vimeo, and direct
 // video files (uploaded MP4/WebM/MOV).
 
-export type PlayKind = "youtube" | "vimeo" | "file" | "iframe";
+export type PlayKind = "youtube" | "vimeo" | "file" | "iframe" | "signed";
+
+/** Sentinel prefix for private course-media objects (Session 9 — Course DRM).
+ *  Stored in lessons.video_url; the player swaps it for a short-lived signed
+ *  URL via /api/courses/video-url before rendering <video>. */
+export const CMEDIA_PREFIX = "cmedia:";
 
 export interface PlaySource {
   kind: PlayKind;
-  /** iframe src (youtube/vimeo/iframe) or the file URL (file). */
+  /** iframe src (youtube/vimeo/iframe), the file URL (file), or the `cmedia:`
+   *  storage path (signed — exchanged for a signed URL by the player). */
   src: string;
 }
 
@@ -29,6 +35,8 @@ export function isFileVideo(url: string): boolean {
 /** Resolve a stored video_url to a playable source. Returns null if empty. */
 export function resolvePlaySource(url: string | null | undefined): PlaySource | null {
   if (!url) return null;
+  // Private course-media object — needs a signed URL before it can play.
+  if (url.startsWith(CMEDIA_PREFIX)) return { kind: "signed", src: url };
   const yt = youtubeId(url);
   if (yt) return { kind: "youtube", src: `https://www.youtube.com/embed/${yt}?autoplay=1&rel=0` };
   const vm = vimeoId(url);
