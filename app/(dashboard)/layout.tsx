@@ -44,12 +44,9 @@ export default async function DashboardLayout({
     redirect("/maintenance");
   }
 
-  // Phone-verification gate — new sellers must verify their number before the
-  // dashboard unlocks. Admins bypass; existing users are grandfathered (the
-  // migration backfills phone_verified=true) so only fresh signups are gated.
-  if (!profileRow?.is_admin && profileRow?.phone_verified === false) {
-    redirect("/verify-phone");
-  }
+  // Phone verification is no longer a forced gate — sellers go straight to the
+  // dashboard after login. (The /verify-phone page + API remain available for
+  // optional verification.)
 
   const branding = await getBranding();
 

@@ -96,8 +96,9 @@ export default function SignupPage() {
       return;
     }
 
-    // Email confirmation disabled — verify phone next, then onboarding.
-    window.location.href = "/verify-phone";
+    // Email confirmation disabled — go straight to onboarding (phone
+    // verification is no longer a required step).
+    window.location.href = "/dashboard/onboarding";
   }
 
   if (sentEmail) {
