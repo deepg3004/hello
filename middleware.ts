@@ -232,6 +232,7 @@ export async function middleware(request: NextRequest) {
         pathname.startsWith("/ld/") ||
         pathname.startsWith("/order/") ||
         pathname.startsWith("/course/") ||
+        pathname.startsWith("/unlock/") ||
         pathname.startsWith("/affiliate/") ||
         pathname.startsWith("/account") ||
         pathname === "/maintenance" ||
@@ -279,6 +280,7 @@ export async function middleware(request: NextRequest) {
         pathname.startsWith("/order/") ||
         pathname.startsWith("/affiliate/") ||
         pathname.startsWith("/account") ||
+        pathname.startsWith("/unlock/") ||
         pathname.startsWith("/preview/");
       if (
         !isDashboard &&

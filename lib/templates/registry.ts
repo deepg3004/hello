@@ -6,6 +6,7 @@ import { ebookTemplate } from "./payment/ebook";
 import { serviceTemplate } from "./payment/service";
 import { bundleTemplate } from "./payment/bundle";
 import { pwylTemplate } from "./payment/pwyl";
+import { lockContentTemplate } from "./payment/lock-content";
 import { webinarTemplate } from "./landing/webinar";
 import { freebieTemplate } from "./landing/freebie";
 import { productLaunchTemplate } from "./landing/product-launch";
@@ -29,6 +30,7 @@ export const TEMPLATES: Record<string, Template> = {
   [serviceTemplate.definition.id]: serviceTemplate,
   [bundleTemplate.definition.id]: bundleTemplate,
   [pwylTemplate.definition.id]: pwylTemplate,
+  [lockContentTemplate.definition.id]: lockContentTemplate,
   [webinarTemplate.definition.id]: webinarTemplate,
   [freebieTemplate.definition.id]: freebieTemplate,
   [productLaunchTemplate.definition.id]: productLaunchTemplate,

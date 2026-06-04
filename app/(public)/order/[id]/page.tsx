@@ -7,6 +7,7 @@ import { TelegramInviteCard } from "@/components/pages/TelegramInviteCard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { courseForProduct } from "@/lib/courses";
 import { signCourseToken } from "@/lib/course-token";
+import { signContentToken } from "@/lib/content-token";
 import { publicPageUrl } from "@/lib/page-url";
 import { cn, formatDateTime } from "@/lib/utils";
 
@@ -106,6 +107,18 @@ export default async function OrderConfirmationPage({
     ? publicPageUrl(page.type, page.slug, page.template_id)
     : null;
 
+  // Lock Content pages unlock a private content page after payment.
+  const unlockHref =
+    page?.template_id === "lock-content" &&
+    order.status === "paid" &&
+    order.page_id
+      ? `/unlock/${order.page_id}?t=${signContentToken({
+          page_id: order.page_id,
+          order_id: order.id,
+          email: order.buyer_email,
+        })}`
+      : null;
+
   const tg = page?.telegram_vip_groups
     ? Array.isArray(page.telegram_vip_groups)
       ? page.telegram_vip_groups[0]
@@ -196,6 +209,19 @@ export default async function OrderConfirmationPage({
             </p>
             <Button asChild className="mt-3 bg-indigo-600 text-white hover:bg-indigo-700">
               <Link href={courseHref}>Access your course →</Link>
+            </Button>
+          </div>
+        )}
+
+        {/* Lock Content — reveal the private content page after payment */}
+        {unlockHref && (
+          <div className="rounded-2xl border border-violet-200 bg-violet-50 p-5 text-sm">
+            <p className="font-semibold text-violet-900">🔓 Your content is unlocked</p>
+            <p className="mt-1 text-violet-800">
+              Open your private content page any time from this link (bookmark it).
+            </p>
+            <Button asChild className="mt-3 bg-violet-600 text-white hover:bg-violet-700">
+              <Link href={unlockHref}>Open your content →</Link>
             </Button>
           </div>
         )}
