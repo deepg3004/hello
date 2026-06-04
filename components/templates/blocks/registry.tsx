@@ -187,15 +187,19 @@ export const BLOCKS: Record<string, BlockDef> = {
         defaultValue: [],
       },
     ],
-    Render: (d, { accent }) => {
+    Render: (d, ctx) => {
+      const { accent } = ctx;
       const items = arr<{ title?: string; text?: string }>(d.items);
       return (
         <Section>
-          {s(d.title) && (
-            <h2 className="text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
-              {s(d.title)}
-            </h2>
-          )}
+          {s(d.title) &&
+            et(
+              ctx,
+              "title",
+              s(d.title),
+              "text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl",
+              "h2",
+            )}
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((it, i) => (
               <div
@@ -246,15 +250,19 @@ export const BLOCKS: Record<string, BlockDef> = {
         defaultValue: [],
       },
     ],
-    Render: (d, { accent }) => {
+    Render: (d, ctx) => {
+      const { accent } = ctx;
       const items = arr<{ quote?: string; author?: string; role?: string }>(d.items);
       return (
         <Section>
-          {s(d.title) && (
-            <h2 className="text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
-              {s(d.title)}
-            </h2>
-          )}
+          {s(d.title) &&
+            et(
+              ctx,
+              "title",
+              s(d.title),
+              "text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl",
+              "h2",
+            )}
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((it, i) => (
               <div
@@ -302,15 +310,18 @@ export const BLOCKS: Record<string, BlockDef> = {
         defaultValue: [],
       },
     ],
-    Render: (d) => {
+    Render: (d, ctx) => {
       const items = arr<{ q?: string; a?: string }>(d.items);
       return (
         <Section>
-          {s(d.title) && (
-            <h2 className="text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
-              {s(d.title)}
-            </h2>
-          )}
+          {s(d.title) &&
+            et(
+              ctx,
+              "title",
+              s(d.title),
+              "text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl",
+              "h2",
+            )}
           <div className="mx-auto mt-8 max-w-2xl space-y-3">
             {items.map((it, i) => (
               <div
@@ -344,17 +355,21 @@ export const BLOCKS: Record<string, BlockDef> = {
       { key: "subtitle", label: "Subtitle", type: "textarea", defaultValue: "" },
       { key: "cta_label", label: "Button text", type: "text", defaultValue: "" },
     ],
-    Render: (d, { accent, pageId }) => (
+    Render: (d, ctx) => {
+      const { accent, pageId } = ctx;
+      return (
       <section id="cta" className="scroll-mt-8 px-4 py-16 md:py-20">
         <div className="mx-auto max-w-md text-center">
-          {s(d.title) && (
-            <h2 className="font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
-              {s(d.title)}
-            </h2>
-          )}
-          {s(d.subtitle) && (
-            <p className="mt-2 text-[color:var(--s-fg-muted)]">{s(d.subtitle)}</p>
-          )}
+          {s(d.title) &&
+            et(
+              ctx,
+              "title",
+              s(d.title),
+              "font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl",
+              "h2",
+            )}
+          {s(d.subtitle) &&
+            et(ctx, "subtitle", s(d.subtitle), "mt-2 text-[color:var(--s-fg-muted)]", "p")}
           <div className="mt-6 rounded-2xl bg-white p-6 text-left text-zinc-900 shadow-2xl">
             <LeadCaptureForm
               pageId={pageId ?? "preview"}
@@ -364,7 +379,8 @@ export const BLOCKS: Record<string, BlockDef> = {
           </div>
         </div>
       </section>
-    ),
+      );
+    },
   },
 
   about: {
@@ -423,16 +439,20 @@ export const BLOCKS: Record<string, BlockDef> = {
     fields: [
       { key: "title", label: "Section title", type: "text", defaultValue: "" },
     ],
-    Render: (d, { accent, products }) => {
+    Render: (d, ctx) => {
+      const { accent, products } = ctx;
       const list = products ?? [];
       if (list.length === 0) {
         return (
           <Section>
-            {s(d.title) && (
-              <h2 className="text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
-                {s(d.title)}
-              </h2>
-            )}
+            {s(d.title) &&
+              et(
+                ctx,
+                "title",
+                s(d.title),
+                "text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl",
+                "h2",
+              )}
             <p className="mt-6 text-center text-sm text-[color:var(--s-fg-dim)]">
               Your live products will appear here.
             </p>
@@ -441,11 +461,14 @@ export const BLOCKS: Record<string, BlockDef> = {
       }
       return (
         <Section>
-          {s(d.title) && (
-            <h2 className="mb-8 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
-              {s(d.title)}
-            </h2>
-          )}
+          {s(d.title) &&
+            et(
+              ctx,
+              "title",
+              s(d.title),
+              "mb-8 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl",
+              "h2",
+            )}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {list.map((p) => (
               <Link
@@ -501,7 +524,8 @@ export const BLOCKS: Record<string, BlockDef> = {
     fields: [
       { key: "title", label: "Section title", type: "text", defaultValue: "" },
     ],
-    Render: (d, { accent, socialLinks }) => {
+    Render: (d, ctx) => {
+      const { accent, socialLinks } = ctx;
       const links = socialLinks ?? {};
       const ICONS: Record<string, typeof Globe> = {
         instagram: Instagram,
@@ -515,11 +539,14 @@ export const BLOCKS: Record<string, BlockDef> = {
       if (entries.length === 0) return null;
       return (
         <Section>
-          {s(d.title) && (
-            <h2 className="mb-6 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
-              {s(d.title)}
-            </h2>
-          )}
+          {s(d.title) &&
+            et(
+              ctx,
+              "title",
+              s(d.title),
+              "mb-6 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl",
+              "h2",
+            )}
           <div className="flex flex-wrap justify-center gap-3">
             {entries.map(([k, url]) => {
               const Icon = ICONS[k] ?? Globe;
@@ -921,16 +948,20 @@ export const BLOCKS: Record<string, BlockDef> = {
         defaultValue: [],
       },
     ],
-    Render: (d, { accent }) => {
+    Render: (d, ctx) => {
+      const { accent } = ctx;
       const items = arr<{ name?: string; price?: string; period?: string; features?: string; cta_label?: string; url?: string; highlighted?: boolean }>(d.items);
       if (items.length === 0) return null;
       return (
         <Section>
-          {s(d.title) && (
-            <h2 className="mb-8 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
-              {s(d.title)}
-            </h2>
-          )}
+          {s(d.title) &&
+            et(
+              ctx,
+              "title",
+              s(d.title),
+              "mb-8 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl",
+              "h2",
+            )}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((it, i) => {
               const feats = s(it.features).split("\n").map((x) => x.trim()).filter(Boolean);
@@ -1140,23 +1171,28 @@ export const BLOCKS: Record<string, BlockDef> = {
       { key: "subtitle", label: "Subtitle", type: "textarea", defaultValue: "" },
       { key: "cta_label", label: "Button text", type: "text", defaultValue: "" },
     ],
-    Render: (d, { accent }) => (
+    Render: (d, ctx) => {
+      const { accent } = ctx;
+      return (
       <Section>
         <div className="mx-auto max-w-md text-center">
-          {s(d.title) && (
-            <h2 className="font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
-              {s(d.title)}
-            </h2>
-          )}
-          {s(d.subtitle) && (
-            <p className="mt-2 text-[color:var(--s-fg-muted)]">{s(d.subtitle)}</p>
-          )}
+          {s(d.title) &&
+            et(
+              ctx,
+              "title",
+              s(d.title),
+              "font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl",
+              "h2",
+            )}
+          {s(d.subtitle) &&
+            et(ctx, "subtitle", s(d.subtitle), "mt-2 text-[color:var(--s-fg-muted)]", "p")}
           <div className="mt-6 text-left">
             <SiteContactForm ctaLabel={s(d.cta_label, "Send message")} accent={accent} />
           </div>
         </div>
       </Section>
-    ),
+      );
+    },
   },
 };
 
