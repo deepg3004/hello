@@ -512,6 +512,7 @@ export function PaymentCoursePage(props: PaymentCoursePageProps) {
                       pageId={props.pageId ?? "preview"}
                   preview={props.isPreview}
                       productId={props.product.id}
+                      requiresShipping={!!props.product.requires_shipping}
                       productName={props.product.name}
                       productDescription={props.product.description}
                       productImage={props.product.image_url}

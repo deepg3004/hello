@@ -23,7 +23,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyWebhookSignatureWithSecret } from "@/lib/razorpay";
 import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
 import { notifyPaymentReceived } from "@/lib/notifications/events";
-import { chargePlatformWalletFee } from "@/lib/order-fulfillment";
+import { chargePlatformWalletFee, decrementStockForOrder } from "@/lib/order-fulfillment";
 
 interface PaymentEntity {
   id: string;
@@ -154,6 +154,7 @@ export async function POST(request: Request) {
     { sellerUserId: order.seller_user_id, orderId: order.id },
     admin,
   );
+  await decrementStockForOrder(order.id, admin);
 
   await notifyPaymentReceived(
     {

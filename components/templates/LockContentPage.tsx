@@ -23,6 +23,7 @@ interface LockContentPageProps {
     image_url: string | null;
     price: number;
     currency: string;
+    requires_shipping?: boolean | null;
   } | null;
   bumpRuntime?: import("@/components/templates/shared/types").BumpRuntime;
   accent?: string;
@@ -112,6 +113,7 @@ export function LockContentPage(props: LockContentPageProps) {
                 pageId={props.pageId ?? "preview"}
                 preview={props.isPreview}
                 productId={props.product.id}
+                requiresShipping={!!props.product.requires_shipping}
                 productName={props.product.name}
                 productDescription={props.product.description}
                 productImage={props.product.image_url}

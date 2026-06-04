@@ -20,6 +20,9 @@ export interface TemplateProduct {
   /** Short user-facing label: "Weekly", "Monthly", "Yearly", "Lifetime". */
   display_label?: string | null;
   sort_order?: number;
+  /** Physical product — collect a delivery address at checkout (Session 10). */
+  requires_shipping?: boolean | null;
+  stock?: number | null;
 }
 
 export interface ThemeConfig {

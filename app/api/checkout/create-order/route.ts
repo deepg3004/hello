@@ -159,13 +159,21 @@ export async function POST(request: Request) {
   // 2. Server-side price (never trust client `amount`)
   const { data: product } = await admin
     .from("products")
-    .select("id, user_id, price, currency, name, active")
+    .select("id, user_id, price, currency, name, active, requires_shipping, stock")
     .eq("id", product_id)
     .single();
   if (!product || !product.active || product.user_id !== page.user_id) {
     return NextResponse.json(
       { error: "Product is not available" },
       { status: 404 },
+    );
+  }
+  // Inventory gate — only when stock is tracked (stock !== null). Untracked
+  // (digital) products have null stock and are never gated.
+  if (product.stock !== null && Number(product.stock) <= 0) {
+    return NextResponse.json(
+      { error: "This product is out of stock." },
+      { status: 409 },
     );
   }
   let grossAmount = Number(product.price);
@@ -279,13 +287,37 @@ export async function POST(request: Request) {
   // 4. Seller — lookup plan to determine effective commission
   const { data: seller } = await admin
     .from("user_profiles")
-    .select("id, subscription_plan")
+    .select("id, subscription_plan, shipping_flat_fee, free_shipping_over")
     .eq("id", page.user_id)
     .single();
   if (!seller) {
     if (couponId) await releaseCoupon(couponId, buyer_email);
     return NextResponse.json({ error: "Seller missing" }, { status: 404 });
   }
+
+  // 4a. Shipping (physical products). Require a delivery address, then add the
+  // seller's flat shipping fee — waived once the item subtotal clears the
+  // seller's free-shipping threshold. Digital products skip all of this.
+  let shippingPaise = 0;
+  if (product.requires_shipping) {
+    const addr = buyer_address_clean;
+    if (!addr || !addr.line1 || !addr.city || !addr.pincode) {
+      if (couponId) await releaseCoupon(couponId, buyer_email);
+      return NextResponse.json(
+        { error: "A delivery address (street, city, PIN) is required." },
+        { status: 400 },
+      );
+    }
+    const flatPaise = Math.round(Number(seller.shipping_flat_fee ?? 0) * 100);
+    const freeOver = Number(seller.free_shipping_over ?? 0);
+    const qualifiesFree =
+      freeOver > 0 && baseNetPaise >= Math.round(freeOver * 100);
+    shippingPaise = qualifiesFree ? 0 : Math.max(0, flatPaise);
+  }
+  // The buyer pays the item subtotal + shipping; the whole amount lands in the
+  // seller's own gateway (no-funds model).
+  const totalPaise = amountPaise + shippingPaise;
+  const shippingFee = shippingPaise / 100;
 
   // No-funds model (Session 3): InvoxAI holds NO money. Every order is created
   // on the SELLER's OWN gateway — the full amount lands in the seller's account
@@ -313,7 +345,7 @@ export async function POST(request: Request) {
   // seller's. InvoxAI earns via the wallet fee, not a cut of the sale.
   const commissionPct = 0;
   const commissionPaise = 0;
-  const sellerAmountPaise = amountPaise;
+  const sellerAmountPaise = totalPaise;
   const commissionAmount = 0;
   const sellerAmount = sellerAmountPaise / 100;
 
@@ -373,7 +405,7 @@ export async function POST(request: Request) {
   let razorpayOrder: { id: string; amount: number | string } | null = null;
   try {
     razorpayOrder = (await createOrderOnKeys(sellerGateway, {
-      amount: amountPaise,
+      amount: totalPaise,
       currency,
       receipt: shortReceipt,
       notes: sharedNotes,
@@ -399,7 +431,9 @@ export async function POST(request: Request) {
     buyer_email,
     buyer_name: buyer_name ?? null,
     buyer_phone: buyer_phone ?? null,
-    amount: netAmount,
+    amount: totalPaise / 100,
+    shipping_fee: shippingFee,
+    shipping_address: product.requires_shipping ? buyer_address_clean : null,
     platform_commission: commissionAmount,
     seller_amount: sellerAmount,
     currency,
@@ -471,7 +505,8 @@ export async function POST(request: Request) {
     ok: true,
     razorpay_order_id: razorpayOrder.id,
     order_id: orderId,
-    amount: amountPaise,
+    amount: totalPaise,
+    shipping_fee: shippingFee,
     currency,
     // Seller-gateway orders must open Checkout with the SELLER's key id.
     key: sellerGateway?.key_id ?? process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,

@@ -289,6 +289,7 @@ export function PayWhatYouLikePage(props: PayWhatYouLikePageProps) {
                 <CheckoutForm
                   pageId={props.pageId ?? "preview"}
                   productId={props.product.id}
+                  requiresShipping={!!props.product.requires_shipping}
                   productName={props.product.name}
                   productDescription={props.product.description}
                   productImage={props.product.image_url}

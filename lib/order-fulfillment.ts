@@ -16,6 +16,29 @@ import type { PlanKey } from "@/lib/plans";
 type DB = SupabaseClient;
 
 /**
+ * Decrement inventory for a paid order's product (Session 10). No-op for
+ * untracked stock (null) or digital products. Best-effort — the buyer is
+ * already paid, so this must never throw. Called once per order on the
+ * pending→paid transition (the callers' idempotent guards ensure single-fire).
+ */
+export async function decrementStockForOrder(
+  orderId: string,
+  admin: DB,
+): Promise<void> {
+  try {
+    const { data: order } = await admin
+      .from("orders")
+      .select("product_id")
+      .eq("id", orderId)
+      .maybeSingle();
+    if (!order?.product_id) return;
+    await admin.rpc("decrement_product_stock", { p_product_id: order.product_id });
+  } catch (e) {
+    console.error("[order-fulfillment] decrementStockForOrder failed", e);
+  }
+}
+
+/**
  * Deduct the per-order platform wallet fee for a completed order (migration
  * 040). Best-effort by design — the buyer has already been charged, so this
  * must NEVER throw into the caller. A safe no-op until migration 040 is applied

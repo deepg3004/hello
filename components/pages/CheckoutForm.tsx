@@ -160,6 +160,9 @@ export interface CheckoutFormProps {
    *  effects (no Razorpay, pre-capture, coupon or prefill calls). Lets sellers
    *  see the actual checkout design while editing. */
   preview?: boolean;
+  /** Physical product — collect a delivery address (Session 10). The seller's
+   *  flat shipping fee is added server-side. */
+  requiresShipping?: boolean;
 }
 
 interface AppliedCoupon {
@@ -234,6 +237,14 @@ export function CheckoutForm(props: CheckoutFormProps) {
   const [billLine2, setBillLine2] = useState("");
   const [billCity, setBillCity] = useState("");
   const [billPincode, setBillPincode] = useState("");
+
+  // Shipping address (physical products only).
+  const [shipLine1, setShipLine1] = useState("");
+  const [shipLine2, setShipLine2] = useState("");
+  const [shipCity, setShipCity] = useState("");
+  const [shipState, setShipState] = useState("");
+  const [shipPincode, setShipPincode] = useState("");
+  const [shipError, setShipError] = useState<string | null>(null);
   const gstinUpper = buyerGstin.trim().toUpperCase();
   const gstinValid = gstinUpper === "" || GSTIN_REGEX.test(gstinUpper);
 
@@ -443,6 +454,13 @@ export function CheckoutForm(props: CheckoutFormProps) {
       setQuestionError(`Please answer: ${missingQ.label}`);
       return;
     }
+    setShipError(null);
+    if (props.requiresShipping) {
+      if (!shipLine1.trim() || !shipCity.trim() || !shipPincode.trim()) {
+        setShipError("Enter your delivery address (street, city and PIN code).");
+        return;
+      }
+    }
     setSubmitting(true);
     maybePreCapture();
 
@@ -482,8 +500,15 @@ export function CheckoutForm(props: CheckoutFormProps) {
             gstOpen && gstinUpper
               ? stateCodeFromGstin(gstinUpper) ?? undefined
               : undefined,
-          buyer_address:
-            gstOpen && (billLine1 || billCity || billPincode)
+          buyer_address: props.requiresShipping
+            ? {
+                line1: shipLine1 || undefined,
+                line2: shipLine2 || undefined,
+                city: shipCity || undefined,
+                state_code: shipState || undefined,
+                pincode: shipPincode || undefined,
+              }
+            : gstOpen && (billLine1 || billCity || billPincode)
               ? {
                   line1: billLine1 || undefined,
                   line2: billLine2 || undefined,
@@ -922,6 +947,50 @@ export function CheckoutForm(props: CheckoutFormProps) {
                 </div>
               ))}
               {questionError && <p className="text-sm text-rose-600">{questionError}</p>}
+            </div>
+          )}
+
+          {/* Delivery address — physical products (Session 10) */}
+          {props.requiresShipping && (
+            <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
+              <p className="text-sm font-medium">Delivery address</p>
+              <input
+                value={shipLine1}
+                onChange={(e) => setShipLine1(e.target.value)}
+                placeholder="Street address"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+              <input
+                value={shipLine2}
+                onChange={(e) => setShipLine2(e.target.value)}
+                placeholder="Apartment, suite, etc. (optional)"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  value={shipCity}
+                  onChange={(e) => setShipCity(e.target.value)}
+                  placeholder="City"
+                  className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+                <input
+                  value={shipState}
+                  onChange={(e) => setShipState(e.target.value)}
+                  placeholder="State"
+                  className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <input
+                value={shipPincode}
+                onChange={(e) => setShipPincode(e.target.value)}
+                placeholder="PIN code"
+                inputMode="numeric"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+              {shipError && <p className="text-sm text-rose-600">{shipError}</p>}
+              <p className="text-xs text-muted-foreground">
+                Shipping is added at checkout.
+              </p>
             </div>
           )}
 

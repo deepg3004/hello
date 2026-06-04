@@ -59,6 +59,9 @@ interface ProductRow {
   /** "Monthly", "Yearly", "Lifetime" — short label rendered on the tier card. */
   display_label: string | null;
   sort_order: number;
+  /** Physical-product fields (Session 10). */
+  requires_shipping?: boolean | null;
+  stock?: number | null;
 }
 
 interface PixelRow {
@@ -92,7 +95,7 @@ async function loadPage(slug: string) {
   const { data: products } = await admin
     .from("products")
     .select(
-      "id, user_id, name, description, image_url, price, original_price, is_popular, currency, active, subscription_days, display_label, sort_order",
+      "id, user_id, name, description, image_url, price, original_price, is_popular, currency, active, subscription_days, display_label, sort_order, requires_shipping, stock",
     )
     .eq("user_id", page.user_id)
     .eq("page_id", page.id)

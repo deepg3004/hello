@@ -15,6 +15,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { platformRootDomain } from "@/lib/domains";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { PageStatCard } from "@/components/dashboard/pages/PageStatCard";
+import { ShippingRatesForm } from "@/components/dashboard/store/ShippingRatesForm";
+import {
+  ProductInventoryManager,
+  type StoreProduct,
+} from "@/components/dashboard/store/ProductInventoryManager";
 
 export const metadata = { title: "Store" };
 
@@ -30,22 +35,46 @@ export default async function StoreDashboardPage() {
   const admin = createAdminClient();
   const { data: profile } = await admin
     .from("user_profiles")
-    .select("subdomain")
+    .select("subdomain, shipping_flat_fee, free_shipping_over")
     .eq("id", user.id)
     .single();
 
   // Active products + which sit on a published page (what the store shows).
   const { data: productsRaw } = await admin
     .from("products")
-    .select("id, pages!products_page_id_fkey(status)")
+    .select(
+      "id, name, requires_shipping, stock, sku, page_id, pages!products_page_id_fkey(status, title, type)",
+    )
     .eq("user_id", user.id)
     .eq("active", true);
   const totalActive = (productsRaw ?? []).length;
-  const liveCount = (productsRaw ?? []).filter((r) => {
-    const rel = (r as { pages?: { status?: string } | { status?: string }[] | null }).pages;
-    const page = Array.isArray(rel) ? rel[0] : rel;
-    return page?.status === "published";
-  }).length;
+  type ProdRow = {
+    id: string;
+    name: string;
+    requires_shipping: boolean | null;
+    stock: number | null;
+    sku: string | null;
+    page_id: string | null;
+    pages?:
+      | { status?: string; title?: string; type?: string }
+      | { status?: string; title?: string; type?: string }[]
+      | null;
+  };
+  const prodRows = (productsRaw ?? []) as ProdRow[];
+  const pageOf = (r: ProdRow) => (Array.isArray(r.pages) ? r.pages[0] : r.pages);
+  const liveCount = prodRows.filter(
+    (r) => pageOf(r)?.status === "published",
+  ).length;
+  const storeProducts: StoreProduct[] = prodRows
+    .filter((r) => !!r.page_id)
+    .map((r) => ({
+      page_id: r.page_id as string,
+      name: r.name,
+      page_title: pageOf(r)?.title ?? null,
+      requires_shipping: !!r.requires_shipping,
+      stock: r.stock ?? null,
+      sku: r.sku ?? null,
+    }));
 
   const subdomain = profile?.subdomain ?? null;
   const storeUrl = subdomain
@@ -104,11 +133,16 @@ export default async function StoreDashboardPage() {
               <code className="block break-all rounded bg-muted px-3 py-2 text-sm">
                 {storeUrl}
               </code>
-              <Button asChild>
-                <a href={storeUrl} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="mr-2 h-4 w-4" /> View store
-                </a>
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button asChild>
+                  <a href={storeUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="mr-2 h-4 w-4" /> View store
+                  </a>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/dashboard/store/orders">Manage orders</Link>
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ) : (
@@ -127,6 +161,45 @@ export default async function StoreDashboardPage() {
             </CardContent>
           </Card>
         )}
+      </div>
+
+      {/* Shipping rates (seller-level) */}
+      <div className="animate-in-up" style={{ animationDelay: "150ms" }}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Shipping rates</CardTitle>
+            <CardDescription>
+              A flat fee added to physical orders, optionally waived above a
+              subtotal threshold.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ShippingRatesForm
+              flatFee={Number(profile?.shipping_flat_fee ?? 0)}
+              freeOver={
+                profile?.free_shipping_over != null
+                  ? Number(profile.free_shipping_over)
+                  : null
+              }
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Per-product shipping + inventory */}
+      <div className="animate-in-up" style={{ animationDelay: "180ms" }}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Products — shipping &amp; inventory</CardTitle>
+            <CardDescription>
+              Mark a product physical to collect a delivery address, and track
+              stock to auto-hide it when sold out.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ProductInventoryManager products={storeProducts} />
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

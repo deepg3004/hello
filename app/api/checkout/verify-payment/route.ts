@@ -12,7 +12,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyPayment, verifyPaymentWithSecret } from "@/lib/razorpay";
 import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
 import { notifyPaymentReceived } from "@/lib/notifications/events";
-import { chargePlatformWalletFee } from "@/lib/order-fulfillment";
+import { chargePlatformWalletFee, decrementStockForOrder } from "@/lib/order-fulfillment";
 import { settleCoupon } from "@/lib/coupons";
 import { getRedis } from "@/lib/redis";
 import {
@@ -272,6 +272,8 @@ export async function POST(request: Request) {
     { sellerUserId: order.seller_user_id, orderId: order_id },
     admin,
   );
+  // Inventory: decrement stock for physical products (no-op for digital).
+  await decrementStockForOrder(order_id, admin);
 
   // 5. Settle coupon usage_count in Postgres — atomic UPDATE that refuses to
   //    cross the total_limit. If two checkouts race for the last slot, the

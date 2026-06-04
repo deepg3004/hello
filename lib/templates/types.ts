@@ -103,6 +103,7 @@ export interface TemplateRenderProps {
     subscription_days?: number | null;
     display_label?: string | null;
     sort_order?: number;
+    requires_shipping?: boolean | null;
   } | null;
   /** All active products for the page — tiered templates (TelegramVipPage
    *  with Monthly/Yearly/Lifetime) render this as a picker. Single-product
@@ -117,6 +118,7 @@ export interface TemplateRenderProps {
     subscription_days?: number | null;
     display_label?: string | null;
     sort_order?: number;
+    requires_shipping?: boolean | null;
   }>;
   /** Set to true inside the preview iframe — disables analytics + view bump. */
   isPreview?: boolean;
