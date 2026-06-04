@@ -188,7 +188,7 @@ export async function POST(request: Request) {
       pageTitle: page.title,
     });
     sideEffects.push(
-      sendEmail({ to: email, role: "buyer", subject: tpl.subject, html: tpl.html }).then(async (r) => {
+      sendEmail({ to: email, role: "buyer", subject: tpl.subject, html: tpl.html, sellerId: page.user_id }).then(async (r) => {
         if (r.ok) {
           await admin
             .from("lead_captures")
@@ -207,7 +207,7 @@ export async function POST(request: Request) {
       downloadUrl,
     });
     sideEffects.push(
-      sendEmail({ to: email, role: "buyer", subject: tpl.subject, html: tpl.html }).then(async (r) => {
+      sendEmail({ to: email, role: "buyer", subject: tpl.subject, html: tpl.html, sellerId: page.user_id }).then(async (r) => {
         if (r.ok) {
           await admin
             .from("lead_captures")

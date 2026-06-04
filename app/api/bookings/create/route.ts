@@ -118,7 +118,7 @@ export async function POST(request: Request) {
         { status: 409 },
       );
     }
-    await sendBookingEmail(email, bt.title, wanted, bt.location);
+    await sendBookingEmail(email, bt.title, wanted, bt.location, bt.user_id);
     await fireMarketingWebhook(bt.user_id, "booking_created", {
       booking_id: row.id,
       title: bt.title,
@@ -201,12 +201,14 @@ async function sendBookingEmail(
   title: string,
   startIso: string,
   location: string | null,
+  sellerId?: string,
 ): Promise<void> {
   try {
     const { formatSlotLabel } = await import("@/lib/booking");
     const when = formatSlotLabel(startIso);
     await sendEmail({
       to,
+      sellerId,
       role: "buyer",
       subject: `Booking confirmed — ${title}`,
       html: SHELL(

@@ -493,7 +493,7 @@ export async function POST(request: Request) {
       invoiceUrl: `${baseUrl}/api/orders/${order_id}/invoice`,
       orderUrl: `${baseUrl}/order/${order_id}`,
     });
-    void sendEmail({ to: order.buyer_email, role: "billing", subject: tpl.subject, html: tpl.html });
+    void sendEmail({ to: order.buyer_email, role: "billing", subject: tpl.subject, html: tpl.html, sellerId: order.seller_user_id });
   } catch (e) {
     console.error("[verify-payment] receipt email dispatch failed", e);
   }
@@ -592,6 +592,7 @@ export async function POST(request: Request) {
         role: "buyer",
         subject: tpl.subject,
         html: tpl.html,
+        sellerId: order.seller_user_id,
       });
     }
   } catch (e) {

@@ -37,6 +37,9 @@ export interface SendArgs {
   /** Which Gmail mailbox to send from (defaults to the noreply fallback).
    *  Sends carrying open-tracking `tags` bypass SMTP to keep Resend tracking. */
   role?: MailboxRole;
+  /** Seller whose buyer-facing email this is. When that seller has active
+   *  custom SMTP (Session 14), send from THEIR domain first. */
+  sellerId?: string;
 }
 
 export interface SendResult {
@@ -47,6 +50,21 @@ export interface SendResult {
 }
 
 export async function sendEmail(args: SendArgs): Promise<SendResult> {
+  // Seller custom SMTP first (Session 14) — send buyer-facing email from the
+  // seller's own domain when configured. Open-tracking sends (tags) skip this
+  // to keep Resend's `email.opened` webhook working.
+  if (args.sellerId && !args.tags?.length) {
+    const { trySellerEmail } = await import("@/lib/seller-smtp");
+    const sent = await trySellerEmail(args.sellerId, {
+      to: args.to,
+      subject: args.subject,
+      html: args.html,
+      text: args.text,
+      replyTo: args.reply_to,
+    });
+    if (sent) return { ok: true };
+  }
+
   // Gmail SMTP first — unless the send carries open-tracking tags (recovery),
   // which must go through Resend to keep the `email.opened` webhook working.
   if (!args.tags?.length) {

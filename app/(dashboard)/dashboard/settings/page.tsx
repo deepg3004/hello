@@ -137,6 +137,24 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">Email Integrations</CardTitle>
+          <CardDescription>
+            Send buyer emails (receipts, lead &amp; booking confirmations) from
+            your own domain via custom SMTP.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-sm">
+          <Link
+            href="/dashboard/settings/email"
+            className="text-primary underline"
+          >
+            Configure email →
+          </Link>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">Password</CardTitle>
           <CardDescription>
             Change the password you use to sign in.

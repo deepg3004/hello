@@ -41,6 +41,7 @@ export async function POST(request: Request) {
     to: seller.email,
     role: "noreply",
     reply_to: email,
+    sellerId: seller.id,
     subject: `New website message from ${name}`,
     html: `
       <p>You received a new message from your website contact form:</p>
