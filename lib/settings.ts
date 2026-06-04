@@ -11,7 +11,6 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { MIN_PAYOUT_AMOUNT, CHARGEBACK_HOLD_DAYS } from "@/lib/payouts/constants";
 import {
   BUILT_IN_FEE_CATEGORIES,
   emptyRule,
@@ -75,30 +74,9 @@ export async function getBranding(): Promise<Branding> {
   return { name: s.platform_name, logoUrl: s.platform_logo_url };
 }
 
-/**
- * The platform-wide minimum payout (rupees). Admin-editable via
- * `min_payout_amount`; falls back to the compiled-in default when unset or
- * invalid. Per-seller overrides (`payout_min_threshold`) are layered on top of
- * this in lib/payouts.requestPayout().
- */
-export async function getMinPayoutAmount(): Promise<number> {
-  const raw = await getSetting("min_payout_amount", "");
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : MIN_PAYOUT_AMOUNT;
-}
-
-/**
- * How many days a paid order is held before it becomes payable (chargeback
- * buffer). Admin-editable via `payout_hold_days`; falls back to the compiled
- * default. **0 is allowed** (release immediately) — only a missing/invalid
- * value falls back to the default.
- */
-export async function getPayoutHoldDays(): Promise<number> {
-  const raw = await getSetting("payout_hold_days", "");
-  if (raw === "") return CHARGEBACK_HOLD_DAYS;
-  const n = Number(raw);
-  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : CHARGEBACK_HOLD_DAYS;
-}
+// Seller payouts removed (Session 2): InvoxAI holds no funds, so there is no
+// payout minimum or chargeback-hold buffer. Sellers collect via their own
+// gateway; the platform's only debit is the per-order wallet commission.
 
 export interface CommissionConfig {
   /** Platform default commission %, used when a plan has no override. */

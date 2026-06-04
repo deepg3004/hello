@@ -35,7 +35,6 @@ const PAGE_TITLE: Record<string, string> = {
   users: "Users",
   pages: "Pages",
   transactions: "Transactions",
-  payouts: "Payouts",
   kyc: "KYC Queue",
   telegram: "Telegram",
   support: "Support",

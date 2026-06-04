@@ -259,71 +259,7 @@ export async function notifyNewLead(lead: LeadForNotify): Promise<void> {
   }
 }
 
-// ---- Trigger: payout completed --------------------------------------------
-
-export interface PayoutForNotify {
-  user_id: string;
-  amount: number | string;
-  bank_last4?: string | null;
-  /** Razorpay/Cashfree payout id or our internal reference. */
-  payout_id?: string | null;
-  utr?: string | null;
-}
-
-export async function notifyPayoutComplete(payout: PayoutForNotify): Promise<void> {
-  try {
-    const prefs = await loadSellerPrefs(payout.user_id);
-    if (!prefs) return;
-
-    // Fetch the bank last 4 if not supplied.
-    let last4 = payout.bank_last4 ?? null;
-    if (!last4) {
-      const admin = createAdminClient();
-      const { data } = await admin
-        .from("user_profiles")
-        .select("bank_account_number")
-        .eq("id", payout.user_id)
-        .single();
-      last4 = (data?.bank_account_number ?? "").slice(-4) || null;
-    }
-
-    const to = shouldFireWa(prefs, "payout_completed");
-    if (to) {
-      await sendWhatsApp(to, WA_TEMPLATES.PAYOUT_DONE, [
-        inr(payout.amount),
-        last4 ?? "----",
-        payout.utr ?? payout.payout_id ?? "—",
-      ]);
-    }
-    // Email side is already sent by the payout webhook — left as-is to avoid
-    // duplicating messages on the seller.
-  } catch (e) {
-    console.error("[notify] notifyPayoutComplete failed", e);
-  }
-}
-
-// ---- Trigger: payout initiated --------------------------------------------
-
-export async function notifyPayoutInitiated(payout: PayoutForNotify): Promise<void> {
-  try {
-    const prefs = await loadSellerPrefs(payout.user_id);
-    if (!prefs) return;
-
-    const to = shouldFireWa(prefs, "payout_initiated");
-    if (to) {
-      // We don't have a dedicated "initiated" template registered with MSG91
-      // by default — re-use the PAYOUT_DONE shape so we still deliver
-      // something useful without needing another template approval.
-      await sendWhatsApp(to, WA_TEMPLATES.PAYOUT_INITIATED, [
-        inr(payout.amount),
-        (payout.bank_last4 ?? "----"),
-        payout.payout_id ?? "—",
-      ]);
-    }
-  } catch (e) {
-    console.error("[notify] notifyPayoutInitiated failed", e);
-  }
-}
+// Payout notifications removed (Session 2): no seller payouts to notify about.
 
 // ---- Trigger: KYC update --------------------------------------------------
 

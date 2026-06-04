@@ -42,7 +42,7 @@ const NAV: { label: string; href: string; Icon: LucideIcon }[] = [
   { label: "Recovery", href: "/dashboard/analytics", Icon: LineChart },
   { label: "Telegram", href: "/dashboard/telegram", Icon: Send },
   { label: "KYC", href: "/dashboard/kyc", Icon: ShieldCheck },
-  { label: "Payouts", href: "/dashboard/payouts", Icon: Wallet },
+  { label: "Wallet", href: "/dashboard/wallet", Icon: Wallet },
   { label: "Settings", href: "/dashboard/settings", Icon: Settings },
 ];
 

@@ -40,7 +40,6 @@ import { bootInvoiceWorker } from "@/lib/queues/invoices";
 import { bootRecoveryWorker } from "@/lib/queues/recovery";
 import { bootEmailWorker } from "@/lib/queues/email";
 import { bootWhatsAppWorker } from "@/lib/queues/whatsapp";
-import { bootPayoutWorker } from "@/lib/queues/payouts";
 import { bootTelegramWorker } from "@/lib/queues/telegram";
 import { bootTelegramSyncLoop } from "@/lib/queues/telegram-sync";
 
@@ -64,7 +63,6 @@ async function main(): Promise<void> {
     bootRecoveryWorker(),
     bootEmailWorker(),
     bootWhatsAppWorker(),
-    bootPayoutWorker(),
     bootTelegramWorker(),
   ]);
   // 1-minute Telegram join/leave reconcile (not a BullMQ queue — a timer loop).

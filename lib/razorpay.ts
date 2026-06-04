@@ -182,100 +182,10 @@ export async function createOrder(args: CreateOrderArgs) {
   return razorpay.orders.create(body as unknown as Parameters<typeof razorpay.orders.create>[0]);
 }
 
-// ----------------------------------------------------------------------------
-// Payouts (seller withdrawals from platform escrow)
-// ----------------------------------------------------------------------------
-
-export interface CreatePayoutArgs {
-  /** RazorpayX account number that funds the payout. */
-  account_number: string;
-  /** Fund account id (`fa_XXXX`) created from the seller's bank/UPI. */
-  fund_account_id: string;
-  /** Amount in PAISE. */
-  amount: number;
-  currency?: string;
-  /** "IMPS" | "NEFT" | "RTGS" | "UPI" */
-  mode?: "IMPS" | "NEFT" | "RTGS" | "UPI";
-  /** "payout" | "payout_link" */
-  purpose?: "payout" | "refund" | "cashback" | "salary";
-  /** Idempotency key, ideally our internal payout id. */
-  reference_id?: string;
-  narration?: string;
-  notes?: Record<string, string>;
-}
-
-/**
- * Create a RazorpayX payout. Used for seller withdrawals when funds aren't
- * routed automatically (e.g. before linked account is set up).
- */
-export async function createPayout(args: CreatePayoutArgs) {
-  // razorpay-node exposes payouts via `razorpay.payouts.create`, but Route is
-  // configured at the API layer — go through fetch to keep options stable.
-  const key_id = process.env.RAZORPAY_KEY_ID!;
-  const key_secret = process.env.RAZORPAY_KEY_SECRET!;
-  const auth = Buffer.from(`${key_id}:${key_secret}`).toString("base64");
-
-  const res = await fetch("https://api.razorpay.com/v1/payouts", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Basic ${auth}`,
-      "X-Payout-Idempotency": args.reference_id ?? crypto.randomUUID(),
-    },
-    body: JSON.stringify({
-      account_number: args.account_number,
-      fund_account_id: args.fund_account_id,
-      amount: args.amount,
-      currency: args.currency ?? "INR",
-      mode: args.mode ?? "IMPS",
-      purpose: args.purpose ?? "payout",
-      reference_id: args.reference_id,
-      narration: args.narration ?? "InvoxAI seller payout",
-      notes: args.notes,
-    }),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Razorpay payout failed: ${res.status} ${text}`);
-  }
-  return res.json();
-}
-
-// ----------------------------------------------------------------------------
-// Transfers (post-capture money movement to a linked account)
-// ----------------------------------------------------------------------------
-
-export interface CreateTransferArgs {
-  /** Source payment id (`pay_XXXX`). */
-  payment_id: string;
-  /** Destination linked account (`acc_XXXX`). */
-  account: string;
-  /** Amount in PAISE. */
-  amount: number;
-  currency?: string;
-  notes?: Record<string, string>;
-  on_hold?: 0 | 1;
-}
-
-/**
- * Create a Razorpay Route transfer from a captured payment to a linked
- * account. Use when the order didn't include the split up front.
- */
-export async function createTransfer(args: CreateTransferArgs) {
-  const razorpay = getRazorpay();
-  return razorpay.payments.transfer(args.payment_id, {
-    transfers: [
-      {
-        account: args.account,
-        amount: args.amount,
-        currency: args.currency ?? "INR",
-        notes: args.notes,
-        on_hold: args.on_hold ?? 0,
-      },
-    ],
-  } as unknown as Parameters<typeof razorpay.payments.transfer>[1]);
-}
+// Seller payouts & Route transfers removed (Session 2): InvoxAI holds no funds,
+// so there are no RazorpayX payouts and no post-capture transfers. Sellers are
+// paid directly by their own gateway. (createLinkedAccount below is retained
+// only until the KYC removal in Session 3, which drops its last consumer.)
 
 // ----------------------------------------------------------------------------
 // Linked account (Route seller onboarding)

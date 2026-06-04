@@ -405,7 +405,7 @@ export default async function DashboardOverview() {
         <h2 className="section-title mb-4">Quick links</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <Shortcut href="/dashboard/pages/new" icon={CreditCard} accent="indigo" label="New Page" />
-          <Shortcut href="/dashboard/payouts" icon={Wallet} accent="emerald" label="Payouts" />
+          <Shortcut href="/dashboard/wallet" icon={Wallet} accent="emerald" label="Wallet" />
           <Shortcut href="/dashboard/coupons" icon={Tag} accent="amber" label="Coupons" />
           <Shortcut href="/dashboard/affiliates" icon={Handshake} accent="violet" label="Affiliates" />
           <Shortcut href="/dashboard/telegram" icon={Send} accent="indigo" label="Telegram" />
