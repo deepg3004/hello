@@ -18,6 +18,7 @@ import {
   SitePagesManager,
   type SitePage,
 } from "@/components/dashboard/website/SitePagesManager";
+import { AppearanceForm } from "@/components/dashboard/website/AppearanceForm";
 
 export const metadata = { title: "Website — InvoxAI" };
 
@@ -32,7 +33,7 @@ export default async function WebsitePage() {
   const [{ data: profile }, { data: pages }] = await Promise.all([
     admin
       .from("user_profiles")
-      .select("subdomain, avatar_url, bio, tagline, brand_color, social_links, creator_category")
+      .select("subdomain, avatar_url, bio, tagline, brand_color, social_links, creator_category, site_config")
       .eq("id", user.id)
       .single(),
     admin
@@ -79,6 +80,22 @@ export default async function WebsitePage() {
         </CardHeader>
         <CardContent>
           <ProfileBrandingForm initial={branding} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Appearance</CardTitle>
+          <CardDescription>
+            Pick a colour theme for your website. Light and dark palettes available.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AppearanceForm
+            initialTheme={
+              ((profile?.site_config as Record<string, unknown>)?.theme as string) ?? null
+            }
+          />
         </CardContent>
       </Card>
 

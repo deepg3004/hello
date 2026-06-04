@@ -35,7 +35,9 @@ export interface SiteProductLite {
 
 export interface BlockContext {
   accent: string;
-  theme: TgTheme;
+  /** Legacy dark theme (custom-template pages). Website pages theme via CSS
+   *  variables on the wrapper instead, so this is optional. */
+  theme?: TgTheme;
   pageId?: string;
   slug?: string;
   isPreview?: boolean;
@@ -90,10 +92,10 @@ export const BLOCKS: Record<string, BlockDef> = {
             {s(d.eyebrow)}
           </p>
         )}
-        <h1 className="mt-3 font-sora text-4xl font-extrabold leading-tight tracking-tight text-white sm:text-5xl">
+        <h1 className="mt-3 font-sora text-4xl font-extrabold leading-tight tracking-tight text-[color:var(--s-fg)] sm:text-5xl">
           {s(d.headline)}
         </h1>
-        <p className="mx-auto mt-4 max-w-xl text-lg text-zinc-300">
+        <p className="mx-auto mt-4 max-w-xl text-lg text-[color:var(--s-fg-muted)]">
           {s(d.subheadline)}
         </p>
         {s(d.image) && (
@@ -101,13 +103,13 @@ export const BLOCKS: Record<string, BlockDef> = {
           <img
             src={s(d.image)}
             alt=""
-            className="mx-auto mt-8 w-full max-w-2xl rounded-2xl ring-1 ring-white/10"
+            className="mx-auto mt-8 w-full max-w-2xl rounded-2xl ring-1 ring-[color:var(--s-border)]"
           />
         )}
         {s(d.cta_label) && (
           <a
             href="#cta"
-            className="btn-shine mt-8 inline-flex rounded-xl px-8 py-4 text-base font-semibold text-white shadow-lg"
+            className="btn-shine mt-8 inline-flex rounded-xl px-8 py-4 text-base font-semibold text-[color:var(--s-fg)] shadow-lg"
             style={{ backgroundColor: accent }}
           >
             {s(d.cta_label)}
@@ -147,7 +149,7 @@ export const BLOCKS: Record<string, BlockDef> = {
       return (
         <Section>
           {s(d.title) && (
-            <h2 className="text-center font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
               {s(d.title)}
             </h2>
           )}
@@ -155,19 +157,19 @@ export const BLOCKS: Record<string, BlockDef> = {
             {items.map((it, i) => (
               <div
                 key={i}
-                className="rounded-xl border border-white/10 bg-white/5 p-5"
+                className="rounded-xl border border-[color:var(--s-border)] bg-[var(--s-surface)] p-5"
               >
                 <span
-                  className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg text-white"
+                  className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg text-[color:var(--s-fg)]"
                   style={{ backgroundColor: `${accent}26`, color: accent }}
                 >
                   <Check className="h-4 w-4" strokeWidth={3} />
                 </span>
-                <p className="font-sora text-sm font-semibold text-white">
+                <p className="font-sora text-sm font-semibold text-[color:var(--s-fg)]">
                   {s(it.title)}
                 </p>
                 {s(it.text) && (
-                  <p className="mt-1 text-sm text-zinc-300">{s(it.text)}</p>
+                  <p className="mt-1 text-sm text-[color:var(--s-fg-muted)]">{s(it.text)}</p>
                 )}
               </div>
             ))}
@@ -206,7 +208,7 @@ export const BLOCKS: Record<string, BlockDef> = {
       return (
         <Section>
           {s(d.title) && (
-            <h2 className="text-center font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
               {s(d.title)}
             </h2>
           )}
@@ -214,18 +216,18 @@ export const BLOCKS: Record<string, BlockDef> = {
             {items.map((it, i) => (
               <div
                 key={i}
-                className="rounded-xl border border-white/10 bg-white/5 p-5"
+                className="rounded-xl border border-[color:var(--s-border)] bg-[var(--s-surface)] p-5"
               >
                 <div className="flex gap-0.5" style={{ color: accent }}>
                   {[0, 1, 2, 3, 4].map((k) => (
                     <Star key={k} className="h-3.5 w-3.5 fill-current" />
                   ))}
                 </div>
-                <p className="mt-3 text-sm text-zinc-200">“{s(it.quote)}”</p>
-                <p className="mt-3 text-sm font-semibold text-white">
+                <p className="mt-3 text-sm text-[color:var(--s-fg-muted)]">“{s(it.quote)}”</p>
+                <p className="mt-3 text-sm font-semibold text-[color:var(--s-fg)]">
                   {s(it.author)}
                   {s(it.role) && (
-                    <span className="font-normal text-zinc-400"> · {s(it.role)}</span>
+                    <span className="font-normal text-[color:var(--s-fg-dim)]"> · {s(it.role)}</span>
                   )}
                 </p>
               </div>
@@ -262,7 +264,7 @@ export const BLOCKS: Record<string, BlockDef> = {
       return (
         <Section>
           {s(d.title) && (
-            <h2 className="text-center font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
               {s(d.title)}
             </h2>
           )}
@@ -270,13 +272,13 @@ export const BLOCKS: Record<string, BlockDef> = {
             {items.map((it, i) => (
               <div
                 key={i}
-                className="rounded-xl border border-white/10 bg-white/5 p-4"
+                className="rounded-xl border border-[color:var(--s-border)] bg-[var(--s-surface)] p-4"
               >
-                <p className="font-sora text-sm font-semibold text-white">
+                <p className="font-sora text-sm font-semibold text-[color:var(--s-fg)]">
                   {s(it.q)}
                 </p>
                 {s(it.a) && (
-                  <p className="mt-1.5 text-sm text-zinc-300">{s(it.a)}</p>
+                  <p className="mt-1.5 text-sm text-[color:var(--s-fg-muted)]">{s(it.a)}</p>
                 )}
               </div>
             ))}
@@ -303,12 +305,12 @@ export const BLOCKS: Record<string, BlockDef> = {
       <section id="cta" className="scroll-mt-8 px-4 py-16 md:py-20">
         <div className="mx-auto max-w-md text-center">
           {s(d.title) && (
-            <h2 className="font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
               {s(d.title)}
             </h2>
           )}
           {s(d.subtitle) && (
-            <p className="mt-2 text-zinc-300">{s(d.subtitle)}</p>
+            <p className="mt-2 text-[color:var(--s-fg-muted)]">{s(d.subtitle)}</p>
           )}
           <div className="mt-6 rounded-2xl bg-white p-6 text-left text-zinc-900 shadow-2xl">
             <LeadCaptureForm
@@ -345,17 +347,17 @@ export const BLOCKS: Record<string, BlockDef> = {
               <img
                 src={img}
                 alt=""
-                className="mx-auto w-full max-w-sm rounded-2xl object-cover ring-1 ring-white/10"
+                className="mx-auto w-full max-w-sm rounded-2xl object-cover ring-1 ring-[color:var(--s-border)]"
               />
             )}
             <div className={img ? "" : "md:col-span-2 mx-auto max-w-2xl text-center"}>
               {s(d.heading) && (
-                <h2 className="font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                <h2 className="font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
                   {s(d.heading)}
                 </h2>
               )}
               {s(d.body) && (
-                <p className="mt-4 whitespace-pre-line text-zinc-300">{s(d.body)}</p>
+                <p className="mt-4 whitespace-pre-line text-[color:var(--s-fg-muted)]">{s(d.body)}</p>
               )}
             </div>
           </div>
@@ -377,11 +379,11 @@ export const BLOCKS: Record<string, BlockDef> = {
         return (
           <Section>
             {s(d.title) && (
-              <h2 className="text-center font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              <h2 className="text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
                 {s(d.title)}
               </h2>
             )}
-            <p className="mt-6 text-center text-sm text-zinc-400">
+            <p className="mt-6 text-center text-sm text-[color:var(--s-fg-dim)]">
               Your live products will appear here.
             </p>
           </Section>
@@ -390,7 +392,7 @@ export const BLOCKS: Record<string, BlockDef> = {
       return (
         <Section>
           {s(d.title) && (
-            <h2 className="mb-8 text-center font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="mb-8 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
               {s(d.title)}
             </h2>
           )}
@@ -399,9 +401,9 @@ export const BLOCKS: Record<string, BlockDef> = {
               <Link
                 key={p.id}
                 href={`/${p.slug}`}
-                className="group block overflow-hidden rounded-xl border border-white/10 bg-white/5 transition hover:border-white/30"
+                className="group block overflow-hidden rounded-xl border border-[color:var(--s-border)] bg-[var(--s-surface)] transition hover:border-[color:var(--s-fg-dim)]"
               >
-                <div className="relative aspect-[16/9] w-full bg-black/20">
+                <div className="relative aspect-[16/9] w-full bg-[var(--s-surface)]">
                   {p.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={p.image_url} alt={p.name} className="h-full w-full object-cover" />
@@ -415,11 +417,11 @@ export const BLOCKS: Record<string, BlockDef> = {
                   )}
                 </div>
                 <div className="p-4">
-                  <h3 className="font-sora font-semibold tracking-tight text-white">
+                  <h3 className="font-sora font-semibold tracking-tight text-[color:var(--s-fg)]">
                     {p.name}
                   </h3>
                   {p.description && (
-                    <p className="mt-1 line-clamp-2 text-sm text-zinc-400">
+                    <p className="mt-1 line-clamp-2 text-sm text-[color:var(--s-fg-dim)]">
                       {p.description}
                     </p>
                   )}
@@ -428,7 +430,7 @@ export const BLOCKS: Record<string, BlockDef> = {
                       {formatINR(Math.round(p.price * 100))}
                     </span>
                     {p.original_price && p.original_price > p.price && (
-                      <span className="text-sm text-zinc-500 line-through">
+                      <span className="text-sm text-[color:var(--s-fg-dim)] line-through">
                         {formatINR(Math.round(p.original_price * 100))}
                       </span>
                     )}
@@ -464,7 +466,7 @@ export const BLOCKS: Record<string, BlockDef> = {
       return (
         <Section>
           {s(d.title) && (
-            <h2 className="mb-6 text-center font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="mb-6 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
               {s(d.title)}
             </h2>
           )}
@@ -478,7 +480,7 @@ export const BLOCKS: Record<string, BlockDef> = {
                   href={href}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white transition hover:scale-110"
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--s-border)] bg-[var(--s-surface)] text-[color:var(--s-fg)] transition hover:scale-110"
                   style={{ color: accent }}
                   aria-label={k}
                 >
@@ -504,12 +506,12 @@ export const BLOCKS: Record<string, BlockDef> = {
       <Section>
         <div className="mx-auto max-w-2xl">
           {s(d.heading) && (
-            <h2 className="font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
               {s(d.heading)}
             </h2>
           )}
           {s(d.body) && (
-            <p className="mt-4 whitespace-pre-line text-zinc-300">{s(d.body)}</p>
+            <p className="mt-4 whitespace-pre-line text-[color:var(--s-fg-muted)]">{s(d.body)}</p>
           )}
         </div>
       </Section>
@@ -540,17 +542,17 @@ export const BLOCKS: Record<string, BlockDef> = {
       return (
         <Section>
           {s(d.title) && (
-            <h2 className="mb-8 text-center font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="mb-8 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
               {s(d.title)}
             </h2>
           )}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((it, i) => (
-              <figure key={i} className="overflow-hidden rounded-xl border border-white/10">
+              <figure key={i} className="overflow-hidden rounded-xl border border-[color:var(--s-border)]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={s(it.image)} alt={s(it.caption)} className="aspect-square w-full object-cover" />
                 {s(it.caption) && (
-                  <figcaption className="bg-white/5 px-3 py-2 text-xs text-zinc-300">
+                  <figcaption className="bg-[var(--s-surface)] px-3 py-2 text-xs text-[color:var(--s-fg-muted)]">
                     {s(it.caption)}
                   </figcaption>
                 )}
@@ -578,11 +580,11 @@ export const BLOCKS: Record<string, BlockDef> = {
         <Section>
           <div className="mx-auto max-w-3xl">
             {s(d.title) && (
-              <h2 className="mb-6 text-center font-sora text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              <h2 className="mb-6 text-center font-sora text-2xl font-bold tracking-tight text-[color:var(--s-fg)] sm:text-3xl">
                 {s(d.title)}
               </h2>
             )}
-            <div className="aspect-video w-full overflow-hidden rounded-2xl ring-1 ring-white/10">
+            <div className="aspect-video w-full overflow-hidden rounded-2xl ring-1 ring-[color:var(--s-border)]">
               <iframe
                 src={embed}
                 title={s(d.title, "Video")}
@@ -592,7 +594,7 @@ export const BLOCKS: Record<string, BlockDef> = {
               />
             </div>
             {s(d.caption) && (
-              <p className="mt-3 text-center text-sm text-zinc-400">{s(d.caption)}</p>
+              <p className="mt-3 text-center text-sm text-[color:var(--s-fg-dim)]">{s(d.caption)}</p>
             )}
           </div>
         </Section>

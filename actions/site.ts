@@ -210,3 +210,29 @@ export async function saveBrandingAction(input: {
   revalidatePath("/dashboard/settings");
   return { ok: true };
 }
+
+/** Save the website appearance (theme palette) into site_config. */
+export async function saveSiteAppearanceAction(input: {
+  theme?: string;
+}): Promise<Result> {
+  const user = await requireUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+  const admin = createAdminClient();
+
+  const { data: prof } = await admin
+    .from("user_profiles")
+    .select("site_config")
+    .eq("id", user.id)
+    .single();
+  const cfg = ((prof?.site_config as Record<string, unknown>) ?? {}) as Record<string, unknown>;
+  if (input.theme !== undefined) cfg.theme = input.theme;
+
+  const { error } = await admin
+    .from("user_profiles")
+    .update({ site_config: cfg })
+    .eq("id", user.id);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/dashboard/website");
+  return { ok: true };
+}

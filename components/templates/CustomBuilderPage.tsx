@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 import { tgTheme } from "@/lib/telegram-themes";
 import { BgAnimation } from "@/components/templates/BgAnimation";
 import { SecureFooter } from "@/components/templates/shared/SecureFooter";
@@ -22,7 +24,21 @@ export function CustomBuilderPage(props: {
   const blocks = Array.isArray(props.blocks) ? (props.blocks as Block[]) : [];
 
   return (
-    <div className="relative min-h-screen" style={{ background: theme.bg }}>
+    <div
+      className="relative min-h-screen"
+      style={
+        {
+          background: theme.bg,
+          // Dark block CSS variables — keeps blocks (now var-themed) identical
+          // to their previous hard-coded dark styling on custom/telegram pages.
+          "--s-fg": "#ffffff",
+          "--s-fg-muted": "#d4d4d8",
+          "--s-fg-dim": "#a1a1aa",
+          "--s-surface": "rgba(255,255,255,0.05)",
+          "--s-border": "rgba(255,255,255,0.10)",
+        } as CSSProperties
+      }
+    >
       <BgAnimation type={props.bg_animation} />
       <div className="relative z-10">
         {blocks.length === 0 ? (

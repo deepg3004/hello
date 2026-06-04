@@ -1,12 +1,13 @@
 // Renders a seller website page (site_pages.blocks) on the subdomain / custom
 // domain: a top nav built from the seller's published pages, the ordered content
-// blocks (reusing the shared BLOCKS registry), and a footer. Server component.
+// blocks (reusing the shared BLOCKS registry), and a footer. Theming is via CSS
+// variables set on the wrapper (see lib/site-themes), so blocks work in any
+// palette. Server component.
 
 import Link from "next/link";
 
-import { tgTheme } from "@/lib/telegram-themes";
-import { BgAnimation } from "@/components/templates/BgAnimation";
 import { BLOCKS, type SiteProductLite } from "@/components/templates/blocks/registry";
+import { getSiteTheme, siteThemeStyle } from "@/lib/site-themes";
 
 interface Block {
   id?: string;
@@ -22,8 +23,7 @@ export interface SiteNavPage {
 
 export function SiteRenderer(props: {
   blocks: unknown;
-  themeKey?: string;
-  bgAnimation?: string;
+  themeKey?: string | null;
   brandColor?: string | null;
   seller: { name: string; avatar: string | null };
   socialLinks?: Record<string, string> | null;
@@ -33,25 +33,27 @@ export function SiteRenderer(props: {
   currentSlug?: string;
   isPreview?: boolean;
 }) {
-  const theme = tgTheme(props.themeKey);
+  const theme = getSiteTheme(props.themeKey);
   const accent = props.brandColor || theme.accent;
   const blocks = Array.isArray(props.blocks) ? (props.blocks as Block[]) : [];
   const nav = props.navPages ?? [];
 
   return (
-    <div className="relative min-h-screen" style={{ background: theme.bg }}>
-      <BgAnimation type={props.bgAnimation} />
-      <div className="relative z-10 flex min-h-screen flex-col">
+    <div className="relative min-h-screen" style={siteThemeStyle(theme, props.brandColor)}>
+      <div className="flex min-h-screen flex-col">
         {/* Top navigation */}
-        <header className="sticky top-0 z-20 border-b border-white/10 bg-black/30 backdrop-blur">
+        <header className="sticky top-0 z-20 border-b border-[color:var(--s-border)] bg-[var(--s-surface)] backdrop-blur">
           <nav className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
-            <Link href="/" className="flex items-center gap-2 font-sora font-semibold text-white">
+            <Link
+              href="/"
+              className="flex items-center gap-2 font-sora font-semibold text-[color:var(--s-fg)]"
+            >
               {props.seller.avatar && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={props.seller.avatar}
                   alt=""
-                  className="h-7 w-7 rounded-full object-cover ring-1 ring-white/20"
+                  className="h-7 w-7 rounded-full object-cover ring-1 ring-[color:var(--s-border)]"
                 />
               )}
               <span className="truncate">{props.seller.name}</span>
@@ -66,7 +68,7 @@ export function SiteRenderer(props: {
                     <Link
                       key={p.slug}
                       href={p.isHome ? "/" : `/${p.slug}`}
-                      className="text-zinc-300 transition hover:text-white"
+                      className="text-[color:var(--s-fg-muted)] transition hover:text-[color:var(--s-fg)]"
                       style={isCurrent ? { color: accent } : undefined}
                     >
                       {p.label}
@@ -82,10 +84,10 @@ export function SiteRenderer(props: {
         <main className="flex-1">
           {blocks.length === 0 ? (
             <div className="mx-auto max-w-md px-4 py-28 text-center">
-              <p className="font-sora text-lg font-semibold text-white">
+              <p className="font-sora text-lg font-semibold text-[color:var(--s-fg)]">
                 Nothing here yet
               </p>
-              <p className="mt-1 text-sm text-zinc-400">
+              <p className="mt-1 text-sm text-[color:var(--s-fg-dim)]">
                 Add sections in your dashboard to build this page.
               </p>
             </div>
@@ -97,7 +99,6 @@ export function SiteRenderer(props: {
                 <div key={b.id ?? i}>
                   {def.Render(b.data ?? {}, {
                     accent,
-                    theme,
                     slug: props.currentSlug,
                     isPreview: props.isPreview,
                     products: props.products,
@@ -111,9 +112,11 @@ export function SiteRenderer(props: {
         </main>
 
         {/* Footer */}
-        <footer className="border-t border-white/10 px-4 py-8 text-center text-xs text-zinc-500">
+        <footer className="border-t border-[color:var(--s-border)] px-4 py-8 text-center text-xs text-[color:var(--s-fg-dim)]">
           © {props.seller.name} · Powered by{" "}
-          <span className="font-sora font-semibold text-zinc-300">InvoxAI</span>
+          <span className="font-sora font-semibold text-[color:var(--s-fg-muted)]">
+            InvoxAI
+          </span>
         </footer>
       </div>
     </div>

@@ -12,6 +12,7 @@ export interface SellerSite {
   tagline: string | null;
   brand_color: string | null;
   social_links: Record<string, string> | null;
+  theme: string | null;
 }
 
 /** Resolve a seller by their subdomain handle, with branding. */
@@ -20,11 +21,12 @@ export async function loadSellerSite(username: string): Promise<SellerSite | nul
   const { data } = await admin
     .from("user_profiles")
     .select(
-      "id, full_name, legal_business_name, avatar_url, bio, tagline, brand_color, social_links",
+      "id, full_name, legal_business_name, avatar_url, bio, tagline, brand_color, social_links, site_config",
     )
     .eq("subdomain", username)
     .maybeSingle();
   if (!data?.id) return null;
+  const siteConfig = (data.site_config as Record<string, unknown>) ?? {};
   return {
     id: data.id,
     name: data.legal_business_name ?? data.full_name ?? username,
@@ -33,6 +35,7 @@ export async function loadSellerSite(username: string): Promise<SellerSite | nul
     tagline: data.tagline ?? null,
     brand_color: data.brand_color ?? null,
     social_links: (data.social_links as Record<string, string>) ?? null,
+    theme: (siteConfig.theme as string) ?? null,
   };
 }
 

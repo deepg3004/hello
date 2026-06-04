@@ -68,6 +68,7 @@ export default async function SellerStore({ params }: Props) {
     return (
       <SiteRenderer
         blocks={home.blocks}
+        themeKey={site.theme}
         brandColor={site.brand_color}
         seller={{ name: site.name, avatar: site.avatar }}
         socialLinks={site.social_links}
