@@ -51,6 +51,7 @@ export function DiscordSetupWizard({ pages }: { pages: PageOpt[] }) {
   const [accessDays, setAccessDays] = useState("30");
   const [autoRenew, setAutoRenew] = useState(true);
   const [pageId, setPageId] = useState<string>("");
+  const [appPublicKey, setAppPublicKey] = useState("");
 
   async function checkToken() {
     setBusy(true);
@@ -93,6 +94,7 @@ export function DiscordSetupWizard({ pages }: { pages: PageOpt[] }) {
         invite_channel_id: guild.invite_channel_id,
         access_duration_days: Math.max(0, parseInt(accessDays || "0", 10)),
         auto_renewal_enabled: autoRenew,
+        app_public_key: appPublicKey.trim() || undefined,
         page_id: pageId || undefined,
       });
       if (!r.ok) {
@@ -244,6 +246,20 @@ export function DiscordSetupWizard({ pages }: { pages: PageOpt[] }) {
               <p className="text-xs text-muted-foreground">
                 When someone pays for this page, they are invited automatically.
                 You can link a page later from the page editor too.
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="appkey">App public key (optional)</Label>
+              <Input
+                id="appkey"
+                placeholder="From Discord Developer Portal → General Information"
+                value={appPublicKey}
+                onChange={(e) => setAppPublicKey(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Only needed if you set an Interactions Endpoint URL in Discord. Lets
+                us verify Discord&apos;s signed requests. Leave blank otherwise.
               </p>
             </div>
 

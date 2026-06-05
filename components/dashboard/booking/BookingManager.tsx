@@ -20,8 +20,18 @@ import {
   updateBookingTypeAction,
   deleteBookingTypeAction,
   cancelBookingAction,
+  rescheduleBookingAction,
   type AvailabilityInput,
 } from "@/actions/booking";
+
+// datetime-local value (seller types it as IST) → UTC ISO instant.
+function istLocalToIso(v: string): string | null {
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if (!m) return null;
+  const [, y, mo, d, h, mi] = m.map(Number) as unknown as number[];
+  const utc = Date.UTC(y, mo - 1, d, h, mi) - 330 * 60_000;
+  return new Date(utc).toISOString();
+}
 
 export interface BookingTypeData {
   id: string;
@@ -87,6 +97,8 @@ export function BookingManager({
   const { toast } = useToast();
   const [pending, start] = useTransition();
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [rescheduleId, setRescheduleId] = useState<string | null>(null);
+  const [rescheduleVal, setRescheduleVal] = useState("");
 
   function openNew() {
     setDraft(emptyDraft());
@@ -140,6 +152,21 @@ export function BookingManager({
     start(async () => {
       const res = await cancelBookingAction(id);
       toast(res.ok ? { title: "Booking cancelled" } : { variant: "destructive", title: "Couldn't cancel", description: res.message });
+    });
+  }
+  function reschedule(id: string) {
+    const iso = rescheduleVal ? istLocalToIso(rescheduleVal) : null;
+    if (!iso) {
+      toast({ variant: "destructive", title: "Pick a date & time" });
+      return;
+    }
+    start(async () => {
+      const res = await rescheduleBookingAction(id, iso);
+      if (res.ok) {
+        setRescheduleId(null);
+        setRescheduleVal("");
+      }
+      toast(res.ok ? { title: "Booking rescheduled" } : { variant: "destructive", title: "Couldn't reschedule", description: res.message });
     });
   }
 
@@ -300,10 +327,37 @@ export function BookingManager({
                     {b.buyer} · {formatSlotLabel(b.start_at)} (IST)
                     {b.status === "pending" ? " · awaiting payment" : ""}
                   </p>
+                  {rescheduleId === b.id && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <Input
+                        type="datetime-local"
+                        value={rescheduleVal}
+                        onChange={(e) => setRescheduleVal(e.target.value)}
+                        className="h-8 w-auto text-xs"
+                      />
+                      <Button size="sm" onClick={() => reschedule(b.id)} disabled={pending}>
+                        Save
+                      </Button>
+                      <button onClick={() => setRescheduleId(null)} className="text-xs text-muted-foreground">
+                        Dismiss
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <button onClick={() => cancel(b.id)} className="text-xs text-rose-500">
-                  Cancel
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      setRescheduleId(rescheduleId === b.id ? null : b.id);
+                      setRescheduleVal("");
+                    }}
+                    className="text-xs text-primary"
+                  >
+                    Reschedule
+                  </button>
+                  <button onClick={() => cancel(b.id)} className="text-xs text-rose-500">
+                    Cancel
+                  </button>
+                </div>
               </div>
             ))
           )}

@@ -96,3 +96,38 @@ export async function testSellerSmtpAction(): Promise<Result> {
     ? { ok: true, message: `Sent a test to ${to}.` }
     : { ok: false, message: res.message ?? "Send failed." };
 }
+
+/**
+ * S14 — record the verified sending domain for the seller's email integration.
+ * Stored alongside their SMTP row; surfaced in the connect UI so they know which
+ * domain their buyer-facing mail leaves from. Pass null/empty to clear.
+ */
+export async function setSendingDomainAction(domain: string | null): Promise<Result> {
+  const actor = await requireActor("email.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const value = domain?.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "") || null;
+  if (value && !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(value)) {
+    return { ok: false, message: "Enter a valid domain (e.g. mail.yourbrand.com)." };
+  }
+
+  const admin = createAdminClient();
+  const { data: existing } = await admin
+    .from("seller_smtp")
+    .select("user_id")
+    .eq("user_id", ctx.ownerId)
+    .maybeSingle();
+  if (!existing) {
+    return { ok: false, message: "Save your SMTP settings first." };
+  }
+
+  const { error } = await admin
+    .from("seller_smtp")
+    .update({ sending_domain: value, updated_at: new Date().toISOString() })
+    .eq("user_id", ctx.ownerId);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/dashboard/settings/email");
+  return { ok: true, message: value ? `Sending domain set to ${value}.` : "Sending domain cleared." };
+}

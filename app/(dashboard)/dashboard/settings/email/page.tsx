@@ -20,7 +20,7 @@ export default async function EmailIntegrationsPage() {
   const admin = createAdminClient();
   const { data } = await admin
     .from("seller_smtp")
-    .select("host, port, secure, username, from_name, from_email, reply_to, active, password_enc")
+    .select("host, port, secure, username, from_name, from_email, reply_to, active, password_enc, sending_domain")
     .eq("user_id", ctx.ownerId)
     .maybeSingle();
 
@@ -35,6 +35,7 @@ export default async function EmailIntegrationsPage() {
         reply_to: data.reply_to,
         active: data.active,
         configured: !!data.password_enc,
+        sending_domain: (data as { sending_domain?: string | null }).sending_domain ?? null,
       }
     : null;
 

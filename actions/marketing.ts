@@ -60,3 +60,54 @@ export async function saveMarketingIntegrationsAction(input: {
   revalidatePath("/dashboard/marketing");
   return { ok: true };
 }
+
+/**
+ * S13 — "Test pixel": fire a one-off test event to the seller's configured
+ * outbound webhook so they can confirm their Zapier/Make/CRM endpoint receives
+ * InvoxAI events. (Client-side pixels — Meta/GA4/TikTok — are validated in their
+ * own dashboards; the server-side integration we can actually test is the
+ * webhook.)
+ */
+export async function testPixelAction(): Promise<Result> {
+  const actor = await requireActor("marketing.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const admin = createAdminClient();
+  const { data: cfg } = await admin
+    .from("marketing_integrations")
+    .select("webhook_url")
+    .eq("user_id", ctx.ownerId)
+    .maybeSingle();
+
+  const url = cfg?.webhook_url?.trim();
+  if (!url) {
+    return { ok: false, message: "No outbound webhook URL configured to test." };
+  }
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        event: "test",
+        source: "invoxai",
+        message: "Test event from your InvoxAI Marketing Integrations.",
+        sent_at: new Date().toISOString(),
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) {
+      return { ok: false, message: `Endpoint responded ${res.status}.` };
+    }
+    return { ok: true, message: "Test event delivered." };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? `Delivery failed: ${e.message}` : "Delivery failed.",
+    };
+  }
+}

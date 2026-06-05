@@ -118,7 +118,7 @@ export async function POST(request: Request) {
         { status: 409 },
       );
     }
-    await sendBookingEmail(email, bt.title, wanted, bt.location, bt.user_id);
+    await sendBookingEmail(email, bt.title, wanted, bt.location, bt.user_id, row.id);
     await fireMarketingWebhook(bt.user_id, "booking_created", {
       booking_id: row.id,
       title: bt.title,
@@ -202,10 +202,15 @@ async function sendBookingEmail(
   startIso: string,
   location: string | null,
   sellerId?: string,
+  bookingId?: string,
 ): Promise<void> {
   try {
     const { formatSlotLabel } = await import("@/lib/booking");
     const when = formatSlotLabel(startIso);
+    const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io";
+    const icsLink = bookingId
+      ? `<p style="margin:16px 0 8px"><a href="${base}/api/bookings/${bookingId}/ics" style="color:#4f46e5">📅 Add to calendar (.ics)</a></p>`
+      : "";
     await sendEmail({
       to,
       sellerId,
@@ -217,6 +222,7 @@ async function sendBookingEmail(
         <p style="margin:0 0 8px">Your booking for <strong>${title}</strong> is confirmed.</p>
         <p style="margin:0 0 8px">🗓 ${when} (IST)</p>
         ${location ? `<p style="margin:0 0 8px">📍 ${location}</p>` : ""}
+        ${icsLink}
         `,
         { preheader: `Booking confirmed for ${title}` },
       ),

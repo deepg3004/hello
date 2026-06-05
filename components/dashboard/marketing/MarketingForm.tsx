@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { saveMarketingIntegrationsAction } from "@/actions/marketing";
+import { saveMarketingIntegrationsAction, testPixelAction } from "@/actions/marketing";
 
 export interface MarketingState {
   meta_pixel_id: string | null;
@@ -30,6 +30,7 @@ const EVENTS: { key: string; label: string }[] = [
 export function MarketingForm({ initial }: { initial: MarketingState | null }) {
   const { toast } = useToast();
   const [pending, start] = useTransition();
+  const [testing, startTest] = useTransition();
   const [s, setS] = useState<MarketingState>(
     initial ?? {
       meta_pixel_id: "",
@@ -59,6 +60,17 @@ export function MarketingForm({ initial }: { initial: MarketingState | null }) {
         res.ok
           ? { title: "Marketing settings saved" }
           : { variant: "destructive", title: "Couldn't save", description: res.message },
+      );
+    });
+  }
+
+  function sendTest() {
+    startTest(async () => {
+      const res = await testPixelAction();
+      toast(
+        res.ok
+          ? { title: "Test sent", description: res.message }
+          : { variant: "destructive", title: "Test failed", description: res.message },
       );
     });
   }
@@ -95,6 +107,11 @@ export function MarketingForm({ initial }: { initial: MarketingState | null }) {
           We POST a JSON payload to your URL when these events happen.
         </p>
         <Field label="Webhook URL" value={s.webhook_url} onChange={(v) => set("webhook_url", v)} placeholder="https://hooks.zapier.com/…" />
+        <Button variant="outline" size="sm" onClick={sendTest} disabled={testing || !s.webhook_url}>
+          {testing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Send test event
+        </Button>
+        <p className="text-xs text-muted-foreground">Save first, then test — we POST to the saved URL.</p>
         <div className="flex flex-wrap gap-3">
           {EVENTS.map((e) => (
             <label key={e.key} className="flex items-center gap-1.5 text-sm">

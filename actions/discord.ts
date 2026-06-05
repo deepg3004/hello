@@ -93,6 +93,7 @@ export interface SaveSetupInput {
   guild_name?: string;
   invite_channel_id?: string | null;
   vip_role_id?: string | null;
+  app_public_key?: string | null;
   access_duration_days: number;
   auto_renewal_enabled: boolean;
   page_id?: string;
@@ -119,6 +120,7 @@ export async function saveDiscordSetupAction(
     guild_name: input.guild_name ?? null,
     invite_channel_id: input.invite_channel_id ?? null,
     vip_role_id: input.vip_role_id ?? null,
+    app_public_key: input.app_public_key?.trim() || null,
     access_duration_days: input.access_duration_days,
     auto_renewal_enabled: input.auto_renewal_enabled,
     setup_complete: true,

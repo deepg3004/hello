@@ -159,6 +159,62 @@ export async function deleteBookingTypeAction(id: string): Promise<Result> {
   return { ok: true };
 }
 
+export async function rescheduleBookingAction(
+  id: string,
+  newStartIso: string,
+): Promise<Result> {
+  const actor = await requireActor("booking.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const wanted = (() => {
+    const t = Date.parse(newStartIso);
+    return Number.isFinite(t) ? new Date(t).toISOString() : null;
+  })();
+  if (!wanted) return { ok: false, message: "Invalid date/time" };
+
+  const admin = createAdminClient();
+  const { data: booking } = await admin
+    .from("bookings")
+    .select("id, seller_user_id, booking_type_id, status")
+    .eq("id", id)
+    .maybeSingle();
+  if (!booking || booking.seller_user_id !== ctx.ownerId) {
+    return { ok: false, message: "Booking not found" };
+  }
+  if (booking.status === "cancelled") {
+    return { ok: false, message: "Can't reschedule a cancelled booking" };
+  }
+
+  const { data: bt } = await admin
+    .from("booking_types")
+    .select("id, duration_min")
+    .eq("id", booking.booking_type_id)
+    .maybeSingle();
+  if (!bt) return { ok: false, message: "Booking type missing" };
+
+  // Seller-initiated reschedule = an override, so it's not constrained to the
+  // public availability grid; we only require a future time. The bookings
+  // (booking_type_id, start_at) unique index still blocks a double-book.
+  if (Date.parse(wanted) <= Date.now()) {
+    return { ok: false, message: "Pick a time in the future." };
+  }
+
+  const start = new Date(wanted);
+  const end = new Date(start.getTime() + bt.duration_min * 60_000);
+  const { error } = await admin
+    .from("bookings")
+    .update({ start_at: start.toISOString(), end_at: end.toISOString() })
+    .eq("id", id);
+  if (error) {
+    // Unique-index violation = the slot was grabbed in between.
+    return { ok: false, message: "That slot was just taken. Pick another." };
+  }
+
+  revalidatePath("/dashboard/booking");
+  return { ok: true, id };
+}
+
 export async function cancelBookingAction(id: string): Promise<Result> {
   const actor = await requireActor("booking.manage");
   if (!actor.ok) return { ok: false, message: actor.error };

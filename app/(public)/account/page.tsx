@@ -6,12 +6,15 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import {
   BookOpen,
+  CalendarClock,
   FileText,
   Hash,
   Receipt,
   Send,
   ShoppingBag,
 } from "lucide-react";
+
+import { formatSlotLabel } from "@/lib/booking";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BUYER_COOKIE, verifyBuyerSession } from "@/lib/buyer-portal";
@@ -93,6 +96,30 @@ export default async function BuyerAccountPage() {
         .eq("buyer_email", email)
         .eq("status", "generated"),
     ]);
+
+  // Bookings for this buyer (independent of orders).
+  const { data: bookingRaw } = await admin
+    .from("bookings")
+    .select("id, start_at, status, booking_types(title, location)")
+    .eq("buyer_email", email)
+    .neq("status", "cancelled")
+    .order("start_at", { ascending: true })
+    .limit(50);
+  const bookings = ((bookingRaw ?? []) as Array<{
+    id: string;
+    start_at: string;
+    status: string;
+    booking_types: { title: string; location: string | null } | { title: string; location: string | null }[] | null;
+  }>).map((b) => {
+    const bt = Array.isArray(b.booking_types) ? b.booking_types[0] : b.booking_types;
+    return {
+      id: b.id,
+      startAt: b.start_at,
+      status: b.status,
+      title: bt?.title ?? "Booking",
+      location: bt?.location ?? null,
+    };
+  });
 
   const courseByOrder = new Map<
     string,
@@ -290,6 +317,44 @@ export default async function BuyerAccountPage() {
               </Card>
             );
           })}
+        </div>
+      )}
+
+      {/* Bookings */}
+      {bookings.length > 0 && (
+        <div className="mt-8">
+          <h2 className="mb-3 flex items-center gap-2 font-sora text-lg font-semibold">
+            <CalendarClock className="h-5 w-5 text-primary" />
+            Your bookings
+          </h2>
+          <div className="space-y-3">
+            {bookings.map((b) => (
+              <Card key={b.id}>
+                <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate font-medium">{b.title}</p>
+                      {b.status !== "confirmed" && (
+                        <Badge variant="secondary" className="capitalize">
+                          {b.status}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {formatSlotLabel(b.startAt)} (IST)
+                      {b.location ? ` · ${b.location}` : ""}
+                    </p>
+                  </div>
+                  <Button asChild variant="outline" size="sm">
+                    <a href={`/api/bookings/${b.id}/ics`}>
+                      <CalendarClock className="mr-1.5 h-3.5 w-3.5" />
+                      Add to calendar
+                    </a>
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
     </main>

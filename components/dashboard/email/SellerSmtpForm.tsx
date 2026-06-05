@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
   saveSellerSmtpAction,
+  setSendingDomainAction,
   testSellerSmtpAction,
 } from "@/actions/email-integration";
 
@@ -22,6 +23,7 @@ export interface SmtpState {
   reply_to: string | null;
   active: boolean;
   configured: boolean; // a password is already stored
+  sending_domain?: string | null;
 }
 
 export function SellerSmtpForm({ initial }: { initial: SmtpState | null }) {
@@ -42,7 +44,21 @@ export function SellerSmtpForm({ initial }: { initial: SmtpState | null }) {
     },
   );
   const [password, setPassword] = useState("");
+  const [domain, setDomain] = useState(initial?.sending_domain ?? "");
+  const [savingDomain, setSavingDomain] = useState(false);
   const set = (k: keyof SmtpState, v: unknown) => setS({ ...s, [k]: v });
+
+  function saveDomain() {
+    setSavingDomain(true);
+    void setSendingDomainAction(domain.trim() || null).then((res) => {
+      setSavingDomain(false);
+      toast(
+        res.ok
+          ? { title: "Sending domain saved", description: res.message }
+          : { variant: "destructive", title: "Couldn't save", description: res.message },
+      );
+    });
+  }
 
   function save() {
     start(async () => {
@@ -120,6 +136,25 @@ export function SellerSmtpForm({ initial }: { initial: SmtpState | null }) {
         <input type="checkbox" checked={s.active} onChange={(e) => set("active", e.target.checked)} />
         Use my SMTP for buyer emails
       </label>
+
+      <div className="border-t pt-3">
+        <Label className="text-xs">Verified sending domain (optional)</Label>
+        <div className="mt-1 flex flex-wrap gap-2">
+          <Input
+            value={domain}
+            onChange={(e) => setDomain(e.target.value)}
+            placeholder="mail.yourbrand.com"
+            className="max-w-xs"
+          />
+          <Button variant="outline" onClick={saveDomain} disabled={savingDomain}>
+            {savingDomain && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Save domain
+          </Button>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          The domain your mail is authenticated to send from (SPF/DKIM set up at your provider).
+        </p>
+      </div>
       <div className="flex flex-wrap gap-2">
         <Button onClick={save} disabled={pending || testing}>
           {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
