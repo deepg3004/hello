@@ -285,7 +285,7 @@ export default async function CoursePage({
   const chrome = resolveChromeConfig(seller?.storefront_config);
 
   return (
-    <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName ?? "Course"}>
+    <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName ?? "Course"} sellerId={sellerUserId}>
     <CourseLanding
       courseId={courseId}
       title={course.title as string}

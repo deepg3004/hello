@@ -5,6 +5,7 @@ import {
 } from "@/lib/storefront-theme";
 import { StorefrontHeader } from "@/components/store/StorefrontHeader";
 import { StorefrontFooter } from "@/components/store/StorefrontFooter";
+import { StorefrontTracker } from "@/components/store/StorefrontTracker";
 
 /** Wraps a store/course surface: applies the theme's CSS variables + font, an
  *  optional announcement bar, a shared header/nav and footer, and the themed
@@ -13,11 +14,13 @@ export function StorefrontShell({
   cfg,
   chrome,
   brandName,
+  sellerId,
   children,
 }: {
   cfg: SurfaceConfig;
   chrome?: ChromeConfig;
   brandName?: string;
+  sellerId?: string;
   children: React.ReactNode;
 }) {
   const vars = themeCssVars(cfg);
@@ -35,6 +38,7 @@ export function StorefrontShell({
       )}
       <div className="flex-1">{children}</div>
       {chrome?.footer.enabled && <StorefrontFooter footer={chrome.footer} brandName={name} />}
+      {sellerId && <StorefrontTracker sellerId={sellerId} />}
     </div>
   );
 }

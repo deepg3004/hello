@@ -35,18 +35,27 @@ const CARDS: CardStyle[] = ["elevated", "bordered", "glass", "flat"];
 const RADII: RadiusKey[] = ["sharp", "soft", "round"];
 const DENSITIES: DensityKey[] = ["comfortable", "compact"];
 
-type View = "store" | "course" | "chrome";
+type View = "store" | "course" | "chrome" | "analytics";
+
+export interface StorefrontAnalytics {
+  totalViews: number;
+  topSources: { key: string; count: number }[];
+  topDestinations: { key: string; count: number }[];
+  topReferrers: { key: string; count: number }[];
+}
 
 export function StorefrontDesigner({
   store,
   course,
   chrome,
   storeUrl,
+  analytics,
 }: {
   store: SurfaceConfig;
   course: SurfaceConfig;
   chrome: ChromeConfig;
   storeUrl: string | null;
+  analytics: StorefrontAnalytics;
 }) {
   const [view, setView] = useState<View>("store");
   const [storeCfg, setStoreCfg] = useState<SurfaceConfig>(store);
@@ -85,6 +94,7 @@ export function StorefrontDesigner({
     { key: "store", label: "Store page" },
     { key: "course", label: "Course page" },
     { key: "chrome", label: "Header & Footer" },
+    { key: "analytics", label: "Analytics" },
   ];
 
   return (
@@ -115,7 +125,9 @@ export function StorefrontDesigner({
         )}
       </div>
 
-      {view === "chrome" ? (
+      {view === "analytics" ? (
+        <AnalyticsView analytics={analytics} />
+      ) : view === "chrome" ? (
         <ChromeEditor chrome={chromeCfg} setChrome={setChromeCfg} onSave={save} pending={pending} />
       ) : (
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
@@ -497,6 +509,58 @@ function FaqEditor({ items, onChange }: { items: Faq[]; onChange: (f: Faq[]) => 
         <Button variant="outline" size="sm" onClick={() => onChange([...items, { q: "", a: "" }])}>
           <Plus className="mr-1.5 h-4 w-4" /> Add FAQ
         </Button>
+      )}
+    </div>
+  );
+}
+
+function AnalyticsView({ analytics }: { analytics: StorefrontAnalytics }) {
+  const { totalViews, topSources, topDestinations, topReferrers } = analytics;
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap gap-4">
+        <div className="rounded-xl border bg-card p-5">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Page views (30 days)</p>
+          <p className="mt-1 text-3xl font-bold">{totalViews.toLocaleString("en-IN")}</p>
+        </div>
+      </div>
+      {totalViews === 0 ? (
+        <p className="rounded-lg border bg-muted/30 p-6 text-sm text-muted-foreground">
+          No visits recorded yet. Once buyers browse your storefront, you’ll see which pages they came from here.
+        </p>
+      ) : (
+        <div className="grid gap-5 lg:grid-cols-3">
+          <RankCard title="Top click sources" hint="Where visitors clicked the logo from" rows={topSources} />
+          <RankCard title="Most-viewed pages" hint="Where visitors landed" rows={topDestinations} />
+          <RankCard title="External referrers" hint="Sites that sent visitors" rows={topReferrers} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RankCard({ title, hint, rows }: { title: string; hint: string; rows: { key: string; count: number }[] }) {
+  const max = rows.reduce((m, r) => Math.max(m, r.count), 0) || 1;
+  return (
+    <div className="rounded-xl border p-4">
+      <p className="text-sm font-semibold">{title}</p>
+      <p className="mb-3 text-xs text-muted-foreground">{hint}</p>
+      {rows.length === 0 ? (
+        <p className="text-xs text-muted-foreground">—</p>
+      ) : (
+        <ul className="space-y-2">
+          {rows.map((r) => (
+            <li key={r.key} className="text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate" title={r.key}>{r.key}</span>
+                <span className="shrink-0 font-medium tabular-nums">{r.count}</span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                <div className="h-full bg-primary" style={{ width: `${Math.round((r.count / max) * 100)}%` }} />
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

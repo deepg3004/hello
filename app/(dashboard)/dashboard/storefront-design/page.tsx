@@ -24,6 +24,30 @@ export default async function StorefrontDesignPage() {
     ? `https://${profile.subdomain}.${platformRootDomain()}`
     : null;
 
+  // Click-source analytics — last 30 days.
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: events } = await admin
+    .from("storefront_events")
+    .select("path, source, referrer")
+    .eq("seller_user_id", ctx.ownerId)
+    .gte("created_at", since)
+    .limit(20000);
+  const rows = (events ?? []) as Array<{ path: string | null; source: string | null; referrer: string | null }>;
+  const tally = (vals: (string | null)[]) => {
+    const m = new Map<string, number>();
+    for (const v of vals) {
+      const k = (v ?? "").trim();
+      if (k) m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([key, count]) => ({ key, count }));
+  };
+  const analytics = {
+    totalViews: rows.length,
+    topSources: tally(rows.map((r) => r.source)),
+    topDestinations: tally(rows.map((r) => r.path)),
+    topReferrers: tally(rows.map((r) => r.referrer)),
+  };
+
   return (
     <div className="space-y-6">
       <DashboardHero
@@ -33,7 +57,7 @@ export default async function StorefrontDesignPage() {
         resourcesHref={null}
       />
       <div className="animate-in-up" style={{ animationDelay: "60ms" }}>
-        <StorefrontDesigner store={store} course={course} chrome={chrome} storeUrl={storeUrl} />
+        <StorefrontDesigner store={store} course={course} chrome={chrome} storeUrl={storeUrl} analytics={analytics} />
       </div>
     </div>
   );
