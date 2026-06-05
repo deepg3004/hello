@@ -75,4 +75,13 @@ export async function fulfillCartOrder(order: OrderLite, admin: DB): Promise<voi
   } catch (e) {
     console.error("[cart-fulfillment] receipt email failed", e);
   }
+
+  // Invoice (background) — the generator summarizes the line items into the
+  // invoice line and falls back gracefully if the seller has no GST profile.
+  try {
+    const { enqueueInvoiceJob } = await import("@/lib/queues/invoices");
+    void enqueueInvoiceJob(order.id);
+  } catch (e) {
+    console.error("[cart-fulfillment] invoice enqueue failed", e);
+  }
 }

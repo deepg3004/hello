@@ -45,6 +45,17 @@ export default async function OrderConfirmationPage({
     return <NotFoundShell />;
   }
 
+  // Cart orders carry line items instead of a single product.
+  const { data: itemsRaw } = await admin
+    .from("order_items")
+    .select("name_snapshot, quantity, line_amount")
+    .eq("order_id", order.id);
+  const lineItems = (itemsRaw ?? []) as Array<{
+    name_snapshot: string;
+    quantity: number;
+    line_amount: number;
+  }>;
+
   // Pull product + page in parallel — small queries, both fail-soft.
   const [productResult, pageResult] = await Promise.all([
     order.product_id
@@ -174,7 +185,23 @@ export default async function OrderConfirmationPage({
               value={`#${order.id.slice(0, 8).toUpperCase()}`}
               mono
             />
-            <KV label="Product" value={productName} />
+            {lineItems.length > 0 ? (
+              <div className="space-y-1.5 border-b border-zinc-100 pb-2.5">
+                {lineItems.map((it, i) => (
+                  <div key={i} className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="text-zinc-700">
+                      {it.name_snapshot}
+                      <span className="text-zinc-400"> × {it.quantity}</span>
+                    </span>
+                    <span className="font-medium text-zinc-900">
+                      ₹{Number(it.line_amount).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <KV label="Product" value={productName} />
+            )}
             <KV
               label="Date"
               value={formatDateTime(order.paid_at ?? order.created_at)}

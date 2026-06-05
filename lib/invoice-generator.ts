@@ -45,6 +45,7 @@ interface OrderRow {
   status: string;
   currency: string | null;
   bump_title?: string | null;
+  source?: string | null;
 }
 
 interface SellerRow {
@@ -87,7 +88,7 @@ export async function generateInvoice(
   const { data: order, error: orderErr } = await admin
     .from("orders")
     .select(
-      "id, page_id, seller_user_id, product_id, buyer_email, buyer_name, buyer_phone, buyer_gstin, buyer_state_code, buyer_address, amount, discount_amount, gateway_order_id, gateway_payment_id, paid_at, status, currency, bump_title",
+      "id, page_id, seller_user_id, product_id, buyer_email, buyer_name, buyer_phone, buyer_gstin, buyer_state_code, buyer_address, amount, discount_amount, gateway_order_id, gateway_payment_id, paid_at, status, currency, bump_title, source",
     )
     .eq("id", orderId)
     .single<OrderRow>();
@@ -144,6 +145,19 @@ export async function generateInvoice(
       .eq("id", order.product_id)
       .single<ProductRow>();
     product = data ?? null;
+  }
+  // Cart orders have no single product — summarize the line items into the
+  // invoice line description (the template renders one line at the total).
+  if (!product && order.source === "cart") {
+    const { data: items } = await admin
+      .from("order_items")
+      .select("name_snapshot, quantity")
+      .eq("order_id", orderId);
+    const summary = (items ?? [])
+      .map((i) => `${i.name_snapshot} ×${i.quantity}`)
+      .join(", ")
+      .slice(0, 180);
+    if (summary) product = { id: "cart", name: summary } as ProductRow;
   }
 
   // 5. Decide invoice type + tax split.
