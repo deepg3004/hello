@@ -62,6 +62,23 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
+
+  // Prefer the AES-128 HLS stream once transcoded — segments are encrypted, and
+  // the key is served only via the authorized key route.
+  const { data: hls } = await admin
+    .from("hls_assets")
+    .select("status")
+    .eq("raw_path", path)
+    .maybeSingle();
+  if (hls?.status === "ready") {
+    const q = new URLSearchParams({ path });
+    if (body.t) q.set("t", body.t);
+    return NextResponse.json({
+      url: `/api/courses/hls/playlist?${q.toString()}`,
+      kind: "hls",
+    });
+  }
+
   const { data, error } = await admin.storage
     .from(VIDEO_BUCKET)
     .createSignedUrl(path, SIGN_TTL_SECONDS);
@@ -72,5 +89,5 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ url: data.signedUrl });
+  return NextResponse.json({ url: data.signedUrl, kind: "file" });
 }

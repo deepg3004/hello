@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Circle, Loader2, PlayCircle } from "lucide-react";
 
 import { resolvePlaySource } from "@/lib/learn/video";
@@ -206,12 +206,14 @@ export function CoursePlayerClient({
 /** Exchanges a private `cmedia:` source for a short-lived signed URL, then plays
  *  it. Re-fetches when the source changes (switching lessons). */
 function SignedVideo({ src, token }: { src: string; token: string }) {
-  const [url, setUrl] = useState<string | null>(null);
+  const [media, setMedia] = useState<{ url: string; kind: string } | null>(null);
   const [error, setError] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Resolve the cmedia: source → { url, kind }. kind 'hls' = encrypted stream.
   useEffect(() => {
     let cancelled = false;
-    setUrl(null);
+    setMedia(null);
     setError(false);
     (async () => {
       try {
@@ -220,9 +222,9 @@ function SignedVideo({ src, token }: { src: string; token: string }) {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ src, t: token }),
         });
-        const body = (await res.json()) as { url?: string };
+        const body = (await res.json()) as { url?: string; kind?: string };
         if (cancelled) return;
-        if (res.ok && body.url) setUrl(body.url);
+        if (res.ok && body.url) setMedia({ url: body.url, kind: body.kind ?? "file" });
         else setError(true);
       } catch {
         if (!cancelled) setError(true);
@@ -233,6 +235,39 @@ function SignedVideo({ src, token }: { src: string; token: string }) {
     };
   }, [src, token]);
 
+  // Attach the encrypted HLS stream: native HLS (Safari) or hls.js. The key URL
+  // in the playlist is same-origin, so the buyer token / seller cookie carries.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !media || media.kind !== "hls") return;
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = media.url;
+      return;
+    }
+    let cancelled = false;
+    let hls: { destroy: () => void } | null = null;
+    (async () => {
+      try {
+        const Hls = (await import("hls.js")).default;
+        if (cancelled) return;
+        if (Hls.isSupported()) {
+          const inst = new Hls();
+          inst.loadSource(media.url);
+          inst.attachMedia(video);
+          hls = inst;
+        } else {
+          video.src = media.url;
+        }
+      } catch {
+        video.src = media.url;
+      }
+    })();
+    return () => {
+      cancelled = true;
+      hls?.destroy();
+    };
+  }, [media]);
+
   if (error) {
     return (
       <div className="flex h-full w-full items-center justify-center text-sm text-white/60">
@@ -240,7 +275,7 @@ function SignedVideo({ src, token }: { src: string; token: string }) {
       </div>
     );
   }
-  if (!url) {
+  if (!media) {
     return (
       <div className="flex h-full w-full items-center justify-center text-white/60">
         <Loader2 className="h-6 w-6 animate-spin" />
@@ -248,7 +283,13 @@ function SignedVideo({ src, token }: { src: string; token: string }) {
     );
   }
   return (
-    <video src={url} controls controlsList="nodownload" className="h-full w-full" />
+    <video
+      ref={videoRef}
+      src={media.kind === "hls" ? undefined : media.url}
+      controls
+      controlsList="nodownload"
+      className="h-full w-full"
+    />
   );
 }
 

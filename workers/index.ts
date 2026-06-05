@@ -37,6 +37,7 @@ if (!(globalThis as { WebSocket?: unknown }).WebSocket) {
 }
 
 import { bootInvoiceWorker } from "@/lib/queues/invoices";
+import { bootHlsWorker } from "@/lib/queues/hls";
 import { bootRecoveryWorker } from "@/lib/queues/recovery";
 import { bootEmailWorker } from "@/lib/queues/email";
 import { bootWhatsAppWorker } from "@/lib/queues/whatsapp";
@@ -60,6 +61,7 @@ async function main(): Promise<void> {
   }
   await Promise.all([
     bootInvoiceWorker(),
+    bootHlsWorker(),
     bootRecoveryWorker(),
     bootEmailWorker(),
     bootWhatsAppWorker(),

@@ -79,6 +79,18 @@ export async function POST(req: Request) {
   }
 
   if (isVideo) {
+    // Kick off AES-128 HLS transcoding in the background (Session 9 DRM). The
+    // player prefers the encrypted HLS stream once ready and falls back to the
+    // raw signed URL while it processes. Best-effort — never blocks the upload.
+    try {
+      await admin
+        .from("hls_assets")
+        .upsert({ raw_path: path, status: "processing" }, { onConflict: "raw_path" });
+      const { enqueueHlsJob } = await import("@/lib/queues/hls");
+      await enqueueHlsJob(path);
+    } catch (e) {
+      console.error("[courses/upload] hls enqueue failed", e);
+    }
     // Private bucket — store a sentinel, NOT a public URL. The player exchanges
     // it for a short-lived signed URL via /api/courses/video-url.
     return NextResponse.json({
