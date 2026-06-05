@@ -7,6 +7,7 @@ import Link from "next/link";
 import {
   BookOpen,
   FileText,
+  Hash,
   Receipt,
   Send,
   ShoppingBag,
@@ -72,7 +73,7 @@ export default async function BuyerAccountPage() {
   }>;
 
   // Deliverables keyed by order id.
-  const [{ data: enrollRaw }, { data: tgRaw }, { data: invRaw }] =
+  const [{ data: enrollRaw }, { data: tgRaw }, { data: dcRaw }, { data: invRaw }] =
     await Promise.all([
       admin
         .from("course_enrollments")
@@ -81,6 +82,10 @@ export default async function BuyerAccountPage() {
       admin
         .from("telegram_memberships")
         .select("order_id, expires_at, status, telegram_vip_groups(group_name)")
+        .eq("buyer_email", email),
+      admin
+        .from("discord_memberships")
+        .select("order_id, expires_at, status, invite_link, discord_servers(guild_name)")
         .eq("buyer_email", email),
       admin
         .from("invoices")
@@ -124,6 +129,27 @@ export default async function BuyerAccountPage() {
       group: g?.group_name ?? "VIP channel",
       expiresAt: t.expires_at,
       status: t.status ?? "active",
+    });
+  }
+
+  const dcByOrder = new Map<
+    string,
+    { server: string; expiresAt: string | null; inviteLink: string | null }
+  >();
+  for (const d of (dcRaw ?? []) as Array<{
+    order_id: string | null;
+    expires_at: string | null;
+    invite_link: string | null;
+    discord_servers: { guild_name: string } | { guild_name: string }[] | null;
+  }>) {
+    if (!d.order_id) continue;
+    const s = Array.isArray(d.discord_servers)
+      ? d.discord_servers[0]
+      : d.discord_servers;
+    dcByOrder.set(d.order_id, {
+      server: s?.guild_name ?? "Discord server",
+      expiresAt: d.expires_at,
+      inviteLink: d.invite_link,
     });
   }
 
@@ -182,6 +208,7 @@ export default async function BuyerAccountPage() {
               product?.name ?? page?.title ?? "Your purchase";
             const course = courseByOrder.get(o.id);
             const tg = tgByOrder.get(o.id);
+            const dc = dcByOrder.get(o.id);
             const hasInvoice = invoiceOrders.has(o.id);
             const courseHref =
               course && o.status === "paid"
@@ -216,6 +243,15 @@ export default async function BuyerAccountPage() {
                           : ""}
                       </p>
                     )}
+                    {dc && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        <Hash className="mr-1 inline h-3 w-3" />
+                        {dc.server}
+                        {dc.expiresAt
+                          ? ` · access until ${fmtDate(dc.expiresAt)}`
+                          : ""}
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
@@ -225,6 +261,14 @@ export default async function BuyerAccountPage() {
                           <BookOpen className="mr-1.5 h-3.5 w-3.5" />
                           Open course
                         </Link>
+                      </Button>
+                    )}
+                    {dc?.inviteLink && o.status === "paid" && (
+                      <Button asChild size="sm">
+                        <a href={dc.inviteLink} target="_blank" rel="noreferrer">
+                          <Hash className="mr-1.5 h-3.5 w-3.5" />
+                          Join Discord
+                        </a>
                       </Button>
                     )}
                     {hasInvoice && (

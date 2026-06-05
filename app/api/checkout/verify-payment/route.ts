@@ -599,6 +599,17 @@ export async function POST(request: Request) {
     console.error("[verify-payment] telegram invite failed", e);
   }
 
+  // 6a2. Post-purchase: if the page has a Discord server attached, mint a
+  //      one-time invite + membership row and email the buyer. Best-effort —
+  //      mirrors the Telegram block above (issueDiscordAccessForOrder sends
+  //      its own invite email internally).
+  try {
+    const { issueDiscordAccessForOrder } = await import("@/actions/discord");
+    await issueDiscordAccessForOrder(order_id);
+  } catch (e) {
+    console.error("[verify-payment] discord invite failed", e);
+  }
+
   // 6b. LMS — if the purchased product is linked to a published course, enroll
   //     the buyer (idempotent, best-effort). Access link is shown on the
   //     receipt page (/order/[id]).

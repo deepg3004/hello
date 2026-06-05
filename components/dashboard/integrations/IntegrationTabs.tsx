@@ -30,10 +30,9 @@ const TABS: TabDef[] = [
   {
     key: "discord",
     label: "Discord",
-    href: "#",
+    href: "/dashboard/discord",
     Icon: Hash,
     match: "/dashboard/discord",
-    soon: true,
   },
 ];
 
