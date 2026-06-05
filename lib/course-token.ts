@@ -52,6 +52,54 @@ export function signCourseToken(
   return `${body}.${sig}`;
 }
 
+// ── Free-preview tokens ─────────────────────────────────────────────────────
+// A short-lived token that authorises ONLY a course's free-preview lessons (no
+// order/enrollment). Separate shape from CoursePayload so an enrollment check
+// (which requires order_id) never accepts one of these, and vice-versa.
+
+export const PREVIEW_TOKEN_TTL_SECONDS = 2 * 60 * 60; // 2 hours
+
+export interface PreviewPayload {
+  course_id: string;
+  preview: true;
+  exp: number;
+}
+
+export function signPreviewToken(courseId: string): string {
+  const full: PreviewPayload = {
+    course_id: courseId,
+    preview: true,
+    exp: Math.floor(Date.now() / 1000) + PREVIEW_TOKEN_TTL_SECONDS,
+  };
+  const body = b64url(JSON.stringify(full));
+  const sig = b64url(crypto.createHmac("sha256", getSecret()).update(body).digest());
+  return `${body}.${sig}`;
+}
+
+export function verifyPreviewToken(token: string): PreviewPayload | null {
+  if (!token || !token.includes(".")) return null;
+  const [body, sig] = token.split(".");
+  if (!body || !sig) return null;
+  let expected: string;
+  try {
+    expected = b64url(crypto.createHmac("sha256", getSecret()).update(body).digest());
+  } catch {
+    return null;
+  }
+  if (sig.length !== expected.length) return null;
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+  let payload: PreviewPayload;
+  try {
+    payload = JSON.parse(b64urlDecode(body).toString("utf-8")) as PreviewPayload;
+  } catch {
+    return null;
+  }
+  if (payload.preview !== true) return null;
+  if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) return null;
+  if (!payload.course_id) return null;
+  return payload;
+}
+
 export function verifyCourseToken(token: string): CoursePayload | null {
   if (!token || !token.includes(".")) return null;
   const [body, sig] = token.split(".");

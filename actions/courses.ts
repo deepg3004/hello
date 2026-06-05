@@ -214,9 +214,10 @@ export async function createCourseAction(input: { title: string }): Promise<Resu
   if (!title) return { ok: false, message: "Title is required" };
 
   const admin = createAdminClient();
+  const slug = `${slugify(title) || "course"}-${nanoid(6)}`;
   const { data, error } = await admin
     .from("courses")
-    .insert({ seller_user_id: userId, title })
+    .insert({ seller_user_id: userId, title, slug })
     .select("id")
     .single();
   if (error || !data) return { ok: false, message: error?.message ?? "Failed" };
@@ -227,10 +228,21 @@ export async function createCourseAction(input: { title: string }): Promise<Resu
 export async function updateCourseAction(input: {
   id: string;
   title?: string;
+  subtitle?: string | null;
   description?: string | null;
   thumbnail_url?: string | null;
   status?: "draft" | "published";
   product_id?: string | null;
+  category?: string | null;
+  level?: string | null;
+  language?: string | null;
+  what_you_learn?: string[];
+  requirements?: string[];
+  who_for?: string[];
+  instructor_name?: string | null;
+  instructor_bio?: string | null;
+  instructor_avatar?: string | null;
+  promo_video_url?: string | null;
 }): Promise<Result> {
   const userId = await currentUserId();
   if (!userId) return { ok: false, message: "Not signed in" };
@@ -238,12 +250,25 @@ export async function updateCourseAction(input: {
   if (!(await ownedCourseId(admin, userId, { courseId: input.id }))) {
     return { ok: false, message: "Not found" };
   }
+  const cleanList = (xs: string[]) =>
+    xs.map((s) => s.trim()).filter(Boolean).slice(0, 30);
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (input.title !== undefined) patch.title = input.title.trim();
+  if (input.subtitle !== undefined) patch.subtitle = input.subtitle;
   if (input.description !== undefined) patch.description = input.description;
   if (input.thumbnail_url !== undefined) patch.thumbnail_url = input.thumbnail_url;
   if (input.status !== undefined) patch.status = input.status;
   if (input.product_id !== undefined) patch.product_id = input.product_id || null;
+  if (input.category !== undefined) patch.category = input.category;
+  if (input.level !== undefined) patch.level = input.level;
+  if (input.language !== undefined) patch.language = input.language || "English";
+  if (input.what_you_learn !== undefined) patch.what_you_learn = cleanList(input.what_you_learn);
+  if (input.requirements !== undefined) patch.requirements = cleanList(input.requirements);
+  if (input.who_for !== undefined) patch.who_for = cleanList(input.who_for);
+  if (input.instructor_name !== undefined) patch.instructor_name = input.instructor_name;
+  if (input.instructor_bio !== undefined) patch.instructor_bio = input.instructor_bio;
+  if (input.instructor_avatar !== undefined) patch.instructor_avatar = input.instructor_avatar;
+  if (input.promo_video_url !== undefined) patch.promo_video_url = input.promo_video_url;
 
   const { error } = await admin.from("courses").update(patch).eq("id", input.id);
   if (error) {
@@ -324,6 +349,7 @@ export async function addLessonAction(input: {
   video_url?: string;
   content?: string;
   duration_label?: string;
+  is_preview?: boolean;
 }): Promise<Result> {
   const userId = await currentUserId();
   if (!userId) return { ok: false, message: "Not signed in" };
@@ -337,6 +363,7 @@ export async function addLessonAction(input: {
     video_url: input.video_url?.trim() || null,
     content: input.content?.trim() || null,
     duration_label: input.duration_label?.trim() || null,
+    is_preview: !!input.is_preview,
     sort_order,
   });
   if (error) return { ok: false, message: error.message };
@@ -350,6 +377,7 @@ export async function updateLessonAction(input: {
   video_url?: string | null;
   content?: string | null;
   duration_label?: string | null;
+  is_preview?: boolean;
 }): Promise<Result> {
   const userId = await currentUserId();
   if (!userId) return { ok: false, message: "Not signed in" };
@@ -361,6 +389,7 @@ export async function updateLessonAction(input: {
   if (input.video_url !== undefined) patch.video_url = input.video_url || null;
   if (input.content !== undefined) patch.content = input.content || null;
   if (input.duration_label !== undefined) patch.duration_label = input.duration_label || null;
+  if (input.is_preview !== undefined) patch.is_preview = !!input.is_preview;
   const { error } = await admin.from("course_lessons").update(patch).eq("id", input.lessonId);
   if (error) return { ok: false, message: error.message };
   revalidatePath(`/dashboard/courses/${courseId}`);

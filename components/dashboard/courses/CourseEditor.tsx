@@ -40,6 +40,7 @@ export interface EditorLesson {
   video_url: string;
   content: string;
   duration_label: string;
+  is_preview: boolean;
 }
 export interface EditorModule {
   id: string;
@@ -49,10 +50,27 @@ export interface EditorModule {
 export interface EditorCourse {
   id: string;
   title: string;
+  subtitle: string;
   description: string;
   thumbnail_url: string;
   status: "draft" | "published";
   product_id: string;
+  category: string;
+  level: string;
+  language: string;
+  what_you_learn: string[];
+  requirements: string[];
+  who_for: string[];
+  instructor_name: string;
+  instructor_bio: string;
+  instructor_avatar: string;
+  promo_video_url: string;
+}
+
+const LEVELS = ["Beginner", "Intermediate", "Advanced", "All levels"];
+
+function linesToList(s: string): string[] {
+  return s.split("\n").map((x) => x.trim()).filter(Boolean);
 }
 
 export function CourseEditor({
@@ -71,11 +89,22 @@ export function CourseEditor({
   const [pending, startTransition] = useTransition();
 
   const [title, setTitle] = useState(course.title);
+  const [subtitle, setSubtitle] = useState(course.subtitle);
   const [description, setDescription] = useState(course.description);
   const [thumb, setThumb] = useState(course.thumbnail_url);
   const [status, setStatus] = useState(course.status);
   const [productId, setProductId] = useState(course.product_id);
   const [newModule, setNewModule] = useState("");
+  const [category, setCategory] = useState(course.category);
+  const [level, setLevel] = useState(course.level);
+  const [language, setLanguage] = useState(course.language || "English");
+  const [learn, setLearn] = useState(course.what_you_learn.join("\n"));
+  const [requirements, setRequirements] = useState(course.requirements.join("\n"));
+  const [whoFor, setWhoFor] = useState(course.who_for.join("\n"));
+  const [instrName, setInstrName] = useState(course.instructor_name);
+  const [instrBio, setInstrBio] = useState(course.instructor_bio);
+  const [instrAvatar, setInstrAvatar] = useState(course.instructor_avatar);
+  const [promo, setPromo] = useState(course.promo_video_url);
   const [price, setPrice] = useState(sale ? String(sale.price) : "");
   const [origPrice, setOrigPrice] = useState(
     sale?.originalPrice ? String(sale.originalPrice) : "",
@@ -111,10 +140,21 @@ export function CourseEditor({
       const res = await updateCourseAction({
         id: course.id,
         title,
+        subtitle,
         description,
         thumbnail_url: thumb,
         status,
         product_id: productId,
+        category,
+        level,
+        language,
+        what_you_learn: linesToList(learn),
+        requirements: linesToList(requirements),
+        who_for: linesToList(whoFor),
+        instructor_name: instrName,
+        instructor_bio: instrBio,
+        instructor_avatar: instrAvatar,
+        promo_video_url: promo,
       });
       if (!res.ok) {
         toast({ variant: "destructive", title: "Couldn't save", description: res.message });
@@ -166,6 +206,15 @@ export function CourseEditor({
           <div>
             <Label className="text-xs">Title</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1" />
+          </div>
+          <div>
+            <Label className="text-xs">Subtitle / headline</Label>
+            <Input
+              value={subtitle}
+              onChange={(e) => setSubtitle(e.target.value)}
+              placeholder="A one-line promise — what the learner walks away with"
+              className="mt-1"
+            />
           </div>
           <div>
             <Label className="text-xs">Description</Label>
@@ -224,6 +273,101 @@ export function CourseEditor({
               product get the full lessons.
             </p>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Landing page (Udemy-style)</CardTitle>
+          <CardDescription>
+            These power the public course page. Lists take one item per line.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-4">
+            <div className="min-w-40 flex-1">
+              <Label className="text-xs">Category</Label>
+              <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Web Development" className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">Level</Label>
+              <select
+                value={level}
+                onChange={(e) => setLevel(e.target.value)}
+                className="mt-1 block h-10 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">—</option>
+                {LEVELS.map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="w-36">
+              <Label className="text-xs">Language</Label>
+              <Input value={language} onChange={(e) => setLanguage(e.target.value)} className="mt-1" />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs">What you’ll learn (one per line)</Label>
+            <textarea
+              value={learn}
+              onChange={(e) => setLearn(e.target.value)}
+              rows={4}
+              placeholder={"Build a REST API from scratch\nDeploy to production\n…"}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label className="text-xs">Requirements (one per line)</Label>
+              <textarea
+                value={requirements}
+                onChange={(e) => setRequirements(e.target.value)}
+                rows={3}
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Who this is for (one per line)</Label>
+              <textarea
+                value={whoFor}
+                onChange={(e) => setWhoFor(e.target.value)}
+                rows={3}
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+          <div className="border-t pt-4">
+            <p className="mb-2 text-sm font-medium">Instructor</p>
+            <div className="flex flex-wrap gap-4">
+              <div className="min-w-48 flex-1">
+                <Label className="text-xs">Name</Label>
+                <Input value={instrName} onChange={(e) => setInstrName(e.target.value)} placeholder="Defaults to your business name" className="mt-1" />
+              </div>
+              <div className="w-full">
+                <Label className="text-xs">Avatar</Label>
+                <UploadField value={instrAvatar} onChange={setInstrAvatar} accept="image" />
+              </div>
+            </div>
+            <div className="mt-3">
+              <Label className="text-xs">Bio</Label>
+              <textarea
+                value={instrBio}
+                onChange={(e) => setInstrBio(e.target.value)}
+                rows={3}
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+          <Button onClick={saveCourse} disabled={pending}>
+            {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Save landing details
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Tip: mark a lesson below as a <strong>free preview</strong> so visitors can watch it before buying.
+          </p>
         </CardContent>
       </Card>
 
@@ -391,6 +535,7 @@ function LessonBlock({ lesson: l }: { lesson: EditorLesson }) {
   const [video, setVideo] = useState(l.video_url);
   const [content, setContent] = useState(l.content);
   const [duration, setDuration] = useState(l.duration_label);
+  const [isPreview, setIsPreview] = useState(l.is_preview);
 
   function save() {
     startTransition(async () => {
@@ -400,6 +545,7 @@ function LessonBlock({ lesson: l }: { lesson: EditorLesson }) {
         video_url: video,
         content,
         duration_label: duration,
+        is_preview: isPreview,
       });
       if (!res.ok) toast({ variant: "destructive", title: "Couldn't save", description: res.message });
       else {
@@ -440,10 +586,21 @@ function LessonBlock({ lesson: l }: { lesson: EditorLesson }) {
         placeholder="Lesson notes (optional)"
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
       />
-      <Button size="sm" onClick={save} disabled={pending}>
-        {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        Save lesson
-      </Button>
+      <div className="flex items-center justify-between">
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={isPreview}
+            onChange={(e) => setIsPreview(e.target.checked)}
+            className="h-4 w-4 accent-primary"
+          />
+          <span>Free preview — watchable before purchase</span>
+        </label>
+        <Button size="sm" onClick={save} disabled={pending}>
+          {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Save lesson
+        </Button>
+      </div>
     </div>
   );
 }

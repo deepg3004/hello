@@ -9,7 +9,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getActorContext } from "@/lib/account-context";
-import { verifyCourseToken } from "@/lib/course-token";
+import { verifyCourseToken, verifyPreviewToken } from "@/lib/course-token";
 import { CMEDIA_PREFIX } from "@/lib/learn/video";
 
 /** Does `courseId` (owned by `ownerId`) contain a lesson whose video is rawPath? */
@@ -32,6 +32,37 @@ async function courseOwnsVideo(
     .from("course_lessons")
     .select("module_id")
     .eq("video_url", `${CMEDIA_PREFIX}${rawPath}`);
+  const moduleIds = Array.from(new Set((lessons ?? []).map((l) => l.module_id)));
+  if (moduleIds.length === 0) return false;
+
+  const { data: modules } = await admin
+    .from("course_modules")
+    .select("id")
+    .eq("course_id", courseId)
+    .in("id", moduleIds);
+  return (modules ?? []).length > 0;
+}
+
+/** Like courseOwnsVideo, but the lesson must ALSO be a free preview. */
+async function courseOwnsPreviewVideo(
+  admin: ReturnType<typeof createAdminClient>,
+  rawPath: string,
+  courseId: string,
+  ownerId: string,
+): Promise<boolean> {
+  const { data: course } = await admin
+    .from("courses")
+    .select("id, seller_user_id")
+    .eq("id", courseId)
+    .maybeSingle();
+  if (!course || course.seller_user_id !== ownerId) return false;
+
+  // A PREVIEW lesson in this course must store this exact video.
+  const { data: lessons } = await admin
+    .from("course_lessons")
+    .select("module_id, is_preview")
+    .eq("video_url", `${CMEDIA_PREFIX}${rawPath}`)
+    .eq("is_preview", true);
   const moduleIds = Array.from(new Set((lessons ?? []).map((l) => l.module_id)));
   if (moduleIds.length === 0) return false;
 
@@ -67,6 +98,14 @@ export async function authorizeCourseMedia(
     if (payload?.course_id) {
       const admin = createAdminClient();
       if (await courseOwnsVideo(admin, rawPath, payload.course_id, ownerId)) {
+        return true;
+      }
+    }
+    // 1b. Free-preview token — unlocks ONLY this course's is_preview lessons.
+    const preview = verifyPreviewToken(token);
+    if (preview?.course_id) {
+      const admin = createAdminClient();
+      if (await courseOwnsPreviewVideo(admin, rawPath, preview.course_id, ownerId)) {
         return true;
       }
     }

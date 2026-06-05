@@ -153,6 +153,14 @@ export default async function SellerStore({ params }: Props) {
     .order("sort_order", { ascending: true });
   const storeCollections = (colRaw ?? []) as Array<{ name: string; slug: string }>;
 
+  // Does the seller have any published courses? (drives the Courses link)
+  const { count: courseCount } = await admin
+    .from("courses")
+    .select("id", { count: "exact", head: true })
+    .eq("seller_user_id", profile.id)
+    .eq("status", "published");
+  const hasCourses = (courseCount ?? 0) > 0;
+
   return (
     <CartProvider username={params.username}>
     <main className="mx-auto max-w-5xl px-6 py-16">
@@ -181,14 +189,24 @@ export default async function SellerStore({ params }: Props) {
         </div>
       </div>
 
-      {totalProducts > 0 && (
-        <div className="mb-6">
-          <a
-            href="/store"
-            className="inline-flex items-center gap-2 rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-700"
-          >
-            Browse full store →
-          </a>
+      {(totalProducts > 0 || hasCourses) && (
+        <div className="mb-6 flex flex-wrap gap-2">
+          {totalProducts > 0 && (
+            <a
+              href="/store"
+              className="inline-flex items-center gap-2 rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-700"
+            >
+              Browse full store →
+            </a>
+          )}
+          {hasCourses && (
+            <a
+              href="/course"
+              className="inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-sm font-semibold text-zinc-800 transition hover:border-primary hover:text-primary"
+            >
+              Courses →
+            </a>
+          )}
         </div>
       )}
 
