@@ -137,6 +137,15 @@ export default async function SellerStore({ params }: Props) {
     profile.legal_business_name ?? profile.full_name ?? params.username;
   const totalProducts = sections.reduce((n, s) => n + s.products.length, 0);
 
+  // Active collections — quick links above the grid.
+  const { data: colRaw } = await admin
+    .from("collections")
+    .select("name, slug")
+    .eq("user_id", profile.id)
+    .eq("active", true)
+    .order("sort_order", { ascending: true });
+  const storeCollections = (colRaw ?? []) as Array<{ name: string; slug: string }>;
+
   return (
     <main className="mx-auto max-w-5xl px-6 py-16">
       <div className="mb-10 flex items-center gap-4">
@@ -163,6 +172,20 @@ export default async function SellerStore({ params }: Props) {
           </p>
         </div>
       </div>
+
+      {storeCollections.length > 0 && (
+        <div className="mb-8 flex flex-wrap gap-2">
+          {storeCollections.map((c) => (
+            <a
+              key={c.slug}
+              href={`/c/${c.slug}`}
+              className="rounded-full border bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:border-primary hover:text-primary"
+            >
+              {c.name}
+            </a>
+          ))}
+        </div>
+      )}
 
       {totalProducts === 0 ? (
         <p className="text-muted-foreground">

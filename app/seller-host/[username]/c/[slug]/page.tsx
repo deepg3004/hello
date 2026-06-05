@@ -1,0 +1,132 @@
+// Public collection page — sub.invoxai.io/c/<slug>. Lists the products a seller
+// grouped into one collection, each card linking to its checkout page. Resolves
+// the seller from the subdomain (same as the storefront).
+
+import Link from "next/link";
+import { notFound } from "next/navigation";
+
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  StoreGrid,
+  type StoreProduct,
+  type StoreSection,
+} from "@/components/store/StoreGrid";
+
+export const dynamic = "force-dynamic";
+
+interface Props {
+  params: { username: string; slug: string };
+}
+
+export async function generateMetadata({ params }: Props) {
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("user_profiles")
+    .select("id")
+    .eq("subdomain", params.username)
+    .maybeSingle();
+  if (!profile?.id) return { title: params.slug };
+  const { data: col } = await admin
+    .from("collections")
+    .select("name, description")
+    .eq("user_id", profile.id)
+    .eq("slug", params.slug)
+    .maybeSingle();
+  return {
+    title: col?.name ?? params.slug,
+    description: col?.description ?? undefined,
+  };
+}
+
+interface PageJoin {
+  slug: string;
+  status: string;
+}
+interface ProductJoin {
+  id: string;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  price: number;
+  original_price: number | null;
+  is_popular: boolean;
+  active: boolean;
+  pages?: PageJoin | PageJoin[] | null;
+}
+
+export default async function CollectionPage({ params }: Props) {
+  const admin = createAdminClient();
+
+  const { data: profile } = await admin
+    .from("user_profiles")
+    .select("id, full_name, legal_business_name")
+    .eq("subdomain", params.username)
+    .maybeSingle();
+  if (!profile?.id) notFound();
+
+  const { data: collection } = await admin
+    .from("collections")
+    .select("id, name, description, active")
+    .eq("user_id", profile.id)
+    .eq("slug", params.slug)
+    .maybeSingle();
+  if (!collection || collection.active === false) notFound();
+
+  const { data: memRaw } = await admin
+    .from("collection_products")
+    .select(
+      "sort_order, products!inner(id, name, description, image_url, price, original_price, is_popular, active, pages!products_page_id_fkey(slug, status))",
+    )
+    .eq("collection_id", collection.id)
+    .order("sort_order", { ascending: true });
+
+  const products: StoreProduct[] = ((memRaw ?? []) as Array<{ products: ProductJoin | ProductJoin[] | null }>)
+    .map((m) => (Array.isArray(m.products) ? m.products[0] : m.products))
+    .filter((p): p is ProductJoin => !!p && p.active)
+    .map((p) => {
+      const page = Array.isArray(p.pages) ? p.pages[0] : p.pages;
+      return page && page.status === "published"
+        ? {
+            id: p.id,
+            name: p.name ?? "Untitled",
+            description: p.description,
+            image_url: p.image_url,
+            price: Number(p.price ?? 0),
+            original_price: p.original_price != null ? Number(p.original_price) : null,
+            is_popular: !!p.is_popular,
+            slug: page.slug,
+          }
+        : null;
+    })
+    .filter((p): p is StoreProduct => !!p);
+
+  const sellerName =
+    profile.legal_business_name ?? profile.full_name ?? params.username;
+  const sections: StoreSection[] = products.length
+    ? [{ key: "collection", label: collection.name, products }]
+    : [];
+
+  return (
+    <main className="mx-auto max-w-5xl px-6 py-16">
+      <div className="mb-8">
+        <Link href="/" className="text-sm text-muted-foreground hover:underline">
+          ← {sellerName}
+        </Link>
+        <h1 className="mt-2 font-sora text-2xl font-semibold tracking-tight">
+          {collection.name}
+        </h1>
+        {collection.description && (
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            {collection.description}
+          </p>
+        )}
+      </div>
+
+      {products.length === 0 ? (
+        <p className="text-muted-foreground">No products in this collection yet.</p>
+      ) : (
+        <StoreGrid sections={sections} />
+      )}
+    </main>
+  );
+}

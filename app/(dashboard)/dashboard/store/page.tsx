@@ -20,6 +20,15 @@ import {
   ProductInventoryManager,
   type StoreProduct,
 } from "@/components/dashboard/store/ProductInventoryManager";
+import {
+  CatalogManager,
+  type CatalogProduct,
+} from "@/components/dashboard/store/CatalogManager";
+import {
+  CollectionsManager,
+  type CollectionRow,
+  type ProductOption,
+} from "@/components/dashboard/store/CollectionsManager";
 
 export const metadata = { title: "Store" };
 
@@ -71,6 +80,70 @@ export default async function StoreDashboardPage() {
       stock: r.stock ?? null,
       sku: r.sku ?? null,
     }));
+
+  // Catalog products (managed from this dashboard) — include hidden ones.
+  const { data: catalogRaw } = await admin
+    .from("products")
+    .select(
+      "id, name, price, description, image_url, category, requires_shipping, stock, sku, active, pages!products_page_id_fkey(slug)",
+    )
+    .eq("user_id", ctx.ownerId)
+    .eq("is_catalog", true)
+    .order("created_at", { ascending: false });
+  const catalogProducts: CatalogProduct[] = ((catalogRaw ?? []) as Array<{
+    id: string;
+    name: string;
+    price: number;
+    description: string | null;
+    image_url: string | null;
+    category: string | null;
+    requires_shipping: boolean | null;
+    stock: number | null;
+    sku: string | null;
+    active: boolean;
+    pages?: { slug: string } | { slug: string }[] | null;
+  }>).map((r) => ({
+    id: r.id,
+    name: r.name,
+    price: Number(r.price ?? 0),
+    description: r.description,
+    image_url: r.image_url,
+    category: r.category,
+    requires_shipping: !!r.requires_shipping,
+    stock: r.stock,
+    sku: r.sku,
+    active: r.active,
+    slug: (Array.isArray(r.pages) ? r.pages[0] : r.pages)?.slug ?? null,
+  }));
+
+  // Collections + their membership, and the product picker options.
+  const [{ data: colsRaw }, { data: memRaw }] = await Promise.all([
+    admin
+      .from("collections")
+      .select("id, name, slug, description, image_url")
+      .eq("user_id", ctx.ownerId)
+      .order("sort_order", { ascending: true }),
+    admin
+      .from("collection_products")
+      .select("collection_id, product_id, collections!inner(user_id)")
+      .eq("collections.user_id", ctx.ownerId),
+  ]);
+  const membersByCol = new Map<string, string[]>();
+  for (const m of (memRaw ?? []) as Array<{ collection_id: string; product_id: string }>) {
+    const arr = membersByCol.get(m.collection_id) ?? [];
+    arr.push(m.product_id);
+    membersByCol.set(m.collection_id, arr);
+  }
+  const collections: CollectionRow[] = ((colsRaw ?? []) as Array<{
+    id: string;
+    name: string;
+    slug: string;
+    description: string | null;
+    image_url: string | null;
+  }>).map((c) => ({ ...c, productIds: membersByCol.get(c.id) ?? [] }));
+  const productOptions: ProductOption[] = prodRows
+    .filter((r) => !!r.name)
+    .map((r) => ({ id: r.id, name: r.name }));
 
   const subdomain = profile?.subdomain ?? null;
   const storeUrl = subdomain
@@ -157,6 +230,42 @@ export default async function StoreDashboardPage() {
             </CardContent>
           </Card>
         )}
+      </div>
+
+      {/* Catalog products */}
+      <div className="animate-in-up" style={{ animationDelay: "130ms" }}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Products</CardTitle>
+            <CardDescription>
+              Add standalone products — each gets its own checkout page and shows
+              on your storefront automatically.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CatalogManager products={catalogProducts} storeUrl={storeUrl} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Collections */}
+      <div className="animate-in-up" style={{ animationDelay: "140ms" }}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Collections</CardTitle>
+            <CardDescription>
+              Group products into collections to merchandise your storefront —
+              each gets a shareable <code>/c/&lt;slug&gt;</code> page.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CollectionsManager
+              collections={collections}
+              allProducts={productOptions}
+              storeUrl={storeUrl}
+            />
+          </CardContent>
+        </Card>
       </div>
 
       {/* Shipping rates (seller-level) */}

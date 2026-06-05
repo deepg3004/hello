@@ -1,9 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { nanoid } from "nanoid";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActor } from "@/lib/account-context";
+import { slugify } from "@/lib/templates/utils";
+import { getTemplate } from "@/lib/templates/registry";
 
 interface Result {
   ok: boolean;
@@ -110,5 +113,317 @@ export async function updateFulfillmentAction(input: {
   if (error) return { ok: false, message: error.message };
 
   revalidatePath("/dashboard/store/orders");
+  return { ok: true };
+}
+
+// ----------------------------------------------------------------------------
+// Phase 2a — catalog product CRUD. A catalog product is a standalone product
+// managed from the Store dashboard; it auto-gets its own published payment page
+// (digital-product template) so the EXISTING single-item checkout works with no
+// money-path change. Marked is_catalog=true to list it separately from page
+// pricing tiers.
+// ----------------------------------------------------------------------------
+
+export interface CatalogProductInput {
+  name: string;
+  price: number;
+  description?: string | null;
+  image_url?: string | null;
+  category?: string | null;
+  requires_shipping?: boolean;
+  stock?: number | null;
+  sku?: string | null;
+}
+
+function normStock(stock: number | null | undefined): number | null {
+  return stock === null || stock === undefined
+    ? null
+    : Math.max(0, Math.floor(Number(stock)));
+}
+
+export async function createCatalogProductAction(
+  input: CatalogProductInput,
+): Promise<Result & { productId?: string; slug?: string }> {
+  const actor = await requireActor("store.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const name = input.name?.trim();
+  if (!name) return { ok: false, message: "Product name is required" };
+  const price = Number(input.price);
+  if (!(price > 0)) return { ok: false, message: "Price must be greater than 0" };
+
+  const admin = createAdminClient();
+
+  // Unique slug (nanoid suffix makes collisions astronomically unlikely).
+  const base = slugify(name) || "product";
+  let slug = `${base}-${nanoid(6)}`;
+  const { data: clash } = await admin
+    .from("pages")
+    .select("id")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (clash) slug = `${base}-${nanoid(10)}`;
+
+  const tpl = getTemplate("digital-product");
+  const values: Record<string, unknown> = {
+    ...(tpl?.defaultValues ?? {}),
+    ...(input.image_url ? { mockup_url: input.image_url } : {}),
+  };
+
+  const { data: page, error: pageErr } = await admin
+    .from("pages")
+    .insert({
+      user_id: ctx.ownerId,
+      title: name,
+      slug,
+      type: "payment",
+      status: "published",
+      template_id: "digital-product",
+      page_config: values,
+      published_at: new Date().toISOString(),
+    })
+    .select("id, slug")
+    .single();
+  if (pageErr || !page) {
+    return { ok: false, message: pageErr?.message ?? "Couldn't create the product page" };
+  }
+
+  const { data: product, error: prodErr } = await admin
+    .from("products")
+    .insert({
+      user_id: ctx.ownerId,
+      page_id: page.id,
+      name,
+      description: input.description?.trim() || null,
+      price,
+      currency: "INR",
+      type: "one_time",
+      active: true,
+      is_catalog: true,
+      image_url: input.image_url?.trim() || null,
+      category: input.category?.trim() || null,
+      requires_shipping: !!input.requires_shipping,
+      stock: normStock(input.stock),
+      sku: input.sku?.trim() || null,
+    })
+    .select("id")
+    .single();
+  if (prodErr || !product) {
+    // Roll back the orphan page.
+    await admin.from("pages").delete().eq("id", page.id);
+    return { ok: false, message: prodErr?.message ?? "Couldn't create the product" };
+  }
+
+  revalidatePath("/dashboard/store");
+  return { ok: true, productId: product.id, slug: page.slug };
+}
+
+/** Load a catalog product the caller owns (returns the product + its page_id). */
+async function ownedCatalogProduct(
+  admin: ReturnType<typeof createAdminClient>,
+  ownerId: string,
+  productId: string,
+) {
+  const { data } = await admin
+    .from("products")
+    .select("id, user_id, page_id, is_catalog")
+    .eq("id", productId)
+    .maybeSingle();
+  if (!data || data.user_id !== ownerId) return null;
+  return data;
+}
+
+export async function updateCatalogProductAction(
+  productId: string,
+  input: CatalogProductInput & { active?: boolean },
+): Promise<Result> {
+  const actor = await requireActor("store.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const name = input.name?.trim();
+  if (!name) return { ok: false, message: "Product name is required" };
+  const price = Number(input.price);
+  if (!(price > 0)) return { ok: false, message: "Price must be greater than 0" };
+
+  const admin = createAdminClient();
+  const product = await ownedCatalogProduct(admin, ctx.ownerId, productId);
+  if (!product) return { ok: false, message: "Product not found" };
+
+  const { error } = await admin
+    .from("products")
+    .update({
+      name,
+      description: input.description?.trim() || null,
+      price,
+      image_url: input.image_url?.trim() || null,
+      category: input.category?.trim() || null,
+      requires_shipping: !!input.requires_shipping,
+      stock: normStock(input.stock),
+      sku: input.sku?.trim() || null,
+      active: input.active ?? true,
+    })
+    .eq("id", productId);
+  if (error) return { ok: false, message: error.message };
+
+  // Keep the auto-page title in sync.
+  if (product.page_id) {
+    await admin.from("pages").update({ title: name }).eq("id", product.page_id);
+  }
+
+  revalidatePath("/dashboard/store");
+  return { ok: true };
+}
+
+/** Soft-delete: deactivate the product + archive its page (preserves order FKs). */
+export async function deleteCatalogProductAction(productId: string): Promise<Result> {
+  const actor = await requireActor("store.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const admin = createAdminClient();
+  const product = await ownedCatalogProduct(admin, ctx.ownerId, productId);
+  if (!product) return { ok: false, message: "Product not found" };
+
+  await admin.from("products").update({ active: false }).eq("id", productId);
+  if (product.page_id) {
+    await admin.from("pages").update({ status: "archived" }).eq("id", product.page_id);
+  }
+  await admin.from("collection_products").delete().eq("product_id", productId);
+
+  revalidatePath("/dashboard/store");
+  return { ok: true };
+}
+
+// ----------------------------------------------------------------------------
+// Phase 2a — collections (merchandising groups of products).
+// ----------------------------------------------------------------------------
+
+export async function createCollectionAction(input: {
+  name: string;
+  description?: string | null;
+  image_url?: string | null;
+}): Promise<Result & { id?: string }> {
+  const actor = await requireActor("store.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const name = input.name?.trim();
+  if (!name) return { ok: false, message: "Collection name is required" };
+
+  const admin = createAdminClient();
+  const base = slugify(name) || "collection";
+  // Per-seller unique slug.
+  let slug = base;
+  const { data: clash } = await admin
+    .from("collections")
+    .select("id")
+    .eq("user_id", ctx.ownerId)
+    .eq("slug", slug)
+    .maybeSingle();
+  if (clash) slug = `${base}-${nanoid(5)}`;
+
+  const { data, error } = await admin
+    .from("collections")
+    .insert({
+      user_id: ctx.ownerId,
+      name,
+      slug,
+      description: input.description?.trim() || null,
+      image_url: input.image_url?.trim() || null,
+    })
+    .select("id")
+    .single();
+  if (error || !data) return { ok: false, message: error?.message ?? "Failed" };
+
+  revalidatePath("/dashboard/store");
+  return { ok: true, id: data.id };
+}
+
+export async function updateCollectionAction(
+  id: string,
+  input: { name: string; description?: string | null; image_url?: string | null; active?: boolean },
+): Promise<Result> {
+  const actor = await requireActor("store.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const name = input.name?.trim();
+  if (!name) return { ok: false, message: "Collection name is required" };
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("collections")
+    .update({
+      name,
+      description: input.description?.trim() || null,
+      image_url: input.image_url?.trim() || null,
+      active: input.active ?? true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("user_id", ctx.ownerId);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/dashboard/store");
+  return { ok: true };
+}
+
+export async function deleteCollectionAction(id: string): Promise<Result> {
+  const actor = await requireActor("store.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("collections")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", ctx.ownerId);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/dashboard/store");
+  return { ok: true };
+}
+
+/** Replace a collection's product membership (the seller's own products only). */
+export async function setCollectionProductsAction(
+  collectionId: string,
+  productIds: string[],
+): Promise<Result> {
+  const actor = await requireActor("store.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const admin = createAdminClient();
+  // Verify the collection belongs to the seller.
+  const { data: col } = await admin
+    .from("collections")
+    .select("id, user_id")
+    .eq("id", collectionId)
+    .maybeSingle();
+  if (!col || col.user_id !== ctx.ownerId) {
+    return { ok: false, message: "Collection not found" };
+  }
+
+  // Keep only products the seller actually owns.
+  const { data: owned } = await admin
+    .from("products")
+    .select("id")
+    .eq("user_id", ctx.ownerId)
+    .in("id", productIds.length ? productIds : ["00000000-0000-0000-0000-000000000000"]);
+  const validIds = new Set((owned ?? []).map((p) => p.id));
+
+  await admin.from("collection_products").delete().eq("collection_id", collectionId);
+  const rows = productIds
+    .filter((id) => validIds.has(id))
+    .map((id, idx) => ({ collection_id: collectionId, product_id: id, sort_order: idx }));
+  if (rows.length > 0) {
+    const { error } = await admin.from("collection_products").insert(rows);
+    if (error) return { ok: false, message: error.message };
+  }
+
+  revalidatePath("/dashboard/store");
   return { ok: true };
 }
