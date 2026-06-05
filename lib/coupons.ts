@@ -137,6 +137,84 @@ export async function validateCoupon(args: {
 }
 
 /**
+ * Validate a coupon for a multi-item CART (no single page_id). Resolves the
+ * coupon directly against the seller and applies it to the cart subtotal.
+ * Page-restricted coupons (page_ids set) don't apply to a whole-cart checkout.
+ */
+export async function validateCartCoupon(args: {
+  code: string;
+  seller_id: string;
+  amount: number;
+  buyer_email?: string;
+}): Promise<CouponValidationResult> {
+  const admin = createAdminClient();
+
+  const { data: coupon } = await admin
+    .from("coupons")
+    .select(
+      "id, code, discount_type, discount_value, min_order, max_discount, total_limit, per_customer_limit, usage_count, starts_at, expires_at, page_ids, active",
+    )
+    .eq("user_id", args.seller_id)
+    .eq("code", args.code)
+    .single();
+
+  if (!coupon) return { valid: false, reason: "Coupon not found" };
+  if (!coupon.active) return { valid: false, reason: "Coupon is not active" };
+  if (coupon.starts_at && coupon.starts_at > nowIso()) {
+    return { valid: false, reason: "Coupon hasn't started yet" };
+  }
+  if (coupon.expires_at && coupon.expires_at < nowIso()) {
+    return { valid: false, reason: "Coupon has expired" };
+  }
+  if (coupon.min_order && args.amount < Number(coupon.min_order)) {
+    return { valid: false, reason: `Minimum order ₹${coupon.min_order} required` };
+  }
+  if (Array.isArray(coupon.page_ids) && coupon.page_ids.length > 0) {
+    return { valid: false, reason: "Coupon doesn't apply to cart orders" };
+  }
+
+  if (coupon.total_limit != null) {
+    const redis = getRedis();
+    const usedKey = `coupon:${coupon.id}:used`;
+    let used = Number(coupon.usage_count ?? 0);
+    if (redis) {
+      const v = await redis.get(usedKey);
+      if (v != null) used = Math.max(used, Number(v));
+    }
+    if (used >= coupon.total_limit) {
+      return { valid: false, reason: "Coupon limit reached" };
+    }
+  }
+
+  if (args.buyer_email && coupon.per_customer_limit) {
+    const redis = getRedis();
+    if (redis) {
+      const k = `coupon:${coupon.id}:cust:${args.buyer_email.toLowerCase()}`;
+      const v = Number((await redis.get(k)) ?? "0");
+      if (v >= coupon.per_customer_limit) {
+        return { valid: false, reason: "You've already used this coupon" };
+      }
+    }
+  }
+
+  const discount_amount = computeDiscount(
+    coupon.discount_type as "percentage" | "fixed",
+    Number(coupon.discount_value),
+    args.amount,
+    coupon.max_discount != null ? Number(coupon.max_discount) : null,
+  );
+
+  return {
+    valid: true,
+    coupon_id: coupon.id,
+    code: coupon.code,
+    discount_type: coupon.discount_type as "percentage" | "fixed",
+    discount_value: Number(coupon.discount_value),
+    discount_amount,
+  };
+}
+
+/**
  * Atomically reserve a coupon slot during order creation. Returns false if
  * the limit was hit by a concurrent buyer.
  */

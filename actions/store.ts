@@ -427,3 +427,53 @@ export async function setCollectionProductsAction(
   revalidatePath("/dashboard/store");
   return { ok: true };
 }
+
+// ----------------------------------------------------------------------------
+// Product variants (e.g. Size / Colour). Replace the full variant set for a
+// catalog product the seller owns. order_items keeps a variant_name snapshot,
+// so deleting a variant never breaks order history.
+// ----------------------------------------------------------------------------
+
+export interface VariantInput {
+  name: string;
+  price: number;
+  stock?: number | null;
+  sku?: string | null;
+}
+
+export async function setProductVariantsAction(
+  productId: string,
+  variants: VariantInput[],
+): Promise<Result> {
+  const actor = await requireActor("store.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const admin = createAdminClient();
+  const product = await ownedCatalogProduct(admin, ctx.ownerId, productId);
+  if (!product) return { ok: false, message: "Product not found" };
+
+  const clean = (variants ?? [])
+    .filter((v) => v.name?.trim() && Number(v.price) > 0)
+    .map((v, idx) => ({
+      product_id: productId,
+      name: v.name.trim().slice(0, 120),
+      price: Math.max(0, Number(v.price)),
+      stock:
+        v.stock === null || v.stock === undefined
+          ? null
+          : Math.max(0, Math.floor(Number(v.stock))),
+      sku: v.sku?.trim() || null,
+      sort_order: idx,
+      active: true,
+    }));
+
+  await admin.from("product_variants").delete().eq("product_id", productId);
+  if (clean.length > 0) {
+    const { error } = await admin.from("product_variants").insert(clean);
+    if (error) return { ok: false, message: error.message };
+  }
+
+  revalidatePath("/dashboard/store");
+  return { ok: true };
+}

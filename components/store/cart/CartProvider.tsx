@@ -11,6 +11,8 @@ import {
 
 export interface CartItem {
   product_id: string;
+  variant_id?: string | null;
+  variant_name?: string | null;
   name: string;
   price: number; // rupees
   image_url: string | null;
@@ -18,13 +20,19 @@ export interface CartItem {
   quantity: number;
 }
 
+/** A cart line is identified by (product, variant) so two variants of the same
+ *  product are distinct lines. */
+export function lineKey(it: { product_id: string; variant_id?: string | null }): string {
+  return `${it.product_id}::${it.variant_id ?? ""}`;
+}
+
 interface CartContextValue {
   items: CartItem[];
   count: number;
   subtotal: number; // rupees
   add: (item: Omit<CartItem, "quantity">) => void;
-  setQty: (productId: string, qty: number) => void;
-  remove: (productId: string) => void;
+  setQty: (key: string, qty: number) => void;
+  remove: (key: string) => void;
   clear: () => void;
 }
 
@@ -64,28 +72,25 @@ export function CartProvider({
 
   const add = useCallback((item: Omit<CartItem, "quantity">) => {
     setItems((prev) => {
-      const ex = prev.find((p) => p.product_id === item.product_id);
+      const k = lineKey(item);
+      const ex = prev.find((p) => lineKey(p) === k);
       if (ex) {
-        return prev.map((p) =>
-          p.product_id === item.product_id ? { ...p, quantity: p.quantity + 1 } : p,
-        );
+        return prev.map((p) => (lineKey(p) === k ? { ...p, quantity: p.quantity + 1 } : p));
       }
       return [...prev, { ...item, quantity: 1 }];
     });
   }, []);
 
-  const setQty = useCallback((productId: string, qty: number) => {
+  const setQty = useCallback((key: string, qty: number) => {
     setItems((prev) =>
       qty <= 0
-        ? prev.filter((p) => p.product_id !== productId)
-        : prev.map((p) =>
-            p.product_id === productId ? { ...p, quantity: Math.min(99, qty) } : p,
-          ),
+        ? prev.filter((p) => lineKey(p) !== key)
+        : prev.map((p) => (lineKey(p) === key ? { ...p, quantity: Math.min(99, qty) } : p)),
     );
   }, []);
 
-  const remove = useCallback((productId: string) => {
-    setItems((prev) => prev.filter((p) => p.product_id !== productId));
+  const remove = useCallback((key: string) => {
+    setItems((prev) => prev.filter((p) => lineKey(p) !== key));
   }, []);
 
   const clear = useCallback(() => setItems([]), []);

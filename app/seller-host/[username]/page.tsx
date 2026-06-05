@@ -101,7 +101,7 @@ export default async function SellerStore({ params }: Props) {
   const { data: productsRaw } = await admin
     .from("products")
     .select(
-      "id, name, description, image_url, price, original_price, is_popular, is_catalog, sort_order, page_id, pages!products_page_id_fkey(slug, type, template_id, status)",
+      "id, name, description, image_url, price, original_price, is_popular, is_catalog, sort_order, page_id, pages!products_page_id_fkey(slug, type, template_id, status), product_variants(id, name, price, active, sort_order)",
     )
     .eq("user_id", profile.id)
     .eq("active", true)
@@ -132,6 +132,10 @@ export default async function SellerStore({ params }: Props) {
         is_popular: !!row.is_popular,
         is_catalog: !!row.is_catalog,
         slug: page.slug,
+        variants: ((row.product_variants as Array<{ id: string; name: string; price: number; active: boolean; sort_order: number }> | null) ?? [])
+          .filter((v) => v.active)
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((v) => ({ id: v.id, name: v.name, price: Number(v.price ?? 0) })),
       }));
     return { key, label: PAGE_CATEGORIES[key].label, products };
   }).filter((s) => s.products.length > 0);

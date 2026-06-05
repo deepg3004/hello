@@ -55,6 +55,7 @@ interface ProductJoin {
   is_catalog: boolean;
   active: boolean;
   pages?: PageJoin | PageJoin[] | null;
+  product_variants?: Array<{ id: string; name: string; price: number; active: boolean; sort_order: number }> | null;
 }
 
 export default async function CollectionPage({ params }: Props) {
@@ -78,7 +79,7 @@ export default async function CollectionPage({ params }: Props) {
   const { data: memRaw } = await admin
     .from("collection_products")
     .select(
-      "sort_order, products!inner(id, name, description, image_url, price, original_price, is_popular, is_catalog, active, pages!products_page_id_fkey(slug, status))",
+      "sort_order, products!inner(id, name, description, image_url, price, original_price, is_popular, is_catalog, active, pages!products_page_id_fkey(slug, status), product_variants(id, name, price, active, sort_order))",
     )
     .eq("collection_id", collection.id)
     .order("sort_order", { ascending: true });
@@ -99,6 +100,10 @@ export default async function CollectionPage({ params }: Props) {
             is_popular: !!p.is_popular,
             is_catalog: !!p.is_catalog,
             slug: page.slug,
+            variants: (p.product_variants ?? [])
+              .filter((v) => v.active)
+              .sort((a, b) => a.sort_order - b.sort_order)
+              .map((v) => ({ id: v.id, name: v.name, price: Number(v.price ?? 0) })),
           }
         : null;
     })

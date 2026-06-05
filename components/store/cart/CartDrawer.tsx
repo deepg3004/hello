@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
 import { formatINR } from "@/lib/utils";
-import { useCart } from "./CartProvider";
+import { useCart, lineKey } from "./CartProvider";
 
 const RAZORPAY_SDK = "https://checkout.razorpay.com/v1/checkout.js";
 
@@ -73,6 +73,44 @@ export function CartDrawer() {
   const [city, setCity] = useState("");
   const [pincode, setPincode] = useState("");
 
+  const [promo, setPromo] = useState("");
+  const [applying, setApplying] = useState(false);
+  const [applied, setApplied] = useState<{ code: string; discount: number } | null>(null);
+
+  const discount = applied ? Math.min(subtotal, applied.discount) : 0;
+  const payable = Math.max(0, subtotal - discount);
+
+  async function applyPromo() {
+    const code = promo.trim();
+    if (!code) return;
+    setApplying(true);
+    try {
+      const res = await fetch("/api/checkout/validate-cart-coupon", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          items: items.map((i) => ({ product_id: i.product_id, variant_id: i.variant_id ?? null, quantity: i.quantity })),
+          code,
+          buyer_email: email.trim().toLowerCase() || undefined,
+        }),
+      });
+      const b = (await res.json()) as { ok?: boolean; code?: string; discount_amount?: number; error?: string };
+      if (!res.ok || !b.ok) throw new Error(b.error ?? "Invalid promo code");
+      setApplied({ code: b.code ?? code, discount: b.discount_amount ?? 0 });
+      toast({ title: `Promo applied — ${formatINR(Math.round((b.discount_amount ?? 0) * 100))} off` });
+    } catch (e) {
+      setApplied(null);
+      toast({ variant: "destructive", title: "Couldn't apply promo", description: e instanceof Error ? e.message : undefined });
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  function clearPromo() {
+    setApplied(null);
+    setPromo("");
+  }
+
   async function checkout() {
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       toast({ variant: "destructive", title: "Enter a valid email" });
@@ -88,12 +126,13 @@ export function CartDrawer() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          items: items.map((i) => ({ product_id: i.product_id, quantity: i.quantity })),
+          items: items.map((i) => ({ product_id: i.product_id, variant_id: i.variant_id ?? null, quantity: i.quantity })),
           buyer_email: email.trim().toLowerCase(),
           buyer_name: name.trim() || undefined,
           buyer_phone: phone.trim() || undefined,
           buyer_address:
             line1 || city || pincode ? { line1, city, pincode } : undefined,
+          coupon_code: applied?.code || undefined,
         }),
       });
       const body = (await res.json()) as {
@@ -184,7 +223,7 @@ export function CartDrawer() {
             <p className="py-10 text-center text-sm text-muted-foreground">Your cart is empty.</p>
           ) : (
             items.map((it) => (
-              <div key={it.product_id} className="flex items-center gap-3">
+              <div key={lineKey(it)} className="flex items-center gap-3">
                 {it.image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={it.image_url} alt="" className="h-12 w-12 rounded object-cover" />
@@ -193,17 +232,20 @@ export function CartDrawer() {
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{it.name}</p>
+                  {it.variant_name && (
+                    <p className="truncate text-xs text-muted-foreground">{it.variant_name}</p>
+                  )}
                   <p className="text-xs text-muted-foreground">{formatINR(Math.round(it.price * 100))}</p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setQty(it.product_id, it.quantity - 1)}>
+                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setQty(lineKey(it), it.quantity - 1)}>
                     <Minus className="h-3 w-3" />
                   </Button>
                   <span className="w-6 text-center text-sm">{it.quantity}</span>
-                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setQty(it.product_id, it.quantity + 1)}>
+                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setQty(lineKey(it), it.quantity + 1)}>
                     <Plus className="h-3 w-3" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => remove(it.product_id)}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => remove(lineKey(it))}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -214,9 +256,36 @@ export function CartDrawer() {
 
         {items.length > 0 && (
           <div className="space-y-3 border-t pt-3">
-            <div className="flex justify-between text-sm font-semibold">
+            <div className="flex justify-between text-sm">
               <span>Subtotal</span>
               <span>{formatINR(Math.round(subtotal * 100))}</span>
+            </div>
+            {applied ? (
+              <div className="flex items-center justify-between text-sm text-emerald-600">
+                <span className="inline-flex items-center gap-1">
+                  Promo “{applied.code}”
+                  <button onClick={clearPromo} className="text-xs underline text-muted-foreground hover:text-foreground">
+                    remove
+                  </button>
+                </span>
+                <span>−{formatINR(Math.round(discount * 100))}</span>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Promo code"
+                  value={promo}
+                  onChange={(e) => setPromo(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && applyPromo()}
+                />
+                <Button variant="outline" onClick={applyPromo} disabled={applying || !promo.trim()}>
+                  {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
+                </Button>
+              </div>
+            )}
+            <div className="flex justify-between text-sm font-semibold">
+              <span>Total</span>
+              <span>{formatINR(Math.round(payable * 100))}</span>
             </div>
             <p className="text-xs text-muted-foreground">Shipping (if any) is added at payment.</p>
             <div className="grid gap-2">
@@ -238,7 +307,7 @@ export function CartDrawer() {
             </div>
             <Button className="w-full" onClick={checkout} disabled={paying}>
               {paying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Pay {formatINR(Math.round(subtotal * 100))}
+              Pay {formatINR(Math.round(payable * 100))}
             </Button>
           </div>
         )}

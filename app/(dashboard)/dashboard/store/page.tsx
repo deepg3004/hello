@@ -85,7 +85,7 @@ export default async function StoreDashboardPage() {
   const { data: catalogRaw } = await admin
     .from("products")
     .select(
-      "id, name, price, description, image_url, category, requires_shipping, stock, sku, active, pages!products_page_id_fkey(slug)",
+      "id, name, price, description, image_url, category, requires_shipping, stock, sku, active, pages!products_page_id_fkey(slug), product_variants(id, name, price, stock, sku, active, sort_order)",
     )
     .eq("user_id", ctx.ownerId)
     .eq("is_catalog", true)
@@ -102,6 +102,7 @@ export default async function StoreDashboardPage() {
     sku: string | null;
     active: boolean;
     pages?: { slug: string } | { slug: string }[] | null;
+    product_variants?: Array<{ id: string; name: string; price: number; stock: number | null; sku: string | null; active: boolean; sort_order: number }> | null;
   }>).map((r) => ({
     id: r.id,
     name: r.name,
@@ -114,6 +115,16 @@ export default async function StoreDashboardPage() {
     sku: r.sku,
     active: r.active,
     slug: (Array.isArray(r.pages) ? r.pages[0] : r.pages)?.slug ?? null,
+    variants: (r.product_variants ?? [])
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((v) => ({
+        id: v.id,
+        name: v.name,
+        price: Number(v.price ?? 0),
+        stock: v.stock,
+        sku: v.sku,
+        active: v.active,
+      })),
   }));
 
   // Collections + their membership, and the product picker options.

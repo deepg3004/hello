@@ -22,24 +22,28 @@ interface OrderLite {
 export async function fulfillCartOrder(order: OrderLite, admin: DB): Promise<void> {
   const { data: items } = await admin
     .from("order_items")
-    .select("product_id, name_snapshot, quantity, line_amount")
+    .select("product_id, variant_id, name_snapshot, quantity, line_amount")
     .eq("order_id", order.id);
   const lines = (items ?? []) as Array<{
     product_id: string | null;
+    variant_id: string | null;
     name_snapshot: string;
     quantity: number;
     line_amount: number;
   }>;
 
-  // Decrement stock per line (RPC subtracts 1; call it `quantity` times). The
-  // RPC clamps at 0, so this can't go negative. Log-and-continue on any error.
+  // Decrement stock per line — the variant's stock when the line has a variant,
+  // else the product's. RPC clamps at 0; log-and-continue on any error.
   for (const l of lines) {
-    if (!l.product_id) continue;
     for (let i = 0; i < l.quantity; i++) {
       try {
-        await admin.rpc("decrement_product_stock", { p_product_id: l.product_id });
+        if (l.variant_id) {
+          await admin.rpc("decrement_variant_stock", { p_variant_id: l.variant_id });
+        } else if (l.product_id) {
+          await admin.rpc("decrement_product_stock", { p_product_id: l.product_id });
+        }
       } catch (e) {
-        console.error("[cart-fulfillment] stock decrement failed", l.product_id, e);
+        console.error("[cart-fulfillment] stock decrement failed", l.variant_id ?? l.product_id, e);
       }
     }
   }
@@ -74,6 +78,22 @@ export async function fulfillCartOrder(order: OrderLite, admin: DB): Promise<voi
     });
   } catch (e) {
     console.error("[cart-fulfillment] receipt email failed", e);
+  }
+
+  // Settle coupon usage in Postgres (exactly-once — the caller already won the
+  // pending→paid transition before calling this). Best-effort.
+  try {
+    const { data: ord } = await admin
+      .from("orders")
+      .select("coupon_id")
+      .eq("id", order.id)
+      .single();
+    if (ord?.coupon_id) {
+      const { settleCoupon } = await import("@/lib/coupons");
+      await settleCoupon(ord.coupon_id);
+    }
+  } catch (e) {
+    console.error("[cart-fulfillment] coupon settle failed", e);
   }
 
   // Invoice (background) — the generator summarizes the line items into the

@@ -2,12 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, Plus, Trash2, PackageOpen } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, PackageOpen, Layers } from "lucide-react";
 
 import {
   createCatalogProductAction,
   updateCatalogProductAction,
   deleteCatalogProductAction,
+  setProductVariantsAction,
   type CatalogProductInput,
 } from "@/actions/store";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,15 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { formatINR } from "@/lib/utils";
 
+export interface CatalogVariant {
+  id: string;
+  name: string;
+  price: number;
+  stock: number | null;
+  sku: string | null;
+  active: boolean;
+}
+
 export interface CatalogProduct {
   id: string;
   name: string;
@@ -38,9 +48,17 @@ export interface CatalogProduct {
   sku: string | null;
   active: boolean;
   slug: string | null;
+  variants: CatalogVariant[];
 }
 
 type Draft = CatalogProductInput & { active: boolean };
+
+interface VariantRow {
+  name: string;
+  price: number;
+  stock: number | null;
+  sku: string | null;
+}
 
 function emptyDraft(): Draft {
   return {
@@ -68,6 +86,8 @@ export function CatalogManager({
   const [pending, start] = useTransition();
   const [editing, setEditing] = useState<string | null>(null); // product id or "new"
   const [draft, setDraft] = useState<Draft>(emptyDraft());
+  const [variantFor, setVariantFor] = useState<CatalogProduct | null>(null);
+  const [variantRows, setVariantRows] = useState<VariantRow[]>([]);
 
   function openNew() {
     setDraft(emptyDraft());
@@ -110,6 +130,44 @@ export function CatalogManager({
       }
       toast({ title: editing === "new" ? "Product added" : "Product updated" });
       setEditing(null);
+      router.refresh();
+    });
+  }
+
+  function openVariants(p: CatalogProduct) {
+    setVariantFor(p);
+    setVariantRows(
+      p.variants.map((v) => ({ name: v.name, price: v.price, stock: v.stock, sku: v.sku })),
+    );
+  }
+  const setRow = (i: number, patch: Partial<VariantRow>) =>
+    setVariantRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  const addRow = () =>
+    setVariantRows((rows) => [...rows, { name: "", price: 0, stock: null, sku: null }]);
+  const removeRow = (i: number) =>
+    setVariantRows((rows) => rows.filter((_, idx) => idx !== i));
+
+  function saveVariants() {
+    if (!variantFor) return;
+    const bad = variantRows.find((r) => r.name.trim() && !(Number(r.price) > 0));
+    if (bad) {
+      toast({ variant: "destructive", title: `Set a price for "${bad.name.trim()}"` });
+      return;
+    }
+    const product = variantFor;
+    start(async () => {
+      const res = await setProductVariantsAction(
+        product.id,
+        variantRows
+          .filter((r) => r.name.trim())
+          .map((r) => ({ name: r.name, price: Number(r.price), stock: r.stock, sku: r.sku })),
+      );
+      if (!res.ok) {
+        toast({ variant: "destructive", title: "Couldn't save options", description: res.message });
+        return;
+      }
+      toast({ title: "Options saved" });
+      setVariantFor(null);
       router.refresh();
     });
   }
@@ -163,6 +221,7 @@ export function CatalogManager({
                   {formatINR(Math.round(p.price * 100))}
                   {p.category ? ` · ${p.category}` : ""}
                   {p.stock != null ? ` · ${p.stock} in stock` : ""}
+                  {p.variants.length > 0 ? ` · ${p.variants.length} option${p.variants.length === 1 ? "" : "s"}` : ""}
                 </p>
               </div>
               <div className="flex items-center gap-1">
@@ -173,6 +232,9 @@ export function CatalogManager({
                     </a>
                   </Button>
                 )}
+                <Button variant="ghost" size="icon" title="Options / variants" onClick={() => openVariants(p)}>
+                  <Layers className="h-4 w-4" />
+                </Button>
                 <Button variant="ghost" size="icon" onClick={() => openEdit(p)}>
                   <Pencil className="h-4 w-4" />
                 </Button>
@@ -262,6 +324,71 @@ export function CatalogManager({
             <Button onClick={save} disabled={pending}>
               {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!variantFor} onOpenChange={(o) => !o && setVariantFor(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Options — {variantFor?.name}</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Add variants (e.g. sizes, plans) buyers pick from. Each has its own
+            price and stock. Leave empty to sell the product as-is.
+          </p>
+          <div className="space-y-2">
+            {variantRows.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">No options yet.</p>
+            ) : (
+              variantRows.map((r, i) => (
+                <div key={i} className="grid grid-cols-[1fr_auto] items-start gap-2 rounded-lg border p-2">
+                  <div className="grid gap-2">
+                    <Input
+                      value={r.name}
+                      placeholder="Option name (e.g. Large)"
+                      onChange={(e) => setRow(i, { name: e.target.value })}
+                    />
+                    <div className="grid grid-cols-3 gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="Price ₹"
+                        value={r.price || ""}
+                        onChange={(e) => setRow(i, { price: Number(e.target.value) })}
+                      />
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="Stock"
+                        value={r.stock ?? ""}
+                        onChange={(e) => setRow(i, { stock: e.target.value === "" ? null : Number(e.target.value) })}
+                      />
+                      <Input
+                        placeholder="SKU"
+                        value={r.sku ?? ""}
+                        onChange={(e) => setRow(i, { sku: e.target.value || null })}
+                      />
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeRow(i)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))
+            )}
+            <Button variant="outline" size="sm" onClick={addRow}>
+              <Plus className="mr-1.5 h-4 w-4" /> Add option
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVariantFor(null)} disabled={pending}>
+              Cancel
+            </Button>
+            <Button onClick={saveVariants} disabled={pending}>
+              {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save options
             </Button>
           </DialogFooter>
         </DialogContent>
