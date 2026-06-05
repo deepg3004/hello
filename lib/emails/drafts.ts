@@ -40,27 +40,6 @@ ${btn("{{retry_url}}", "Try again")}`,
 <p>Your {{plan}} plan (₹{{amount}}) renews on {{renews_at}}.</p>
 ${btn("{{app_url}}/dashboard/settings/billing", "Manage plan")}`,
   },
-  payout_initiated: {
-    subject: "Payout initiated — ₹{{amount}}",
-    body_html: `<h2 style="margin:0 0 12px;font-size:20px">Payout on the way 🚀</h2>
-<p>Hi {{seller_name}},</p>
-<p>Your payout of ₹{{amount}} has been initiated to your bank ending {{bank_last4}}. It typically lands within 2–4 hours.</p>
-${btn("{{app_url}}/dashboard/payouts", "View payouts")}`,
-  },
-  payout_completed: {
-    subject: "Payout settled — ₹{{amount}} ✅",
-    body_html: `<h2 style="margin:0 0 12px;font-size:20px">Payout settled ✅</h2>
-<p>Hi {{seller_name}},</p>
-<p>₹{{amount}} has been credited to your bank ending {{bank_last4}}. UTR: {{utr}}</p>
-${btn("{{app_url}}/dashboard/payouts", "View payouts")}`,
-  },
-  payout_failed: {
-    subject: "Payout unsuccessful — ₹{{amount}} returned",
-    body_html: `<h2 style="margin:0 0 12px;font-size:20px">Payout didn't go through</h2>
-<p>Hi {{seller_name}},</p>
-<p>Your payout of ₹{{amount}} couldn't be completed ({{reason}}) and the amount is back in your available balance.</p>
-${btn("{{app_url}}/dashboard/payouts", "Request again")}`,
-  },
   lead_notification: {
     subject: "New lead from {{page_title}}",
     body_html: `<h2 style="margin:0 0 12px;font-size:20px">New lead captured</h2>

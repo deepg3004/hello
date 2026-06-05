@@ -12,9 +12,6 @@ import type { WelcomeData } from "./templates/welcome";
 import type { SubscriptionRenewalData } from "./templates/subscription-renewal";
 import type { RecoveryHero } from "./templates/abandoned-recovery-1";
 import type { AbandonedRecovery2Data } from "./templates/abandoned-recovery-2";
-import type { PayoutInitiatedData } from "./templates/payout-initiated";
-import type { PayoutCompletedData } from "./templates/payout-completed";
-import type { PayoutFailedData } from "./templates/payout-failed";
 import type { LeadNotificationData } from "./templates/lead-notification";
 import { renderEmail } from "./render";
 import { sendViaSmtp, getAdminBcc } from "./smtp";
@@ -32,9 +29,6 @@ export interface TemplateDataMap {
   subscription_renewal: SubscriptionRenewalData;
   abandoned_recovery_1: RecoveryHero;
   abandoned_recovery_2: AbandonedRecovery2Data;
-  payout_initiated: PayoutInitiatedData;
-  payout_completed: PayoutCompletedData;
-  payout_failed: PayoutFailedData;
   lead_notification: LeadNotificationData;
 }
 

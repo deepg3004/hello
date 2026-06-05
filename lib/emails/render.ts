@@ -19,9 +19,6 @@ import { welcomeEmail } from "./templates/welcome";
 import { orderConfirmationEmail } from "./templates/order-confirmation";
 import { paymentFailedEmail } from "./templates/payment-failed";
 import { subscriptionRenewalEmail } from "./templates/subscription-renewal";
-import { payoutInitiatedEmail } from "./templates/payout-initiated";
-import { payoutCompletedEmail } from "./templates/payout-completed";
-import { payoutFailedEmail } from "./templates/payout-failed";
 import { leadNotificationEmail } from "./templates/lead-notification";
 import { abandonedRecovery1Email } from "./templates/abandoned-recovery-1";
 import { abandonedRecovery2Email } from "./templates/abandoned-recovery-2";
@@ -52,9 +49,6 @@ export const CODE_TEMPLATES: Record<string, Renderer> = {
   order_confirmation: (d) => orderConfirmationEmail(d as never),
   payment_failed: (d) => paymentFailedEmail(d as never),
   subscription_renewal: (d) => subscriptionRenewalEmail(d as never),
-  payout_initiated: (d) => payoutInitiatedEmail(d as never),
-  payout_completed: (d) => payoutCompletedEmail(d as never),
-  payout_failed: (d) => payoutFailedEmail(d as never),
   lead_notification: (d) => leadNotificationEmail(d as never),
   abandoned_recovery_1: (d) => abandonedRecovery1Email(d as never),
   abandoned_recovery_2: (d) => abandonedRecovery2Email(d as never),
@@ -78,9 +72,6 @@ export const PLACEHOLDERS: Record<string, string[]> = {
   order_confirmation: ["buyer_name", "seller_name", "product_name", "amount", "currency", "order_id", "invoice_url", "telegram_invite_url"],
   payment_failed: ["buyer_name", "product_name", "amount", "currency", "retry_url", "reason"],
   subscription_renewal: ["seller_name", "plan", "renews_at", "amount", "currency"],
-  payout_initiated: ["seller_name", "amount", "currency", "bank_last4"],
-  payout_completed: ["seller_name", "amount", "currency", "bank_last4", "utr", "payout_id"],
-  payout_failed: ["seller_name", "amount", "currency", "reason"],
   lead_notification: ["seller_name", "lead_name", "lead_email", "lead_phone", "page_title"],
   abandoned_recovery_1: ["buyer_name", "seller_name", "product_name", "product_price", "recovery_url"],
   abandoned_recovery_2: ["buyer_name", "seller_name", "product_name", "product_price", "recovery_url", "coupon_code", "coupon_label"],
@@ -102,9 +93,6 @@ export const SAMPLE_DATA: Record<string, Record<string, unknown>> = {
   order_confirmation: { buyer_name: "Asha Patel", seller_name: "Acme Studio", product_name: "Pro Trading Course", amount: 1499, currency: "INR", order_id: "ord_abcdef123456", invoice_url: `${APP_URL}/api/orders/x/invoice` },
   payment_failed: { buyer_name: "Asha Patel", product_name: "Pro Trading Course", amount: 1499, currency: "INR", retry_url: `${APP_URL}/p/course/checkout`, reason: "Card declined" },
   subscription_renewal: { seller_name: "Ravi Kumar", plan: "Pro", renews_at: "2026-07-01", amount: 999, currency: "INR" },
-  payout_initiated: { seller_name: "Ravi Kumar", amount: 20000, currency: "INR", bank_last4: "4321" },
-  payout_completed: { seller_name: "Ravi Kumar", amount: 20000, currency: "INR", bank_last4: "4321", utr: "UTR2026060112345", payout_id: "pout_9xyz" },
-  payout_failed: { seller_name: "Ravi Kumar", amount: 20000, currency: "INR", reason: "Bank account could not be verified" },
   lead_notification: { seller_name: "Ravi Kumar", lead_name: "Asha Patel", lead_email: "asha@example.com", lead_phone: "+91 98765 43210", page_title: "Free Trading Guide" },
   abandoned_recovery_1: { buyer_name: "Asha Patel", seller_name: "Acme Studio", product_name: "Pro Trading Course", product_price: 1499, recovery_url: `${APP_URL}/p/course/checkout?r=x` },
   abandoned_recovery_2: { buyer_name: "Asha Patel", seller_name: "Acme Studio", product_name: "Pro Trading Course", product_price: 1499, recovery_url: `${APP_URL}/p/course/checkout?r=x`, coupon_code: "SAVE10", coupon_label: "10% off" },
@@ -133,9 +121,6 @@ export interface BuiltinMeta {
 export const BUILTIN_META: BuiltinMeta[] = [
   { key: "welcome", name: "Welcome (new signup)", audience: "Seller", role: "onboarding", live: true },
   { key: "lead_alert", name: "New lead alert (seller)", audience: "Seller", role: "seller", live: true },
-  { key: "payout_initiated", name: "Payout initiated", audience: "Seller", role: "seller", live: true },
-  { key: "payout_completed", name: "Payout completed", audience: "Seller", role: "seller", live: true },
-  { key: "payout_failed", name: "Payout failed / rejected", audience: "Seller", role: "seller", live: true },
   { key: "subscription_renewal", name: "Subscription renewal", audience: "Seller", role: "billing", live: false },
   { key: "sale_receipt", name: "Order receipt (buyer)", audience: "Billing", role: "billing", live: true },
   { key: "payment_failed", name: "Payment failed (buyer)", audience: "Billing", role: "billing", live: false },

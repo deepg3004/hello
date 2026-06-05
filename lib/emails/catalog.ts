@@ -10,9 +10,6 @@ import { welcomeEmail } from "./templates/welcome";
 import { orderConfirmationEmail } from "./templates/order-confirmation";
 import { paymentFailedEmail } from "./templates/payment-failed";
 import { subscriptionRenewalEmail } from "./templates/subscription-renewal";
-import { payoutInitiatedEmail } from "./templates/payout-initiated";
-import { payoutCompletedEmail } from "./templates/payout-completed";
-import { payoutFailedEmail } from "./templates/payout-failed";
 import { leadNotificationEmail } from "./templates/lead-notification";
 import { abandonedRecovery1Email } from "./templates/abandoned-recovery-1";
 
@@ -132,43 +129,6 @@ export const EMAIL_CATALOG: CatalogEntry[] = [
         amount: 1499,
         order_id: "ord_abcdef123456",
         invoice_url: `${APP_URL}/api/orders/x/invoice`,
-      }),
-  },
-  {
-    key: "payout_initiated",
-    label: "Payout initiated",
-    audience: "Seller",
-    live: true,
-    description: "Sent when a payout starts processing.",
-    render: () =>
-      payoutInitiatedEmail({ seller_name: "Ravi Kumar", amount: 20000, bank_last4: "4321" }),
-  },
-  {
-    key: "payout_completed",
-    label: "Payout completed",
-    audience: "Seller",
-    live: true,
-    description: "Sent when a payout lands in the seller's bank.",
-    render: () =>
-      payoutCompletedEmail({
-        seller_name: "Ravi Kumar",
-        amount: 20000,
-        bank_last4: "4321",
-        utr: "UTR2026060112345",
-        payout_id: "pout_9xyz",
-      }),
-  },
-  {
-    key: "payout_failed",
-    label: "Payout failed / rejected",
-    audience: "Seller",
-    live: true,
-    description: "Sent when a payout is rejected or fails; funds returned.",
-    render: () =>
-      payoutFailedEmail({
-        seller_name: "Ravi Kumar",
-        amount: 20000,
-        reason: "Bank account could not be verified",
       }),
   },
 

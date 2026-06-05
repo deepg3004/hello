@@ -12,7 +12,6 @@ export interface DashboardMetrics {
   /** Revenue captured Jan 1–31 of the previous calendar month. Drives the
    *  "vs ₹X last month" hint on the Revenue MetricCard. */
   revenueLastMonth: number;
-  pendingPayout: number;
   totalCustomers: number;
   activePages: number;
   failedPayments: number;
@@ -33,7 +32,6 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
   const [
     { data: revenueRows },
     { data: lastMonthRevenueRows },
-    { data: pendingRows },
     { data: paidOrders },
     { count: pagesCount },
     { count: failedCount },
@@ -54,11 +52,6 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
       .eq("status", "paid")
       .gte("paid_at", lastMonthStart)
       .lt("paid_at", lastMonthEnd),
-    admin
-      .from("orders")
-      .select("seller_amount")
-      .eq("seller_user_id", userId)
-      .eq("status", "paid"),
     admin
       .from("orders")
       .select("buyer_email")
@@ -99,23 +92,6 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
     0,
   );
 
-  // Pending payout = all-time paid seller amounts MINUS amounts already in
-  // completed payouts. Subtract by querying payouts separately.
-  const grossPayable = (pendingRows ?? []).reduce(
-    (acc, r) => acc + Number(r.seller_amount ?? 0),
-    0,
-  );
-  const { data: completedPayouts } = await admin
-    .from("payouts")
-    .select("amount")
-    .eq("user_id", userId)
-    .eq("status", "completed");
-  const paidOut = (completedPayouts ?? []).reduce(
-    (acc, r) => acc + Number(r.amount ?? 0),
-    0,
-  );
-  const pendingPayout = Math.max(0, grossPayable - paidOut);
-
   const uniqueCustomers = new Set(
     (paidOrders ?? []).map((r) => r.buyer_email?.toLowerCase()).filter(Boolean),
   ).size;
@@ -128,7 +104,6 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
   return {
     revenueThisMonth,
     revenueLastMonth,
-    pendingPayout,
     totalCustomers: uniqueCustomers,
     activePages: pagesCount ?? 0,
     failedPayments: failedCount ?? 0,

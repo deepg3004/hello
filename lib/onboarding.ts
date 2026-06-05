@@ -1,28 +1,19 @@
 // =============================================================================
 // Onboarding state — pure computation, safe to import on the client.
 //
-// "Onboarded" = at least the profile + first page are done. KYC + bank are
-// optional skip-able steps; sellers can come back later. The dashboard
+// "Onboarded" = at least the profile + first page are done. Category is an
+// optional skip-able step; sellers can come back later. The dashboard
 // welcome banner stays until profile.onboarded_at is set (auto-stamped when
 // step 1 + 3 are done) OR profile.welcome_dismissed_at is set.
 // =============================================================================
 
-export type OnboardingStepKey =
-  | "profile"
-  | "category"
-  | "kyc"
-  | "page"
-  | "payouts";
+export type OnboardingStepKey = "profile" | "category" | "page";
 
 export interface OnboardingProfile {
   /** From user_profiles. */
   full_name?: string | null;
   phone?: string | null;
   avatar_url?: string | null;
-  /** ≥1 of (PAN verified, bank verified) — drives the KYC step. */
-  kyc_level?: number | null;
-  bank_verified?: boolean | null;
-  razorpay_linked_account_id?: string | null;
   onboarded_at?: string | null;
   welcome_dismissed_at?: string | null;
   /** Self-selected niche — drives the "category" step. */
