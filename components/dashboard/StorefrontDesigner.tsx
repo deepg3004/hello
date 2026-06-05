@@ -17,6 +17,7 @@ import {
   themeCssVars,
   LEGAL_DOCS,
   FEATURE_ICONS,
+  SURFACES,
   type SurfaceConfig,
   type Surface,
   type ChromeConfig,
@@ -35,7 +36,15 @@ const CARDS: CardStyle[] = ["elevated", "bordered", "glass", "flat"];
 const RADII: RadiusKey[] = ["sharp", "soft", "round"];
 const DENSITIES: DensityKey[] = ["comfortable", "compact"];
 
-type View = "store" | "course" | "chrome" | "analytics";
+type View = Surface | "chrome" | "analytics";
+
+const LIVE_PATH: Record<Surface, string> = {
+  home: "/",
+  store: "/store",
+  product: "/store",
+  courses: "/course",
+  course: "/course",
+};
 
 export interface StorefrontAnalytics {
   totalViews: number;
@@ -45,27 +54,25 @@ export interface StorefrontAnalytics {
 }
 
 export function StorefrontDesigner({
-  store,
-  course,
+  configs,
   chrome,
   storeUrl,
   analytics,
 }: {
-  store: SurfaceConfig;
-  course: SurfaceConfig;
+  configs: Record<Surface, SurfaceConfig>;
   chrome: ChromeConfig;
   storeUrl: string | null;
   analytics: StorefrontAnalytics;
 }) {
-  const [view, setView] = useState<View>("store");
-  const [storeCfg, setStoreCfg] = useState<SurfaceConfig>(store);
-  const [courseCfg, setCourseCfg] = useState<SurfaceConfig>(course);
+  const [view, setView] = useState<View>("home");
+  const [cfgs, setCfgs] = useState<Record<Surface, SurfaceConfig>>(configs);
   const [chromeCfg, setChromeCfg] = useState<ChromeConfig>(chrome);
 
-  const surface: Surface = view === "course" ? "course" : "store";
-  const cfg = surface === "store" ? storeCfg : courseCfg;
-  const setCfg = (next: SurfaceConfig) =>
-    surface === "store" ? setStoreCfg(next) : setCourseCfg(next);
+  const isSurface = (v: View): v is Surface => SURFACES.some((s) => s.key === v);
+  const surface: Surface = isSurface(view) ? view : "home";
+  const surfaceLabel = SURFACES.find((s) => s.key === surface)?.label ?? "Page";
+  const cfg = cfgs[surface];
+  const setCfg = (next: SurfaceConfig) => setCfgs((prev) => ({ ...prev, [surface]: next }));
   const patch = (p: Partial<SurfaceConfig>) => setCfg({ ...cfg, ...p });
   const patchSection = (k: keyof SurfaceConfig["sections"], v: boolean) =>
     setCfg({ ...cfg, sections: { ...cfg.sections, [k]: v } });
@@ -83,16 +90,15 @@ export function StorefrontDesigner({
         toast({ variant: "destructive", title: "Couldn't save", description: res.message });
         return;
       }
-      toast({ title: view === "chrome" ? "Header & footer saved" : `${surface === "store" ? "Store" : "Course"} design saved` });
+      toast({ title: view === "chrome" ? "Header & footer saved" : `${surfaceLabel} design saved` });
       router.refresh();
     });
   }
 
-  const livePath = view === "course" ? "/course" : "/store";
+  const livePath = LIVE_PATH[surface];
 
   const TABS: { key: View; label: string }[] = [
-    { key: "store", label: "Store page" },
-    { key: "course", label: "Course page" },
+    ...SURFACES.map((s) => ({ key: s.key as View, label: s.label })),
     { key: "chrome", label: "Header & Footer" },
     { key: "analytics", label: "Analytics" },
   ];

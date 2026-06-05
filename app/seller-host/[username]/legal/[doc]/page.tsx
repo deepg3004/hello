@@ -45,7 +45,7 @@ export default async function LegalPage({ params }: Props) {
     .maybeSingle();
   if (!profile?.id) notFound();
 
-  const cfg = resolveSurfaceConfig(profile.storefront_config, "store");
+  const cfg = resolveSurfaceConfig(profile.storefront_config, "home");
   const chrome = resolveChromeConfig(profile.storefront_config);
   const sellerName = profile.legal_business_name ?? profile.full_name ?? params.username;
   const content = chrome.legal[doc]?.trim();

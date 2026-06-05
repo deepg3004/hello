@@ -1,7 +1,7 @@
 import { requirePageActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { platformRootDomain } from "@/lib/domains";
-import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-theme";
+import { resolveSurfaceConfig, resolveChromeConfig, SURFACES, type Surface, type SurfaceConfig } from "@/lib/storefront-theme";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { StorefrontDesigner } from "@/components/dashboard/StorefrontDesigner";
 
@@ -17,8 +17,9 @@ export default async function StorefrontDesignPage() {
     .eq("id", ctx.ownerId)
     .single();
 
-  const store = resolveSurfaceConfig(profile?.storefront_config, "store");
-  const course = resolveSurfaceConfig(profile?.storefront_config, "course");
+  const configs = Object.fromEntries(
+    SURFACES.map((s) => [s.key, resolveSurfaceConfig(profile?.storefront_config, s.key)]),
+  ) as Record<Surface, SurfaceConfig>;
   const chrome = resolveChromeConfig(profile?.storefront_config);
   const storeUrl = profile?.subdomain
     ? `https://${profile.subdomain}.${platformRootDomain()}`
@@ -57,7 +58,7 @@ export default async function StorefrontDesignPage() {
         resourcesHref={null}
       />
       <div className="animate-in-up" style={{ animationDelay: "60ms" }}>
-        <StorefrontDesigner store={store} course={course} chrome={chrome} storeUrl={storeUrl} analytics={analytics} />
+        <StorefrontDesigner configs={configs} chrome={chrome} storeUrl={storeUrl} analytics={analytics} />
       </div>
     </div>
   );

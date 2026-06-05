@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: Props) {
     .select("legal_business_name, full_name, storefront_config")
     .eq("subdomain", params.username)
     .maybeSingle();
-  const cfg = resolveSurfaceConfig(p?.storefront_config, "course");
+  const cfg = resolveSurfaceConfig(p?.storefront_config, "courses");
   const name = p?.legal_business_name ?? p?.full_name ?? params.username;
   return {
     title: cfg.title.trim() || `${name} — Courses`,
@@ -51,7 +51,7 @@ export default async function CourseCatalogPage({ params }: Props) {
     .maybeSingle();
   if (!profile?.id) notFound();
 
-  const cfg = resolveSurfaceConfig(profile.storefront_config, "course");
+  const cfg = resolveSurfaceConfig(profile.storefront_config, "courses");
   const chrome = resolveChromeConfig(profile.storefront_config);
 
   const { data: coursesRaw } = await admin

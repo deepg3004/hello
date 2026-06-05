@@ -7,7 +7,24 @@
 // user_profiles.storefront_config = { store: SurfaceConfig, course: SurfaceConfig }.
 // =============================================================================
 
-export type Surface = "store" | "course";
+export const SURFACES = [
+  { key: "home", label: "Home" },
+  { key: "store", label: "Store catalog" },
+  { key: "product", label: "Product page" },
+  { key: "courses", label: "Course catalog" },
+  { key: "course", label: "Course page" },
+] as const;
+export type Surface = (typeof SURFACES)[number]["key"];
+
+// When a page has no saved config yet, fall back to a related page's config so
+// a seller's existing store/course settings carry over to the new sub-pages.
+const SURFACE_FALLBACK: Record<Surface, Surface | null> = {
+  home: "store",
+  store: null,
+  product: "store",
+  courses: "course",
+  course: null,
+};
 
 export interface StorefrontTheme {
   key: string;
@@ -255,7 +272,9 @@ export function gridColsClass(cols: { desktop: number; tablet: number; mobile: n
 export function resolveSurfaceConfig(raw: unknown, surface: Surface): SurfaceConfig {
   const base = defaultSurfaceConfig();
   const root = (raw ?? {}) as Record<string, unknown>;
-  const s = (root[surface] ?? {}) as Partial<SurfaceConfig> & { sections?: Partial<SurfaceConfig["sections"]> };
+  const fb = SURFACE_FALLBACK[surface];
+  const raw0 = root[surface] ?? (fb ? root[fb] : undefined);
+  const s = (raw0 ?? {}) as Partial<SurfaceConfig> & { sections?: Partial<SurfaceConfig["sections"]> };
   const themeKey = typeof s.theme === "string" && STOREFRONT_THEMES[s.theme] ? s.theme : base.theme;
   return {
     theme: themeKey,

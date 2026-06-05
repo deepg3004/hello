@@ -47,7 +47,7 @@ export async function generateMetadata({ params }: Props) {
       .select("legal_business_name, full_name, storefront_config")
       .eq("subdomain", params.username)
       .maybeSingle();
-    const cfg = resolveSurfaceConfig(p?.storefront_config, "store");
+    const cfg = resolveSurfaceConfig(p?.storefront_config, "home");
     const name = p?.legal_business_name ?? p?.full_name ?? params.username;
     return {
       title: cfg.title.trim() || name,
@@ -118,7 +118,7 @@ export default async function SellerStore({ params }: Props) {
     .maybeSingle();
   if (!profile?.id) notFound();
 
-  const cfg = resolveSurfaceConfig(profile.storefront_config, "store");
+  const cfg = resolveSurfaceConfig(profile.storefront_config, "home");
   const chrome = resolveChromeConfig(profile.storefront_config);
 
   const { data: productsRaw } = await admin
