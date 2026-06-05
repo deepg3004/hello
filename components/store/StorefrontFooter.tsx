@@ -1,6 +1,7 @@
-import type { ChromeConfig } from "@/lib/storefront-theme";
+import { LEGAL_DOCS, type ChromeConfig } from "@/lib/storefront-theme";
 
-/** Themed storefront footer — link columns, social links, and a copyright line. */
+/** Themed storefront footer — link columns, social links, a legal row
+ *  (privacy/terms/refund/contact + Powered by InvoxAI), and a copyright line. */
 export function StorefrontFooter({
   footer,
   brandName,
@@ -45,7 +46,21 @@ export function StorefrontFooter({
             ))}
           </div>
         )}
-        <p className="sf-muted text-xs">{text}</p>
+        {/* Legal row */}
+        <div className="sf-border flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-5 text-xs">
+          {LEGAL_DOCS.map((d) => (
+            <a key={d.key} href={`/legal/${d.key}`} className="sf-muted transition hover:opacity-80">
+              {d.label}
+            </a>
+          ))}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <p className="sf-muted text-xs">{text}</p>
+          <a href="https://invoxai.io" target="_blank" rel="noreferrer" className="sf-muted text-xs transition hover:opacity-80">
+            Powered by InvoxAI
+          </a>
+        </div>
       </div>
     </footer>
   );

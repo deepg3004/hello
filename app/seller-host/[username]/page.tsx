@@ -17,6 +17,7 @@ import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-them
 import { CartProvider } from "@/components/store/cart/CartProvider";
 import { CartDrawer } from "@/components/store/cart/CartDrawer";
 import { StorefrontShell, PromoBanner } from "@/components/store/StorefrontShell";
+import { StorefrontBanners } from "@/components/store/StorefrontBanners";
 import {
   StoreGrid,
   type StoreProduct,
@@ -183,35 +184,11 @@ export default async function SellerStore({ params }: Props) {
     .eq("status", "published");
   const hasCourses = (courseCount ?? 0) > 0;
 
-  const heroName = cfg.headline.trim() || sellerName;
-  const heroTagline =
-    cfg.tagline.trim() ||
-    (totalProducts > 0 ? `${totalProducts} product${totalProducts === 1 ? "" : "s"} available` : `Store by ${sellerName}`);
-
   return (
     <CartProvider username={params.username}>
     <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName}>
-      <header className="sf-band sf-border border-b">
-        <div className="mx-auto flex max-w-5xl items-center gap-4 px-6 py-12">
-          {cfg.logo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={cfg.logo} alt={heroName} className="h-16 w-auto max-w-[220px] object-contain" />
-          ) : profile.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={profile.avatar_url} alt={sellerName} className="h-16 w-16 rounded-full border-2 border-[var(--sf-accent)] object-cover" />
-          ) : (
-            <div className="sf-accent-bg flex h-16 w-16 items-center justify-center rounded-full text-lg font-bold">
-              {(sellerName?.[0] ?? "?").toUpperCase()}
-            </div>
-          )}
-          <div>
-            <h1 className="sf-display text-3xl font-bold tracking-tight">{heroName}</h1>
-            <p className="sf-muted mt-1.5 text-sm">{heroTagline}</p>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-5xl px-6 py-10">
+      <main className="mx-auto max-w-5xl px-6 py-8">
+        <StorefrontBanners banners={cfg.banners} />
         <PromoBanner cfg={cfg} />
 
         {(totalProducts > 0 || hasCourses) && (
@@ -242,7 +219,7 @@ export default async function SellerStore({ params }: Props) {
         {totalProducts === 0 ? (
           <p className="sf-muted">No products live yet. Check back soon.</p>
         ) : (
-          <StoreGrid sections={sections} cardStyle={cfg.card} showBadges={cfg.sections.badges} />
+          <StoreGrid sections={sections} cardStyle={cfg.card} showBadges={cfg.sections.badges} cols={cfg.cols} />
         )}
       </main>
     </StorefrontShell>

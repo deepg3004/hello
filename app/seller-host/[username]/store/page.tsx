@@ -4,7 +4,6 @@
 
 import { notFound } from "next/navigation";
 import { unstable_noStore as noStore } from "next/cache";
-import Link from "next/link";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getReviewSummaries } from "@/lib/reviews";
@@ -12,6 +11,7 @@ import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-them
 import { CartProvider } from "@/components/store/cart/CartProvider";
 import { CartDrawer } from "@/components/store/cart/CartDrawer";
 import { StorefrontShell, PromoBanner } from "@/components/store/StorefrontShell";
+import { StorefrontBanners } from "@/components/store/StorefrontBanners";
 import { StoreCatalog } from "@/components/store/StoreCatalog";
 import type { CatalogItem } from "@/components/store/ProductCard";
 
@@ -117,38 +117,12 @@ export default async function StoreCatalogPage({ params }: Props) {
   ).sort();
 
   const sellerName = profile.legal_business_name ?? profile.full_name ?? params.username;
-  const headline = cfg.headline.trim() || sellerName;
-  const tagline =
-    cfg.tagline.trim() || profile.tagline || `${items.length} product${items.length === 1 ? "" : "s"} available`;
 
   return (
     <CartProvider username={params.username}>
       <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName}>
-        {/* Themed hero */}
-        <header className="sf-band sf-border border-b">
-          <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-12 sm:px-6">
-            {cfg.logo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={cfg.logo} alt={headline} className="h-16 w-auto max-w-[220px] object-contain" />
-            ) : profile.avatar_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={profile.avatar_url} alt={sellerName} className="h-16 w-16 rounded-full border-2 border-[var(--sf-accent)] object-cover" />
-            ) : (
-              <div className="sf-accent-bg flex h-16 w-16 items-center justify-center rounded-full text-lg font-bold">
-                {(sellerName?.[0] ?? "?").toUpperCase()}
-              </div>
-            )}
-            <div className="min-w-0">
-              <h1 className="sf-display text-3xl font-bold tracking-tight sm:text-4xl">{headline}</h1>
-              <p className="sf-muted mt-1.5 text-sm sm:text-base">{tagline}</p>
-            </div>
-            <Link href="/" className="sf-btn-outline ml-auto hidden px-4 py-2 text-sm font-medium transition hover:opacity-80 sm:inline-block">
-              ← Home
-            </Link>
-          </div>
-        </header>
-
-        <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+        <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+          <StorefrontBanners banners={cfg.banners} />
           <PromoBanner cfg={cfg} />
           {items.length === 0 ? (
             <p className="sf-muted py-20 text-center">No products live yet. Check back soon.</p>
@@ -160,6 +134,7 @@ export default async function StoreCatalogPage({ params }: Props) {
               cardStyle={cfg.card}
               showRatings={cfg.sections.ratings}
               showBadges={cfg.sections.badges}
+              cols={cfg.cols}
             />
           )}
         </main>

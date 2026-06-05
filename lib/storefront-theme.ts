@@ -162,6 +162,18 @@ export interface SurfaceConfig {
   logo: string; // image URL shown in the hero
   favicon: string; // browser tab icon
   title: string; // browser tab / SEO title
+  // Banners (replace the hero) + responsive grid columns
+  banners: Banner[];
+  cols: { desktop: number; tablet: number; mobile: number };
+}
+
+export interface Banner {
+  type: "image" | "text";
+  image: string;
+  title: string;
+  subtitle: string;
+  ctaLabel: string;
+  ctaUrl: string;
 }
 
 export function defaultSurfaceConfig(): SurfaceConfig {
@@ -184,7 +196,43 @@ export function defaultSurfaceConfig(): SurfaceConfig {
     logo: "",
     favicon: "",
     title: "",
+    banners: [],
+    cols: { desktop: 4, tablet: 3, mobile: 2 },
   };
+}
+
+function cleanBanners(v: unknown): Banner[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((b) => {
+      const o = (b ?? {}) as Record<string, unknown>;
+      const type = o.type === "text" ? "text" : "image";
+      const s = (x: unknown) => (typeof x === "string" ? x.trim().slice(0, 500) : "");
+      return {
+        type: type as "image" | "text",
+        image: s(o.image),
+        title: s(o.title),
+        subtitle: s(o.subtitle),
+        ctaLabel: s(o.ctaLabel),
+        ctaUrl: s(o.ctaUrl),
+      };
+    })
+    .filter((b) => b.image || b.title || b.subtitle)
+    .slice(0, 6);
+}
+
+function clampCol(v: unknown, def: number, min: number, max: number): number {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+}
+
+/** Tailwind grid-cols class for the configured per-device columns. The literal
+ *  classes below ensure Tailwind keeps them at build time. */
+export function gridColsClass(cols: { desktop: number; tablet: number; mobile: number }): string {
+  const m: Record<number, string> = { 1: "grid-cols-1", 2: "grid-cols-2" };
+  const t: Record<number, string> = { 1: "sm:grid-cols-1", 2: "sm:grid-cols-2", 3: "sm:grid-cols-3", 4: "sm:grid-cols-4" };
+  const d: Record<number, string> = { 2: "lg:grid-cols-2", 3: "lg:grid-cols-3", 4: "lg:grid-cols-4", 5: "lg:grid-cols-5", 6: "lg:grid-cols-6" };
+  return [m[cols.mobile] ?? "grid-cols-2", t[cols.tablet] ?? "sm:grid-cols-3", d[cols.desktop] ?? "lg:grid-cols-4"].join(" ");
 }
 
 /** Merge a stored (possibly partial) config for a surface with defaults. */
@@ -212,6 +260,12 @@ export function resolveSurfaceConfig(raw: unknown, surface: Surface): SurfaceCon
     logo: typeof s.logo === "string" ? s.logo : "",
     favicon: typeof s.favicon === "string" ? s.favicon : "",
     title: typeof s.title === "string" ? s.title : "",
+    banners: cleanBanners(s.banners),
+    cols: {
+      desktop: clampCol((s.cols as Record<string, unknown> | undefined)?.desktop, 4, 2, 6),
+      tablet: clampCol((s.cols as Record<string, unknown> | undefined)?.tablet, 3, 1, 4),
+      mobile: clampCol((s.cols as Record<string, unknown> | undefined)?.mobile, 2, 1, 2),
+    },
   };
 }
 
@@ -263,7 +317,16 @@ export interface ChromeConfig {
     columns: FooterColumn[];
     socials: MenuItem[];
   };
+  legal: { privacy: string; terms: string; refund: string; contact: string };
 }
+
+export const LEGAL_DOCS = [
+  { key: "privacy", label: "Privacy Policy" },
+  { key: "terms", label: "Terms of Service" },
+  { key: "refund", label: "Refund Policy" },
+  { key: "contact", label: "Contact Us" },
+] as const;
+export type LegalDoc = (typeof LEGAL_DOCS)[number]["key"];
 
 export function defaultChromeConfig(): ChromeConfig {
   return {
@@ -284,6 +347,7 @@ export function defaultChromeConfig(): ChromeConfig {
       columns: [],
       socials: [],
     },
+    legal: { privacy: "", terms: "", refund: "", contact: "" },
   };
 }
 
@@ -330,6 +394,12 @@ export function resolveChromeConfig(raw: unknown): ChromeConfig {
             .slice(0, 5)
         : [],
       socials: cleanMenu(f.socials, 8),
+    },
+    legal: {
+      privacy: typeof (c.legal as Record<string, unknown> | undefined)?.privacy === "string" ? String((c.legal as Record<string, unknown>).privacy).slice(0, 20000) : "",
+      terms: typeof (c.legal as Record<string, unknown> | undefined)?.terms === "string" ? String((c.legal as Record<string, unknown>).terms).slice(0, 20000) : "",
+      refund: typeof (c.legal as Record<string, unknown> | undefined)?.refund === "string" ? String((c.legal as Record<string, unknown>).refund).slice(0, 20000) : "",
+      contact: typeof (c.legal as Record<string, unknown> | undefined)?.contact === "string" ? String((c.legal as Record<string, unknown>).contact).slice(0, 20000) : "",
     },
   };
 }

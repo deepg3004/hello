@@ -14,18 +14,18 @@ import {
   STOREFRONT_THEME_LIST,
   FONTS,
   themeCssVars,
+  LEGAL_DOCS,
   type SurfaceConfig,
   type Surface,
   type ChromeConfig,
   type MenuItem,
+  type Banner,
   type FontKey,
-  type HeroStyle,
   type CardStyle,
   type RadiusKey,
   type DensityKey,
 } from "@/lib/storefront-theme";
 
-const HEROES: HeroStyle[] = ["banner", "gradient", "minimal", "split"];
 const CARDS: CardStyle[] = ["elevated", "bordered", "glass", "flat"];
 const RADII: RadiusKey[] = ["sharp", "soft", "round"];
 const DENSITIES: DensityKey[] = ["comfortable", "compact"];
@@ -194,12 +194,25 @@ export function StorefrontDesigner({
 
           {/* Layout */}
           <Section title="Layout">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Pick label="Hero" value={cfg.hero} options={HEROES} onChange={(v) => patch({ hero: v })} />
+            <div className="grid grid-cols-3 gap-3">
               <Pick label="Cards" value={cfg.card} options={CARDS} onChange={(v) => patch({ card: v })} />
               <Pick label="Corners" value={cfg.radius} options={RADII} onChange={(v) => patch({ radius: v })} />
               <Pick label="Density" value={cfg.density} options={DENSITIES} onChange={(v) => patch({ density: v })} />
             </div>
+          </Section>
+
+          {/* Products per row */}
+          <Section title="Products per row">
+            <div className="grid grid-cols-3 gap-3">
+              <NumberPick label="Desktop" value={cfg.cols.desktop} min={2} max={6} onChange={(v) => patch({ cols: { ...cfg.cols, desktop: v } })} />
+              <NumberPick label="Tablet" value={cfg.cols.tablet} min={1} max={4} onChange={(v) => patch({ cols: { ...cfg.cols, tablet: v } })} />
+              <NumberPick label="Mobile" value={cfg.cols.mobile} min={1} max={2} onChange={(v) => patch({ cols: { ...cfg.cols, mobile: v } })} />
+            </div>
+          </Section>
+
+          {/* Banners */}
+          <Section title="Banners (top of page)">
+            <BannerEditor banners={cfg.banners} onChange={(banners) => patch({ banners })} />
           </Section>
 
           {/* Sections */}
@@ -354,6 +367,26 @@ function ChromeEditor({
         </div>
       </Section>
 
+      {/* Legal & contact pages */}
+      <Section title="Legal & contact pages">
+        <p className="mb-3 text-xs text-muted-foreground">
+          These show on your branded pages (with your header & footer) and link from your footer. Leave blank to show a “coming soon” note.
+        </p>
+        <div className="space-y-3">
+          {LEGAL_DOCS.map((d) => (
+            <Field key={d.key} label={d.label}>
+              <textarea
+                value={chrome.legal[d.key]}
+                onChange={(e) => setChrome({ ...chrome, legal: { ...chrome.legal, [d.key]: e.target.value } })}
+                rows={d.key === "contact" ? 3 : 5}
+                placeholder={d.key === "contact" ? "Email, phone, address…" : `Your ${d.label.toLowerCase()} text…`}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </Field>
+          ))}
+        </div>
+      </Section>
+
       <Button onClick={onSave} disabled={pending}>
         {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
         Save header & footer
@@ -400,6 +433,56 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 accent-primary" />
       {label}
     </label>
+  );
+}
+
+function NumberPick({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void }) {
+  const opts = Array.from({ length: max - min + 1 }, (_, i) => min + i);
+  return (
+    <div>
+      <Label className="text-xs">{label}</Label>
+      <select value={value} onChange={(e) => onChange(Number(e.target.value))} className="mt-1 block h-9 w-full rounded-md border bg-background px-2 text-sm">
+        {opts.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function BannerEditor({ banners, onChange }: { banners: Banner[]; onChange: (b: Banner[]) => void }) {
+  const set = (i: number, p: Partial<Banner>) => onChange(banners.map((b, idx) => (idx === i ? { ...b, ...p } : b)));
+  const add = () => onChange([...banners, { type: "image", image: "", title: "", subtitle: "", ctaLabel: "", ctaUrl: "" }]);
+  return (
+    <div className="space-y-3">
+      {banners.map((b, i) => (
+        <div key={i} className="space-y-2 rounded-lg border p-3">
+          <div className="flex items-center justify-between gap-2">
+            <select value={b.type} onChange={(e) => set(i, { type: e.target.value as Banner["type"] })} className="h-9 rounded-md border bg-background px-2 text-sm">
+              <option value="image">Image banner</option>
+              <option value="text">Text banner</option>
+            </select>
+            <Button variant="ghost" size="icon" className="text-destructive" onClick={() => onChange(banners.filter((_, idx) => idx !== i))}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+          {b.type === "image" && <ImageUpload value={b.image} onChange={(v) => set(i, { image: v })} placeholder="Banner image" previewClassName="h-10 w-16 rounded object-cover" />}
+          <Input value={b.title} onChange={(e) => set(i, { title: e.target.value })} placeholder="Banner title" />
+          <Input value={b.subtitle} onChange={(e) => set(i, { subtitle: e.target.value })} placeholder="Subtitle (optional)" />
+          <div className="grid grid-cols-2 gap-2">
+            <Input value={b.ctaLabel} onChange={(e) => set(i, { ctaLabel: e.target.value })} placeholder="Button label" />
+            <Input value={b.ctaUrl} onChange={(e) => set(i, { ctaUrl: e.target.value })} placeholder="/store or https://…" />
+          </div>
+        </div>
+      ))}
+      {banners.length < 6 && (
+        <Button variant="outline" size="sm" onClick={add}>
+          <Plus className="mr-1.5 h-4 w-4" /> Add banner
+        </Button>
+      )}
+    </div>
   );
 }
 

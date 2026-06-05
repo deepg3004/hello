@@ -137,7 +137,7 @@ export default async function CollectionPage({ params }: Props) {
         {products.length === 0 ? (
           <p className="sf-muted">No products in this collection yet.</p>
         ) : (
-          <StoreGrid sections={sections} cardStyle={cfg.card} showBadges={cfg.sections.badges} />
+          <StoreGrid sections={sections} cardStyle={cfg.card} showBadges={cfg.sections.badges} cols={cfg.cols} />
         )}
       </main>
     </StorefrontShell>
