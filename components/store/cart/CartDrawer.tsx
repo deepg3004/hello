@@ -60,10 +60,9 @@ function useRazorpay() {
 }
 
 export function CartDrawer() {
-  const { items, count, subtotal, setQty, remove, clear } = useCart();
+  const { items, count, subtotal, setQty, remove, clear, isOpen: open, setOpen } = useCart();
   const { toast } = useToast();
   const razorpayReady = useRazorpay();
-  const [open, setOpen] = useState(false);
   const [paying, setPaying] = useState(false);
 
   const [email, setEmail] = useState("");

@@ -29,6 +29,7 @@ import {
   type CollectionRow,
   type ProductOption,
 } from "@/components/dashboard/store/CollectionsManager";
+import { ReviewModeration } from "@/components/dashboard/store/ReviewModeration";
 
 export const metadata = { title: "Store" };
 
@@ -85,7 +86,7 @@ export default async function StoreDashboardPage() {
   const { data: catalogRaw } = await admin
     .from("products")
     .select(
-      "id, name, price, description, image_url, category, requires_shipping, stock, sku, active, pages!products_page_id_fkey(slug), product_variants(id, name, price, stock, sku, active, sort_order)",
+      "id, name, price, description, image_url, category, requires_shipping, stock, sku, active, pages!products_page_id_fkey(slug), product_variants(id, name, price, stock, sku, active, sort_order), product_images(url, sort_order)",
     )
     .eq("user_id", ctx.ownerId)
     .eq("is_catalog", true)
@@ -103,6 +104,7 @@ export default async function StoreDashboardPage() {
     active: boolean;
     pages?: { slug: string } | { slug: string }[] | null;
     product_variants?: Array<{ id: string; name: string; price: number; stock: number | null; sku: string | null; active: boolean; sort_order: number }> | null;
+    product_images?: Array<{ url: string; sort_order: number }> | null;
   }>).map((r) => ({
     id: r.id,
     name: r.name,
@@ -125,6 +127,9 @@ export default async function StoreDashboardPage() {
         sku: v.sku,
         active: v.active,
       })),
+    images: (r.product_images ?? [])
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((i) => i.url),
   }));
 
   // Collections + their membership, and the product picker options.
@@ -155,6 +160,50 @@ export default async function StoreDashboardPage() {
   const productOptions: ProductOption[] = prodRows
     .filter((r) => !!r.name)
     .map((r) => ({ id: r.id, name: r.name }));
+
+  // Reviews across this seller's products + courses (for moderation).
+  const { data: reviewRaw } = await admin
+    .from("reviews")
+    .select("id, subject_type, subject_id, rating, title, body, buyer_name, buyer_email, status, created_at")
+    .eq("seller_user_id", ctx.ownerId)
+    .order("created_at", { ascending: false })
+    .limit(100);
+  const reviewRows = (reviewRaw ?? []) as Array<{
+    id: string;
+    subject_type: "product" | "course";
+    subject_id: string;
+    rating: number;
+    title: string | null;
+    body: string | null;
+    buyer_name: string | null;
+    buyer_email: string;
+    status: "published" | "hidden";
+    created_at: string;
+  }>;
+  // Resolve subject labels (product name / course title).
+  const productIds = reviewRows.filter((r) => r.subject_type === "product").map((r) => r.subject_id);
+  const courseIds = reviewRows.filter((r) => r.subject_type === "course").map((r) => r.subject_id);
+  const labelById = new Map<string, string>();
+  if (productIds.length) {
+    const { data } = await admin.from("products").select("id, name").in("id", productIds);
+    for (const p of (data ?? []) as Array<{ id: string; name: string }>) labelById.set(p.id, p.name);
+  }
+  if (courseIds.length) {
+    const { data } = await admin.from("courses").select("id, title").in("id", courseIds);
+    for (const c of (data ?? []) as Array<{ id: string; title: string }>) labelById.set(c.id, c.title);
+  }
+  const moderationReviews = reviewRows.map((r) => ({
+    id: r.id,
+    subject_type: r.subject_type,
+    subject_label: labelById.get(r.subject_id) ?? "—",
+    rating: r.rating,
+    title: r.title,
+    body: r.body,
+    buyer_name: r.buyer_name,
+    buyer_email: r.buyer_email,
+    status: r.status,
+    created_at: r.created_at,
+  }));
 
   const subdomain = profile?.subdomain ?? null;
   const storeUrl = subdomain
@@ -215,8 +264,13 @@ export default async function StoreDashboardPage() {
               </code>
               <div className="flex flex-wrap gap-2">
                 <Button asChild>
+                  <a href={`${storeUrl}/store`} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="mr-2 h-4 w-4" /> Open shop
+                  </a>
+                </Button>
+                <Button asChild variant="outline">
                   <a href={storeUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="mr-2 h-4 w-4" /> View store
+                    Home page
                   </a>
                 </Button>
                 <Button asChild variant="outline">
@@ -298,6 +352,22 @@ export default async function StoreDashboardPage() {
                   : null
               }
             />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Reviews moderation */}
+      <div className="animate-in-up" style={{ animationDelay: "160ms" }}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Reviews &amp; ratings</CardTitle>
+            <CardDescription>
+              Verified-buyer reviews on your products and courses. Hide any that
+              break your guidelines — averages update automatically.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ReviewModeration reviews={moderationReviews} />
           </CardContent>
         </Card>
       </div>
