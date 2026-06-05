@@ -66,7 +66,7 @@ export async function POST(request: Request) {
   const { data: order } = await admin
     .from("orders")
     .select(
-      "id, status, seller_user_id, page_id, amount, seller_amount, platform_commission, buyer_email, gateway_owner",
+      "id, status, seller_user_id, page_id, amount, seller_amount, platform_commission, buyer_email, buyer_name, source, gateway_owner",
     )
     .eq("gateway_order_id", payment.order_id)
     .eq("gateway_owner", "seller")
@@ -155,7 +155,22 @@ export async function POST(request: Request) {
     { sellerUserId: order.seller_user_id, orderId: order.id },
     admin,
   );
-  await decrementStockForOrder(order.id, admin);
+  // Cart orders: per-line stock + itemized receipt (the single-item
+  // decrementStockForOrder reads orders.product_id, which is NULL for carts).
+  if (order.source === "cart") {
+    const { fulfillCartOrder } = await import("@/lib/cart-fulfillment");
+    await fulfillCartOrder(
+      {
+        id: order.id,
+        buyer_email: order.buyer_email,
+        buyer_name: (order as { buyer_name?: string | null }).buyer_name ?? null,
+        seller_user_id: order.seller_user_id,
+      },
+      admin,
+    );
+  } else {
+    await decrementStockForOrder(order.id, admin);
+  }
   await fireMarketingWebhook(order.seller_user_id, "order_paid", {
     order_id: order.id,
     amount: Number(order.amount ?? 0),

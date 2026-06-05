@@ -61,6 +61,12 @@ export async function POST(request: Request) {
   if (!order) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
+  // Cart orders (source='cart', multi-line) MUST finalize on the cart path —
+  // this single-item route reads orders.product_id (NULL for carts), so letting
+  // one through here would skip per-line stock + the itemized receipt.
+  if (order.source === "cart") {
+    return NextResponse.json({ error: "Wrong checkout endpoint for this order" }, { status: 400 });
+  }
 
   // Verify the in-checkout signature with the secret of the gateway the order
   // was created on (Phase 4). Platform orders use the platform secret; orders

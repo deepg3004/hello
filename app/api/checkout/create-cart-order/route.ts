@@ -129,8 +129,8 @@ export async function POST(request: Request) {
     id: orderId,
     seller_user_id: seller.id,
     buyer_email: email,
-    buyer_name: body.buyer_name?.trim() || null,
-    buyer_phone: body.buyer_phone?.trim() || null,
+    buyer_name: body.buyer_name?.trim().slice(0, 120) || null,
+    buyer_phone: body.buyer_phone?.trim().slice(0, 20) || null,
     amount: totalPaise / 100,
     shipping_fee: shippingPaise / 100,
     shipping_address: cart.requiresShipping ? addr : null,
@@ -160,7 +160,10 @@ export async function POST(request: Request) {
   }));
   const { error: itemsErr } = await admin.from("order_items").insert(itemRows);
   if (itemsErr) {
+    // Don't leave a payable header with no lines — roll it back.
     console.error("[create-cart-order] order_items insert failed", itemsErr);
+    await admin.from("orders").delete().eq("id", orderId);
+    return NextResponse.json({ error: "Couldn't start checkout. Try again." }, { status: 500 });
   }
 
   return NextResponse.json({
