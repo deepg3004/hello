@@ -134,7 +134,7 @@ export default async function StoreCatalogPage({ params }: Props) {
 
   return (
     <CartProvider username={params.username}>
-      <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName}>
+      <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName} sellerId={profile.id}>
         <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
           <StorefrontBanners banners={cfg.banners} autoplay={cfg.bannerAutoplay} />
           <PromoBanner cfg={cfg} />
