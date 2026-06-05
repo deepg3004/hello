@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { isMaintenanceOn } from "@/lib/maintenance";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { PolicyFooter } from "@/components/public/PolicyFooter";
+import { ConditionalPolicyFooter } from "@/components/public/ConditionalPolicyFooter";
 
 export default async function PublicLayout({
   children,
@@ -36,7 +36,9 @@ export default async function PublicLayout({
   return (
     <div className="min-h-screen overflow-x-clip bg-background">
       {children}
-      <PolicyFooter />
+      {/* Hidden on themed course pages (they have their own branded footer);
+          kept on marketing / payment pages that require the legal links. */}
+      <ConditionalPolicyFooter />
     </div>
   );
 }
