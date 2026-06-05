@@ -4,7 +4,8 @@ import { ArrowLeft } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { SupportThread, type SupportMessage } from "@/components/support/SupportThread";
+import { type SupportMessage } from "@/components/support/SupportThread";
+import { LiveSupportThread } from "@/components/support/LiveSupportThread";
 import { SupportReply } from "@/components/dashboard/support/SupportReply";
 
 export const metadata = { title: "Support ticket" };
@@ -55,7 +56,7 @@ export default async function SellerTicketPage({
       </div>
 
       <div className="card-surface p-5">
-        <SupportThread messages={messages} />
+        <LiveSupportThread ticketId={ticket.id as string} initialMessages={messages} />
       </div>
 
       {resolved ? (

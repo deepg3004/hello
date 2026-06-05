@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { SupportThread, type SupportMessage } from "@/components/support/SupportThread";
+import { type SupportMessage } from "@/components/support/SupportThread";
+import { LiveSupportThread } from "@/components/support/LiveSupportThread";
 import { AdminSupportReply } from "@/components/admin/AdminSupportReply";
 
 export const metadata = { title: "Admin · Ticket" };
@@ -49,7 +50,12 @@ export default async function AdminTicketPage({
       </div>
 
       <div className="card-surface p-5">
-        <SupportThread messages={messages} inboundLabel={sender} outboundLabel="You" />
+        <LiveSupportThread
+          ticketId={ticket.id as string}
+          initialMessages={messages}
+          inboundLabel={sender}
+          outboundLabel="You"
+        />
       </div>
 
       <AdminSupportReply ticketId={ticket.id as string} status={ticket.status as string} />
