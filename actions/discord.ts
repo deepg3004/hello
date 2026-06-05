@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireActor } from "@/lib/account-context";
 import {
   banMember,
   createInvite,
@@ -103,16 +103,14 @@ export interface SaveSetupInput {
 export async function saveDiscordSetupAction(
   input: SaveSetupInput,
 ): Promise<ActionResult<{ id: string }>> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("discord.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
 
   const row = {
-    user_id: user.id,
+    user_id: ctx.ownerId,
     page_id: input.page_id ?? null,
     bot_token: input.bot_token,
     bot_username: input.bot_username ?? null,
@@ -141,7 +139,7 @@ export async function saveDiscordSetupAction(
       .from("pages")
       .update({ discord_server_id: inserted.id })
       .eq("id", input.page_id)
-      .eq("user_id", user.id);
+      .eq("user_id", ctx.ownerId);
 
     const plans = (input.plans ?? []).filter((p) => p.label && p.price > 0);
     if (plans.length > 0) {
@@ -149,10 +147,10 @@ export async function saveDiscordSetupAction(
         .from("products")
         .update({ active: false })
         .eq("page_id", input.page_id)
-        .eq("user_id", user.id);
+        .eq("user_id", ctx.ownerId);
 
       const rows = plans.map((p, idx) => ({
-        user_id: user.id,
+        user_id: ctx.ownerId,
         page_id: input.page_id,
         name: `${p.label} access`,
         display_label: p.label,
@@ -314,11 +312,9 @@ interface SellerMembershipCtx {
 async function loadSellerMembership(
   membershipId: string,
 ): Promise<SellerMembershipCtx | { error: string }> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not signed in" };
+  const actor = await requireActor("discord.manage");
+  if (!actor.ok) return { error: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
   const { data: m } = await admin
@@ -335,10 +331,10 @@ async function loadSellerMembership(
     .select("user_id, bot_token, guild_id")
     .eq("id", m.discord_server_id)
     .maybeSingle();
-  if (!s || s.user_id !== user.id) return { error: "Member not found" };
+  if (!s || s.user_id !== ctx.ownerId) return { error: "Member not found" };
 
   return {
-    userId: user.id,
+    userId: ctx.ownerId,
     admin,
     membership: {
       id: m.id,
@@ -358,11 +354,9 @@ export async function addMemberAction(input: {
   email: string;
   durationDays?: number | null;
 }): Promise<ActionResult<{ invite_link: string }>> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("discord.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const email = input.email.trim().toLowerCase();
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -375,7 +369,7 @@ export async function addMemberAction(input: {
     .select("id, user_id, bot_token, guild_id, invite_channel_id")
     .eq("id", input.serverId)
     .maybeSingle();
-  if (!server || server.user_id !== user.id) {
+  if (!server || server.user_id !== ctx.ownerId) {
     return { ok: false, message: "Server not found" };
   }
   if (!server.bot_token || !server.invite_channel_id) {

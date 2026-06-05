@@ -32,15 +32,11 @@ export async function GET(
   const bt = Array.isArray(b.booking_types) ? b.booking_types[0] : b.booking_types;
   const title = bt?.title ?? "Booking";
 
-  // Organizer email = seller (best-effort lookup; non-fatal).
-  let organizerEmail: string | null = null;
-  const { data: seller } = await admin
-    .from("user_profiles")
-    .select("email")
-    .eq("id", b.seller_user_id)
-    .maybeSingle();
-  organizerEmail = seller?.email ?? null;
-
+  // NOTE: this route is reachable by anyone holding the booking UUID — it's the
+  // "Add to calendar" link in the confirmation email, so it can't require a
+  // session. We therefore DELIBERATELY omit ORGANIZER/ATTENDEE (seller + buyer
+  // email) from the file: title/time/location only, no PII leak via a forwarded
+  // link.
   const ics = buildBookingIcs({
     uid: `${b.id}@invoxai.io`,
     startIso: b.start_at as string,
@@ -48,8 +44,6 @@ export async function GET(
     title,
     description: bt?.description ?? null,
     location: bt?.location ?? null,
-    organizerEmail,
-    attendeeEmail: (b.buyer_email as string) ?? null,
   });
 
   return new NextResponse(ics, {

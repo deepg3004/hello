@@ -438,11 +438,9 @@ export async function addMemberAction(input: {
   email: string;
   durationDays?: number | null;
 }): Promise<ActionResult<{ invite_link: string }>> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("telegram.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const email = input.email.trim().toLowerCase();
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -455,7 +453,7 @@ export async function addMemberAction(input: {
     .select("id, user_id, bot_token, group_chat_id, group_id")
     .eq("id", input.groupId)
     .maybeSingle();
-  if (!group || group.user_id !== user.id) {
+  if (!group || group.user_id !== ctx.ownerId) {
     return { ok: false, message: "Channel not found" };
   }
   const chatId = group.group_chat_id ?? group.group_id;
@@ -494,11 +492,9 @@ export async function addMemberAction(input: {
 export async function regenerateMemberInviteAction(
   membershipId: string,
 ): Promise<ActionResult<{ invite_link: string }>> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("telegram.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
   const { data: mem } = await admin
@@ -513,7 +509,7 @@ export async function regenerateMemberInviteAction(
     .select("id, user_id, bot_token, group_chat_id, group_id")
     .eq("id", mem.telegram_group_id)
     .maybeSingle();
-  if (!group || group.user_id !== user.id) {
+  if (!group || group.user_id !== ctx.ownerId) {
     return { ok: false, message: "Member not found" };
   }
 
@@ -562,11 +558,9 @@ interface SellerMembershipCtx {
 async function loadSellerMembership(
   membershipId: string,
 ): Promise<SellerMembershipCtx | { error: string }> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not signed in" };
+  const actor = await requireActor("telegram.manage");
+  if (!actor.ok) return { error: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
   const { data: m } = await admin
@@ -581,10 +575,10 @@ async function loadSellerMembership(
     .select("user_id, bot_token, group_chat_id, group_id")
     .eq("id", m.telegram_group_id)
     .maybeSingle();
-  if (!g || g.user_id !== user.id) return { error: "Member not found" };
+  if (!g || g.user_id !== ctx.ownerId) return { error: "Member not found" };
 
   return {
-    userId: user.id,
+    userId: ctx.ownerId,
     admin,
     membership: {
       id: m.id,

@@ -85,6 +85,14 @@ export async function testPixelAction(): Promise<Result> {
     return { ok: false, message: "No outbound webhook URL configured to test." };
   }
 
+  // SSRF guard — block private/loopback/metadata targets.
+  try {
+    const { assertPublicHttpUrl } = await import("@/lib/safe-url");
+    await assertPublicHttpUrl(url);
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Unsafe URL" };
+  }
+
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
@@ -98,6 +106,7 @@ export async function testPixelAction(): Promise<Result> {
         sent_at: new Date().toISOString(),
       }),
       signal: controller.signal,
+      redirect: "manual",
     });
     clearTimeout(timer);
     if (!res.ok) {

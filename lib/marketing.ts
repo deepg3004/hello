@@ -54,6 +54,10 @@ export async function fireMarketingWebhook(
     if (!m || !m.active || !m.webhook_url) return;
     if (!m.webhook_events?.includes(event)) return;
 
+    // SSRF guard: never let a seller-supplied URL hit internal/metadata hosts.
+    const { assertPublicHttpUrl } = await import("@/lib/safe-url");
+    await assertPublicHttpUrl(m.webhook_url);
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
     try {
@@ -67,6 +71,7 @@ export async function fireMarketingWebhook(
           sent_at: new Date().toISOString(),
         }),
         signal: controller.signal,
+        redirect: "manual",
       });
     } finally {
       clearTimeout(timer);

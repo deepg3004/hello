@@ -143,6 +143,22 @@ export async function POST(request: Request) {
   // path wins the race.
   const didTransition = !!paidRows && paidRows.length > 0;
 
+  // Concurrency guard: if we did NOT win the pending→paid transition, another
+  // verify call or the payment webhook already finalized this order. Bail here
+  // so every financial side-effect below (sale/commission ledger, page revenue,
+  // platform wallet fee, stock decrement, AB counters, fulfillment) runs
+  // exactly once — mirrors the rowcount guard the webhooks already use. Without
+  // this, two racing verify calls (double-click / client retry) double-charge
+  // the wallet fee and double-decrement stock.
+  if (!didTransition) {
+    return NextResponse.json({
+      ok: true,
+      order_id,
+      redirect_url: redirectUrl(order_id, order.page_id),
+      already_paid: true,
+    });
+  }
+
   // 1b. AB conversion counters — best-effort. Revenue tracked in paise so we
   //     don't lose paisa-level precision when summing.
   if (expSlug && expVariant) {
