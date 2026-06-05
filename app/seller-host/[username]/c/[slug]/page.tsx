@@ -11,6 +11,8 @@ import {
   type StoreProduct,
   type StoreSection,
 } from "@/components/store/StoreGrid";
+import { CartProvider } from "@/components/store/cart/CartProvider";
+import { CartDrawer } from "@/components/store/cart/CartDrawer";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +52,7 @@ interface ProductJoin {
   price: number;
   original_price: number | null;
   is_popular: boolean;
+  is_catalog: boolean;
   active: boolean;
   pages?: PageJoin | PageJoin[] | null;
 }
@@ -75,7 +78,7 @@ export default async function CollectionPage({ params }: Props) {
   const { data: memRaw } = await admin
     .from("collection_products")
     .select(
-      "sort_order, products!inner(id, name, description, image_url, price, original_price, is_popular, active, pages!products_page_id_fkey(slug, status))",
+      "sort_order, products!inner(id, name, description, image_url, price, original_price, is_popular, is_catalog, active, pages!products_page_id_fkey(slug, status))",
     )
     .eq("collection_id", collection.id)
     .order("sort_order", { ascending: true });
@@ -83,7 +86,7 @@ export default async function CollectionPage({ params }: Props) {
   const products: StoreProduct[] = ((memRaw ?? []) as Array<{ products: ProductJoin | ProductJoin[] | null }>)
     .map((m) => (Array.isArray(m.products) ? m.products[0] : m.products))
     .filter((p): p is ProductJoin => !!p && p.active)
-    .map((p) => {
+    .map((p): StoreProduct | null => {
       const page = Array.isArray(p.pages) ? p.pages[0] : p.pages;
       return page && page.status === "published"
         ? {
@@ -94,6 +97,7 @@ export default async function CollectionPage({ params }: Props) {
             price: Number(p.price ?? 0),
             original_price: p.original_price != null ? Number(p.original_price) : null,
             is_popular: !!p.is_popular,
+            is_catalog: !!p.is_catalog,
             slug: page.slug,
           }
         : null;
@@ -107,6 +111,7 @@ export default async function CollectionPage({ params }: Props) {
     : [];
 
   return (
+    <CartProvider username={params.username}>
     <main className="mx-auto max-w-5xl px-6 py-16">
       <div className="mb-8">
         <Link href="/" className="text-sm text-muted-foreground hover:underline">
@@ -128,5 +133,7 @@ export default async function CollectionPage({ params }: Props) {
         <StoreGrid sections={sections} />
       )}
     </main>
+    <CartDrawer />
+    </CartProvider>
   );
 }

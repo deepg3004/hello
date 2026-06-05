@@ -12,6 +12,8 @@ import {
   pageMatchesCategory,
   type PageCategoryKey,
 } from "@/lib/dashboard/page-categories";
+import { CartProvider } from "@/components/store/cart/CartProvider";
+import { CartDrawer } from "@/components/store/cart/CartDrawer";
 import {
   StoreGrid,
   type StoreProduct,
@@ -99,7 +101,7 @@ export default async function SellerStore({ params }: Props) {
   const { data: productsRaw } = await admin
     .from("products")
     .select(
-      "id, name, description, image_url, price, original_price, is_popular, sort_order, page_id, pages!products_page_id_fkey(slug, type, template_id, status)",
+      "id, name, description, image_url, price, original_price, is_popular, is_catalog, sort_order, page_id, pages!products_page_id_fkey(slug, type, template_id, status)",
     )
     .eq("user_id", profile.id)
     .eq("active", true)
@@ -128,6 +130,7 @@ export default async function SellerStore({ params }: Props) {
         original_price:
           row.original_price != null ? Number(row.original_price) : null,
         is_popular: !!row.is_popular,
+        is_catalog: !!row.is_catalog,
         slug: page.slug,
       }));
     return { key, label: PAGE_CATEGORIES[key].label, products };
@@ -147,6 +150,7 @@ export default async function SellerStore({ params }: Props) {
   const storeCollections = (colRaw ?? []) as Array<{ name: string; slug: string }>;
 
   return (
+    <CartProvider username={params.username}>
     <main className="mx-auto max-w-5xl px-6 py-16">
       <div className="mb-10 flex items-center gap-4">
         {profile.avatar_url ? (
@@ -195,5 +199,7 @@ export default async function SellerStore({ params }: Props) {
         <StoreGrid sections={sections} />
       )}
     </main>
+    <CartDrawer />
+    </CartProvider>
   );
 }

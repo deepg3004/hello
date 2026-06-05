@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { formatINR } from "@/lib/utils";
+import { AddToCartButton } from "@/components/store/cart/AddToCartButton";
 
 export interface StoreProduct {
   id: string;
@@ -11,6 +12,7 @@ export interface StoreProduct {
   original_price: number | null;
   is_popular: boolean;
   slug: string;
+  is_catalog?: boolean;
 }
 
 export interface StoreSection {
@@ -62,14 +64,27 @@ export function StoreGrid({ sections }: { sections: StoreSection[] }) {
                       {p.description}
                     </p>
                   )}
-                  <div className="mt-3 flex items-baseline gap-2">
-                    <span className="text-lg font-bold text-foreground">
-                      {formatINR(Math.round(p.price * 100))}
-                    </span>
-                    {p.original_price && p.original_price > p.price && (
-                      <span className="text-sm text-muted-foreground line-through">
-                        {formatINR(Math.round(p.original_price * 100))}
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-lg font-bold text-foreground">
+                        {formatINR(Math.round(p.price * 100))}
                       </span>
+                      {p.original_price && p.original_price > p.price && (
+                        <span className="text-sm text-muted-foreground line-through">
+                          {formatINR(Math.round(p.original_price * 100))}
+                        </span>
+                      )}
+                    </div>
+                    {p.is_catalog && (
+                      <AddToCartButton
+                        product={{
+                          product_id: p.id,
+                          name: p.name,
+                          price: p.price,
+                          image_url: p.image_url,
+                          slug: p.slug,
+                        }}
+                      />
                     )}
                   </div>
                 </div>
