@@ -14,9 +14,6 @@ const ALL_TEMPLATES: TemplateKey[] = [
   "subscription_renewal",
   "abandoned_recovery_1",
   "abandoned_recovery_2",
-  "payout_initiated",
-  "payout_completed",
-  "payout_failed",
   "lead_notification",
 ];
 
@@ -60,7 +57,6 @@ describe("TEMPLATE_ROLE", () => {
     expect(TEMPLATE_ROLE.order_confirmation).toBe("billing");
     expect(TEMPLATE_ROLE.payment_failed).toBe("billing");
     expect(TEMPLATE_ROLE.subscription_renewal).toBe("billing");
-    expect(TEMPLATE_ROLE.payout_completed).toBe("seller");
     expect(TEMPLATE_ROLE.lead_notification).toBe("seller");
   });
 });

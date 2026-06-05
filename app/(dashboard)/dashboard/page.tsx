@@ -99,7 +99,7 @@ export default async function DashboardOverview() {
     admin
       .from("user_profiles")
       .select(
-        "full_name, phone, avatar_url, kyc_level, bank_verified, razorpay_linked_account_id, onboarded_at, welcome_dismissed_at",
+        "full_name, phone, avatar_url, onboarded_at, welcome_dismissed_at",
       )
       .eq("id", user.id)
       .single(),
@@ -152,9 +152,6 @@ export default async function DashboardOverview() {
     full_name: profile?.full_name ?? null,
     phone: profile?.phone ?? null,
     avatar_url: profile?.avatar_url ?? null,
-    kyc_level: profile?.kyc_level ?? null,
-    bank_verified: profile?.bank_verified ?? null,
-    razorpay_linked_account_id: profile?.razorpay_linked_account_id ?? null,
     onboarded_at: profile?.onboarded_at ?? null,
     welcome_dismissed_at: profile?.welcome_dismissed_at ?? null,
     pages_count: pagesCount ?? 0,
@@ -216,11 +213,11 @@ export default async function DashboardOverview() {
           }
         />
         <MetricCard
-          label="Pending Payout"
-          value={rupees(metrics.pendingPayout)}
+          label="Avg order value"
+          value={rupees(avgOrderValue)}
           icon={Wallet}
           accentColor="emerald"
-          hint="Available to withdraw"
+          hint="Per paid order this month"
         />
         <MetricCard
           label="Total Customers"
