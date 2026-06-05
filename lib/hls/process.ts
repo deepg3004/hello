@@ -64,6 +64,12 @@ export async function processHlsForPath(rawPath: string): Promise<void> {
         updated_at: new Date().toISOString(),
       })
       .eq("raw_path", rawPath);
+
+    // 5. Drop the raw (unencrypted) upload now that the encrypted HLS is the
+    //    source of truth — saves storage + removes the last plaintext copy.
+    //    Best-effort; the lesson keeps the cmedia: path as the hls_assets key.
+    const { error: rmErr } = await admin.storage.from(VIDEO_BUCKET).remove([rawPath]);
+    if (rmErr) console.error("[hls] raw cleanup failed (non-fatal)", rawPath, rmErr.message);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[hls] transcode failed", rawPath, msg);
