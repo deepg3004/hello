@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActor } from "@/lib/account-context";
 import { encryptGatewayKey } from "@/lib/gateway-crypto";
-import type { GatewayType } from "@/lib/gateway-loader";
+import type { GatewayType, GatewayKeys } from "@/lib/gateway-loader";
+import { getGateway } from "@/lib/gateways";
 
 const GATEWAY_TYPES: GatewayType[] = [
   "razorpay",
@@ -87,4 +88,54 @@ export async function saveGatewayConfigAction(input: {
 
   revalidatePath("/dashboard/settings/gateway");
   return { ok: true };
+}
+
+/**
+ * Live "test connection" for the keys a seller is entering, BEFORE we trust
+ * them. Calls the provider driver's testConnection(). On success, if a config
+ * row already exists for this seller+gateway, mark it is_verified=true.
+ */
+export async function verifyGatewayAction(input: {
+  gateway_type: string;
+  key_id: string;
+  key_secret: string;
+  webhook_secret?: string;
+}): Promise<Result> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Not signed in" };
+
+  const gateway_type = input.gateway_type as GatewayType;
+  if (!GATEWAY_TYPES.includes(gateway_type)) {
+    return { ok: false, message: "Unsupported gateway" };
+  }
+  const keys: GatewayKeys = {
+    gateway_type,
+    key_id: input.key_id?.trim() ?? "",
+    key_secret: input.key_secret?.trim() ?? "",
+    webhook_secret: input.webhook_secret?.trim() || undefined,
+  };
+  if (!keys.key_id || !keys.key_secret) {
+    return { ok: false, message: "Key ID and Key Secret are required." };
+  }
+
+  let result;
+  try {
+    result = await getGateway(gateway_type).testConnection(keys);
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Test failed" };
+  }
+  if (!result.ok) return { ok: false, message: result.message ?? "Connection failed" };
+
+  const admin = createAdminClient();
+  await admin
+    .from("seller_gateway_config")
+    .update({ is_verified: true, updated_at: new Date().toISOString() })
+    .eq("seller_user_id", user.id)
+    .eq("gateway_type", gateway_type);
+
+  revalidatePath("/dashboard/settings/gateway");
+  return { ok: true, message: "Connection verified." };
 }
