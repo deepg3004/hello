@@ -153,7 +153,11 @@ export interface SurfaceConfig {
     topSelling: boolean;
     testimonials: boolean;
     faq: boolean;
+    brands: boolean;
+    features: boolean;
   };
+  sectionAlign: "left" | "center";
+  cardBorder: "theme" | "accent";
   headline: string;
   tagline: string;
   announcement: string;
@@ -192,7 +196,9 @@ export function defaultSurfaceConfig(): SurfaceConfig {
     card: "elevated",
     radius: "soft",
     density: "comfortable",
-    sections: { ratings: true, badges: true, related: true, trust: true, announcement: false, promo: false, topSelling: false, testimonials: false, faq: false },
+    sections: { ratings: true, badges: true, related: true, trust: true, announcement: false, promo: false, topSelling: false, testimonials: false, faq: false, brands: false, features: false },
+    sectionAlign: "left",
+    cardBorder: "theme",
     headline: "",
     tagline: "",
     announcement: "",
@@ -260,6 +266,8 @@ export function resolveSurfaceConfig(raw: unknown, surface: Surface): SurfaceCon
     radius: (s.radius && RADIUS[s.radius] ? s.radius : base.radius) as RadiusKey,
     density: (s.density ?? base.density) as DensityKey,
     sections: { ...base.sections, ...(s.sections ?? {}) },
+    sectionAlign: s.sectionAlign === "center" ? "center" : "left",
+    cardBorder: s.cardBorder === "accent" ? "accent" : "theme",
     headline: typeof s.headline === "string" ? s.headline : "",
     tagline: typeof s.tagline === "string" ? s.tagline : "",
     announcement: typeof s.announcement === "string" ? s.announcement : "",
@@ -286,13 +294,15 @@ export function themeCssVars(cfg: SurfaceConfig): Record<string, string> {
   const accent = cfg.accent ?? theme.vars.accent;
   const fontKey = cfg.font ?? theme.defaultFont;
   const font = FONTS[fontKey];
+  // "accent" card border tints every border with the accent colour.
+  const border = cfg.cardBorder === "accent" ? accent : theme.vars.border;
   return {
     "--sf-bg": theme.vars.bg,
     "--sf-bg2": theme.vars.bg2,
     "--sf-surface": theme.vars.surface,
     "--sf-fg": theme.vars.fg,
     "--sf-muted": theme.vars.muted,
-    "--sf-border": theme.vars.border,
+    "--sf-border": border,
     "--sf-accent": accent,
     "--sf-accent-fg": theme.vars.accentFg,
     "--sf-radius": RADIUS[cfg.radius],
@@ -333,6 +343,15 @@ export interface ChromeConfig {
   legal: { privacy: string; terms: string; refund: string; contact: string };
   testimonials: Testimonial[];
   faqs: Faq[];
+  brandLogos: string[];
+  features: Feature[];
+}
+
+export interface Feature {
+  icon: string; // a curated icon key (see FEATURE_ICONS) or empty
+  image: string; // optional image instead of an icon
+  title: string;
+  text: string;
 }
 
 export interface Testimonial {
@@ -379,8 +398,16 @@ export function defaultChromeConfig(): ChromeConfig {
     legal: { privacy: "", terms: "", refund: "", contact: "" },
     testimonials: [],
     faqs: [],
+    brandLogos: [],
+    features: [],
   };
 }
+
+/** Curated icon keys for the Features section (mapped to lucide in the UI). */
+export const FEATURE_ICONS = [
+  "truck", "shield", "rotate", "headphones", "tag", "gift", "star", "zap",
+  "heart", "award", "clock", "lock", "leaf", "globe", "sparkles", "check",
+] as const;
 
 function cleanMenu(v: unknown, max = 12): MenuItem[] {
   if (!Array.isArray(v)) return [];
@@ -436,7 +463,23 @@ export function resolveChromeConfig(raw: unknown): ChromeConfig {
     },
     testimonials: cleanTestimonials(c.testimonials),
     faqs: cleanFaqs(c.faqs),
+    brandLogos: Array.isArray(c.brandLogos)
+      ? (c.brandLogos as unknown[]).map((x) => (typeof x === "string" ? x.trim() : "")).filter((x) => /^https?:\/\//i.test(x)).slice(0, 24)
+      : [],
+    features: cleanFeatures(c.features),
   };
+}
+
+function cleanFeatures(v: unknown): Feature[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((f) => {
+      const o = (f ?? {}) as Record<string, unknown>;
+      const s = (x: unknown, n: number) => (typeof x === "string" ? x.trim().slice(0, n) : "");
+      return { icon: s(o.icon, 30), image: s(o.image, 400), title: s(o.title, 80), text: s(o.text, 300) };
+    })
+    .filter((f) => f.title || f.text)
+    .slice(0, 8);
 }
 
 function cleanTestimonials(v: unknown): Testimonial[] {

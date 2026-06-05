@@ -14,6 +14,7 @@ import { CartDrawer } from "@/components/store/cart/CartDrawer";
 import { StorefrontShell } from "@/components/store/StorefrontShell";
 import { TestimonialsSection } from "@/components/store/TestimonialsSection";
 import { FaqSection } from "@/components/store/FaqSection";
+import { BrandLogoSlider } from "@/components/store/BrandLogoSlider";
 import { ProductGallery } from "@/components/store/ProductGallery";
 import { ProductBuyPanel, type BuyPanelProduct } from "@/components/store/ProductBuyPanel";
 import { ReviewsSection } from "@/components/store/ReviewsSection";
@@ -254,8 +255,9 @@ export default async function ProductDetailPage({ params }: Props) {
             <ReviewsSection subjectType="product" subjectId={prod.id} summary={summary} reviews={reviews} subjectLabel="product" />
           </div>
 
-          {cfg.sections.testimonials && <TestimonialsSection items={chrome.testimonials} />}
-          {cfg.sections.faq && <FaqSection items={chrome.faqs} />}
+          {cfg.sections.testimonials && <TestimonialsSection items={chrome.testimonials} align={cfg.sectionAlign} />}
+          {cfg.sections.brands && <BrandLogoSlider logos={chrome.brandLogos} />}
+          {cfg.sections.faq && <FaqSection items={chrome.faqs} align={cfg.sectionAlign} />}
         </main>
       </StorefrontShell>
       <CartDrawer />

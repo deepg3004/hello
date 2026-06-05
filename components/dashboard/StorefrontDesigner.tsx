@@ -10,11 +10,13 @@ import { Label } from "@/components/ui/label";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { useToast } from "@/hooks/use-toast";
 import { saveStorefrontDesignAction, saveStorefrontChromeAction } from "@/actions/storefront";
+import { FEATURE_ICON_MAP } from "@/components/store/featureIcons";
 import {
   STOREFRONT_THEME_LIST,
   FONTS,
   themeCssVars,
   LEGAL_DOCS,
+  FEATURE_ICONS,
   type SurfaceConfig,
   type Surface,
   type ChromeConfig,
@@ -22,6 +24,7 @@ import {
   type Banner,
   type Testimonial,
   type Faq,
+  type Feature,
   type FontKey,
   type CardStyle,
   type RadiusKey,
@@ -200,6 +203,8 @@ export function StorefrontDesigner({
               <Pick label="Cards" value={cfg.card} options={CARDS} onChange={(v) => patch({ card: v })} />
               <Pick label="Corners" value={cfg.radius} options={RADII} onChange={(v) => patch({ radius: v })} />
               <Pick label="Density" value={cfg.density} options={DENSITIES} onChange={(v) => patch({ density: v })} />
+              <Pick label="Section align" value={cfg.sectionAlign} options={["left", "center"]} onChange={(v) => patch({ sectionAlign: v })} />
+              <Pick label="Card border" value={cfg.cardBorder} options={["theme", "accent"]} onChange={(v) => patch({ cardBorder: v })} />
             </div>
           </Section>
 
@@ -236,6 +241,8 @@ export function StorefrontDesigner({
                 ["topSelling", "Top-selling row"],
                 ["testimonials", "Testimonials"],
                 ["faq", "FAQ"],
+                ["features", "Features row"],
+                ["brands", "Brand logos"],
               ] as [keyof SurfaceConfig["sections"], string][]).map(([k, label]) => (
                 <label key={k} className="flex cursor-pointer items-center gap-2 text-sm">
                   <input type="checkbox" checked={cfg.sections[k]} onChange={(e) => patchSection(k, e.target.checked)} className="h-4 w-4 accent-primary" />
@@ -410,8 +417,22 @@ function ChromeEditor({
 
       {/* FAQ */}
       <Section title="FAQ">
-        <p className="mb-3 text-xs text-muted-foreground">Shown when the “FAQ” section is on.</p>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Shown when the “FAQ” section is on. Text supports <strong>**bold**</strong>, *italic*, [links](url) and - lists.
+        </p>
         <FaqEditor items={chrome.faqs} onChange={(faqs) => setChrome({ ...chrome, faqs })} />
+      </Section>
+
+      {/* Features */}
+      <Section title="Features row (icons)">
+        <p className="mb-3 text-xs text-muted-foreground">Shown when the “Features row” section is on — pick an icon or upload an image.</p>
+        <FeaturesChromeEditor items={chrome.features} onChange={(features) => setChrome({ ...chrome, features })} />
+      </Section>
+
+      {/* Brand logos */}
+      <Section title="Brand / partner logos">
+        <p className="mb-3 text-xs text-muted-foreground">Auto-looping logo slider, shown when the “Brand logos” section is on.</p>
+        <BrandLogosEditor logos={chrome.brandLogos} onChange={(brandLogos) => setChrome({ ...chrome, brandLogos })} />
       </Section>
 
       <Button onClick={onSave} disabled={pending}>
@@ -475,6 +496,66 @@ function FaqEditor({ items, onChange }: { items: Faq[]; onChange: (f: Faq[]) => 
       {items.length < 30 && (
         <Button variant="outline" size="sm" onClick={() => onChange([...items, { q: "", a: "" }])}>
           <Plus className="mr-1.5 h-4 w-4" /> Add FAQ
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function FeaturesChromeEditor({ items, onChange }: { items: Feature[]; onChange: (f: Feature[]) => void }) {
+  const set = (i: number, p: Partial<Feature>) => onChange(items.map((f, idx) => (idx === i ? { ...f, ...p } : f)));
+  return (
+    <div className="space-y-3">
+      {items.map((f, i) => (
+        <div key={i} className="space-y-2 rounded-lg border p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-1">
+              {FEATURE_ICONS.map((key) => {
+                const Icon = FEATURE_ICON_MAP[key];
+                return (
+                  <button
+                    key={key}
+                    onClick={() => set(i, { icon: f.icon === key ? "" : key, image: "" })}
+                    title={key}
+                    className={"flex h-7 w-7 items-center justify-center rounded border transition " + (f.icon === key ? "border-primary bg-primary/10 text-primary" : "hover:bg-muted")}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </button>
+                );
+              })}
+            </div>
+            <Button variant="ghost" size="icon" className="shrink-0 text-destructive" onClick={() => onChange(items.filter((_, idx) => idx !== i))}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+          <ImageUpload value={f.image} onChange={(v) => set(i, { image: v, icon: "" })} placeholder="…or upload an image instead of an icon" />
+          <Input value={f.title} onChange={(e) => set(i, { title: e.target.value })} placeholder="Title (e.g. Free shipping)" />
+          <Input value={f.text} onChange={(e) => set(i, { text: e.target.value })} placeholder="Short text (supports **bold**, *italic*)" />
+        </div>
+      ))}
+      {items.length < 8 && (
+        <Button variant="outline" size="sm" onClick={() => onChange([...items, { icon: "truck", image: "", title: "", text: "" }])}>
+          <Plus className="mr-1.5 h-4 w-4" /> Add feature
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function BrandLogosEditor({ logos, onChange }: { logos: string[]; onChange: (l: string[]) => void }) {
+  return (
+    <div className="space-y-2">
+      {logos.map((url, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <ImageUpload value={url} onChange={(v) => onChange(logos.map((l, idx) => (idx === i ? v : l)))} className="flex-1" previewClassName="h-10 w-16 rounded object-contain" />
+          <Button variant="ghost" size="icon" className="shrink-0 text-destructive" onClick={() => onChange(logos.filter((_, idx) => idx !== i))}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      ))}
+      {logos.length < 24 && (
+        <Button variant="outline" size="sm" onClick={() => onChange([...logos, ""])}>
+          <Plus className="mr-1.5 h-4 w-4" /> Add logo
         </Button>
       )}
     </div>
