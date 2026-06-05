@@ -234,6 +234,7 @@ export async function middleware(request: NextRequest) {
         pathname.startsWith("/course/") ||
         pathname.startsWith("/unlock/") ||
         pathname.startsWith("/book/") ||
+        pathname.startsWith("/event/") ||
         pathname.startsWith("/affiliate/") ||
         pathname.startsWith("/account") ||
         pathname.startsWith("/team/") ||
@@ -285,6 +286,7 @@ export async function middleware(request: NextRequest) {
         pathname.startsWith("/team/") ||
         pathname.startsWith("/unlock/") ||
         pathname.startsWith("/book/") ||
+        pathname.startsWith("/event/") ||
         pathname.startsWith("/preview/");
       if (
         !isDashboard &&

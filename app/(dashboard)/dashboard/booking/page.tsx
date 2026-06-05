@@ -12,6 +12,12 @@ import {
   type BookingTypeData,
   type UpcomingBooking,
 } from "@/components/dashboard/booking/BookingManager";
+import {
+  EventManager,
+  type EventRow,
+  type EventRegistration,
+} from "@/components/dashboard/booking/EventManager";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 export const metadata = { title: "Booking" };
 
@@ -72,6 +78,45 @@ export default async function BookingDashboardPage() {
     amount: Number(b.amount ?? 0),
   }));
 
+  // Group events + their registrations.
+  const { data: eventsRaw } = await admin
+    .from("booking_events")
+    .select("id, slug, title, description, start_at, end_at, capacity, price, location, active")
+    .eq("user_id", ctx.ownerId)
+    .order("start_at", { ascending: true });
+  const eventIds = (eventsRaw ?? []).map((e) => e.id);
+  const { data: regsRaw } = eventIds.length
+    ? await admin
+        .from("event_registrations")
+        .select("id, booking_event_id, buyer_name, buyer_email, status")
+        .in("booking_event_id", eventIds)
+    : { data: [] };
+  const regsByEvent = new Map<string, EventRegistration[]>();
+  for (const r of (regsRaw ?? []) as Array<{
+    id: string;
+    booking_event_id: string;
+    buyer_name: string | null;
+    buyer_email: string;
+    status: string;
+  }>) {
+    const arr = regsByEvent.get(r.booking_event_id) ?? [];
+    arr.push({ id: r.id, name: r.buyer_name, email: r.buyer_email, status: r.status });
+    regsByEvent.set(r.booking_event_id, arr);
+  }
+  const events: EventRow[] = (eventsRaw ?? []).map((e) => ({
+    id: e.id,
+    slug: e.slug,
+    title: e.title,
+    description: e.description,
+    start_at: e.start_at,
+    end_at: e.end_at,
+    capacity: e.capacity,
+    price: Number(e.price ?? 0),
+    location: e.location,
+    active: e.active,
+    registrations: regsByEvent.get(e.id) ?? [],
+  }));
+
   const bookingBase = profile?.subdomain
     ? `https://${profile.subdomain}.${platformRootDomain()}/book/`
     : `https://app.${platformRootDomain()}/book/`;
@@ -88,6 +133,19 @@ export default async function BookingDashboardPage() {
         upcoming={upcoming}
         bookingBase={bookingBase}
       />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Group events</CardTitle>
+          <CardDescription>
+            One fixed date/time, many attendees up to a capacity (workshop,
+            webinar, class). Free or paid.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <EventManager events={events} bookingBase={bookingBase} />
+        </CardContent>
+      </Card>
     </div>
   );
 }
