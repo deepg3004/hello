@@ -164,8 +164,11 @@ export interface SurfaceConfig {
   title: string; // browser tab / SEO title
   // Banners (replace the hero) + responsive grid columns
   banners: Banner[];
+  bannerAutoplay: boolean;
   cols: { desktop: number; tablet: number; mobile: number };
 }
+
+export type Align = "left" | "center" | "right";
 
 export interface Banner {
   type: "image" | "text";
@@ -174,6 +177,7 @@ export interface Banner {
   subtitle: string;
   ctaLabel: string;
   ctaUrl: string;
+  align: Align;
 }
 
 export function defaultSurfaceConfig(): SurfaceConfig {
@@ -197,6 +201,7 @@ export function defaultSurfaceConfig(): SurfaceConfig {
     favicon: "",
     title: "",
     banners: [],
+    bannerAutoplay: true,
     cols: { desktop: 4, tablet: 3, mobile: 2 },
   };
 }
@@ -208,6 +213,7 @@ function cleanBanners(v: unknown): Banner[] {
       const o = (b ?? {}) as Record<string, unknown>;
       const type = o.type === "text" ? "text" : "image";
       const s = (x: unknown) => (typeof x === "string" ? x.trim().slice(0, 500) : "");
+      const align: Align = o.align === "left" || o.align === "right" ? o.align : "left";
       return {
         type: type as "image" | "text",
         image: s(o.image),
@@ -215,6 +221,7 @@ function cleanBanners(v: unknown): Banner[] {
         subtitle: s(o.subtitle),
         ctaLabel: s(o.ctaLabel),
         ctaUrl: s(o.ctaUrl),
+        align,
       };
     })
     .filter((b) => b.image || b.title || b.subtitle)
@@ -261,6 +268,7 @@ export function resolveSurfaceConfig(raw: unknown, surface: Surface): SurfaceCon
     favicon: typeof s.favicon === "string" ? s.favicon : "",
     title: typeof s.title === "string" ? s.title : "",
     banners: cleanBanners(s.banners),
+    bannerAutoplay: typeof s.bannerAutoplay === "boolean" ? s.bannerAutoplay : true,
     cols: {
       desktop: clampCol((s.cols as Record<string, unknown> | undefined)?.desktop, 4, 2, 6),
       tablet: clampCol((s.cols as Record<string, unknown> | undefined)?.tablet, 3, 1, 4),
@@ -310,6 +318,8 @@ export interface ChromeConfig {
     menu: MenuItem[];
     ctaLabel: string;
     ctaUrl: string;
+    logoUrl: string; // where the logo links (default "/")
+    showAuth: boolean; // show buyer Login / Sign up
   };
   footer: {
     enabled: boolean;
@@ -340,6 +350,8 @@ export function defaultChromeConfig(): ChromeConfig {
       ],
       ctaLabel: "",
       ctaUrl: "",
+      logoUrl: "/",
+      showAuth: true,
     },
     footer: {
       enabled: true,
@@ -380,6 +392,8 @@ export function resolveChromeConfig(raw: unknown): ChromeConfig {
       menu,
       ctaLabel: typeof h.ctaLabel === "string" ? h.ctaLabel : "",
       ctaUrl: typeof h.ctaUrl === "string" ? h.ctaUrl : "",
+      logoUrl: typeof h.logoUrl === "string" && h.logoUrl.trim() ? h.logoUrl.trim() : "/",
+      showAuth: typeof h.showAuth === "boolean" ? h.showAuth : true,
     },
     footer: {
       enabled: typeof f.enabled === "boolean" ? f.enabled : base.footer.enabled,

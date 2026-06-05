@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Menu, X } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Menu, User, X } from "lucide-react";
 
 import type { ChromeConfig } from "@/lib/storefront-theme";
 
-/** Themed storefront nav bar — logo/name, menu links, optional CTA, and a
- *  mobile hamburger. Reads theme tokens from the surrounding .sf-root. */
+/** Themed storefront nav bar — logo/name (links to logoUrl with click-source
+ *  tracking), menu links, optional CTA, buyer Login/Sign-up, mobile hamburger. */
 export function StorefrontHeader({
   header,
   brandName,
@@ -17,7 +18,14 @@ export function StorefrontHeader({
   logo: string;
 }) {
   const [open, setOpen] = useState(false);
+  const path = usePathname() || "/";
   const menu = header.menu;
+
+  // Logo links to the configured page, carrying the source path so the landing
+  // page (and analytics) can see where the click came from.
+  const sep = header.logoUrl.includes("?") ? "&" : "?";
+  const logoHref = `${header.logoUrl}${sep}from=${encodeURIComponent(path)}`;
+  const authHref = (mode: string) => `/account?next=${encodeURIComponent(path)}&mode=${mode}`;
 
   return (
     <header
@@ -27,7 +35,7 @@ export function StorefrontHeader({
       }
     >
       <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3 sm:px-6">
-        <a href="/" className="flex items-center gap-2">
+        <a href={logoHref} className="flex items-center gap-2" aria-label="Home">
           {logo ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={logo} alt={brandName} className="h-8 w-auto max-w-[160px] object-contain" />
@@ -47,6 +55,16 @@ export function StorefrontHeader({
             <a href={header.ctaUrl} className="sf-btn px-4 py-2 text-sm font-semibold">
               {header.ctaLabel}
             </a>
+          )}
+          {header.showAuth && (
+            <span className="flex items-center gap-2">
+              <a href={authHref("login")} className="sf-btn-outline inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold transition hover:opacity-80">
+                <User className="h-4 w-4" /> Login
+              </a>
+              <a href={authHref("signup")} className="sf-btn px-3.5 py-2 text-sm font-semibold">
+                Sign up
+              </a>
+            </span>
           )}
         </nav>
 
@@ -69,6 +87,16 @@ export function StorefrontHeader({
               <a href={header.ctaUrl} className="sf-btn mt-1 px-4 py-2 text-center text-sm font-semibold">
                 {header.ctaLabel}
               </a>
+            )}
+            {header.showAuth && (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <a href={authHref("login")} className="sf-btn-outline px-3 py-2 text-center text-sm font-semibold">
+                  Login
+                </a>
+                <a href={authHref("signup")} className="sf-btn px-3 py-2 text-center text-sm font-semibold">
+                  Sign up
+                </a>
+              </div>
             )}
           </nav>
         </div>
