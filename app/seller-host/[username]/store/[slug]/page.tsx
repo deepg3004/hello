@@ -60,7 +60,7 @@ export async function generateMetadata({ params }: Props) {
     admin.from("pages").select("title").eq("slug", params.slug).maybeSingle(),
     admin.from("user_profiles").select("storefront_config").eq("subdomain", params.username).maybeSingle(),
   ]);
-  const cfg = resolveSurfaceConfig(prof?.storefront_config, "store");
+  const cfg = resolveSurfaceConfig(prof?.storefront_config, "product");
   return {
     title: page?.title ?? "Product",
     icons: cfg.favicon ? { icon: cfg.favicon } : undefined,
@@ -78,7 +78,7 @@ export default async function ProductDetailPage({ params }: Props) {
     .maybeSingle();
   if (!profile?.id) notFound();
 
-  const cfg = resolveSurfaceConfig(profile.storefront_config, "store");
+  const cfg = resolveSurfaceConfig(profile.storefront_config, "product");
   const chrome = resolveChromeConfig(profile.storefront_config);
 
   const { data: page } = await admin

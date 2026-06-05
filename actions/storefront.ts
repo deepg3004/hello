@@ -7,6 +7,7 @@ import { getActorContext } from "@/lib/account-context";
 import {
   resolveSurfaceConfig,
   resolveChromeConfig,
+  SURFACES,
   type Surface,
   type SurfaceConfig,
   type ChromeConfig,
@@ -27,7 +28,7 @@ export async function saveStorefrontDesignAction(
   if (!ctx || !(ctx.can("store.manage") || ctx.can("courses.manage"))) {
     return { ok: false, message: "Not allowed" };
   }
-  if (surface !== "store" && surface !== "course") {
+  if (!SURFACES.some((s) => s.key === surface)) {
     return { ok: false, message: "Bad surface" };
   }
 
