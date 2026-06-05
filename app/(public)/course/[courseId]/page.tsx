@@ -7,6 +7,8 @@ import { createEnrollmentForOrder } from "@/lib/courses";
 import { publicPageUrl } from "@/lib/page-url";
 import { extractSubdomain } from "@/lib/domains";
 import { getReviewSummary, getReviewSummaries, listReviews } from "@/lib/reviews";
+import { resolveSurfaceConfig } from "@/lib/storefront-theme";
+import { StorefrontShell } from "@/components/store/StorefrontShell";
 import {
   CoursePlayerClient,
   type PlayerModule,
@@ -167,7 +169,7 @@ export default async function CoursePage({
   const [{ data: seller }, productResult, summary, reviews, { count: students }] = await Promise.all([
     admin
       .from("user_profiles")
-      .select("full_name, legal_business_name, avatar_url")
+      .select("full_name, legal_business_name, avatar_url, storefront_config")
       .eq("id", sellerUserId)
       .maybeSingle(),
     productId
@@ -277,8 +279,10 @@ export default async function CoursePage({
   });
 
   const sellerName = seller?.legal_business_name ?? seller?.full_name ?? null;
+  const cfg = resolveSurfaceConfig(seller?.storefront_config, "course");
 
   return (
+    <StorefrontShell cfg={cfg}>
     <CourseLanding
       courseId={courseId}
       title={course.title as string}
@@ -308,6 +312,10 @@ export default async function CoursePage({
       reviews={reviews}
       students={students ?? 0}
       related={related}
+      cardStyle={cfg.card}
+      showRatings={cfg.sections.ratings}
+      showRelated={cfg.sections.related}
     />
+    </StorefrontShell>
   );
 }

@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 
-import { Input } from "@/components/ui/input";
 import { ProductCard, type CatalogItem } from "@/components/store/ProductCard";
+import type { CardStyle } from "@/lib/storefront-theme";
 
 type SortKey = "popular" | "newest" | "price_asc" | "price_desc" | "rating";
 
@@ -16,15 +16,21 @@ const SORTS: { key: SortKey; label: string }[] = [
   { key: "rating", label: "Top rated" },
 ];
 
-/** Shopify-style catalog: client-side search, category filter, price range, sort. */
+/** Premium, theme-aware catalog: search, category filter, price range, sort. */
 export function StoreCatalog({
   items,
   categories,
   base,
+  cardStyle = "elevated",
+  showRatings = true,
+  showBadges = true,
 }: {
   items: CatalogItem[];
   categories: string[];
   base: string;
+  cardStyle?: CardStyle;
+  showRatings?: boolean;
+  showBadges?: boolean;
 }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string | null>(null);
@@ -32,10 +38,7 @@ export function StoreCatalog({
   const [maxPrice, setMaxPrice] = useState<number | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
-  const priceCeiling = useMemo(
-    () => Math.max(100, ...items.map((i) => Math.ceil(i.price))),
-    [items],
-  );
+  const priceCeiling = useMemo(() => Math.max(100, ...items.map((i) => Math.ceil(i.price))), [items]);
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -57,7 +60,7 @@ export function StoreCatalog({
         case "rating":
           return b.rating.average - a.rating.average || b.rating.count - a.rating.count;
         case "newest":
-          return 0; // already newest-first from the server
+          return 0;
         case "popular":
         default:
           return Number(b.is_popular) - Number(a.is_popular) || b.rating.count - a.rating.count;
@@ -70,37 +73,28 @@ export function StoreCatalog({
 
   return (
     <div>
-      {/* Search + sort bar */}
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <div className="relative min-w-[220px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
+          <Search className="sf-muted pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+          <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search products…"
-            className="pl-9"
+            className="sf-input h-10 w-full pl-9 pr-3 text-sm outline-none"
           />
         </div>
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value as SortKey)}
-          className="h-10 rounded-md border bg-white px-3 text-sm"
-        >
+        <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className="sf-input h-10 px-3 text-sm outline-none">
           {SORTS.map((s) => (
-            <option key={s.key} value={s.key}>
+            <option key={s.key} value={s.key} className="text-black">
               {s.label}
             </option>
           ))}
         </select>
-        <button
-          onClick={() => setShowFilters((v) => !v)}
-          className="inline-flex h-10 items-center gap-1.5 rounded-md border bg-white px-3 text-sm font-medium"
-        >
+        <button onClick={() => setShowFilters((v) => !v)} className="sf-btn-outline inline-flex h-10 items-center gap-1.5 px-3 text-sm font-medium">
           <SlidersHorizontal className="h-4 w-4" /> Filters
         </button>
       </div>
 
-      {/* Category chips */}
       {categories.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-2">
           <Chip active={!cat} onClick={() => setCat(null)}>
@@ -114,15 +108,12 @@ export function StoreCatalog({
         </div>
       )}
 
-      {/* Price range (collapsible) */}
       {showFilters && (
-        <div className="mb-5 rounded-lg border bg-muted/40 p-4">
+        <div className="sf-card mb-5 p-4">
           <div className="flex items-center justify-between">
-            <label className="text-sm font-medium">
-              Max price: {maxPrice != null ? `₹${maxPrice}` : "Any"}
-            </label>
+            <label className="text-sm font-medium">Max price: {maxPrice != null ? `₹${maxPrice}` : "Any"}</label>
             {maxPrice != null && (
-              <button onClick={() => setMaxPrice(null)} className="text-xs text-muted-foreground underline">
+              <button onClick={() => setMaxPrice(null)} className="sf-muted text-xs underline">
                 clear
               </button>
             )}
@@ -134,14 +125,14 @@ export function StoreCatalog({
             step={Math.max(1, Math.round(priceCeiling / 100))}
             value={maxPrice ?? priceCeiling}
             onChange={(e) => setMaxPrice(Number(e.target.value))}
-            className="mt-2 w-full accent-primary"
+            className="mt-2 w-full"
+            style={{ accentColor: "var(--sf-accent)" }}
           />
         </div>
       )}
 
-      {/* Active filter summary */}
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
+        <p className="sf-muted text-sm">
           {filtered.length} product{filtered.length === 1 ? "" : "s"}
         </p>
         {hasFilters && (
@@ -151,7 +142,7 @@ export function StoreCatalog({
               setCat(null);
               setMaxPrice(null);
             }}
-            className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+            className="sf-muted inline-flex items-center gap-1 text-xs font-medium hover:opacity-80"
           >
             <X className="h-3 w-3" /> Clear filters
           </button>
@@ -159,13 +150,11 @@ export function StoreCatalog({
       </div>
 
       {filtered.length === 0 ? (
-        <p className="py-16 text-center text-muted-foreground">
-          No products match your search.
-        </p>
+        <p className="sf-muted py-16 text-center">No products match your search.</p>
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {filtered.map((p) => (
-            <ProductCard key={p.id} p={p} base={base} />
+            <ProductCard key={p.id} p={p} base={base} cardStyle={cardStyle} showRatings={showRatings} showBadges={showBadges} />
           ))}
         </div>
       )}
@@ -173,25 +162,9 @@ export function StoreCatalog({
   );
 }
 
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button
-      onClick={onClick}
-      className={
-        "rounded-full border px-3 py-1.5 text-sm font-medium transition " +
-        (active
-          ? "border-primary bg-primary text-primary-foreground"
-          : "bg-white text-zinc-700 hover:border-primary hover:text-primary")
-      }
-    >
+    <button onClick={onClick} className={(active ? "sf-chip-active" : "sf-chip") + " px-3.5 py-1.5 text-sm font-medium transition hover:opacity-90"}>
       {children}
     </button>
   );

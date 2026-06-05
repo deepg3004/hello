@@ -82,18 +82,16 @@ export function ProductBuyPanel({ product }: { product: BuyPanelProduct }) {
                   disabled={out}
                   onClick={() => setVariantId(v.id)}
                   className={
-                    "rounded-lg border px-3 py-2 text-sm transition " +
+                    "px-3 py-2 text-sm transition " +
                     (out
-                      ? "cursor-not-allowed border-dashed text-muted-foreground line-through"
+                      ? "sf-chip cursor-not-allowed opacity-50 line-through"
                       : v.id === variantId
-                        ? "border-primary bg-primary/5 font-semibold text-primary"
-                        : "hover:border-primary")
+                        ? "sf-chip-active font-semibold"
+                        : "sf-chip hover:opacity-90")
                   }
                 >
                   {v.name}
-                  <span className="ml-1.5 text-xs text-muted-foreground">
-                    {formatINR(Math.round(v.price * 100))}
-                  </span>
+                  <span className="ml-1.5 text-xs opacity-80">{formatINR(Math.round(v.price * 100))}</span>
                 </button>
               );
             })}
@@ -102,25 +100,17 @@ export function ProductBuyPanel({ product }: { product: BuyPanelProduct }) {
       )}
 
       <div className="flex items-center gap-4">
-        <div className="flex items-center rounded-lg border">
-          <button
-            onClick={() => setQty((q) => Math.max(1, q - 1))}
-            className="px-3 py-2 text-muted-foreground hover:text-foreground"
-            aria-label="Decrease quantity"
-          >
+        <div className="sf-border flex items-center rounded-full border">
+          <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="sf-muted px-3 py-2 hover:opacity-80" aria-label="Decrease quantity">
             <Minus className="h-4 w-4" />
           </button>
           <span className="w-10 text-center text-sm font-medium">{qty}</span>
-          <button
-            onClick={() => setQty((q) => Math.min(maxQty, q + 1))}
-            className="px-3 py-2 text-muted-foreground hover:text-foreground"
-            aria-label="Increase quantity"
-          >
+          <button onClick={() => setQty((q) => Math.min(maxQty, q + 1))} className="sf-muted px-3 py-2 hover:opacity-80" aria-label="Increase quantity">
             <Plus className="h-4 w-4" />
           </button>
         </div>
         {stock != null && stock > 0 && stock <= 5 && (
-          <span className="text-sm font-medium text-rose-600">Only {stock} left</span>
+          <span className="text-sm font-medium text-rose-500">Only {stock} left</span>
         )}
       </div>
 
@@ -128,7 +118,7 @@ export function ProductBuyPanel({ product }: { product: BuyPanelProduct }) {
         <button
           onClick={onAdd}
           disabled={soldOut}
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border-2 border-zinc-900 px-5 py-3 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-900 hover:text-white disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400 disabled:hover:bg-transparent"
+          className="sf-btn-outline inline-flex flex-1 items-center justify-center gap-2 px-5 py-3 text-sm font-semibold transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {added ? <Check className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
           {soldOut ? "Sold out" : added ? "Added" : "Add to cart"}
@@ -136,7 +126,7 @@ export function ProductBuyPanel({ product }: { product: BuyPanelProduct }) {
         <button
           onClick={onBuyNow}
           disabled={soldOut}
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          className="sf-btn inline-flex flex-1 items-center justify-center gap-2 px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Zap className="h-4 w-4" /> Buy now
         </button>

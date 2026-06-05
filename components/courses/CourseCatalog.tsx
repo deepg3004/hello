@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 
-import { Input } from "@/components/ui/input";
 import { CourseCard, type CourseCardItem } from "@/components/courses/CourseCard";
+import type { CardStyle } from "@/lib/storefront-theme";
 
 type SortKey = "popular" | "rating" | "price_asc" | "price_desc";
 
@@ -20,11 +20,15 @@ export function CourseCatalog({
   categories,
   levels,
   base,
+  cardStyle = "elevated",
+  showRatings = true,
 }: {
   items: CourseCardItem[];
   categories: string[];
   levels: string[];
   base: string;
+  cardStyle?: CardStyle;
+  showRatings?: boolean;
 }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string | null>(null);
@@ -62,30 +66,29 @@ export function CourseCatalog({
     <div>
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <div className="relative min-w-[220px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search courses…" className="pl-9" />
+          <Search className="sf-muted pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search courses…"
+            className="sf-input h-10 w-full pl-9 pr-3 text-sm outline-none"
+          />
         </div>
         {levels.length > 0 && (
-          <select
-            value={level ?? ""}
-            onChange={(e) => setLevel(e.target.value || null)}
-            className="h-10 rounded-md border bg-white px-3 text-sm"
-          >
-            <option value="">All levels</option>
+          <select value={level ?? ""} onChange={(e) => setLevel(e.target.value || null)} className="sf-input h-10 px-3 text-sm outline-none">
+            <option value="" className="text-black">
+              All levels
+            </option>
             {levels.map((l) => (
-              <option key={l} value={l}>
+              <option key={l} value={l} className="text-black">
                 {l}
               </option>
             ))}
           </select>
         )}
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value as SortKey)}
-          className="h-10 rounded-md border bg-white px-3 text-sm"
-        >
+        <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className="sf-input h-10 px-3 text-sm outline-none">
           {SORTS.map((s) => (
-            <option key={s.key} value={s.key}>
+            <option key={s.key} value={s.key} className="text-black">
               {s.label}
             </option>
           ))}
@@ -105,16 +108,16 @@ export function CourseCatalog({
         </div>
       )}
 
-      <p className="mb-4 text-sm text-muted-foreground">
+      <p className="sf-muted mb-4 text-sm">
         {filtered.length} course{filtered.length === 1 ? "" : "s"}
       </p>
 
       {filtered.length === 0 ? (
-        <p className="py-16 text-center text-muted-foreground">No courses match your search.</p>
+        <p className="sf-muted py-16 text-center">No courses match your search.</p>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((c) => (
-            <CourseCard key={c.id} c={c} base={base} />
+            <CourseCard key={c.id} c={c} base={base} cardStyle={cardStyle} showRatings={showRatings} />
           ))}
         </div>
       )}
@@ -122,25 +125,9 @@ export function CourseCatalog({
   );
 }
 
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button
-      onClick={onClick}
-      className={
-        "rounded-full border px-3 py-1.5 text-sm font-medium transition " +
-        (active
-          ? "border-primary bg-primary text-primary-foreground"
-          : "bg-white text-zinc-700 hover:border-primary hover:text-primary")
-      }
-    >
+    <button onClick={onClick} className={(active ? "sf-chip-active" : "sf-chip") + " px-3.5 py-1.5 text-sm font-medium transition hover:opacity-90"}>
       {children}
     </button>
   );
