@@ -62,6 +62,19 @@ export async function POST(request: Request) {
     : false;
   if (!valid) return NextResponse.json({ error: "Signature mismatch" }, { status: 401 });
 
+  // Atomic pending→confirmed FIRST — only the request that wins this transition
+  // records the order, so a replayed/concurrent verify can't insert an orphan
+  // paid order row.
+  const { data: updated } = await admin
+    .from("event_registrations")
+    .update({ status: "confirmed" })
+    .eq("id", registration_id)
+    .eq("status", "pending")
+    .select("id");
+  if (!updated || updated.length === 0) {
+    return NextResponse.json({ ok: true, registration_id, already: true });
+  }
+
   // Record a paid order (mirrors the 1:1 booking verify) — one order per
   // registration so each gets its own wallet fee.
   const { data: order } = await admin
@@ -83,17 +96,10 @@ export async function POST(request: Request) {
     })
     .select("id")
     .single();
-
-  // Atomic pending→confirmed.
-  const { data: updated } = await admin
+  await admin
     .from("event_registrations")
-    .update({ status: "confirmed", order_id: order?.id ?? null })
-    .eq("id", registration_id)
-    .eq("status", "pending")
-    .select("id");
-  if (!updated || updated.length === 0) {
-    return NextResponse.json({ ok: true, registration_id, already: true });
-  }
+    .update({ order_id: order?.id ?? null })
+    .eq("id", registration_id);
 
   await admin.from("transactions").insert({
     user_id: ev.user_id,

@@ -85,10 +85,16 @@ begin
   end if;
 
   if v_cap is not null then
+    -- Confirmed seats + still-fresh pending holds. A pending hold from an
+    -- abandoned paid checkout stops consuming capacity after 15 minutes, so the
+    -- seat frees itself without needing a sweeper job.
     select count(*) into v_count
       from public.event_registrations
      where booking_event_id = p_event_id
-       and status in ('pending', 'confirmed');
+       and (
+         status = 'confirmed'
+         or (status = 'pending' and created_at > now() - interval '15 minutes')
+       );
     if v_count >= v_cap then
       return null;  -- full
     end if;
