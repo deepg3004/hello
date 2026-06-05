@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Coins,
   Contact,
+  Film,
   CreditCard,
   FileText,
   Globe,
@@ -89,6 +90,7 @@ export function AdminSidebar({
       items: [
         { href: "/admin/system-health", label: "System Health", Icon: Activity },
         { href: "/admin/broadcast", label: "Broadcast", Icon: Megaphone },
+        { href: "/admin/transcodes", label: "Video DRM", Icon: Film },
       ],
     },
     {
