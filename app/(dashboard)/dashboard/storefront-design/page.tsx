@@ -1,7 +1,7 @@
 import { requirePageActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { platformRootDomain } from "@/lib/domains";
-import { resolveSurfaceConfig } from "@/lib/storefront-theme";
+import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-theme";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { StorefrontDesigner } from "@/components/dashboard/StorefrontDesigner";
 
@@ -19,6 +19,7 @@ export default async function StorefrontDesignPage() {
 
   const store = resolveSurfaceConfig(profile?.storefront_config, "store");
   const course = resolveSurfaceConfig(profile?.storefront_config, "course");
+  const chrome = resolveChromeConfig(profile?.storefront_config);
   const storeUrl = profile?.subdomain
     ? `https://${profile.subdomain}.${platformRootDomain()}`
     : null;
@@ -32,7 +33,7 @@ export default async function StorefrontDesignPage() {
         resourcesHref={null}
       />
       <div className="animate-in-up" style={{ animationDelay: "60ms" }}>
-        <StorefrontDesigner store={store} course={course} storeUrl={storeUrl} />
+        <StorefrontDesigner store={store} course={course} chrome={chrome} storeUrl={storeUrl} />
       </div>
     </div>
   );

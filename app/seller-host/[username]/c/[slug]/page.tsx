@@ -7,7 +7,7 @@ import { notFound } from "next/navigation";
 import { unstable_noStore as noStore } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveSurfaceConfig } from "@/lib/storefront-theme";
+import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-theme";
 import {
   StoreGrid,
   type StoreProduct,
@@ -73,6 +73,7 @@ export default async function CollectionPage({ params }: Props) {
   if (!profile?.id) notFound();
 
   const cfg = resolveSurfaceConfig(profile.storefront_config, "store");
+  const chrome = resolveChromeConfig(profile.storefront_config);
 
   const { data: collection } = await admin
     .from("collections")
@@ -123,7 +124,7 @@ export default async function CollectionPage({ params }: Props) {
 
   return (
     <CartProvider username={params.username}>
-    <StorefrontShell cfg={cfg}>
+    <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName}>
       <main className="mx-auto max-w-5xl px-6 py-12">
         <div className="mb-8">
           <Link href="/" className="sf-muted text-sm hover:underline">

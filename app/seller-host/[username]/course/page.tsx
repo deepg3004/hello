@@ -8,7 +8,7 @@ import Link from "next/link";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getReviewSummaries } from "@/lib/reviews";
-import { resolveSurfaceConfig } from "@/lib/storefront-theme";
+import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-theme";
 import { StorefrontShell, PromoBanner } from "@/components/store/StorefrontShell";
 import { CourseCatalog } from "@/components/courses/CourseCatalog";
 import type { CourseCardItem } from "@/components/courses/CourseCard";
@@ -47,6 +47,7 @@ export default async function CourseCatalogPage({ params }: Props) {
   if (!profile?.id) notFound();
 
   const cfg = resolveSurfaceConfig(profile.storefront_config, "course");
+  const chrome = resolveChromeConfig(profile.storefront_config);
 
   const { data: coursesRaw } = await admin
     .from("courses")
@@ -129,7 +130,7 @@ export default async function CourseCatalogPage({ params }: Props) {
   const tagline = cfg.tagline.trim() || `${items.length} course${items.length === 1 ? "" : "s"} to learn from`;
 
   return (
-    <StorefrontShell cfg={cfg}>
+    <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName}>
       <header className="sf-band sf-border border-b">
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-12 sm:px-6">
           {cfg.logo ? (

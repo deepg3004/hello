@@ -13,7 +13,7 @@ import {
   pageMatchesCategory,
   type PageCategoryKey,
 } from "@/lib/dashboard/page-categories";
-import { resolveSurfaceConfig } from "@/lib/storefront-theme";
+import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-theme";
 import { CartProvider } from "@/components/store/cart/CartProvider";
 import { CartDrawer } from "@/components/store/cart/CartDrawer";
 import { StorefrontShell, PromoBanner } from "@/components/store/StorefrontShell";
@@ -118,6 +118,7 @@ export default async function SellerStore({ params }: Props) {
   if (!profile?.id) notFound();
 
   const cfg = resolveSurfaceConfig(profile.storefront_config, "store");
+  const chrome = resolveChromeConfig(profile.storefront_config);
 
   const { data: productsRaw } = await admin
     .from("products")
@@ -189,7 +190,7 @@ export default async function SellerStore({ params }: Props) {
 
   return (
     <CartProvider username={params.username}>
-    <StorefrontShell cfg={cfg}>
+    <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName}>
       <header className="sf-band sf-border border-b">
         <div className="mx-auto flex max-w-5xl items-center gap-4 px-6 py-12">
           {cfg.logo ? (

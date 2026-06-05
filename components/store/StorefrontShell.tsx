@@ -1,24 +1,40 @@
-import { themeCssVars, type SurfaceConfig } from "@/lib/storefront-theme";
+import {
+  themeCssVars,
+  type SurfaceConfig,
+  type ChromeConfig,
+} from "@/lib/storefront-theme";
+import { StorefrontHeader } from "@/components/store/StorefrontHeader";
+import { StorefrontFooter } from "@/components/store/StorefrontFooter";
 
 /** Wraps a store/course surface: applies the theme's CSS variables + font, an
- *  optional announcement bar, and the themed page background. */
+ *  optional announcement bar, a shared header/nav and footer, and the themed
+ *  page background. */
 export function StorefrontShell({
   cfg,
+  chrome,
+  brandName,
   children,
 }: {
   cfg: SurfaceConfig;
+  chrome?: ChromeConfig;
+  brandName?: string;
   children: React.ReactNode;
 }) {
   const vars = themeCssVars(cfg);
   const showBar = cfg.sections.announcement && !!cfg.announcement.trim();
+  const name = brandName ?? "Store";
   return (
-    <div className="sf-root min-h-screen" style={vars as React.CSSProperties}>
+    <div className="sf-root flex min-h-screen flex-col" style={vars as React.CSSProperties}>
       {showBar && (
         <div className="sf-accent-bg w-full px-4 py-2 text-center text-xs font-medium tracking-wide">
           {cfg.announcement}
         </div>
       )}
-      {children}
+      {chrome?.header.enabled && (
+        <StorefrontHeader header={chrome.header} brandName={name} logo={cfg.logo} />
+      )}
+      <div className="flex-1">{children}</div>
+      {chrome?.footer.enabled && <StorefrontFooter footer={chrome.footer} brandName={name} />}
     </div>
   );
 }
