@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { requireActor } from "@/lib/account-context";
 import { encryptGatewayKey } from "@/lib/gateway-crypto";
 import type { GatewayType, GatewayKeys } from "@/lib/gateway-loader";
