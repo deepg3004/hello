@@ -188,7 +188,7 @@ export default async function SellerStore({ params }: Props) {
     <CartProvider username={params.username}>
     <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName}>
       <main className="mx-auto max-w-5xl px-6 py-8">
-        <StorefrontBanners banners={cfg.banners} />
+        <StorefrontBanners banners={cfg.banners} autoplay={cfg.bannerAutoplay} />
         <PromoBanner cfg={cfg} />
 
         {(totalProducts > 0 || hasCourses) && (

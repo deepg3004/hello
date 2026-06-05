@@ -122,7 +122,7 @@ export default async function StoreCatalogPage({ params }: Props) {
     <CartProvider username={params.username}>
       <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName}>
         <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-          <StorefrontBanners banners={cfg.banners} />
+          <StorefrontBanners banners={cfg.banners} autoplay={cfg.bannerAutoplay} />
           <PromoBanner cfg={cfg} />
           {items.length === 0 ? (
             <p className="sf-muted py-20 text-center">No products live yet. Check back soon.</p>

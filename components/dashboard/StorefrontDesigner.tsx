@@ -212,6 +212,12 @@ export function StorefrontDesigner({
 
           {/* Banners */}
           <Section title="Banners (top of page)">
+            {cfg.banners.length > 1 && (
+              <label className="mb-2 flex cursor-pointer items-center gap-2 text-sm">
+                <input type="checkbox" checked={cfg.bannerAutoplay} onChange={(e) => patch({ bannerAutoplay: e.target.checked })} className="h-4 w-4 accent-primary" />
+                Auto-slide banners
+              </label>
+            )}
             <BannerEditor banners={cfg.banners} onChange={(banners) => patch({ banners })} />
           </Section>
 
@@ -310,7 +316,11 @@ function ChromeEditor({
           <div className="flex flex-wrap gap-4">
             <Toggle label="Show header" checked={h.enabled} onChange={(v) => setHeader({ enabled: v })} />
             <Toggle label="Sticky on scroll" checked={h.sticky} onChange={(v) => setHeader({ sticky: v })} />
+            <Toggle label="Show Login / Sign up" checked={h.showAuth} onChange={(v) => setHeader({ showAuth: v })} />
           </div>
+          <Field label="Logo links to (click destination)">
+            <Input value={h.logoUrl} onChange={(e) => setHeader({ logoUrl: e.target.value })} placeholder="/ (home) — or /store, /course…" />
+          </Field>
           <div>
             <Label className="text-xs">Menu links</Label>
             <MenuEditor items={h.menu} onChange={(menu) => setHeader({ menu })} />
@@ -454,16 +464,23 @@ function NumberPick({ label, value, min, max, onChange }: { label: string; value
 
 function BannerEditor({ banners, onChange }: { banners: Banner[]; onChange: (b: Banner[]) => void }) {
   const set = (i: number, p: Partial<Banner>) => onChange(banners.map((b, idx) => (idx === i ? { ...b, ...p } : b)));
-  const add = () => onChange([...banners, { type: "image", image: "", title: "", subtitle: "", ctaLabel: "", ctaUrl: "" }]);
+  const add = () => onChange([...banners, { type: "image", image: "", title: "", subtitle: "", ctaLabel: "", ctaUrl: "", align: "left" }]);
   return (
     <div className="space-y-3">
       {banners.map((b, i) => (
         <div key={i} className="space-y-2 rounded-lg border p-3">
           <div className="flex items-center justify-between gap-2">
-            <select value={b.type} onChange={(e) => set(i, { type: e.target.value as Banner["type"] })} className="h-9 rounded-md border bg-background px-2 text-sm">
-              <option value="image">Image banner</option>
-              <option value="text">Text banner</option>
-            </select>
+            <div className="flex items-center gap-2">
+              <select value={b.type} onChange={(e) => set(i, { type: e.target.value as Banner["type"] })} className="h-9 rounded-md border bg-background px-2 text-sm">
+                <option value="image">Image banner</option>
+                <option value="text">Text banner</option>
+              </select>
+              <select value={b.align} onChange={(e) => set(i, { align: e.target.value as Banner["align"] })} className="h-9 rounded-md border bg-background px-2 text-sm" title="Content alignment">
+                <option value="left">Left</option>
+                <option value="center">Center</option>
+                <option value="right">Right</option>
+              </select>
+            </div>
             <Button variant="ghost" size="icon" className="text-destructive" onClick={() => onChange(banners.filter((_, idx) => idx !== i))}>
               <Trash2 className="h-4 w-4" />
             </Button>
