@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 
 import { CourseCard, type CourseCardItem } from "@/components/courses/CourseCard";
-import type { CardStyle } from "@/lib/storefront-theme";
+import { gridColsClass, type CardStyle } from "@/lib/storefront-theme";
 
 type SortKey = "popular" | "rating" | "price_asc" | "price_desc";
 
@@ -22,6 +22,7 @@ export function CourseCatalog({
   base,
   cardStyle = "elevated",
   showRatings = true,
+  cols = { desktop: 3, tablet: 2, mobile: 1 },
 }: {
   items: CourseCardItem[];
   categories: string[];
@@ -29,6 +30,7 @@ export function CourseCatalog({
   base: string;
   cardStyle?: CardStyle;
   showRatings?: boolean;
+  cols?: { desktop: number; tablet: number; mobile: number };
 }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string | null>(null);
@@ -115,7 +117,7 @@ export function CourseCatalog({
       {filtered.length === 0 ? (
         <p className="sf-muted py-16 text-center">No courses match your search.</p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className={`grid gap-4 ${gridColsClass(cols)}`}>
           {filtered.map((c) => (
             <CourseCard key={c.id} c={c} base={base} cardStyle={cardStyle} showRatings={showRatings} />
           ))}

@@ -4,12 +4,12 @@
 
 import { notFound } from "next/navigation";
 import { unstable_noStore as noStore } from "next/cache";
-import Link from "next/link";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getReviewSummaries } from "@/lib/reviews";
 import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-theme";
 import { StorefrontShell, PromoBanner } from "@/components/store/StorefrontShell";
+import { StorefrontBanners } from "@/components/store/StorefrontBanners";
 import { CourseCatalog } from "@/components/courses/CourseCatalog";
 import type { CourseCardItem } from "@/components/courses/CourseCard";
 
@@ -126,40 +126,16 @@ export default async function CourseCatalogPage({ params }: Props) {
   const categories = Array.from(new Set(items.map((i) => i.category).filter((c): c is string => !!c))).sort();
   const levels = Array.from(new Set(items.map((i) => i.level).filter((l): l is string => !!l)));
   const sellerName = profile.legal_business_name ?? profile.full_name ?? params.username;
-  const headline = cfg.headline.trim() || `${sellerName} · Courses`;
-  const tagline = cfg.tagline.trim() || `${items.length} course${items.length === 1 ? "" : "s"} to learn from`;
 
   return (
     <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName}>
-      <header className="sf-band sf-border border-b">
-        <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-12 sm:px-6">
-          {cfg.logo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={cfg.logo} alt={headline} className="h-16 w-auto max-w-[220px] object-contain" />
-          ) : profile.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={profile.avatar_url} alt={sellerName} className="h-16 w-16 rounded-full border-2 border-[var(--sf-accent)] object-cover" />
-          ) : (
-            <div className="sf-accent-bg flex h-16 w-16 items-center justify-center rounded-full text-lg font-bold">
-              {(sellerName?.[0] ?? "?").toUpperCase()}
-            </div>
-          )}
-          <div className="min-w-0">
-            <h1 className="sf-display text-3xl font-bold tracking-tight sm:text-4xl">{headline}</h1>
-            <p className="sf-muted mt-1.5 text-sm sm:text-base">{tagline}</p>
-          </div>
-          <Link href="/" className="sf-btn-outline ml-auto hidden px-4 py-2 text-sm font-medium transition hover:opacity-80 sm:inline-block">
-            ← Home
-          </Link>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        <StorefrontBanners banners={cfg.banners} />
         <PromoBanner cfg={cfg} />
         {items.length === 0 ? (
           <p className="sf-muted py-20 text-center">No courses published yet. Check back soon.</p>
         ) : (
-          <CourseCatalog items={items} categories={categories} levels={levels} base="/course" cardStyle={cfg.card} showRatings={cfg.sections.ratings} />
+          <CourseCatalog items={items} categories={categories} levels={levels} base="/course" cardStyle={cfg.card} showRatings={cfg.sections.ratings} cols={cfg.cols} />
         )}
       </main>
     </StorefrontShell>

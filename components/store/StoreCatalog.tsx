@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 
 import { ProductCard, type CatalogItem } from "@/components/store/ProductCard";
-import type { CardStyle } from "@/lib/storefront-theme";
+import { gridColsClass, type CardStyle } from "@/lib/storefront-theme";
 
 type SortKey = "popular" | "newest" | "price_asc" | "price_desc" | "rating";
 
@@ -24,6 +24,7 @@ export function StoreCatalog({
   cardStyle = "elevated",
   showRatings = true,
   showBadges = true,
+  cols = { desktop: 4, tablet: 3, mobile: 2 },
 }: {
   items: CatalogItem[];
   categories: string[];
@@ -31,6 +32,7 @@ export function StoreCatalog({
   cardStyle?: CardStyle;
   showRatings?: boolean;
   showBadges?: boolean;
+  cols?: { desktop: number; tablet: number; mobile: number };
 }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string | null>(null);
@@ -152,7 +154,7 @@ export function StoreCatalog({
       {filtered.length === 0 ? (
         <p className="sf-muted py-16 text-center">No products match your search.</p>
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <div className={`grid gap-4 ${gridColsClass(cols)}`}>
           {filtered.map((p) => (
             <ProductCard key={p.id} p={p} base={base} cardStyle={cardStyle} showRatings={showRatings} showBadges={showBadges} />
           ))}

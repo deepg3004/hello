@@ -6,7 +6,7 @@ import {
   type VariantOption,
 } from "@/components/store/cart/AddToCartButton";
 import { cardClassName } from "@/components/store/ProductCard";
-import type { CardStyle } from "@/lib/storefront-theme";
+import { gridColsClass, type CardStyle } from "@/lib/storefront-theme";
 
 export interface StoreProduct {
   id: string;
@@ -32,17 +32,19 @@ export function StoreGrid({
   sections,
   cardStyle = "elevated",
   showBadges = true,
+  cols = { desktop: 4, tablet: 3, mobile: 2 },
 }: {
   sections: StoreSection[];
   cardStyle?: CardStyle;
   showBadges?: boolean;
+  cols?: { desktop: number; tablet: number; mobile: number };
 }) {
   return (
     <div className="space-y-10">
       {sections.map((s) => (
         <section key={s.key}>
           <h2 className="sf-display mb-4 text-lg font-bold tracking-tight">{s.label}</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className={`grid gap-4 ${gridColsClass(cols)}`}>
             {s.products.map((p) => (
               <Link key={p.id} href={`/${p.slug}`} className={`group block overflow-hidden transition hover:-translate-y-0.5 ${cardClassName(cardStyle)}`}>
                 <div className="relative aspect-[16/9] w-full overflow-hidden">
