@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ImageUpload } from "@/components/ui/image-upload";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
@@ -312,8 +313,8 @@ export function CatalogManager({
               <Textarea rows={2} value={draft.description ?? ""} onChange={(e) => set("description", e.target.value)} />
             </div>
             <div className="grid gap-1.5">
-              <Label>Image URL</Label>
-              <Input value={draft.image_url ?? ""} onChange={(e) => set("image_url", e.target.value)} placeholder="https://…" />
+              <Label>Main image</Label>
+              <ImageUpload value={draft.image_url ?? ""} onChange={(v) => set("image_url", v)} />
             </div>
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>
@@ -436,23 +437,15 @@ export function CatalogManager({
           <div className="space-y-2">
             {imageRows.map((url, i) => (
               <div key={i} className="flex items-center gap-2">
-                {url.trim() ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={url} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
-                ) : (
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-muted">
-                    <Images className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                )}
-                <Input
+                <ImageUpload
                   value={url}
-                  placeholder="https://…"
-                  onChange={(e) => setImageRows((rows) => rows.map((r, idx) => (idx === i ? e.target.value : r)))}
+                  onChange={(v) => setImageRows((rows) => rows.map((r, idx) => (idx === i ? v : r)))}
+                  className="flex-1"
                 />
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-destructive"
+                  className="shrink-0 text-destructive"
                   onClick={() => setImageRows((rows) => rows.filter((_, idx) => idx !== i))}
                 >
                   <Trash2 className="h-4 w-4" />

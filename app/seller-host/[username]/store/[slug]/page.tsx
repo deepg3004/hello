@@ -3,6 +3,7 @@
 // related products and verified-buyer reviews.
 
 import { notFound } from "next/navigation";
+import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -50,16 +51,21 @@ interface ProductRow {
 }
 
 export async function generateMetadata({ params }: Props) {
+  noStore();
   const admin = createAdminClient();
-  const { data: page } = await admin
-    .from("pages")
-    .select("title")
-    .eq("slug", params.slug)
-    .maybeSingle();
-  return { title: page?.title ?? "Product" };
+  const [{ data: page }, { data: prof }] = await Promise.all([
+    admin.from("pages").select("title").eq("slug", params.slug).maybeSingle(),
+    admin.from("user_profiles").select("storefront_config").eq("subdomain", params.username).maybeSingle(),
+  ]);
+  const cfg = resolveSurfaceConfig(prof?.storefront_config, "store");
+  return {
+    title: page?.title ?? "Product",
+    icons: cfg.favicon ? { icon: cfg.favicon } : undefined,
+  };
 }
 
 export default async function ProductDetailPage({ params }: Props) {
+  noStore();
   const admin = createAdminClient();
 
   const { data: profile } = await admin

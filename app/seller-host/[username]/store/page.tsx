@@ -3,6 +3,7 @@
 // sort and ratings. Cart + checkout reuse the existing CartProvider/CartDrawer.
 
 import { notFound } from "next/navigation";
+import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -21,7 +22,19 @@ interface Props {
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: Props) {
-  return { title: `Store — ${params.username}` };
+  noStore();
+  const admin = createAdminClient();
+  const { data: p } = await admin
+    .from("user_profiles")
+    .select("legal_business_name, full_name, storefront_config")
+    .eq("subdomain", params.username)
+    .maybeSingle();
+  const cfg = resolveSurfaceConfig(p?.storefront_config, "store");
+  const name = p?.legal_business_name ?? p?.full_name ?? params.username;
+  return {
+    title: cfg.title.trim() || `${name} — Store`,
+    icons: cfg.favicon ? { icon: cfg.favicon } : undefined,
+  };
 }
 
 interface PageJoin {
@@ -44,6 +57,7 @@ interface ProductRow {
 }
 
 export default async function StoreCatalogPage({ params }: Props) {
+  noStore();
   const admin = createAdminClient();
 
   const { data: profile } = await admin
@@ -112,7 +126,10 @@ export default async function StoreCatalogPage({ params }: Props) {
         {/* Themed hero */}
         <header className="sf-band sf-border border-b">
           <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-12 sm:px-6">
-            {profile.avatar_url ? (
+            {cfg.logo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={cfg.logo} alt={headline} className="h-16 w-auto max-w-[220px] object-contain" />
+            ) : profile.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={profile.avatar_url} alt={sellerName} className="h-16 w-16 rounded-full border-2 border-[var(--sf-accent)] object-cover" />
             ) : (

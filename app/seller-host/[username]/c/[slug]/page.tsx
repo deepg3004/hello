@@ -4,8 +4,10 @@
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { unstable_noStore as noStore } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveSurfaceConfig } from "@/lib/storefront-theme";
 import {
   StoreGrid,
   type StoreProduct,
@@ -13,6 +15,7 @@ import {
 } from "@/components/store/StoreGrid";
 import { CartProvider } from "@/components/store/cart/CartProvider";
 import { CartDrawer } from "@/components/store/cart/CartDrawer";
+import { StorefrontShell } from "@/components/store/StorefrontShell";
 
 export const dynamic = "force-dynamic";
 
@@ -59,14 +62,17 @@ interface ProductJoin {
 }
 
 export default async function CollectionPage({ params }: Props) {
+  noStore();
   const admin = createAdminClient();
 
   const { data: profile } = await admin
     .from("user_profiles")
-    .select("id, full_name, legal_business_name")
+    .select("id, full_name, legal_business_name, storefront_config")
     .eq("subdomain", params.username)
     .maybeSingle();
   if (!profile?.id) notFound();
+
+  const cfg = resolveSurfaceConfig(profile.storefront_config, "store");
 
   const { data: collection } = await admin
     .from("collections")
@@ -117,27 +123,23 @@ export default async function CollectionPage({ params }: Props) {
 
   return (
     <CartProvider username={params.username}>
-    <main className="mx-auto max-w-5xl px-6 py-16">
-      <div className="mb-8">
-        <Link href="/" className="text-sm text-muted-foreground hover:underline">
-          ← {sellerName}
-        </Link>
-        <h1 className="mt-2 font-sora text-2xl font-semibold tracking-tight">
-          {collection.name}
-        </h1>
-        {collection.description && (
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            {collection.description}
-          </p>
-        )}
-      </div>
+    <StorefrontShell cfg={cfg}>
+      <main className="mx-auto max-w-5xl px-6 py-12">
+        <div className="mb-8">
+          <Link href="/" className="sf-muted text-sm hover:underline">
+            ← {sellerName}
+          </Link>
+          <h1 className="sf-display mt-2 text-3xl font-bold tracking-tight">{collection.name}</h1>
+          {collection.description && <p className="sf-muted mt-1 max-w-2xl text-sm">{collection.description}</p>}
+        </div>
 
-      {products.length === 0 ? (
-        <p className="text-muted-foreground">No products in this collection yet.</p>
-      ) : (
-        <StoreGrid sections={sections} />
-      )}
-    </main>
+        {products.length === 0 ? (
+          <p className="sf-muted">No products in this collection yet.</p>
+        ) : (
+          <StoreGrid sections={sections} cardStyle={cfg.card} showBadges={cfg.sections.badges} />
+        )}
+      </main>
+    </StorefrontShell>
     <CartDrawer />
     </CartProvider>
   );

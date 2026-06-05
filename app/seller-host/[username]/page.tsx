@@ -5,6 +5,7 @@
 // subdomain).
 
 import { notFound } from "next/navigation";
+import { unstable_noStore as noStore } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -12,8 +13,10 @@ import {
   pageMatchesCategory,
   type PageCategoryKey,
 } from "@/lib/dashboard/page-categories";
+import { resolveSurfaceConfig } from "@/lib/storefront-theme";
 import { CartProvider } from "@/components/store/cart/CartProvider";
 import { CartDrawer } from "@/components/store/cart/CartDrawer";
+import { StorefrontShell, PromoBanner } from "@/components/store/StorefrontShell";
 import {
   StoreGrid,
   type StoreProduct,
@@ -35,7 +38,21 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: Props) {
   const site = await loadSellerSite(params.username);
-  if (!site) return { title: params.username };
+  if (!site) {
+    // No website-builder site — fall back to the store design's title/favicon.
+    const admin = createAdminClient();
+    const { data: p } = await admin
+      .from("user_profiles")
+      .select("legal_business_name, full_name, storefront_config")
+      .eq("subdomain", params.username)
+      .maybeSingle();
+    const cfg = resolveSurfaceConfig(p?.storefront_config, "store");
+    const name = p?.legal_business_name ?? p?.full_name ?? params.username;
+    return {
+      title: cfg.title.trim() || name,
+      icons: cfg.favicon ? { icon: cfg.favicon } : undefined,
+    };
+  }
   const icons = site.favicon ? { icon: site.favicon } : undefined;
   const home = await loadSitePage(site.id, { home: true });
   if (home) {
@@ -60,6 +77,7 @@ type PageJoin = {
 const SECTION_ORDER: PageCategoryKey[] = ["payment", "telegram", "landing", "leads"];
 
 export default async function SellerStore({ params }: Props) {
+  noStore();
   // If the seller has built + published a Home page in the website builder,
   // render that instead of the auto product store.
   const site = await loadSellerSite(params.username);
@@ -89,14 +107,17 @@ export default async function SellerStore({ params }: Props) {
     );
   }
 
-  // Fallback: the auto-generated product store (unchanged behaviour).
+  // Fallback: the auto-generated product store (themed by the seller's store
+  // design so this main page reflects their chosen theme too).
   const admin = createAdminClient();
   const { data: profile } = await admin
     .from("user_profiles")
-    .select("id, full_name, legal_business_name, avatar_url")
+    .select("id, full_name, legal_business_name, avatar_url, storefront_config")
     .eq("subdomain", params.username)
     .maybeSingle();
   if (!profile?.id) notFound();
+
+  const cfg = resolveSurfaceConfig(profile.storefront_config, "store");
 
   const { data: productsRaw } = await admin
     .from("products")
@@ -161,77 +182,69 @@ export default async function SellerStore({ params }: Props) {
     .eq("status", "published");
   const hasCourses = (courseCount ?? 0) > 0;
 
+  const heroName = cfg.headline.trim() || sellerName;
+  const heroTagline =
+    cfg.tagline.trim() ||
+    (totalProducts > 0 ? `${totalProducts} product${totalProducts === 1 ? "" : "s"} available` : `Store by ${sellerName}`);
+
   return (
     <CartProvider username={params.username}>
-    <main className="mx-auto max-w-5xl px-6 py-16">
-      <div className="mb-10 flex items-center gap-4">
-        {profile.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={profile.avatar_url}
-            alt={sellerName}
-            className="h-14 w-14 rounded-full border object-cover"
-          />
-        ) : (
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-zinc-100 text-base font-semibold text-zinc-700">
-            {(sellerName?.[0] ?? "?").toUpperCase()}
+    <StorefrontShell cfg={cfg}>
+      <header className="sf-band sf-border border-b">
+        <div className="mx-auto flex max-w-5xl items-center gap-4 px-6 py-12">
+          {cfg.logo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={cfg.logo} alt={heroName} className="h-16 w-auto max-w-[220px] object-contain" />
+          ) : profile.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={profile.avatar_url} alt={sellerName} className="h-16 w-16 rounded-full border-2 border-[var(--sf-accent)] object-cover" />
+          ) : (
+            <div className="sf-accent-bg flex h-16 w-16 items-center justify-center rounded-full text-lg font-bold">
+              {(sellerName?.[0] ?? "?").toUpperCase()}
+            </div>
+          )}
+          <div>
+            <h1 className="sf-display text-3xl font-bold tracking-tight">{heroName}</h1>
+            <p className="sf-muted mt-1.5 text-sm">{heroTagline}</p>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-5xl px-6 py-10">
+        <PromoBanner cfg={cfg} />
+
+        {(totalProducts > 0 || hasCourses) && (
+          <div className="mb-6 flex flex-wrap gap-2">
+            {totalProducts > 0 && (
+              <a href="/store" className="sf-btn inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold">
+                Browse full store →
+              </a>
+            )}
+            {hasCourses && (
+              <a href="/course" className="sf-btn-outline inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition hover:opacity-80">
+                Courses →
+              </a>
+            )}
           </div>
         )}
-        <div>
-          <h1 className="font-sora text-2xl font-semibold tracking-tight">
-            {sellerName}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {totalProducts > 0
-              ? `${totalProducts} product${totalProducts === 1 ? "" : "s"} available`
-              : `Store by ${sellerName}`}
-          </p>
-        </div>
-      </div>
 
-      {(totalProducts > 0 || hasCourses) && (
-        <div className="mb-6 flex flex-wrap gap-2">
-          {totalProducts > 0 && (
-            <a
-              href="/store"
-              className="inline-flex items-center gap-2 rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-700"
-            >
-              Browse full store →
-            </a>
-          )}
-          {hasCourses && (
-            <a
-              href="/course"
-              className="inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-sm font-semibold text-zinc-800 transition hover:border-primary hover:text-primary"
-            >
-              Courses →
-            </a>
-          )}
-        </div>
-      )}
+        {storeCollections.length > 0 && (
+          <div className="mb-8 flex flex-wrap gap-2">
+            {storeCollections.map((c) => (
+              <a key={c.slug} href={`/c/${c.slug}`} className="sf-chip px-3.5 py-1.5 text-sm font-medium transition hover:opacity-90">
+                {c.name}
+              </a>
+            ))}
+          </div>
+        )}
 
-      {storeCollections.length > 0 && (
-        <div className="mb-8 flex flex-wrap gap-2">
-          {storeCollections.map((c) => (
-            <a
-              key={c.slug}
-              href={`/c/${c.slug}`}
-              className="rounded-full border bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:border-primary hover:text-primary"
-            >
-              {c.name}
-            </a>
-          ))}
-        </div>
-      )}
-
-      {totalProducts === 0 ? (
-        <p className="text-muted-foreground">
-          No products live yet. Check back soon.
-        </p>
-      ) : (
-        <StoreGrid sections={sections} />
-      )}
-    </main>
+        {totalProducts === 0 ? (
+          <p className="sf-muted">No products live yet. Check back soon.</p>
+        ) : (
+          <StoreGrid sections={sections} cardStyle={cfg.card} showBadges={cfg.sections.badges} />
+        )}
+      </main>
+    </StorefrontShell>
     <CartDrawer />
     </CartProvider>
   );
