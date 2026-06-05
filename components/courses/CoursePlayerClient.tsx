@@ -252,9 +252,10 @@ function SignedVideo({ src, token }: { src: string; token: string }) {
   );
 }
 
-/** Anti-piracy overlay: the buyer's email, faint and drifting between corners so
- *  it can't be cropped out and survives screen-recording. pointer-events-none so
- *  it never blocks the video controls. */
+/** Anti-piracy overlay. A FORENSIC watermark: the buyer's email is tiled faintly
+ *  across the entire frame (rotated, so it can't be cropped out and any leaked
+ *  screen-recording traces straight back to the buyer), plus a more visible
+ *  drifting label. pointer-events-none so it never blocks the controls. */
 function Watermark({ label }: { label: string }) {
   const positions = [
     "top-3 left-3",
@@ -269,8 +270,19 @@ function Watermark({ label }: { label: string }) {
     // positions is a stable literal — safe to omit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Enough tiles to cover the frame after rotate + scale.
+  const tiles = Array.from({ length: 48 });
   return (
-    <div className="pointer-events-none absolute inset-0 select-none">
+    <div className="pointer-events-none absolute inset-0 select-none overflow-hidden">
+      {/* Tiled forensic layer — faint, rotated, fills the frame edge-to-edge. */}
+      <div className="absolute inset-0 flex rotate-[-24deg] scale-[1.6] flex-wrap content-around items-center justify-around gap-x-10 gap-y-12 opacity-[0.09]">
+        {tiles.map((_, n) => (
+          <span key={n} className="whitespace-nowrap text-[11px] font-semibold text-white">
+            {label}
+          </span>
+        ))}
+      </div>
+      {/* Drifting visible label. */}
       <span
         className={cn(
           "absolute rounded bg-black/20 px-1.5 py-0.5 text-[10px] font-medium text-white/40 transition-all duration-1000",
