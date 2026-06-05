@@ -10,7 +10,7 @@
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { getActorContext } from "@/lib/account-context";
 import { verifyCourseToken } from "@/lib/course-token";
 import { CMEDIA_PREFIX } from "@/lib/learn/video";
 
@@ -48,13 +48,13 @@ export async function POST(request: Request) {
     if (payload) authorized = true;
   }
 
-  // 2. Owning seller previewing their own course in the dashboard.
+  // 2. Owning seller (or a team member with course access) previewing in the
+  //    dashboard — the actor must act for the path's owner account.
   if (!authorized) {
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user && user.id === ownerId) authorized = true;
+    const ctx = await getActorContext();
+    if (ctx && ctx.ownerId === ownerId && ctx.can("courses.view")) {
+      authorized = true;
+    }
   }
 
   if (!authorized) {

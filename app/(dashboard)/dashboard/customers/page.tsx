@@ -4,7 +4,7 @@ import { CustomersClient, type Customer } from "@/components/dashboard/Customers
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { PageStatCard } from "@/components/dashboard/pages/PageStatCard";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { ExportCsvButton } from "@/components/dashboard/ExportCsvButton";
 import { dailySeries, seriesTrend } from "@/lib/dashboard/spark";
 import { formatINR } from "@/lib/utils";
@@ -26,17 +26,13 @@ interface OrderRow {
 }
 
 export default async function CustomersPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await requirePageActor("customers.view", "/dashboard/customers");
 
   const admin = createAdminClient();
   const { data: ordersRaw } = await admin
     .from("orders")
     .select("id, buyer_name, buyer_email, buyer_phone, amount, status, created_at, pages(title)")
-    .eq("seller_user_id", user.id)
+    .eq("seller_user_id", ctx.ownerId)
     .order("created_at", { ascending: true })
     .limit(5000);
 

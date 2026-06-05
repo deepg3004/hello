@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireActor } from "@/lib/account-context";
 import { encryptGatewayKey } from "@/lib/gateway-crypto";
 import type { GatewayType } from "@/lib/gateway-loader";
 
@@ -32,11 +32,9 @@ export async function saveGatewayConfigAction(input: {
   key_secret: string;
   webhook_secret?: string;
 }): Promise<Result> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("gateway.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const gateway_type = input.gateway_type as GatewayType;
   if (!GATEWAY_TYPES.includes(gateway_type)) {
@@ -69,7 +67,7 @@ export async function saveGatewayConfigAction(input: {
   const admin = createAdminClient();
   const { error } = await admin.from("seller_gateway_config").upsert(
     {
-      seller_user_id: user.id,
+      seller_user_id: ctx.ownerId,
       gateway_type,
       key_id_enc,
       key_secret_enc,

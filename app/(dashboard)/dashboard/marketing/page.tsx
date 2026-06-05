@@ -3,7 +3,7 @@
 
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { loadMarketing } from "@/lib/marketing";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import {
@@ -14,13 +14,9 @@ import {
 export const metadata = { title: "Marketing" };
 
 export default async function MarketingPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/dashboard/marketing");
+  const ctx = await requirePageActor("marketing.view", "/dashboard/marketing");
 
-  const m = await loadMarketing(user.id);
+  const m = await loadMarketing(ctx.ownerId);
   const initial: MarketingState | null = m
     ? {
         meta_pixel_id: m.meta_pixel_id,

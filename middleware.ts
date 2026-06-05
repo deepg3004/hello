@@ -236,6 +236,7 @@ export async function middleware(request: NextRequest) {
         pathname.startsWith("/book/") ||
         pathname.startsWith("/affiliate/") ||
         pathname.startsWith("/account") ||
+        pathname.startsWith("/team/") ||
         pathname === "/maintenance" ||
         pathname.startsWith("/seller-host/") ||
         pathname.startsWith("/preview/") ||
@@ -281,6 +282,7 @@ export async function middleware(request: NextRequest) {
         pathname.startsWith("/order/") ||
         pathname.startsWith("/affiliate/") ||
         pathname.startsWith("/account") ||
+        pathname.startsWith("/team/") ||
         pathname.startsWith("/unlock/") ||
         pathname.startsWith("/book/") ||
         pathname.startsWith("/preview/");

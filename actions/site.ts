@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireActor } from "@/lib/account-context";
 
 interface Ok {
   ok: true;
@@ -39,12 +39,11 @@ function slugify(input: string): string {
     .replace(/-+$/g, "") || "page";
 }
 
+// Returns { id: effective-owner-id } when the actor may manage the website,
+// else null. All site.ts actions mutate the owner's website.
 async function requireUser() {
-  const supabase = createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
+  const actor = await requireActor("website.manage");
+  return actor.ok ? { id: actor.ctx.ownerId } : null;
 }
 
 /** Create a new site page with a unique slug, optionally seeded with blocks

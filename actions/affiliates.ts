@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireActor } from "@/lib/account-context";
 import type {
   AffiliateProgramStatus,
   CommissionType,
@@ -30,11 +30,9 @@ export async function upsertAffiliateProgramAction(input: {
   terms?: string;
   status?: AffiliateProgramStatus;
 }): Promise<Result> {
-  const supabase = createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("affiliates.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   if (
     input.commission_type !== "percentage" &&
@@ -56,7 +54,7 @@ export async function upsertAffiliateProgramAction(input: {
     .select("id, user_id")
     .eq("id", input.page_id)
     .single();
-  if (!page || page.user_id !== user.id) {
+  if (!page || page.user_id !== ctx.ownerId) {
     return { ok: false, message: "Not your page" };
   }
 
@@ -64,12 +62,12 @@ export async function upsertAffiliateProgramAction(input: {
   const { data: existing } = await admin
     .from("affiliates")
     .select("id")
-    .eq("user_id", user.id)
+    .eq("user_id", ctx.ownerId)
     .eq("page_id", input.page_id)
     .maybeSingle();
 
   const fields = {
-    user_id: user.id,
+    user_id: ctx.ownerId,
     page_id: input.page_id,
     commission_type: input.commission_type,
     commission_value: input.commission_value,
@@ -101,11 +99,9 @@ export async function markAffiliatePayoutPaidAction(input: {
    *  portal so they can reconcile against their bank statement. */
   payment_reference: string;
 }): Promise<Result> {
-  const supabase = createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("affiliates.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
   const { data: payout } = await admin
@@ -115,7 +111,7 @@ export async function markAffiliatePayoutPaidAction(input: {
     )
     .eq("id", input.payout_id)
     .single();
-  if (!payout || payout.seller_user_id !== user.id) {
+  if (!payout || payout.seller_user_id !== ctx.ownerId) {
     return { ok: false, message: "Payout not yours" };
   }
   if (payout.status !== "pending") {
@@ -163,11 +159,9 @@ export async function payAffiliateAllOutstandingAction(input: {
   affiliate_link_id: string;
   payment_reference: string;
 }): Promise<Result> {
-  const supabase = createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("affiliates.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
   if (!input.payment_reference.trim()) {
     return { ok: false, message: "Payment reference required" };
   }
@@ -182,7 +176,7 @@ export async function payAffiliateAllOutstandingAction(input: {
   if (!payouts || payouts.length === 0) {
     return { ok: false, message: "Nothing to pay" };
   }
-  if (payouts[0]!.seller_user_id !== user.id) {
+  if (payouts[0]!.seller_user_id !== ctx.ownerId) {
     return { ok: false, message: "Not your affiliate" };
   }
 

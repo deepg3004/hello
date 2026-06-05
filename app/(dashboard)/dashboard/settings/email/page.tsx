@@ -4,7 +4,7 @@
 
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import {
@@ -15,17 +15,13 @@ import {
 export const metadata = { title: "Email Integrations" };
 
 export default async function EmailIntegrationsPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/dashboard/settings/email");
+  const ctx = await requirePageActor("email.view", "/dashboard/settings/email");
 
   const admin = createAdminClient();
   const { data } = await admin
     .from("seller_smtp")
     .select("host, port, secure, username, from_name, from_email, reply_to, active, password_enc")
-    .eq("user_id", user.id)
+    .eq("user_id", ctx.ownerId)
     .maybeSingle();
 
   const initial: SmtpState | null = data

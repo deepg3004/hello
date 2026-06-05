@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { isBumpReady, isOtoReady, type OrderBumpConfig, type OtoConfig } from "@/lib/upsells";
 import { formatINR } from "@/lib/utils";
@@ -37,11 +37,7 @@ interface UpsellRow {
 const rupees = (n: number) => formatINR(n * 100);
 
 export default async function UpsellsPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await requirePageActor("pages.view", "/dashboard/upsells");
 
   const admin = createAdminClient();
 
@@ -49,7 +45,7 @@ export default async function UpsellsPage() {
   const { data: pagesRaw } = await admin
     .from("pages")
     .select("id, title, slug, page_config")
-    .eq("user_id", user.id)
+    .eq("user_id", ctx.ownerId)
     .order("created_at", { ascending: false });
   const pages = (pagesRaw ?? []) as PageRow[];
 
@@ -60,7 +56,7 @@ export default async function UpsellsPage() {
     .select(
       "id, page_id, status, source, amount, bump_offered, bump_accepted, oto_offered, oto_accepted, parent_order_id",
     )
-    .eq("seller_user_id", user.id)
+    .eq("seller_user_id", ctx.ownerId)
     .order("created_at", { ascending: false })
     .limit(10_000);
   const orders = ordersRaw ?? [];

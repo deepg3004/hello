@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { nanoid } from "nanoid";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireActor } from "@/lib/account-context";
 import { setWebhook } from "@/lib/telegram";
 import { slugify } from "@/lib/templates/utils";
 
@@ -31,12 +31,11 @@ function botApiChatId(
   return type === "group" ? `-${id}` : `-100${id}`;
 }
 
+// Returns { id: effective-owner-id } when the actor may manage Telegram, else
+// null. All channel setup/membership actions act on the owner's account.
 async function authUser() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
+  const actor = await requireActor("telegram.manage");
+  return actor.ok ? { id: actor.ctx.ownerId } : null;
 }
 
 // ── Connection status ───────────────────────────────────────────────────────

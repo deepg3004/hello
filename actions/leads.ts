@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireActor } from "@/lib/account-context";
 import { normalizeTags } from "@/lib/leads";
 import { sendEmail } from "@/lib/email";
 
@@ -16,12 +16,9 @@ export interface LeadActionResult {
 async function requireSeller(): Promise<
   { ok: true; userId: string } | { ok: false; message: string }
 > {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
-  return { ok: true, userId: user.id };
+  const actor = await requireActor("leads.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  return { ok: true, userId: actor.ctx.ownerId };
 }
 
 async function ownsLead(adminClient: ReturnType<typeof createAdminClient>, leadId: string, userId: string): Promise<boolean> {

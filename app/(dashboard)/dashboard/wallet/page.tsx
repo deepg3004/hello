@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getFeeConfig } from "@/lib/settings";
 import { effectivePlanRule, describeFeeRule } from "@/lib/fees";
@@ -16,11 +16,7 @@ import { WalletRechargePanel } from "@/components/dashboard/WalletRechargePanel"
 export const metadata = { title: "Wallet" };
 
 export default async function WalletPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/dashboard/wallet");
+  const ctx = await requirePageActor("wallet.view", "/dashboard/wallet");
 
   const admin = createAdminClient();
   const [{ data: wallet }, { data: transactions }, { data: profile }, feeConfig] =
@@ -28,20 +24,20 @@ export default async function WalletPage() {
       admin
         .from("seller_wallets")
         .select("balance_paise, auto_recharge_enabled")
-        .eq("seller_user_id", user.id)
+        .eq("seller_user_id", ctx.ownerId)
         .maybeSingle(),
       admin
         .from("wallet_transactions")
         .select(
           "id, type, amount_paise, description, balance_after, created_at, order_id",
         )
-        .eq("seller_user_id", user.id)
+        .eq("seller_user_id", ctx.ownerId)
         .order("created_at", { ascending: false })
         .limit(50),
       admin
         .from("user_profiles")
         .select("subscription_plan")
-        .eq("id", user.id)
+        .eq("id", ctx.ownerId)
         .single(),
       getFeeConfig(),
     ]);

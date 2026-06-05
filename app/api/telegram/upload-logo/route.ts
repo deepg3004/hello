@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireActor } from "@/lib/account-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,11 +17,11 @@ const EXT: Record<string, string> = {
 };
 
 export async function POST(req: Request) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const actor = await requireActor("telegram.manage");
+  if (!actor.ok) {
+    return NextResponse.json({ error: actor.error }, { status: 403 });
+  }
+  const { ctx } = actor;
 
   let file: File | null = null;
   try {
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  const path = `${user.id}/${nanoid(12)}.${ext}`;
+  const path = `${ctx.ownerId}/${nanoid(12)}.${ext}`;
 
   const admin = createAdminClient();
   const { error } = await admin.storage

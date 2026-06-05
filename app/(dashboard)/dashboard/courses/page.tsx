@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { PageStatCard } from "@/components/dashboard/pages/PageStatCard";
@@ -16,17 +16,13 @@ export const metadata = { title: "Courses" };
 const SPARK = [4, 6, 5, 7, 6, 8, 7, 9];
 
 export default async function CoursesPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/dashboard/courses");
+  const ctx = await requirePageActor("courses.view", "/dashboard/courses");
 
   const admin = createAdminClient();
   const { data } = await admin
     .from("courses")
     .select("id, title, status, created_at")
-    .eq("seller_user_id", user.id)
+    .eq("seller_user_id", ctx.ownerId)
     .order("created_at", { ascending: false });
 
   const courses = (data ?? []) as Array<{

@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronRight, Menu, User2, Wallet } from "lucide-react";
+import { Check, ChevronRight, Menu, User2, Wallet } from "lucide-react";
 
 import { signOutAction } from "@/actions/auth";
+import { setActingAccountAction } from "@/actions/team";
+import { can, ROLE_LABELS, type Role } from "@/lib/rbac";
+import type { ActingAccount } from "@/lib/account-context";
 import { formatINR } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -35,6 +38,11 @@ interface TopbarProps {
   profile: TopbarProfile;
   /** Seller wallet balance in paise — rendered as a live chip. */
   walletBalancePaise: number;
+  /** Role on the account being acted on (RBAC) — gates the wallet chip. */
+  role: Role;
+  /** Accounts the user can act on — switcher shows when more than one. */
+  accounts: ActingAccount[];
+  activeOwnerId: string;
   onMenuClick: () => void;
 }
 
@@ -80,11 +88,22 @@ function capitalize(s: string): string {
 export function Topbar({
   profile,
   walletBalancePaise,
+  role,
+  accounts,
+  activeOwnerId,
   onMenuClick,
 }: TopbarProps) {
   const pathname = usePathname();
   const section = deriveSection(pathname);
   const initials = makeInitials(profile.full_name ?? profile.email);
+  const showWallet = can(role, "wallet.view");
+  const activeAccount = accounts.find((a) => a.ownerId === activeOwnerId);
+
+  async function switchTo(ownerId: string) {
+    if (ownerId === activeOwnerId) return;
+    await setActingAccountAction(ownerId);
+    window.location.href = "/dashboard";
+  }
 
   const walletTone =
     walletBalancePaise <= WALLET_CRIT_PAISE
@@ -141,18 +160,21 @@ export function Topbar({
       {/* Right: wallet · search · notifications · avatar */}
       <div className="flex items-center gap-1.5">
         {/* Wallet balance chip — links to the wallet page; tints amber/red as
-            the balance falls toward the per-order fee floor. */}
-        <Link
-          href="/dashboard/wallet"
-          title="InvoxAI wallet — recharge to keep your store active"
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-semibold transition-colors",
-            walletTone,
-          )}
-        >
-          <Wallet className="h-3.5 w-3.5" />
-          <span className="tabular-nums">{formatINR(walletBalancePaise)}</span>
-        </Link>
+            the balance falls toward the per-order fee floor. Hidden for roles
+            without wallet visibility (e.g. Staff). */}
+        {showWallet && (
+          <Link
+            href="/dashboard/wallet"
+            title="InvoxAI wallet — recharge to keep your store active"
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-semibold transition-colors",
+              walletTone,
+            )}
+          >
+            <Wallet className="h-3.5 w-3.5" />
+            <span className="tabular-nums">{formatINR(walletBalancePaise)}</span>
+          </Link>
+        )}
 
         <GlobalSearch />
 
@@ -188,8 +210,40 @@ export function Topbar({
                 <span className="truncate text-xs text-muted-foreground">
                   {profile.email}
                 </span>
+                {activeAccount && !activeAccount.isOwn && (
+                  <span className="mt-1 inline-flex w-fit items-center rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                    {ROLE_LABELS[role]} · {activeAccount.label}
+                  </span>
+                )}
               </div>
             </DropdownMenuLabel>
+
+            {accounts.length > 1 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Switch account
+                </DropdownMenuLabel>
+                {accounts.map((a) => (
+                  <DropdownMenuItem
+                    key={a.ownerId}
+                    onClick={() => switchTo(a.ownerId)}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate">{a.label}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {ROLE_LABELS[a.role]}
+                      </span>
+                    </span>
+                    {a.ownerId === activeOwnerId && (
+                      <Check className="h-4 w-4 shrink-0 text-primary" />
+                    )}
+                  </DropdownMenuItem>
+                ))}
+              </>
+            )}
+
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link href="/dashboard/settings">

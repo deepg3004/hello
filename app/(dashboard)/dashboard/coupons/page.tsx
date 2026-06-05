@@ -4,18 +4,14 @@ import { CouponsTable, type CouponRow } from "@/components/dashboard/coupons/Cou
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { PageStatCard } from "@/components/dashboard/pages/PageStatCard";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { dailySeries, seriesTrend } from "@/lib/dashboard/spark";
 import { formatINR } from "@/lib/utils";
 
 export const metadata = { title: "Coupons" };
 
 export default async function CouponsPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await requirePageActor("coupons.view", "/dashboard/coupons");
 
   const admin = createAdminClient();
   const [{ data: couponsRaw }, { data: pages }, { data: couponOrdersRaw }] =
@@ -25,18 +21,18 @@ export default async function CouponsPage() {
         .select(
           "id, code, discount_type, discount_value, min_order, max_discount, total_limit, per_customer_limit, usage_count, starts_at, expires_at, page_ids, active, created_at",
         )
-        .eq("user_id", user.id)
+        .eq("user_id", ctx.ownerId)
         .order("created_at", { ascending: false }),
       admin
         .from("pages")
         .select("id, title")
-        .eq("user_id", user.id)
+        .eq("user_id", ctx.ownerId)
         .order("created_at", { ascending: false }),
       // Orders that redeemed a coupon — drives discount-given + sparklines.
       admin
         .from("orders")
         .select("discount_amount, status, created_at")
-        .eq("seller_user_id", user.id)
+        .eq("seller_user_id", ctx.ownerId)
         .not("coupon_id", "is", null)
         .order("created_at", { ascending: false })
         .limit(5000),

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import {
   Card,
   CardContent,
@@ -54,11 +54,7 @@ export default async function ABTestPage({
 }: {
   params: { id: string };
 }) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await requirePageActor("pages.view", "/dashboard/pages");
 
   const admin = createAdminClient();
   const { data: page } = await admin
@@ -69,7 +65,7 @@ export default async function ABTestPage({
     .eq("id", params.id)
     .single<PageRow>();
   if (!page) notFound();
-  if (page.user_id !== user.id) redirect("/dashboard/pages");
+  if (page.user_id !== ctx.ownerId) redirect("/dashboard/pages");
 
   const { data: history } = await admin
     .from("page_experiments")

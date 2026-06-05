@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireActor } from "@/lib/account-context";
 import {
   HARD_RESERVED_SUBDOMAINS,
   appRootHost,
@@ -50,11 +50,9 @@ async function bustHostCache(host?: string | null): Promise<void> {
 export async function claimSubdomainAction(input: {
   subdomain: string;
 }): Promise<Result> {
-  const supabase = createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("domains.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const sd = normaliseSubdomain(input.subdomain);
   const validation = validateSubdomain(sd);
@@ -83,7 +81,7 @@ export async function claimSubdomainAction(input: {
     .from("user_profiles")
     .select("id")
     .eq("subdomain", sd)
-    .neq("id", user.id)
+    .neq("id", ctx.ownerId)
     .maybeSingle();
   if (clash) {
     return { ok: false, message: "That subdomain is already taken." };
@@ -94,7 +92,7 @@ export async function claimSubdomainAction(input: {
   const { data: profile } = await admin
     .from("user_profiles")
     .select("subdomain, subdomain_cf_record_id")
-    .eq("id", user.id)
+    .eq("id", ctx.ownerId)
     .single();
   const previous = profile?.subdomain ?? null;
   const previousCfId = profile?.subdomain_cf_record_id ?? null;
@@ -107,7 +105,7 @@ export async function claimSubdomainAction(input: {
       subdomain: sd,
       subdomain_claimed_at: new Date().toISOString(),
     })
-    .eq("id", user.id);
+    .eq("id", ctx.ownerId);
   if (updateErr) {
     if (updateErr.code === "23505") {
       return { ok: false, message: "That subdomain is already taken." };
@@ -122,14 +120,14 @@ export async function claimSubdomainAction(input: {
     name: `${sd}.${apex}`,
     target: appRootHost(),
     proxied: true,
-    comment: `invoxai seller ${user.id}`,
+    comment: `invoxai seller ${ctx.ownerId}`,
   });
 
   if (cf.ok && cf.data?.id) {
     await admin
       .from("user_profiles")
       .update({ subdomain_cf_record_id: cf.data.id })
-      .eq("id", user.id);
+      .eq("id", ctx.ownerId);
   }
 
   // 3. If the seller changed subdomains, delete the old CF record.
@@ -161,11 +159,9 @@ export async function claimSubdomainAction(input: {
 export async function claimCustomDomainAction(input: {
   domain: string;
 }): Promise<Result> {
-  const supabase = createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("domains.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const d = normaliseDomain(input.domain);
   const validation = validateDomain(d);
@@ -180,7 +176,7 @@ export async function claimCustomDomainAction(input: {
     admin
       .from("user_profiles")
       .select("subscription_plan, custom_domain")
-      .eq("id", user.id)
+      .eq("id", ctx.ownerId)
       .single(),
     admin
       .from("platform_settings")
@@ -207,7 +203,7 @@ export async function claimCustomDomainAction(input: {
     .from("user_profiles")
     .select("id")
     .eq("custom_domain", d)
-    .neq("id", user.id)
+    .neq("id", ctx.ownerId)
     .maybeSingle();
   if (clash) {
     return {
@@ -226,7 +222,7 @@ export async function claimCustomDomainAction(input: {
       custom_domain_last_checked_at: null,
       custom_domain_last_error: null,
     })
-    .eq("id", user.id);
+    .eq("id", ctx.ownerId);
   if (error) {
     if (error.code === "23505") {
       return {
@@ -243,17 +239,15 @@ export async function claimCustomDomainAction(input: {
 }
 
 export async function verifyCustomDomainAction(): Promise<Result> {
-  const supabase = createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("domains.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
   const { data: profile } = await admin
     .from("user_profiles")
     .select("custom_domain")
-    .eq("id", user.id)
+    .eq("id", ctx.ownerId)
     .single();
   const domain = profile?.custom_domain;
   if (!domain) {
@@ -275,7 +269,7 @@ export async function verifyCustomDomainAction(): Promise<Result> {
           ? `CNAME points to ${final} (expected ${expected}). Chain: ${chain.join(" → ")}`
           : `No CNAME found for ${domain} pointing to ${expected}.`,
       })
-      .eq("id", user.id);
+      .eq("id", ctx.ownerId);
     return {
       ok: false,
       message: final
@@ -305,7 +299,7 @@ export async function verifyCustomDomainAction(): Promise<Result> {
       custom_domain_last_checked_at: nowIso,
       custom_domain_last_error: null,
     })
-    .eq("id", user.id);
+    .eq("id", ctx.ownerId);
 
   await bustHostCache(domain);
   revalidatePath("/dashboard/settings/domains");
@@ -319,17 +313,15 @@ export async function verifyCustomDomainAction(): Promise<Result> {
 }
 
 export async function removeCustomDomainAction(): Promise<Result> {
-  const supabase = createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("domains.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
   const { data: profile } = await admin
     .from("user_profiles")
     .select("custom_domain")
-    .eq("id", user.id)
+    .eq("id", ctx.ownerId)
     .single();
   const previous = profile?.custom_domain ?? null;
   await admin
@@ -341,7 +333,7 @@ export async function removeCustomDomainAction(): Promise<Result> {
       custom_domain_last_checked_at: null,
       custom_domain_last_error: null,
     })
-    .eq("id", user.id);
+    .eq("id", ctx.ownerId);
   await bustHostCache(previous);
   revalidatePath("/dashboard/settings/domains");
   return { ok: true };

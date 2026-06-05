@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { getActorContext } from "@/lib/account-context";
 import {
   ProfileSettingsForm,
   PasswordChangeForm,
@@ -19,19 +19,26 @@ import { TwoFactorSettings } from "@/components/dashboard/TwoFactorSettings";
 export const metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await getActorContext();
+  if (!ctx) redirect("/login");
+  // Settings is a hub of account config — keep Staff (no settings access) out.
+  if (
+    !ctx.can("domains.view") &&
+    !ctx.can("billing.view") &&
+    !ctx.can("gateway.view") &&
+    !ctx.can("team.view")
+  ) {
+    redirect("/dashboard");
+  }
 
+  // The profile card edits the LOGGED-IN user's own identity (not the owner's).
   const admin = createAdminClient();
   const { data: profile } = await admin
     .from("user_profiles")
     .select(
       "full_name, email, phone, gstin, creator_category",
     )
-    .eq("id", user.id)
+    .eq("id", ctx.authUserId)
     .single();
 
   return (
@@ -59,7 +66,7 @@ export default async function SettingsPage() {
             initialCategory={profile?.creator_category ?? ""}
           />
           <div className="border-t pt-3 text-sm">
-            <Row k="Email" v={profile?.email ?? user.email ?? ""} />
+            <Row k="Email" v={profile?.email ?? ""} />
             <p className="mt-1 text-xs text-muted-foreground">
               Email changes aren&apos;t self-serve yet — contact support.
             </p>
@@ -84,39 +91,62 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Payment Gateway</CardTitle>
-          <CardDescription>
-            Connect Razorpay or Cashfree to receive buyer payments directly.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="text-sm">
-          <Link
-            href="/dashboard/settings/gateway"
-            className="text-primary underline"
-          >
-            Configure gateway →
-          </Link>
-        </CardContent>
-      </Card>
+      {ctx.can("gateway.view") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Payment Gateway</CardTitle>
+            <CardDescription>
+              Connect Razorpay or Cashfree to receive buyer payments directly.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm">
+            <Link
+              href="/dashboard/settings/gateway"
+              className="text-primary underline"
+            >
+              Configure gateway →
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Tax &amp; Billing</CardTitle>
-          <CardDescription>
-            GST profile that drives every invoice we generate.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="text-sm">
-          <Link
-            href="/dashboard/settings/tax-billing"
-            className="text-primary underline"
-          >
-            Configure GST profile →
-          </Link>
-        </CardContent>
-      </Card>
+      {ctx.can("billing.view") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Tax &amp; Billing</CardTitle>
+            <CardDescription>
+              GST profile that drives every invoice we generate.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm">
+            <Link
+              href="/dashboard/settings/tax-billing"
+              className="text-primary underline"
+            >
+              Configure GST profile →
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      {ctx.can("team.view") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Team &amp; Roles</CardTitle>
+            <CardDescription>
+              Invite teammates and assign roles (Manager, Staff, Viewer).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm">
+            <Link
+              href="/dashboard/settings/team"
+              className="text-primary underline"
+            >
+              Manage team →
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

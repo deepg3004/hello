@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { nanoid } from "nanoid";
 
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireActor } from "@/lib/account-context";
 import { getTemplate } from "@/lib/templates/registry";
 import { isValidSlug, slugify } from "@/lib/templates/utils";
 import { PLANS, type PlanKey } from "@/lib/plans";
@@ -63,11 +63,9 @@ export interface PageActionResult {
 export async function createPageAction(
   input: CreatePageInput,
 ): Promise<PageActionResult> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("pages.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   if (!isValidSlug(input.slug)) {
     return { ok: false, message: "Invalid slug format" };
@@ -88,7 +86,7 @@ export async function createPageAction(
   const { data, error } = await admin
     .from("pages")
     .insert({
-      user_id: user.id,
+      user_id: ctx.ownerId,
       title: input.title,
       slug: input.slug,
       type: input.type,
@@ -110,7 +108,7 @@ export async function createPageAction(
   // checkout" fallback.
   if (input.type === "payment" && input.price && input.price > 0) {
     const { error: productErr } = await admin.from("products").insert({
-      user_id: user.id,
+      user_id: ctx.ownerId,
       page_id: data.id,
       name: input.title,
       price: input.price,
@@ -128,7 +126,7 @@ export async function createPageAction(
   // In-app bell — seller + admins. Best-effort.
   await notifyPageCreated(
     {
-      sellerId: user.id,
+      sellerId: ctx.ownerId,
       pageId: data.id,
       title: input.title,
       type: input.type,
@@ -144,11 +142,9 @@ export async function createPageAction(
 export async function updatePageAction(
   input: UpdatePageInput,
 ): Promise<PageActionResult> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("pages.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   if (!isValidSlug(input.slug)) {
     return { ok: false, message: "Invalid slug format" };
@@ -162,7 +158,7 @@ export async function updatePageAction(
     .select("id, user_id, slug")
     .eq("id", input.id)
     .single();
-  if (!page || page.user_id !== user.id) {
+  if (!page || page.user_id !== ctx.ownerId) {
     return { ok: false, message: "Not allowed" };
   }
 
@@ -230,7 +226,7 @@ export async function updatePageAction(
         .eq("id", existingProduct.id);
     } else {
       await admin.from("products").insert({
-        user_id: user.id,
+        user_id: ctx.ownerId,
         page_id: input.id,
         name: input.title,
         price: input.price,
@@ -251,7 +247,7 @@ export async function updatePageAction(
     const { data: profile } = await admin
       .from("user_profiles")
       .select("subscription_plan")
-      .eq("id", user.id)
+      .eq("id", ctx.ownerId)
       .single();
     const plan = (profile?.subscription_plan ?? "free") as string;
     const planAllowed = plan === "pro" || plan === "business";
@@ -298,11 +294,9 @@ export async function updatePageAction(
 export async function togglePagePublishAction(
   pageId: string,
 ): Promise<PageActionResult> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("pages.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
   const { data: page } = await admin
@@ -310,7 +304,7 @@ export async function togglePagePublishAction(
     .select("id, user_id, slug, status")
     .eq("id", pageId)
     .single();
-  if (!page || page.user_id !== user.id) {
+  if (!page || page.user_id !== ctx.ownerId) {
     return { ok: false, message: "Not allowed" };
   }
 
@@ -334,11 +328,9 @@ export async function togglePagePublishAction(
 export async function duplicatePageAction(
   pageId: string,
 ): Promise<PageActionResult> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("pages.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
   const { data: page } = await admin
@@ -348,12 +340,12 @@ export async function duplicatePageAction(
     )
     .eq("id", pageId)
     .single();
-  if (!page || page.user_id !== user.id) {
+  if (!page || page.user_id !== ctx.ownerId) {
     return { ok: false, message: "Not allowed" };
   }
 
   // Plan limit check
-  const limitCheck = await checkPageLimit(user.id);
+  const limitCheck = await checkPageLimit(ctx.ownerId);
   if (!limitCheck.ok) return limitCheck;
 
   const newTitle = `${page.title} (copy)`;
@@ -362,7 +354,7 @@ export async function duplicatePageAction(
   const { data: inserted, error } = await admin
     .from("pages")
     .insert({
-      user_id: user.id,
+      user_id: ctx.ownerId,
       title: newTitle,
       slug: newSlug,
       type: page.type,
@@ -386,11 +378,9 @@ export async function duplicatePageAction(
 export async function deletePageAction(
   pageId: string,
 ): Promise<PageActionResult> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  const actor = await requireActor("pages.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const admin = createAdminClient();
   const { data: page } = await admin
@@ -398,7 +388,7 @@ export async function deletePageAction(
     .select("id, user_id, slug")
     .eq("id", pageId)
     .single();
-  if (!page || page.user_id !== user.id) {
+  if (!page || page.user_id !== ctx.ownerId) {
     return { ok: false, message: "Not allowed" };
   }
 

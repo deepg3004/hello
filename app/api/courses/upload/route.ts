@@ -7,8 +7,8 @@
 import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireActor } from "@/lib/account-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,11 +35,11 @@ const MAX_IMAGE = 5 * 1024 * 1024; // 5 MB
 const MAX_VIDEO = 100 * 1024 * 1024; // 100 MB
 
 export async function POST(req: Request) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const actor = await requireActor("courses.manage");
+  if (!actor.ok) {
+    return NextResponse.json({ error: actor.error }, { status: 403 });
+  }
+  const { ctx } = actor;
 
   let file: File | null = null;
   try {
@@ -67,7 +67,7 @@ export async function POST(req: Request) {
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  const path = `course/${user.id}/${isVideo ? "video" : "image"}/${nanoid(12)}.${ext}`;
+  const path = `course/${ctx.ownerId}/${isVideo ? "video" : "image"}/${nanoid(12)}.${ext}`;
   const bucket = isVideo ? VIDEO_BUCKET : BUCKET;
 
   const admin = createAdminClient();

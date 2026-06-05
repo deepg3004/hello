@@ -13,7 +13,7 @@ import {
   type EarningsPoint,
 } from "@/components/dashboard/EarningsCard";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { ExportCsvButton } from "@/components/dashboard/ExportCsvButton";
 
 const HERO_BTN =
@@ -22,11 +22,7 @@ const HERO_BTN =
 export const metadata = { title: "Transactions" };
 
 export default async function TransactionsPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await requirePageActor("transactions.view", "/dashboard/transactions");
 
   const admin = createAdminClient();
   const [{ data: rowsRaw }, { data: pagesRaw }, { data: profile }] = await Promise.all([
@@ -35,18 +31,18 @@ export default async function TransactionsPage() {
       .select(
         "id, buyer_name, buyer_email, buyer_phone, buyer_address, amount, platform_commission, seller_amount, status, payment_gateway, gateway_payment_id, coupon_id, discount_amount, utm_source, utm_medium, utm_campaign, created_at, pages(title, slug)",
       )
-      .eq("seller_user_id", user.id)
+      .eq("seller_user_id", ctx.ownerId)
       .order("created_at", { ascending: false })
       .limit(2000),
     admin
       .from("pages")
       .select("id, title")
-      .eq("user_id", user.id)
+      .eq("user_id", ctx.ownerId)
       .order("created_at", { ascending: false }),
     admin
       .from("user_profiles")
       .select("is_admin")
-      .eq("id", user.id)
+      .eq("id", ctx.ownerId)
       .single(),
   ]);
 

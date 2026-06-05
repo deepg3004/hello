@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { nanoid } from "nanoid";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireActor } from "@/lib/account-context";
 
 export interface CouponInput {
   code: string;
@@ -61,13 +61,11 @@ function validate(input: CouponInput): string | null {
   return null;
 }
 
+// Returns the effective account-owner id when the actor may manage coupons,
+// else null (not signed in OR lacking the coupons.manage permission).
 async function requireSeller() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  return user.id;
+  const actor = await requireActor("coupons.manage");
+  return actor.ok ? actor.ctx.ownerId : null;
 }
 
 export async function generateCouponCodeAction(): Promise<{ code: string }> {

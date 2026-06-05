@@ -4,7 +4,7 @@
 
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/server";
+import { requirePageActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import {
@@ -33,11 +33,7 @@ function addressLines(a: Addr | null): string[] {
 }
 
 export default async function StoreOrdersPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/dashboard/store/orders");
+  const ctx = await requirePageActor("store.view", "/dashboard/store/orders");
 
   const admin = createAdminClient();
   const { data: rows } = await admin
@@ -45,7 +41,7 @@ export default async function StoreOrdersPage() {
     .select(
       "id, buyer_name, buyer_email, amount, shipping_fee, shipping_address, fulfillment_status, tracking_number, tracking_url, created_at, products(name)",
     )
-    .eq("seller_user_id", user.id)
+    .eq("seller_user_id", ctx.ownerId)
     .in("status", ["paid", "partially_refunded"])
     .not("shipping_address", "is", null)
     .order("created_at", { ascending: false })

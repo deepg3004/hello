@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 
 import type { Branding } from "@/lib/settings";
+import type { Role } from "@/lib/rbac";
+import type { ActingAccount } from "@/lib/account-context";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { Sidebar } from "./Sidebar";
@@ -16,6 +18,12 @@ interface DashboardShellProps {
   branding: Branding;
   /** Seller wallet balance (paise) — shown as a chip in the header. */
   walletBalancePaise: number;
+  /** Role of the logged-in user on the account being acted upon (RBAC). */
+  role: Role;
+  /** Accounts the user can act on (own + memberships) — drives the switcher. */
+  accounts: ActingAccount[];
+  /** The account currently being acted on. */
+  activeOwnerId: string;
   children: ReactNode;
 }
 
@@ -29,6 +37,9 @@ export function DashboardShell({
   profile,
   branding,
   walletBalancePaise,
+  role,
+  accounts,
+  activeOwnerId,
   children,
 }: DashboardShellProps) {
   const pathname = usePathname();
@@ -72,6 +83,7 @@ export function DashboardShell({
             pathname={pathname}
             profile={profile}
             branding={branding}
+            role={role}
           />
         </aside>
 
@@ -86,6 +98,7 @@ export function DashboardShell({
               pathname={pathname}
               profile={profile}
               branding={branding}
+              role={role}
               onNavigate={() => setMobileOpen(false)}
             />
           </SheetContent>
@@ -96,6 +109,9 @@ export function DashboardShell({
           <Topbar
             profile={profile}
             walletBalancePaise={walletBalancePaise}
+            role={role}
+            accounts={accounts}
+            activeOwnerId={activeOwnerId}
             onMenuClick={() => setMobileOpen(true)}
           />
           <main

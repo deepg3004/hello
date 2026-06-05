@@ -10,7 +10,7 @@
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { getActorContext } from "@/lib/account-context";
 import { getRedis } from "@/lib/redis";
 import {
   CONFIDENCE_THRESHOLD,
@@ -34,11 +34,8 @@ export async function GET(
   _request: Request,
   { params }: { params: { id: string } },
 ) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const ctx = await getActorContext();
+  if (!ctx) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
 
@@ -56,9 +53,9 @@ export async function GET(
   const { data: caller } = await admin
     .from("user_profiles")
     .select("is_admin")
-    .eq("id", user.id)
+    .eq("id", ctx.authUserId)
     .single();
-  const isOwner = page.user_id === user.id;
+  const isOwner = page.user_id === ctx.ownerId && ctx.can("pages.view");
   const isAdmin = !!caller?.is_admin;
   if (!isOwner && !isAdmin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
