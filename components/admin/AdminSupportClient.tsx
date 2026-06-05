@@ -144,7 +144,9 @@ export function AdminSupportClient({ rows }: { rows: AdminTicketRow[] }) {
               {filtered.map((t) => (
                 <TableRow key={t.id} className="transition-colors hover:bg-muted/30">
                   <TableCell>
-                    <div className="font-medium">{t.subject || "(no subject)"}</div>
+                    <Link href={`/admin/support/${t.id}`} className="font-medium hover:underline">
+                      {t.subject || "(no subject)"}
+                    </Link>
                     <div className="text-xs text-muted-foreground">#{t.id.slice(0, 8)}</div>
                   </TableCell>
                   <TableCell>
