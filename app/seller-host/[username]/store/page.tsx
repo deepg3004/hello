@@ -8,12 +8,15 @@ import { unstable_noStore as noStore } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getReviewSummaries } from "@/lib/reviews";
 import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-theme";
+import { topSellingProductIds } from "@/lib/storefront-sections";
 import { CartProvider } from "@/components/store/cart/CartProvider";
 import { CartDrawer } from "@/components/store/cart/CartDrawer";
 import { StorefrontShell, PromoBanner } from "@/components/store/StorefrontShell";
 import { StorefrontBanners } from "@/components/store/StorefrontBanners";
 import { StoreCatalog } from "@/components/store/StoreCatalog";
-import type { CatalogItem } from "@/components/store/ProductCard";
+import { TestimonialsSection } from "@/components/store/TestimonialsSection";
+import { FaqSection } from "@/components/store/FaqSection";
+import { ProductCard, type CatalogItem } from "@/components/store/ProductCard";
 
 interface Props {
   params: { username: string };
@@ -118,12 +121,33 @@ export default async function StoreCatalogPage({ params }: Props) {
 
   const sellerName = profile.legal_business_name ?? profile.full_name ?? params.username;
 
+  // Top-selling row (by paid sales), mapped to the loaded items in rank order.
+  let topItems: CatalogItem[] = [];
+  if (cfg.sections.topSelling && items.length > 0) {
+    const byId = new Map(items.map((p) => [p.id, p]));
+    topItems = (await topSellingProductIds(profile.id, 8))
+      .map((id) => byId.get(id))
+      .filter((p): p is CatalogItem => !!p);
+  }
+
   return (
     <CartProvider username={params.username}>
       <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName}>
         <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
           <StorefrontBanners banners={cfg.banners} autoplay={cfg.bannerAutoplay} />
           <PromoBanner cfg={cfg} />
+
+          {topItems.length > 0 && (
+            <section className="mb-10">
+              <h2 className="sf-display mb-4 text-xl font-bold tracking-tight">🔥 Top selling</h2>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {topItems.map((p) => (
+                  <ProductCard key={p.id} p={p} base="/store" cardStyle={cfg.card} showRatings={cfg.sections.ratings} showBadges={cfg.sections.badges} />
+                ))}
+              </div>
+            </section>
+          )}
+
           {items.length === 0 ? (
             <p className="sf-muted py-20 text-center">No products live yet. Check back soon.</p>
           ) : (
@@ -137,6 +161,9 @@ export default async function StoreCatalogPage({ params }: Props) {
               cols={cfg.cols}
             />
           )}
+
+          {cfg.sections.testimonials && <TestimonialsSection items={chrome.testimonials} />}
+          {cfg.sections.faq && <FaqSection items={chrome.faqs} />}
         </main>
       </StorefrontShell>
       <CartDrawer />

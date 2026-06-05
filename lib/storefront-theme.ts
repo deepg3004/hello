@@ -150,6 +150,9 @@ export interface SurfaceConfig {
     trust: boolean;
     announcement: boolean;
     promo: boolean;
+    topSelling: boolean;
+    testimonials: boolean;
+    faq: boolean;
   };
   headline: string;
   tagline: string;
@@ -189,7 +192,7 @@ export function defaultSurfaceConfig(): SurfaceConfig {
     card: "elevated",
     radius: "soft",
     density: "comfortable",
-    sections: { ratings: true, badges: true, related: true, trust: true, announcement: false, promo: false },
+    sections: { ratings: true, badges: true, related: true, trust: true, announcement: false, promo: false, topSelling: false, testimonials: false, faq: false },
     headline: "",
     tagline: "",
     announcement: "",
@@ -328,6 +331,20 @@ export interface ChromeConfig {
     socials: MenuItem[];
   };
   legal: { privacy: string; terms: string; refund: string; contact: string };
+  testimonials: Testimonial[];
+  faqs: Faq[];
+}
+
+export interface Testimonial {
+  name: string;
+  role: string;
+  quote: string;
+  avatar: string;
+  rating: number;
+}
+export interface Faq {
+  q: string;
+  a: string;
 }
 
 export const LEGAL_DOCS = [
@@ -360,6 +377,8 @@ export function defaultChromeConfig(): ChromeConfig {
       socials: [],
     },
     legal: { privacy: "", terms: "", refund: "", contact: "" },
+    testimonials: [],
+    faqs: [],
   };
 }
 
@@ -415,5 +434,37 @@ export function resolveChromeConfig(raw: unknown): ChromeConfig {
       refund: typeof (c.legal as Record<string, unknown> | undefined)?.refund === "string" ? String((c.legal as Record<string, unknown>).refund).slice(0, 20000) : "",
       contact: typeof (c.legal as Record<string, unknown> | undefined)?.contact === "string" ? String((c.legal as Record<string, unknown>).contact).slice(0, 20000) : "",
     },
+    testimonials: cleanTestimonials(c.testimonials),
+    faqs: cleanFaqs(c.faqs),
   };
+}
+
+function cleanTestimonials(v: unknown): Testimonial[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((t) => {
+      const o = (t ?? {}) as Record<string, unknown>;
+      const s = (x: unknown, n: number) => (typeof x === "string" ? x.trim().slice(0, n) : "");
+      const r = Math.round(Number(o.rating));
+      return {
+        name: s(o.name, 80),
+        role: s(o.role, 80),
+        quote: s(o.quote, 600),
+        avatar: s(o.avatar, 400),
+        rating: Number.isFinite(r) ? Math.min(5, Math.max(0, r)) : 5,
+      };
+    })
+    .filter((t) => t.quote || t.name)
+    .slice(0, 12);
+}
+function cleanFaqs(v: unknown): Faq[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((f) => {
+      const o = (f ?? {}) as Record<string, unknown>;
+      const s = (x: unknown, n: number) => (typeof x === "string" ? x.trim().slice(0, n) : "");
+      return { q: s(o.q, 300), a: s(o.a, 3000) };
+    })
+    .filter((f) => f.q && f.a)
+    .slice(0, 30);
 }
