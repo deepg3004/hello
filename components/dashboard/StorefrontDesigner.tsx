@@ -20,6 +20,8 @@ import {
   type ChromeConfig,
   type MenuItem,
   type Banner,
+  type Testimonial,
+  type Faq,
   type FontKey,
   type CardStyle,
   type RadiusKey,
@@ -231,6 +233,9 @@ export function StorefrontDesigner({
                 ["trust", "Trust strip"],
                 ["announcement", "Announcement bar"],
                 ["promo", "Promo banner"],
+                ["topSelling", "Top-selling row"],
+                ["testimonials", "Testimonials"],
+                ["faq", "FAQ"],
               ] as [keyof SurfaceConfig["sections"], string][]).map(([k, label]) => (
                 <label key={k} className="flex cursor-pointer items-center gap-2 text-sm">
                   <input type="checkbox" checked={cfg.sections[k]} onChange={(e) => patchSection(k, e.target.checked)} className="h-4 w-4 accent-primary" />
@@ -397,10 +402,81 @@ function ChromeEditor({
         </div>
       </Section>
 
+      {/* Testimonials */}
+      <Section title="Testimonials">
+        <p className="mb-3 text-xs text-muted-foreground">Shown on your store/course pages when the “Testimonials” section is on.</p>
+        <TestimonialEditor items={chrome.testimonials} onChange={(testimonials) => setChrome({ ...chrome, testimonials })} />
+      </Section>
+
+      {/* FAQ */}
+      <Section title="FAQ">
+        <p className="mb-3 text-xs text-muted-foreground">Shown when the “FAQ” section is on.</p>
+        <FaqEditor items={chrome.faqs} onChange={(faqs) => setChrome({ ...chrome, faqs })} />
+      </Section>
+
       <Button onClick={onSave} disabled={pending}>
         {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
         Save header & footer
       </Button>
+    </div>
+  );
+}
+
+function TestimonialEditor({ items, onChange }: { items: Testimonial[]; onChange: (t: Testimonial[]) => void }) {
+  const set = (i: number, p: Partial<Testimonial>) => onChange(items.map((t, idx) => (idx === i ? { ...t, ...p } : t)));
+  return (
+    <div className="space-y-3">
+      {items.map((t, i) => (
+        <div key={i} className="space-y-2 rounded-lg border p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Input value={t.name} onChange={(e) => set(i, { name: e.target.value })} placeholder="Name" className="w-40" />
+              <select value={t.rating} onChange={(e) => set(i, { rating: Number(e.target.value) })} className="h-9 rounded-md border bg-background px-2 text-sm">
+                {[5, 4, 3, 2, 1, 0].map((r) => (
+                  <option key={r} value={r}>
+                    {r === 0 ? "No stars" : `${r}★`}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button variant="ghost" size="icon" className="text-destructive" onClick={() => onChange(items.filter((_, idx) => idx !== i))}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+          <Input value={t.role} onChange={(e) => set(i, { role: e.target.value })} placeholder="Role / company (optional)" />
+          <textarea value={t.quote} onChange={(e) => set(i, { quote: e.target.value })} rows={2} placeholder="Their words…" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+          <ImageUpload value={t.avatar} onChange={(v) => set(i, { avatar: v })} placeholder="Avatar (optional)" />
+        </div>
+      ))}
+      {items.length < 12 && (
+        <Button variant="outline" size="sm" onClick={() => onChange([...items, { name: "", role: "", quote: "", avatar: "", rating: 5 }])}>
+          <Plus className="mr-1.5 h-4 w-4" /> Add testimonial
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function FaqEditor({ items, onChange }: { items: Faq[]; onChange: (f: Faq[]) => void }) {
+  const set = (i: number, p: Partial<Faq>) => onChange(items.map((f, idx) => (idx === i ? { ...f, ...p } : f)));
+  return (
+    <div className="space-y-3">
+      {items.map((f, i) => (
+        <div key={i} className="space-y-2 rounded-lg border p-3">
+          <div className="flex items-center gap-2">
+            <Input value={f.q} onChange={(e) => set(i, { q: e.target.value })} placeholder="Question" />
+            <Button variant="ghost" size="icon" className="shrink-0 text-destructive" onClick={() => onChange(items.filter((_, idx) => idx !== i))}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+          <textarea value={f.a} onChange={(e) => set(i, { a: e.target.value })} rows={2} placeholder="Answer" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+        </div>
+      ))}
+      {items.length < 30 && (
+        <Button variant="outline" size="sm" onClick={() => onChange([...items, { q: "", a: "" }])}>
+          <Plus className="mr-1.5 h-4 w-4" /> Add FAQ
+        </Button>
+      )}
     </div>
   );
 }

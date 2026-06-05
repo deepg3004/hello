@@ -8,10 +8,13 @@ import { unstable_noStore as noStore } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getReviewSummaries } from "@/lib/reviews";
 import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-theme";
+import { topSellingCourseIds } from "@/lib/storefront-sections";
 import { StorefrontShell, PromoBanner } from "@/components/store/StorefrontShell";
 import { StorefrontBanners } from "@/components/store/StorefrontBanners";
+import { TestimonialsSection } from "@/components/store/TestimonialsSection";
+import { FaqSection } from "@/components/store/FaqSection";
 import { CourseCatalog } from "@/components/courses/CourseCatalog";
-import type { CourseCardItem } from "@/components/courses/CourseCard";
+import { CourseCard, type CourseCardItem } from "@/components/courses/CourseCard";
 
 interface Props {
   params: { username: string };
@@ -127,16 +130,40 @@ export default async function CourseCatalogPage({ params }: Props) {
   const levels = Array.from(new Set(items.map((i) => i.level).filter((l): l is string => !!l)));
   const sellerName = profile.legal_business_name ?? profile.full_name ?? params.username;
 
+  // Top-selling courses (by enrollment), mapped to loaded items in rank order.
+  let topItems: CourseCardItem[] = [];
+  if (cfg.sections.topSelling && items.length > 0) {
+    const byId = new Map(items.map((c) => [c.id, c]));
+    topItems = (await topSellingCourseIds(profile.id, 6))
+      .map((id) => byId.get(id))
+      .filter((c): c is CourseCardItem => !!c);
+  }
+
   return (
     <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName}>
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <StorefrontBanners banners={cfg.banners} autoplay={cfg.bannerAutoplay} />
         <PromoBanner cfg={cfg} />
+
+        {topItems.length > 0 && (
+          <section className="mb-10">
+            <h2 className="sf-display mb-4 text-xl font-bold tracking-tight">🔥 Most popular</h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {topItems.map((c) => (
+                <CourseCard key={c.id} c={c} base="/course" cardStyle={cfg.card} showRatings={cfg.sections.ratings} />
+              ))}
+            </div>
+          </section>
+        )}
+
         {items.length === 0 ? (
           <p className="sf-muted py-20 text-center">No courses published yet. Check back soon.</p>
         ) : (
           <CourseCatalog items={items} categories={categories} levels={levels} base="/course" cardStyle={cfg.card} showRatings={cfg.sections.ratings} cols={cfg.cols} />
         )}
+
+        {cfg.sections.testimonials && <TestimonialsSection items={chrome.testimonials} />}
+        {cfg.sections.faq && <FaqSection items={chrome.faqs} />}
       </main>
     </StorefrontShell>
   );

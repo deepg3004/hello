@@ -12,6 +12,8 @@ import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-them
 import { CartProvider } from "@/components/store/cart/CartProvider";
 import { CartDrawer } from "@/components/store/cart/CartDrawer";
 import { StorefrontShell } from "@/components/store/StorefrontShell";
+import { TestimonialsSection } from "@/components/store/TestimonialsSection";
+import { FaqSection } from "@/components/store/FaqSection";
 import { ProductGallery } from "@/components/store/ProductGallery";
 import { ProductBuyPanel, type BuyPanelProduct } from "@/components/store/ProductBuyPanel";
 import { ReviewsSection } from "@/components/store/ReviewsSection";
@@ -251,6 +253,9 @@ export default async function ProductDetailPage({ params }: Props) {
           <div id="reviews" className="mt-14">
             <ReviewsSection subjectType="product" subjectId={prod.id} summary={summary} reviews={reviews} subjectLabel="product" />
           </div>
+
+          {cfg.sections.testimonials && <TestimonialsSection items={chrome.testimonials} />}
+          {cfg.sections.faq && <FaqSection items={chrome.faqs} />}
         </main>
       </StorefrontShell>
       <CartDrawer />
