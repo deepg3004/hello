@@ -274,6 +274,9 @@ export default async function StoreDashboardPage() {
                   </a>
                 </Button>
                 <Button asChild variant="outline">
+                  <Link href="/dashboard/storefront-design">Customize design</Link>
+                </Button>
+                <Button asChild variant="outline">
                   <Link href="/dashboard/store/orders">Manage orders</Link>
                 </Button>
               </div>

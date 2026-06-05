@@ -7,8 +7,10 @@ import Link from "next/link";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getReviewSummary, getReviewSummaries, listReviews } from "@/lib/reviews";
+import { resolveSurfaceConfig } from "@/lib/storefront-theme";
 import { CartProvider } from "@/components/store/cart/CartProvider";
 import { CartDrawer } from "@/components/store/cart/CartDrawer";
+import { StorefrontShell } from "@/components/store/StorefrontShell";
 import { ProductGallery } from "@/components/store/ProductGallery";
 import { ProductBuyPanel, type BuyPanelProduct } from "@/components/store/ProductBuyPanel";
 import { ReviewsSection } from "@/components/store/ReviewsSection";
@@ -62,10 +64,12 @@ export default async function ProductDetailPage({ params }: Props) {
 
   const { data: profile } = await admin
     .from("user_profiles")
-    .select("id, full_name, legal_business_name, free_shipping_over")
+    .select("id, full_name, legal_business_name, free_shipping_over, storefront_config")
     .eq("subdomain", params.username)
     .maybeSingle();
   if (!profile?.id) notFound();
+
+  const cfg = resolveSurfaceConfig(profile.storefront_config, "store");
 
   const { data: page } = await admin
     .from("pages")
@@ -173,83 +177,75 @@ export default async function ProductDetailPage({ params }: Props) {
 
   return (
     <CartProvider username={params.username}>
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
-        <nav className="mb-6 text-sm text-muted-foreground">
-          <Link href="/store" className="hover:text-primary">
-            Store
-          </Link>
-          <span className="mx-2">/</span>
-          <span className="text-foreground">{prod.name}</span>
-        </nav>
+      <StorefrontShell cfg={cfg}>
+        <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+          <nav className="sf-muted mb-6 text-sm">
+            <Link href="/store" className="transition hover:opacity-80">
+              Store
+            </Link>
+            <span className="mx-2">/</span>
+            <span style={{ color: "var(--sf-fg)" }}>{prod.name}</span>
+          </nav>
 
-        <div className="grid gap-8 md:grid-cols-2">
-          <ProductGallery images={gallery} alt={prod.name ?? "Product"} />
+          <div className="grid gap-8 md:grid-cols-2">
+            <ProductGallery images={gallery} alt={prod.name ?? "Product"} />
 
-          <div className="space-y-5">
-            {prod.category && (
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {prod.category}
-              </span>
-            )}
-            <h1 className="font-sora text-2xl font-semibold tracking-tight sm:text-3xl">{prod.name}</h1>
+            <div className="space-y-5">
+              {prod.category && (
+                <span className="sf-accent text-xs font-semibold uppercase tracking-wider">{prod.category}</span>
+              )}
+              <h1 className="sf-display text-2xl font-bold tracking-tight sm:text-3xl">{prod.name}</h1>
 
-            {summary.count > 0 && (
-              <a href="#reviews" className="flex items-center gap-2 text-sm">
-                <Stars value={summary.average} size={16} />
-                <span className="font-medium">{summary.average.toFixed(1)}</span>
-                <span className="text-muted-foreground">· {summary.count} review{summary.count === 1 ? "" : "s"}</span>
-              </a>
-            )}
+              {cfg.sections.ratings && summary.count > 0 && (
+                <a href="#reviews" className="flex items-center gap-2 text-sm">
+                  <Stars value={summary.average} size={16} />
+                  <span className="font-medium">{summary.average.toFixed(1)}</span>
+                  <span className="sf-muted">· {summary.count} review{summary.count === 1 ? "" : "s"}</span>
+                </a>
+              )}
 
-            {prod.original_price && prod.original_price > prod.price && (
-              <p className="text-sm">
-                <span className="text-muted-foreground line-through">
-                  ₹{prod.original_price}
-                </span>{" "}
-                <span className="font-semibold text-rose-600">
-                  Save ₹{Math.round(prod.original_price - prod.price)}
-                </span>
-              </p>
-            )}
+              {prod.original_price && prod.original_price > prod.price && (
+                <p className="text-sm">
+                  <span className="sf-muted line-through">₹{prod.original_price}</span>{" "}
+                  <span className="font-semibold text-rose-500">Save ₹{Math.round(prod.original_price - prod.price)}</span>
+                </p>
+              )}
 
-            <ProductBuyPanel product={buyProduct} />
+              <ProductBuyPanel product={buyProduct} />
 
-            <TrustBadges
-              requiresShipping={!!prod.requires_shipping}
-              freeShippingOver={profile.free_shipping_over != null ? Number(profile.free_shipping_over) : null}
-            />
+              {cfg.sections.trust && (
+                <TrustBadges
+                  requiresShipping={!!prod.requires_shipping}
+                  freeShippingOver={profile.free_shipping_over != null ? Number(profile.free_shipping_over) : null}
+                />
+              )}
 
-            {prod.description && (
-              <div className="prose prose-sm max-w-none border-t pt-5 text-zinc-700">
-                <h2 className="mb-2 font-sora text-base font-semibold">Description</h2>
-                <p className="whitespace-pre-line">{prod.description}</p>
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground">Sold by {sellerName}</p>
-          </div>
-        </div>
-
-        {relatedItems.length > 0 && (
-          <section className="mt-14">
-            <h2 className="mb-4 font-sora text-xl font-semibold tracking-tight">You may also like</h2>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {relatedItems.map((r) => (
-                <ProductCard key={r.id} p={r} base="/store" />
-              ))}
+              {prod.description && (
+                <div className="sf-border border-t pt-5">
+                  <h2 className="sf-display mb-2 text-base font-semibold">Description</h2>
+                  <p className="sf-muted whitespace-pre-line text-sm leading-relaxed">{prod.description}</p>
+                </div>
+              )}
+              <p className="sf-muted text-xs">Sold by {sellerName}</p>
             </div>
-          </section>
-        )}
+          </div>
 
-        <div id="reviews" className="mt-14">
-          <ReviewsSection
-            subjectType="product"
-            subjectId={prod.id}
-            summary={summary}
-            reviews={reviews}
-            subjectLabel="product"
-          />
-        </div>
-      </main>
+          {cfg.sections.related && relatedItems.length > 0 && (
+            <section className="mt-14">
+              <h2 className="sf-display mb-4 text-xl font-bold tracking-tight">You may also like</h2>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {relatedItems.map((r) => (
+                  <ProductCard key={r.id} p={r} base="/store" cardStyle={cfg.card} showRatings={cfg.sections.ratings} showBadges={cfg.sections.badges} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          <div id="reviews" className="mt-14">
+            <ReviewsSection subjectType="product" subjectId={prod.id} summary={summary} reviews={reviews} subjectLabel="product" />
+          </div>
+        </main>
+      </StorefrontShell>
       <CartDrawer />
     </CartProvider>
   );

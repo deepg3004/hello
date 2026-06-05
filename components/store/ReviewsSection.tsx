@@ -76,35 +76,33 @@ export function ReviewsSection({
   const pct = (n: number) => (summary.count ? Math.round((n / summary.count) * 100) : 0);
 
   return (
-    <section className="border-t pt-10">
+    <section className="sf-border border-t pt-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <h2 className="font-sora text-xl font-semibold tracking-tight">Ratings & reviews</h2>
+        <h2 className="sf-display text-xl font-bold tracking-tight">Ratings & reviews</h2>
         {!writing && !done && (
-          <Button variant="outline" size="sm" onClick={() => setWriting(true)}>
+          <button className="sf-btn-outline px-4 py-2 text-sm font-medium transition hover:opacity-80" onClick={() => setWriting(true)}>
             Write a review
-          </Button>
+          </button>
         )}
       </div>
 
       {/* Summary */}
       <div className="mt-5 grid gap-6 sm:grid-cols-[200px_1fr]">
-        <div className="flex flex-col items-center justify-center rounded-xl border bg-muted/30 p-5 text-center">
+        <div className="sf-card flex flex-col items-center justify-center p-5 text-center">
           <div className="text-4xl font-bold">{summary.average.toFixed(1)}</div>
           <Stars value={summary.average} size={18} className="mt-1" />
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="sf-muted mt-1 text-sm">
             {summary.count} review{summary.count === 1 ? "" : "s"}
           </p>
         </div>
         <div className="space-y-1.5">
           {[5, 4, 3, 2, 1].map((s) => (
             <div key={s} className="flex items-center gap-2 text-sm">
-              <span className="w-8 text-muted-foreground">{s}★</span>
-              <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+              <span className="sf-muted w-8">{s}★</span>
+              <div className="h-2 flex-1 overflow-hidden rounded-full" style={{ background: "var(--sf-border)" }}>
                 <div className="h-full bg-amber-400" style={{ width: `${pct(summary.breakdown[s as 1 | 2 | 3 | 4 | 5])}%` }} />
               </div>
-              <span className="w-9 text-right text-xs text-muted-foreground">
-                {summary.breakdown[s as 1 | 2 | 3 | 4 | 5]}
-              </span>
+              <span className="sf-muted w-9 text-right text-xs">{summary.breakdown[s as 1 | 2 | 3 | 4 | 5]}</span>
             </div>
           ))}
         </div>
@@ -112,7 +110,7 @@ export function ReviewsSection({
 
       {/* Write form */}
       {writing && (
-        <div className="mt-6 space-y-3 rounded-xl border p-5">
+        <div className="sf-card mt-6 space-y-3 p-5">
           <div className="flex items-center gap-1">
             {[1, 2, 3, 4, 5].map((s) => (
               <button
@@ -154,23 +152,23 @@ export function ReviewsSection({
       {/* List */}
       <div className="mt-8 space-y-5">
         {reviews.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="sf-muted text-sm">
             No reviews yet — be the first to review this {subjectLabel}.
           </p>
         ) : (
           reviews.map((r) => (
-            <div key={r.id} className="border-b pb-5 last:border-0">
+            <div key={r.id} className="sf-border border-b pb-5 last:border-0">
               <div className="flex items-center gap-2">
                 <Stars value={r.rating} size={14} />
                 {r.verified && (
-                  <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-500">
                     <BadgeCheck className="h-3.5 w-3.5" /> Verified buyer
                   </span>
                 )}
               </div>
               {r.title && <p className="mt-1.5 font-medium">{r.title}</p>}
-              {r.body && <p className="mt-1 text-sm text-zinc-600">{r.body}</p>}
-              <p className="mt-1.5 text-xs text-muted-foreground">
+              {r.body && <p className="sf-muted mt-1 text-sm">{r.body}</p>}
+              <p className="sf-muted mt-1.5 text-xs">
                 {r.buyer_name ?? "Anonymous"} · {formatDate(r.created_at)}
               </p>
             </div>

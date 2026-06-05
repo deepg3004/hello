@@ -406,3 +406,77 @@
       radial-gradient(40rem 16rem at 88% -8%, hsl(var(--aurora-2) / 0.08), transparent 72%);
   }
 }
+
+/* ============================================================================
+   Storefront themes (store + course pages). Tokens (--sf-*) are set inline on
+   the .sf-root wrapper by StorefrontShell from lib/storefront-theme.ts.
+   ========================================================================== */
+.sf-root {
+  background: var(--sf-bg);
+  color: var(--sf-fg);
+  font-family: var(--sf-body);
+}
+.sf-display {
+  font-family: var(--sf-display);
+}
+.sf-muted {
+  color: var(--sf-muted);
+}
+.sf-band {
+  background: var(--sf-bg2);
+}
+.sf-card {
+  background: var(--sf-surface);
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+}
+.sf-card-glass {
+  background: var(--sf-surface);
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.sf-border {
+  border-color: var(--sf-border);
+}
+.sf-accent {
+  color: var(--sf-accent);
+}
+.sf-accent-bg {
+  background: var(--sf-accent);
+  color: var(--sf-accent-fg);
+}
+.sf-btn {
+  background: var(--sf-accent);
+  color: var(--sf-accent-fg);
+  border-radius: 999px;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+.sf-btn:hover {
+  filter: brightness(1.08);
+}
+.sf-btn-outline {
+  border: 1px solid var(--sf-border);
+  color: var(--sf-fg);
+  border-radius: 999px;
+}
+.sf-chip {
+  border: 1px solid var(--sf-border);
+  color: var(--sf-fg);
+  border-radius: 999px;
+}
+.sf-chip-active {
+  background: var(--sf-accent);
+  color: var(--sf-accent-fg);
+  border-radius: 999px;
+}
+.sf-input {
+  background: var(--sf-surface);
+  border: 1px solid var(--sf-border);
+  color: var(--sf-fg);
+  border-radius: var(--sf-radius);
+}
+.sf-input::placeholder {
+  color: var(--sf-muted);
+}

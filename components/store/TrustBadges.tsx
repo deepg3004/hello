@@ -35,13 +35,13 @@ export function TrustBadges({
     },
   ];
   return (
-    <div className="grid grid-cols-1 gap-3 rounded-xl border bg-muted/30 p-4 sm:grid-cols-3">
+    <div className="sf-card grid grid-cols-1 gap-3 p-4 sm:grid-cols-3">
       {items.map((it, i) => (
         <div key={i} className="flex items-center gap-3">
-          <it.icon className="h-5 w-5 shrink-0 text-primary" />
+          <it.icon className="sf-accent h-5 w-5 shrink-0" />
           <div className="min-w-0">
             <p className="text-sm font-medium leading-tight">{it.title}</p>
-            <p className="text-xs text-muted-foreground">{it.sub}</p>
+            <p className="sf-muted text-xs">{it.sub}</p>
           </div>
         </div>
       ))}
