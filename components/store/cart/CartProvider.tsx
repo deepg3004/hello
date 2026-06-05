@@ -30,10 +30,13 @@ interface CartContextValue {
   items: CartItem[];
   count: number;
   subtotal: number; // rupees
-  add: (item: Omit<CartItem, "quantity">) => void;
+  add: (item: Omit<CartItem, "quantity">, qty?: number) => void;
   setQty: (key: string, qty: number) => void;
   remove: (key: string) => void;
   clear: () => void;
+  isOpen: boolean;
+  setOpen: (open: boolean) => void;
+  openCart: () => void;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -50,6 +53,7 @@ export function CartProvider({
   const key = `invox_cart_${username}`;
   const [items, setItems] = useState<CartItem[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [isOpen, setOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -70,16 +74,21 @@ export function CartProvider({
     }
   }, [items, key, loaded]);
 
-  const add = useCallback((item: Omit<CartItem, "quantity">) => {
+  const add = useCallback((item: Omit<CartItem, "quantity">, qty = 1) => {
+    const addQty = Math.max(1, Math.min(99, Math.floor(qty)));
     setItems((prev) => {
       const k = lineKey(item);
       const ex = prev.find((p) => lineKey(p) === k);
       if (ex) {
-        return prev.map((p) => (lineKey(p) === k ? { ...p, quantity: p.quantity + 1 } : p));
+        return prev.map((p) =>
+          lineKey(p) === k ? { ...p, quantity: Math.min(99, p.quantity + addQty) } : p,
+        );
       }
-      return [...prev, { ...item, quantity: 1 }];
+      return [...prev, { ...item, quantity: addQty }];
     });
   }, []);
+
+  const openCart = useCallback(() => setOpen(true), []);
 
   const setQty = useCallback((key: string, qty: number) => {
     setItems((prev) =>
@@ -98,8 +107,8 @@ export function CartProvider({
   const value = useMemo<CartContextValue>(() => {
     const count = items.reduce((n, p) => n + p.quantity, 0);
     const subtotal = items.reduce((s, p) => s + p.price * p.quantity, 0);
-    return { items, count, subtotal, add, setQty, remove, clear };
-  }, [items, add, setQty, remove, clear]);
+    return { items, count, subtotal, add, setQty, remove, clear, isOpen, setOpen, openCart };
+  }, [items, add, setQty, remove, clear, isOpen, openCart]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

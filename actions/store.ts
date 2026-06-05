@@ -477,3 +477,60 @@ export async function setProductVariantsAction(
   revalidatePath("/dashboard/store");
   return { ok: true };
 }
+
+/** Replace a catalog product's gallery (extra images beyond image_url). */
+export async function setProductImagesAction(
+  productId: string,
+  urls: string[],
+): Promise<Result> {
+  const actor = await requireActor("store.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const admin = createAdminClient();
+  const product = await ownedCatalogProduct(admin, ctx.ownerId, productId);
+  if (!product) return { ok: false, message: "Product not found" };
+
+  const clean = (urls ?? [])
+    .map((u) => (typeof u === "string" ? u.trim() : ""))
+    .filter((u) => /^https?:\/\//i.test(u))
+    .slice(0, 10)
+    .map((url, idx) => ({ product_id: productId, url, sort_order: idx }));
+
+  await admin.from("product_images").delete().eq("product_id", productId);
+  if (clean.length > 0) {
+    const { error } = await admin.from("product_images").insert(clean);
+    if (error) return { ok: false, message: error.message };
+  }
+
+  revalidatePath("/dashboard/store");
+  return { ok: true };
+}
+
+/** Seller-side: hide or unhide a review on their product/course. */
+export async function setReviewVisibilityAction(
+  reviewId: string,
+  hidden: boolean,
+): Promise<Result> {
+  const actor = await requireActor("store.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const admin = createAdminClient();
+  const { data: review } = await admin
+    .from("reviews")
+    .select("id, seller_user_id")
+    .eq("id", reviewId)
+    .maybeSingle();
+  if (!review || review.seller_user_id !== ctx.ownerId) {
+    return { ok: false, message: "Review not found" };
+  }
+  const { error } = await admin
+    .from("reviews")
+    .update({ status: hidden ? "hidden" : "published", updated_at: new Date().toISOString() })
+    .eq("id", reviewId);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/dashboard/store");
+  return { ok: true };
+}

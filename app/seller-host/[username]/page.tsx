@@ -181,6 +181,17 @@ export default async function SellerStore({ params }: Props) {
         </div>
       </div>
 
+      {totalProducts > 0 && (
+        <div className="mb-6">
+          <a
+            href="/store"
+            className="inline-flex items-center gap-2 rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-700"
+          >
+            Browse full store →
+          </a>
+        </div>
+      )}
+
       {storeCollections.length > 0 && (
         <div className="mb-8 flex flex-wrap gap-2">
           {storeCollections.map((c) => (

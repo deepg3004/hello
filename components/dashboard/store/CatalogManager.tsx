@@ -2,13 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, Plus, Trash2, PackageOpen, Layers } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, PackageOpen, Layers, Images } from "lucide-react";
 
 import {
   createCatalogProductAction,
   updateCatalogProductAction,
   deleteCatalogProductAction,
   setProductVariantsAction,
+  setProductImagesAction,
   type CatalogProductInput,
 } from "@/actions/store";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +50,7 @@ export interface CatalogProduct {
   active: boolean;
   slug: string | null;
   variants: CatalogVariant[];
+  images: string[];
 }
 
 type Draft = CatalogProductInput & { active: boolean };
@@ -88,6 +90,8 @@ export function CatalogManager({
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [variantFor, setVariantFor] = useState<CatalogProduct | null>(null);
   const [variantRows, setVariantRows] = useState<VariantRow[]>([]);
+  const [imageFor, setImageFor] = useState<CatalogProduct | null>(null);
+  const [imageRows, setImageRows] = useState<string[]>([]);
 
   function openNew() {
     setDraft(emptyDraft());
@@ -172,6 +176,28 @@ export function CatalogManager({
     });
   }
 
+  function openImages(p: CatalogProduct) {
+    setImageFor(p);
+    setImageRows(p.images.length > 0 ? [...p.images] : [""]);
+  }
+  function saveImages() {
+    if (!imageFor) return;
+    const product = imageFor;
+    start(async () => {
+      const res = await setProductImagesAction(
+        product.id,
+        imageRows.map((u) => u.trim()).filter(Boolean),
+      );
+      if (!res.ok) {
+        toast({ variant: "destructive", title: "Couldn't save images", description: res.message });
+        return;
+      }
+      toast({ title: "Gallery saved" });
+      setImageFor(null);
+      router.refresh();
+    });
+  }
+
   function remove(p: CatalogProduct) {
     if (!window.confirm(`Remove "${p.name}" from your store?`)) return;
     start(async () => {
@@ -222,16 +248,20 @@ export function CatalogManager({
                   {p.category ? ` · ${p.category}` : ""}
                   {p.stock != null ? ` · ${p.stock} in stock` : ""}
                   {p.variants.length > 0 ? ` · ${p.variants.length} option${p.variants.length === 1 ? "" : "s"}` : ""}
+                  {p.images.length > 0 ? ` · ${p.images.length + 1} photos` : ""}
                 </p>
               </div>
               <div className="flex items-center gap-1">
                 {storeUrl && p.slug && (
                   <Button asChild variant="ghost" size="sm">
-                    <a href={`${storeUrl}/${p.slug}`} target="_blank" rel="noreferrer">
+                    <a href={`${storeUrl}/store/${p.slug}`} target="_blank" rel="noreferrer">
                       View
                     </a>
                   </Button>
                 )}
+                <Button variant="ghost" size="icon" title="Gallery photos" onClick={() => openImages(p)}>
+                  <Images className="h-4 w-4" />
+                </Button>
                 <Button variant="ghost" size="icon" title="Options / variants" onClick={() => openVariants(p)}>
                   <Layers className="h-4 w-4" />
                 </Button>
@@ -389,6 +419,59 @@ export function CatalogManager({
             <Button onClick={saveVariants} disabled={pending}>
               {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save options
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!imageFor} onOpenChange={(o) => !o && setImageFor(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Gallery — {imageFor?.name}</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Extra product photos (the main image stays first). Paste image URLs —
+            up to 10. Shown as a gallery on the store product page.
+          </p>
+          <div className="space-y-2">
+            {imageRows.map((url, i) => (
+              <div key={i} className="flex items-center gap-2">
+                {url.trim() ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={url} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
+                ) : (
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-muted">
+                    <Images className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                )}
+                <Input
+                  value={url}
+                  placeholder="https://…"
+                  onChange={(e) => setImageRows((rows) => rows.map((r, idx) => (idx === i ? e.target.value : r)))}
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-destructive"
+                  onClick={() => setImageRows((rows) => rows.filter((_, idx) => idx !== i))}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            {imageRows.length < 10 && (
+              <Button variant="outline" size="sm" onClick={() => setImageRows((rows) => [...rows, ""])}>
+                <Plus className="mr-1.5 h-4 w-4" /> Add photo
+              </Button>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImageFor(null)} disabled={pending}>
+              Cancel
+            </Button>
+            <Button onClick={saveImages} disabled={pending}>
+              {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save gallery
             </Button>
           </DialogFooter>
         </DialogContent>
