@@ -10,8 +10,7 @@
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getActorContext } from "@/lib/account-context";
-import { verifyCourseToken } from "@/lib/course-token";
+import { authorizeCourseMedia } from "@/lib/courses/media-auth";
 import { CMEDIA_PREFIX } from "@/lib/learn/video";
 
 const VIDEO_BUCKET = "course-media";
@@ -32,32 +31,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Bad source" }, { status: 400 });
   }
   const path = src.slice(CMEDIA_PREFIX.length);
-  // Path shape: course/<sellerId>/video/<file>. Reject traversal / odd shapes.
-  const parts = path.split("/");
-  if (parts[0] !== "course" || parts.length < 4 || path.includes("..")) {
-    return NextResponse.json({ error: "Bad source" }, { status: 400 });
-  }
-  const ownerId = parts[1];
 
-  // ── Authorise ──────────────────────────────────────────────────────────────
-  let authorized = false;
-
-  // 1. Paid buyer with a valid course token.
-  if (body.t) {
-    const payload = verifyCourseToken(body.t);
-    if (payload) authorized = true;
-  }
-
-  // 2. Owning seller (or a team member with course access) previewing in the
-  //    dashboard — the actor must act for the path's owner account.
-  if (!authorized) {
-    const ctx = await getActorContext();
-    if (ctx && ctx.ownerId === ownerId && ctx.can("courses.view")) {
-      authorized = true;
-    }
-  }
-
-  if (!authorized) {
+  // Authorise: a course token scoped to THIS video, or the owning seller. The
+  // helper binds token.course_id → the lesson storing this video so one course's
+  // token can't unlock another seller's media.
+  if (!(await authorizeCourseMedia(path, body.t))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
