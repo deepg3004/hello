@@ -9,10 +9,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export interface CartItemInput {
   product_id: string;
   quantity: number;
+  variant_id?: string | null;
 }
 
 export interface CartLine {
   product_id: string;
+  variant_id: string | null;
+  variant_name: string | null;
   name: string;
   unit_price_paise: number;
   quantity: number;
@@ -50,6 +53,7 @@ export async function validateCart(
     .filter((i) => i && typeof i.product_id === "string")
     .map((i) => ({
       product_id: i.product_id,
+      variant_id: typeof i.variant_id === "string" ? i.variant_id : null,
       quantity: Math.max(1, Math.min(99, Math.floor(Number(i.quantity) || 1))),
     }));
   if (clean.length === 0) return { ok: false, status: 400, error: "Your cart is empty" };
@@ -63,6 +67,20 @@ export async function validateCart(
     )
     .in("id", ids);
   const byId = new Map(((products ?? []) as ProductRow[]).map((p) => [p.id, p]));
+
+  // Variants for these products (active only).
+  const { data: variantsRaw } = await admin
+    .from("product_variants")
+    .select("id, product_id, name, price, stock, active")
+    .in("product_id", ids)
+    .eq("active", true);
+  type VRow = { id: string; product_id: string; name: string; price: number; stock: number | null; active: boolean };
+  const variantById = new Map<string, VRow>();
+  const hasVariants = new Set<string>();
+  for (const v of (variantsRaw ?? []) as VRow[]) {
+    variantById.set(v.id, v);
+    hasVariants.add(v.product_id);
+  }
 
   const lines: CartLine[] = [];
   let sellerId: string | null = null;
@@ -86,15 +104,36 @@ export async function validateCart(
         error: "Your cart has items from different stores — check out one store at a time.",
       };
     }
-    if (p.stock != null && p.stock < item.quantity) {
-      return { ok: false, status: 409, error: `"${p.name}" doesn't have enough stock.` };
+    // Price + stock come from the chosen VARIANT when the product has variants.
+    let unit: number;
+    let stock: number | null;
+    let lineName = p.name;
+    let variantId: string | null = null;
+    let variantName: string | null = null;
+    if (hasVariants.has(p.id)) {
+      const v = item.variant_id ? variantById.get(item.variant_id) : null;
+      if (!v || v.product_id !== p.id) {
+        return { ok: false, status: 400, error: `Pick an option for "${p.name}".` };
+      }
+      unit = Math.round(Number(v.price ?? 0) * 100);
+      stock = v.stock;
+      variantId = v.id;
+      variantName = v.name;
+      lineName = `${p.name} — ${v.name}`;
+    } else {
+      unit = Math.round(Number(p.price ?? 0) * 100);
+      stock = p.stock;
     }
-    const unit = Math.round(Number(p.price ?? 0) * 100);
+    if (stock != null && stock < item.quantity) {
+      return { ok: false, status: 409, error: `"${lineName}" doesn't have enough stock.` };
+    }
     if (unit <= 0) return { ok: false, status: 400, error: "An item has no price." };
     const linePaise = unit * item.quantity;
     lines.push({
       product_id: p.id,
-      name: p.name,
+      variant_id: variantId,
+      variant_name: variantName,
+      name: lineName,
       unit_price_paise: unit,
       quantity: item.quantity,
       line_paise: linePaise,

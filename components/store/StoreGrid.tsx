@@ -1,7 +1,10 @@
 import Link from "next/link";
 
 import { formatINR } from "@/lib/utils";
-import { AddToCartButton } from "@/components/store/cart/AddToCartButton";
+import {
+  AddToCartButton,
+  type VariantOption,
+} from "@/components/store/cart/AddToCartButton";
 
 export interface StoreProduct {
   id: string;
@@ -13,6 +16,7 @@ export interface StoreProduct {
   is_popular: boolean;
   slug: string;
   is_catalog?: boolean;
+  variants?: VariantOption[];
 }
 
 export interface StoreSection {
@@ -84,6 +88,7 @@ export function StoreGrid({ sections }: { sections: StoreSection[] }) {
                           image_url: p.image_url,
                           slug: p.slug,
                         }}
+                        variants={p.variants}
                       />
                     )}
                   </div>

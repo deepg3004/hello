@@ -65,6 +65,13 @@ interface ProductRow {
   name: string;
 }
 
+interface CartLineItem {
+  name: string;
+  unit_price: number;
+  quantity: number;
+  line_amount: number;
+}
+
 export interface GenerateInvoiceResult {
   ok: boolean;
   invoice_id?: string;
@@ -146,18 +153,20 @@ export async function generateInvoice(
       .single<ProductRow>();
     product = data ?? null;
   }
-  // Cart orders have no single product — summarize the line items into the
-  // invoice line description (the template renders one line at the total).
+  // Cart orders have no single product — render each order_item as its own
+  // invoice line. We pull the lines here and pass them to the renderer.
+  let cartLines: CartLineItem[] | null = null;
   if (!product && order.source === "cart") {
     const { data: items } = await admin
       .from("order_items")
-      .select("name_snapshot, quantity")
+      .select("name_snapshot, variant_name, unit_price, quantity, line_amount")
       .eq("order_id", orderId);
-    const summary = (items ?? [])
-      .map((i) => `${i.name_snapshot} ×${i.quantity}`)
-      .join(", ")
-      .slice(0, 180);
-    if (summary) product = { id: "cart", name: summary } as ProductRow;
+    cartLines = (items ?? []).map((i) => ({
+      name: i.variant_name ? `${i.name_snapshot} — ${i.variant_name}` : i.name_snapshot,
+      unit_price: Number(i.unit_price ?? 0),
+      quantity: Number(i.quantity ?? 1),
+      line_amount: Number(i.line_amount ?? 0),
+    }));
   }
 
   // 5. Decide invoice type + tax split.
@@ -224,6 +233,7 @@ export async function generateInvoice(
       order,
       seller,
       product,
+      cartLines,
       hsn: seller.default_hsn_sac ?? "—",
     });
     pdfBytes = await htmlToPdf(html);
@@ -393,6 +403,7 @@ interface RenderArgs {
   order: OrderRow;
   seller: SellerRow;
   product: ProductRow | null;
+  cartLines: CartLineItem[] | null;
   hsn: string;
 }
 
@@ -451,6 +462,57 @@ async function renderInvoiceHtml(args: RenderArgs): Promise<string> {
   const itemName =
     args.product?.name ?? args.order.bump_title ?? "Digital product / service";
 
+  // Item rows. Single-product orders → one row at the order total. Cart orders →
+  // one row per line item, with the order's net taxable allocated across lines
+  // by gross weight so the column still sums to the Subtotal exactly.
+  const itemNote =
+    args.invoiceType === "tax_invoice"
+      ? "GST included in the rate shown"
+      : "GST-exempt service";
+  const row = (
+    desc: string,
+    note: string,
+    hsn: string,
+    qty: number,
+    rate: number,
+    discount: number,
+    taxable: number,
+  ) =>
+    `<tr>
+      <td><div class="item-desc">${escapeHtml(desc)}</div><div class="item-sub">${escapeHtml(note)}</div></td>
+      <td class="c">${escapeHtml(hsn)}</td>
+      <td class="c">${qty}</td>
+      <td class="r">₹${inr(rate)}</td>
+      <td class="r">₹${inr(discount)}</td>
+      <td class="r">₹${inr(taxable)}</td>
+    </tr>`;
+
+  let itemRows = "";
+  if (args.cartLines && args.cartLines.length > 0) {
+    const grossSum = args.cartLines.reduce((a, l) => a + l.line_amount, 0) || 1;
+    let allocated = 0;
+    args.cartLines.forEach((l, idx) => {
+      const last = idx === args.cartLines!.length - 1;
+      // Allocate the order's net taxable by this line's share of gross; the last
+      // line absorbs any rounding so the column sums to TOTAL_TAXABLE.
+      const taxable = last
+        ? Math.round((args.split.taxable_amount - allocated) * 100) / 100
+        : Math.round(args.split.taxable_amount * (l.line_amount / grossSum) * 100) / 100;
+      allocated += taxable;
+      itemRows += row(l.name, itemNote, args.hsn, l.quantity, l.line_amount, 0, taxable);
+    });
+  } else {
+    itemRows = row(
+      itemName,
+      itemNote,
+      args.hsn,
+      1,
+      args.split.total_amount,
+      Number(args.order.discount_amount ?? 0),
+      args.split.taxable_amount,
+    );
+  }
+
   const subs: Record<string, string> = {
     INVOICE_HEADER: args.invoiceType === "tax_invoice"
       ? "Tax Invoice"
@@ -473,15 +535,6 @@ async function renderInvoiceHtml(args: RenderArgs): Promise<string> {
     BUYER_PHONE: args.order.buyer_phone ?? "—",
     BUYER_ADDRESS: buyerAddress,
     BUYER_GSTIN: args.order.buyer_gstin ?? "—",
-    ITEM_NAME: itemName,
-    ITEM_NOTE:
-      args.invoiceType === "tax_invoice"
-        ? "GST included in the rate shown"
-        : "GST-exempt service",
-    ITEM_HSN: args.hsn,
-    ITEM_RATE: inr(args.split.total_amount),
-    ITEM_DISCOUNT: inr(Number(args.order.discount_amount ?? 0)),
-    ITEM_TAXABLE: inr(args.split.taxable_amount),
     TOTAL_TAXABLE: inr(args.split.taxable_amount),
     TAX_ROWS: taxRows,
     GRAND_TOTAL: inr(args.split.total_amount),
@@ -497,6 +550,8 @@ async function renderInvoiceHtml(args: RenderArgs): Promise<string> {
   }
   // The TAX_ROWS block is HTML, not text; replace again without escaping.
   html = html.replace(escapeHtml(taxRows), taxRows);
+  // ITEM_ROWS is pre-escaped HTML (each cell escaped at build time) — insert raw.
+  html = html.split("{{ITEM_ROWS}}").join(itemRows);
   return html;
 }
 

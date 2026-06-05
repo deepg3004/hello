@@ -16,6 +16,7 @@ import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
 import { createOrderOnKeys } from "@/lib/razorpay";
 import { validateCart, type CartItemInput } from "@/lib/cart";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { validateCartCoupon, reserveCoupon, releaseCoupon } from "@/lib/coupons";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
     buyer_name?: string;
     buyer_phone?: string;
     buyer_address?: unknown;
+    coupon_code?: string;
   };
   try {
     body = await request.json();
@@ -93,7 +95,39 @@ export async function POST(request: Request) {
     shippingPaise = free ? 0 : Math.max(0, flatPaise);
   }
 
-  const totalPaise = cart.subtotalPaise + shippingPaise;
+  // Promo code (optional) — applies to the cart subtotal, not shipping.
+  let discountPaise = 0;
+  let couponId: string | null = null;
+  if (body.coupon_code?.trim()) {
+    const cv = await validateCartCoupon({
+      code: body.coupon_code.trim(),
+      seller_id: seller.id,
+      amount: cart.subtotalPaise / 100,
+      buyer_email: email,
+    });
+    if (!cv.valid) {
+      return NextResponse.json({ error: cv.reason }, { status: 400 });
+    }
+    couponId = cv.coupon_id;
+    discountPaise = Math.min(cart.subtotalPaise, Math.round(cv.discount_amount * 100));
+
+    const { data: cRow } = await admin
+      .from("coupons")
+      .select("total_limit, per_customer_limit")
+      .eq("id", couponId)
+      .single();
+    const reserved = await reserveCoupon(
+      couponId,
+      cRow?.total_limit ?? null,
+      email,
+      cRow?.per_customer_limit ?? null,
+    );
+    if (!reserved) {
+      return NextResponse.json({ error: "Coupon just sold out" }, { status: 409 });
+    }
+  }
+
+  const totalPaise = Math.max(0, cart.subtotalPaise - discountPaise) + shippingPaise;
 
   // No-funds model: the order is created on the seller's OWN Razorpay gateway.
   const keys = await loadSellerGatewayKeys(seller.id);
@@ -102,6 +136,7 @@ export async function POST(request: Request) {
       ? { key_id: keys.key_id, key_secret: keys.key_secret }
       : null;
   if (!sellerGateway) {
+    if (couponId) await releaseCoupon(couponId, email);
     return NextResponse.json(
       { error: "This store can't accept payments yet." },
       { status: 402 },
@@ -119,6 +154,7 @@ export async function POST(request: Request) {
     })) as unknown as { id: string };
   } catch (err) {
     console.error("[create-cart-order] razorpay createOrder failed", err);
+    if (couponId) await releaseCoupon(couponId, email);
     return NextResponse.json(
       { error: "Payment gateway is temporarily unavailable. Please try again." },
       { status: 502 },
@@ -136,6 +172,8 @@ export async function POST(request: Request) {
     shipping_address: cart.requiresShipping ? addr : null,
     platform_commission: 0,
     seller_amount: totalPaise / 100,
+    coupon_id: couponId,
+    discount_amount: discountPaise / 100,
     currency: "INR",
     status: "pending",
     source: "cart",
@@ -146,12 +184,15 @@ export async function POST(request: Request) {
   });
   if (orderErr) {
     console.error("[create-cart-order] order insert failed", orderErr);
+    if (couponId) await releaseCoupon(couponId, email);
     return NextResponse.json({ error: "Couldn't start checkout. Try again." }, { status: 500 });
   }
 
   const itemRows = cart.lines.map((l) => ({
     order_id: orderId,
     product_id: l.product_id,
+    variant_id: l.variant_id,
+    variant_name: l.variant_name,
     name_snapshot: l.name,
     unit_price: l.unit_price_paise / 100,
     quantity: l.quantity,
@@ -163,6 +204,7 @@ export async function POST(request: Request) {
     // Don't leave a payable header with no lines — roll it back.
     console.error("[create-cart-order] order_items insert failed", itemsErr);
     await admin.from("orders").delete().eq("id", orderId);
+    if (couponId) await releaseCoupon(couponId, email);
     return NextResponse.json({ error: "Couldn't start checkout. Try again." }, { status: 500 });
   }
 
@@ -172,6 +214,7 @@ export async function POST(request: Request) {
     order_id: orderId,
     amount: totalPaise,
     shipping_fee: shippingPaise / 100,
+    discount_amount: discountPaise / 100,
     currency: "INR",
     key: sellerGateway.key_id,
     name: "InvoxAI",
