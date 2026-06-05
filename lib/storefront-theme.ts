@@ -239,3 +239,97 @@ export function themeCssVars(cfg: SurfaceConfig): Record<string, string> {
 export function isDarkTheme(cfg: SurfaceConfig): boolean {
   return (STOREFRONT_THEMES[cfg.theme] ?? STOREFRONT_THEMES[DEFAULT_THEME]).dark;
 }
+
+// ── Header / footer / menu (shared "chrome" across all storefront surfaces) ──
+export interface MenuItem {
+  label: string;
+  url: string;
+}
+export interface FooterColumn {
+  title: string;
+  links: MenuItem[];
+}
+export interface ChromeConfig {
+  header: {
+    enabled: boolean;
+    sticky: boolean;
+    menu: MenuItem[];
+    ctaLabel: string;
+    ctaUrl: string;
+  };
+  footer: {
+    enabled: boolean;
+    text: string;
+    columns: FooterColumn[];
+    socials: MenuItem[];
+  };
+}
+
+export function defaultChromeConfig(): ChromeConfig {
+  return {
+    header: {
+      enabled: true,
+      sticky: true,
+      menu: [
+        { label: "Home", url: "/" },
+        { label: "Store", url: "/store" },
+        { label: "Courses", url: "/course" },
+      ],
+      ctaLabel: "",
+      ctaUrl: "",
+    },
+    footer: {
+      enabled: true,
+      text: "",
+      columns: [],
+      socials: [],
+    },
+  };
+}
+
+function cleanMenu(v: unknown, max = 12): MenuItem[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((m) => {
+      const o = (m ?? {}) as Record<string, unknown>;
+      return {
+        label: typeof o.label === "string" ? o.label.trim().slice(0, 60) : "",
+        url: typeof o.url === "string" ? o.url.trim().slice(0, 400) : "",
+      };
+    })
+    .filter((m) => m.label && m.url)
+    .slice(0, max);
+}
+
+/** Merge stored (possibly partial) chrome with defaults. */
+export function resolveChromeConfig(raw: unknown): ChromeConfig {
+  const base = defaultChromeConfig();
+  const root = (raw ?? {}) as Record<string, unknown>;
+  const c = (root.chrome ?? {}) as Record<string, unknown>;
+  const h = (c.header ?? {}) as Record<string, unknown>;
+  const f = (c.footer ?? {}) as Record<string, unknown>;
+  const menu = c.header !== undefined ? cleanMenu(h.menu) : base.header.menu;
+  return {
+    header: {
+      enabled: typeof h.enabled === "boolean" ? h.enabled : base.header.enabled,
+      sticky: typeof h.sticky === "boolean" ? h.sticky : base.header.sticky,
+      menu,
+      ctaLabel: typeof h.ctaLabel === "string" ? h.ctaLabel : "",
+      ctaUrl: typeof h.ctaUrl === "string" ? h.ctaUrl : "",
+    },
+    footer: {
+      enabled: typeof f.enabled === "boolean" ? f.enabled : base.footer.enabled,
+      text: typeof f.text === "string" ? f.text : "",
+      columns: Array.isArray(f.columns)
+        ? (f.columns as unknown[])
+            .map((col) => {
+              const o = (col ?? {}) as Record<string, unknown>;
+              return { title: typeof o.title === "string" ? o.title.trim().slice(0, 60) : "", links: cleanMenu(o.links) };
+            })
+            .filter((col) => col.title || col.links.length)
+            .slice(0, 5)
+        : [],
+      socials: cleanMenu(f.socials, 8),
+    },
+  };
+}

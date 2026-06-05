@@ -8,7 +8,7 @@ import Link from "next/link";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getReviewSummaries } from "@/lib/reviews";
-import { resolveSurfaceConfig } from "@/lib/storefront-theme";
+import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-theme";
 import { CartProvider } from "@/components/store/cart/CartProvider";
 import { CartDrawer } from "@/components/store/cart/CartDrawer";
 import { StorefrontShell, PromoBanner } from "@/components/store/StorefrontShell";
@@ -68,6 +68,7 @@ export default async function StoreCatalogPage({ params }: Props) {
   if (!profile?.id) notFound();
 
   const cfg = resolveSurfaceConfig(profile.storefront_config, "store");
+  const chrome = resolveChromeConfig(profile.storefront_config);
 
   const { data: rows } = await admin
     .from("products")
@@ -122,7 +123,7 @@ export default async function StoreCatalogPage({ params }: Props) {
 
   return (
     <CartProvider username={params.username}>
-      <StorefrontShell cfg={cfg}>
+      <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName}>
         {/* Themed hero */}
         <header className="sf-band sf-border border-b">
           <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-12 sm:px-6">

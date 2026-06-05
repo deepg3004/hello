@@ -8,7 +8,7 @@ import { createEnrollmentForOrder } from "@/lib/courses";
 import { publicPageUrl } from "@/lib/page-url";
 import { extractSubdomain } from "@/lib/domains";
 import { getReviewSummary, getReviewSummaries, listReviews } from "@/lib/reviews";
-import { resolveSurfaceConfig } from "@/lib/storefront-theme";
+import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-theme";
 import { StorefrontShell } from "@/components/store/StorefrontShell";
 import {
   CoursePlayerClient,
@@ -282,9 +282,10 @@ export default async function CoursePage({
 
   const sellerName = seller?.legal_business_name ?? seller?.full_name ?? null;
   const cfg = resolveSurfaceConfig(seller?.storefront_config, "course");
+  const chrome = resolveChromeConfig(seller?.storefront_config);
 
   return (
-    <StorefrontShell cfg={cfg}>
+    <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName ?? "Course"}>
     <CourseLanding
       courseId={courseId}
       title={course.title as string}

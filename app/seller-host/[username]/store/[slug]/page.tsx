@@ -8,7 +8,7 @@ import Link from "next/link";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getReviewSummary, getReviewSummaries, listReviews } from "@/lib/reviews";
-import { resolveSurfaceConfig } from "@/lib/storefront-theme";
+import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-theme";
 import { CartProvider } from "@/components/store/cart/CartProvider";
 import { CartDrawer } from "@/components/store/cart/CartDrawer";
 import { StorefrontShell } from "@/components/store/StorefrontShell";
@@ -76,6 +76,7 @@ export default async function ProductDetailPage({ params }: Props) {
   if (!profile?.id) notFound();
 
   const cfg = resolveSurfaceConfig(profile.storefront_config, "store");
+  const chrome = resolveChromeConfig(profile.storefront_config);
 
   const { data: page } = await admin
     .from("pages")
@@ -183,7 +184,7 @@ export default async function ProductDetailPage({ params }: Props) {
 
   return (
     <CartProvider username={params.username}>
-      <StorefrontShell cfg={cfg}>
+      <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName}>
         <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
           <nav className="sf-muted mb-6 text-sm">
             <Link href="/store" className="transition hover:opacity-80">

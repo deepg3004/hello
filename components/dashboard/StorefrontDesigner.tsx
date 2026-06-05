@@ -2,20 +2,22 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { useToast } from "@/hooks/use-toast";
-import { saveStorefrontDesignAction } from "@/actions/storefront";
+import { saveStorefrontDesignAction, saveStorefrontChromeAction } from "@/actions/storefront";
 import {
   STOREFRONT_THEME_LIST,
   FONTS,
   themeCssVars,
   type SurfaceConfig,
   type Surface,
+  type ChromeConfig,
+  type MenuItem,
   type FontKey,
   type HeroStyle,
   type CardStyle,
@@ -28,19 +30,25 @@ const CARDS: CardStyle[] = ["elevated", "bordered", "glass", "flat"];
 const RADII: RadiusKey[] = ["sharp", "soft", "round"];
 const DENSITIES: DensityKey[] = ["comfortable", "compact"];
 
+type View = "store" | "course" | "chrome";
+
 export function StorefrontDesigner({
   store,
   course,
+  chrome,
   storeUrl,
 }: {
   store: SurfaceConfig;
   course: SurfaceConfig;
+  chrome: ChromeConfig;
   storeUrl: string | null;
 }) {
-  const [surface, setSurface] = useState<Surface>("store");
+  const [view, setView] = useState<View>("store");
   const [storeCfg, setStoreCfg] = useState<SurfaceConfig>(store);
   const [courseCfg, setCourseCfg] = useState<SurfaceConfig>(course);
+  const [chromeCfg, setChromeCfg] = useState<ChromeConfig>(chrome);
 
+  const surface: Surface = view === "course" ? "course" : "store";
   const cfg = surface === "store" ? storeCfg : courseCfg;
   const setCfg = (next: SurfaceConfig) =>
     surface === "store" ? setStoreCfg(next) : setCourseCfg(next);
@@ -54,32 +62,40 @@ export function StorefrontDesigner({
 
   function save() {
     start(async () => {
-      const res = await saveStorefrontDesignAction(surface, cfg);
+      const res = view === "chrome"
+        ? await saveStorefrontChromeAction(chromeCfg)
+        : await saveStorefrontDesignAction(surface, cfg);
       if (!res.ok) {
         toast({ variant: "destructive", title: "Couldn't save", description: res.message });
         return;
       }
-      toast({ title: `${surface === "store" ? "Store" : "Course"} design saved` });
+      toast({ title: view === "chrome" ? "Header & footer saved" : `${surface === "store" ? "Store" : "Course"} design saved` });
       router.refresh();
     });
   }
 
-  const livePath = surface === "store" ? "/store" : "/course";
+  const livePath = view === "course" ? "/course" : "/store";
+
+  const TABS: { key: View; label: string }[] = [
+    { key: "store", label: "Store page" },
+    { key: "course", label: "Course page" },
+    { key: "chrome", label: "Header & Footer" },
+  ];
 
   return (
     <div className="space-y-6">
-      {/* Surface tabs */}
-      <div className="flex gap-2">
-        {(["store", "course"] as Surface[]).map((s) => (
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-2">
+        {TABS.map((t) => (
           <button
-            key={s}
-            onClick={() => setSurface(s)}
+            key={t.key}
+            onClick={() => setView(t.key)}
             className={
-              "rounded-full px-4 py-2 text-sm font-medium capitalize transition " +
-              (surface === s ? "bg-primary text-primary-foreground" : "border hover:bg-muted")
+              "rounded-full px-4 py-2 text-sm font-medium transition " +
+              (view === t.key ? "bg-primary text-primary-foreground" : "border hover:bg-muted")
             }
           >
-            {s} page
+            {t.label}
           </button>
         ))}
         {storeUrl && (
@@ -94,6 +110,9 @@ export function StorefrontDesigner({
         )}
       </div>
 
+      {view === "chrome" ? (
+        <ChromeEditor chrome={chromeCfg} setChrome={setChromeCfg} onSave={save} pending={pending} />
+      ) : (
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         {/* Controls */}
         <div className="space-y-6">
@@ -249,7 +268,138 @@ export function StorefrontDesigner({
           <DesignPreview cfg={cfg} />
         </div>
       </div>
+      )}
     </div>
+  );
+}
+
+function ChromeEditor({
+  chrome,
+  setChrome,
+  onSave,
+  pending,
+}: {
+  chrome: ChromeConfig;
+  setChrome: (c: ChromeConfig) => void;
+  onSave: () => void;
+  pending: boolean;
+}) {
+  const h = chrome.header;
+  const f = chrome.footer;
+  const setHeader = (p: Partial<ChromeConfig["header"]>) => setChrome({ ...chrome, header: { ...h, ...p } });
+  const setFooter = (p: Partial<ChromeConfig["footer"]>) => setChrome({ ...chrome, footer: { ...f, ...p } });
+
+  return (
+    <div className="max-w-2xl space-y-8">
+      {/* Header */}
+      <Section title="Header & navigation menu">
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-4">
+            <Toggle label="Show header" checked={h.enabled} onChange={(v) => setHeader({ enabled: v })} />
+            <Toggle label="Sticky on scroll" checked={h.sticky} onChange={(v) => setHeader({ sticky: v })} />
+          </div>
+          <div>
+            <Label className="text-xs">Menu links</Label>
+            <MenuEditor items={h.menu} onChange={(menu) => setHeader({ menu })} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Header button label">
+              <Input value={h.ctaLabel} onChange={(e) => setHeader({ ctaLabel: e.target.value })} placeholder="e.g. Contact" />
+            </Field>
+            <Field label="Header button URL">
+              <Input value={h.ctaUrl} onChange={(e) => setHeader({ ctaUrl: e.target.value })} placeholder="/contact or https://…" />
+            </Field>
+          </div>
+        </div>
+      </Section>
+
+      {/* Footer */}
+      <Section title="Footer">
+        <div className="space-y-4">
+          <Toggle label="Show footer" checked={f.enabled} onChange={(v) => setFooter({ enabled: v })} />
+          <Field label="Footer text (defaults to © your name)">
+            <Input value={f.text} onChange={(e) => setFooter({ text: e.target.value })} placeholder="© 2026 Your Brand. All rights reserved." />
+          </Field>
+          <div>
+            <Label className="text-xs">Social links</Label>
+            <MenuEditor items={f.socials} onChange={(socials) => setFooter({ socials })} labelPlaceholder="Instagram" urlPlaceholder="https://instagram.com/you" />
+          </div>
+          <div>
+            <Label className="text-xs">Footer columns</Label>
+            <div className="mt-1 space-y-3">
+              {f.columns.map((col, i) => (
+                <div key={i} className="rounded-lg border p-3">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={col.title}
+                      placeholder="Column title (e.g. Company)"
+                      onChange={(e) => setFooter({ columns: f.columns.map((c, idx) => (idx === i ? { ...c, title: e.target.value } : c)) })}
+                    />
+                    <Button variant="ghost" size="icon" className="shrink-0 text-destructive" onClick={() => setFooter({ columns: f.columns.filter((_, idx) => idx !== i) })}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="mt-2">
+                    <MenuEditor items={col.links} onChange={(links) => setFooter({ columns: f.columns.map((c, idx) => (idx === i ? { ...c, links } : c)) })} />
+                  </div>
+                </div>
+              ))}
+              {f.columns.length < 5 && (
+                <Button variant="outline" size="sm" onClick={() => setFooter({ columns: [...f.columns, { title: "", links: [] }] })}>
+                  <Plus className="mr-1.5 h-4 w-4" /> Add footer column
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      <Button onClick={onSave} disabled={pending}>
+        {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        Save header & footer
+      </Button>
+    </div>
+  );
+}
+
+function MenuEditor({
+  items,
+  onChange,
+  labelPlaceholder = "Label",
+  urlPlaceholder = "/store or https://…",
+}: {
+  items: MenuItem[];
+  onChange: (items: MenuItem[]) => void;
+  labelPlaceholder?: string;
+  urlPlaceholder?: string;
+}) {
+  const set = (i: number, p: Partial<MenuItem>) => onChange(items.map((m, idx) => (idx === i ? { ...m, ...p } : m)));
+  return (
+    <div className="mt-1 space-y-2">
+      {items.map((m, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <Input value={m.label} placeholder={labelPlaceholder} className="w-40" onChange={(e) => set(i, { label: e.target.value })} />
+          <Input value={m.url} placeholder={urlPlaceholder} className="flex-1" onChange={(e) => set(i, { url: e.target.value })} />
+          <Button variant="ghost" size="icon" className="shrink-0 text-destructive" onClick={() => onChange(items.filter((_, idx) => idx !== i))}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      ))}
+      {items.length < 12 && (
+        <Button variant="outline" size="sm" onClick={() => onChange([...items, { label: "", url: "" }])}>
+          <Plus className="mr-1.5 h-4 w-4" /> Add link
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2 text-sm">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 accent-primary" />
+      {label}
+    </label>
   );
 }
 
