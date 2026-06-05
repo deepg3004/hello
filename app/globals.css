@@ -480,3 +480,16 @@
 .sf-input::placeholder {
   color: var(--sf-muted);
 }
+
+/* Storefront brand-logo marquee (infinite loop). */
+@keyframes sf-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.sf-marquee {
+  animation: sf-marquee 28s linear infinite;
+  width: max-content;
+}
+.sf-marquee:hover {
+  animation-play-state: paused;
+}

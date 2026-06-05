@@ -1,0 +1,40 @@
+import {
+  Award,
+  CheckCircle2,
+  Clock,
+  Gift,
+  Globe,
+  Headphones,
+  Heart,
+  Leaf,
+  Lock,
+  RotateCcw,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Tag,
+  Truck,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
+
+/** Shared mapping of curated feature-icon keys → lucide components. Used by the
+ *  storefront FeaturesSection and the dashboard icon picker. */
+export const FEATURE_ICON_MAP: Record<string, LucideIcon> = {
+  truck: Truck,
+  shield: ShieldCheck,
+  rotate: RotateCcw,
+  headphones: Headphones,
+  tag: Tag,
+  gift: Gift,
+  star: Star,
+  zap: Zap,
+  heart: Heart,
+  award: Award,
+  clock: Clock,
+  lock: Lock,
+  leaf: Leaf,
+  globe: Globe,
+  sparkles: Sparkles,
+  check: CheckCircle2,
+};

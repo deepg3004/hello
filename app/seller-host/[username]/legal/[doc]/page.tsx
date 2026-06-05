@@ -13,6 +13,7 @@ import {
   type LegalDoc,
 } from "@/lib/storefront-theme";
 import { StorefrontShell } from "@/components/store/StorefrontShell";
+import { mdLite } from "@/lib/md-lite";
 
 interface Props {
   params: { username: string; doc: string };
@@ -55,7 +56,10 @@ export default async function LegalPage({ params }: Props) {
         <h1 className="sf-display text-3xl font-bold tracking-tight">{meta.label}</h1>
         <p className="sf-muted mt-1 text-sm">{sellerName}</p>
         {content ? (
-          <div className="sf-muted mt-6 whitespace-pre-line text-sm leading-relaxed">{content}</div>
+          <div
+            className="sf-muted mt-6 space-y-3 text-sm leading-relaxed [&_a]:text-[color:var(--sf-accent)] [&_h3]:mt-4 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-[color:var(--sf-fg)]"
+            dangerouslySetInnerHTML={{ __html: mdLite(content) }}
+          />
         ) : (
           <div className="sf-card mt-6 p-6 text-sm sf-muted">
             {doc === "contact"

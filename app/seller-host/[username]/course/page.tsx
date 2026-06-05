@@ -13,6 +13,8 @@ import { StorefrontShell, PromoBanner } from "@/components/store/StorefrontShell
 import { StorefrontBanners } from "@/components/store/StorefrontBanners";
 import { TestimonialsSection } from "@/components/store/TestimonialsSection";
 import { FaqSection } from "@/components/store/FaqSection";
+import { FeaturesSection } from "@/components/store/FeaturesSection";
+import { BrandLogoSlider } from "@/components/store/BrandLogoSlider";
 import { CourseCatalog } from "@/components/courses/CourseCatalog";
 import { CourseCard, type CourseCardItem } from "@/components/courses/CourseCard";
 
@@ -145,6 +147,8 @@ export default async function CourseCatalogPage({ params }: Props) {
         <StorefrontBanners banners={cfg.banners} autoplay={cfg.bannerAutoplay} />
         <PromoBanner cfg={cfg} />
 
+        {cfg.sections.features && <FeaturesSection items={chrome.features} align={cfg.sectionAlign} />}
+
         {topItems.length > 0 && (
           <section className="mb-10">
             <h2 className="sf-display mb-4 text-xl font-bold tracking-tight">🔥 Most popular</h2>
@@ -162,8 +166,9 @@ export default async function CourseCatalogPage({ params }: Props) {
           <CourseCatalog items={items} categories={categories} levels={levels} base="/course" cardStyle={cfg.card} showRatings={cfg.sections.ratings} cols={cfg.cols} />
         )}
 
-        {cfg.sections.testimonials && <TestimonialsSection items={chrome.testimonials} />}
-        {cfg.sections.faq && <FaqSection items={chrome.faqs} />}
+        {cfg.sections.testimonials && <TestimonialsSection items={chrome.testimonials} align={cfg.sectionAlign} />}
+        {cfg.sections.brands && <BrandLogoSlider logos={chrome.brandLogos} />}
+        {cfg.sections.faq && <FaqSection items={chrome.faqs} align={cfg.sectionAlign} />}
       </main>
     </StorefrontShell>
   );
