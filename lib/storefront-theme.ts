@@ -158,6 +158,10 @@ export interface SurfaceConfig {
   promoText: string;
   promoCtaLabel: string;
   promoCtaUrl: string;
+  // Branding
+  logo: string; // image URL shown in the hero
+  favicon: string; // browser tab icon
+  title: string; // browser tab / SEO title
 }
 
 export function defaultSurfaceConfig(): SurfaceConfig {
@@ -177,6 +181,9 @@ export function defaultSurfaceConfig(): SurfaceConfig {
     promoText: "",
     promoCtaLabel: "",
     promoCtaUrl: "",
+    logo: "",
+    favicon: "",
+    title: "",
   };
 }
 
@@ -202,6 +209,9 @@ export function resolveSurfaceConfig(raw: unknown, surface: Surface): SurfaceCon
     promoText: typeof s.promoText === "string" ? s.promoText : "",
     promoCtaLabel: typeof s.promoCtaLabel === "string" ? s.promoCtaLabel : "",
     promoCtaUrl: typeof s.promoCtaUrl === "string" ? s.promoCtaUrl : "",
+    logo: typeof s.logo === "string" ? s.logo : "",
+    favicon: typeof s.favicon === "string" ? s.favicon : "",
+    title: typeof s.title === "string" ? s.title : "",
   };
 }
 

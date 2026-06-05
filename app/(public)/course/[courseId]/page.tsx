@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
+import { unstable_noStore as noStore } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyCourseToken, signPreviewToken } from "@/lib/course-token";
@@ -42,6 +43,7 @@ export default async function CoursePage({
   params: { courseId: string };
   searchParams?: { t?: string };
 }) {
+  noStore();
   const admin = createAdminClient();
 
   // Resolve the course by id (enrollment links + tokens) or by slug (clean

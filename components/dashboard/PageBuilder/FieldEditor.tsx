@@ -4,6 +4,7 @@ import { Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ImageUpload } from "@/components/ui/image-upload";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -78,19 +79,12 @@ export function FieldEditor({ field, value, onChange, compact }: FieldEditorProp
     case "image":
       return (
         <Wrap field={field} compact={compact}>
-          <Input
+          <ImageUpload
             value={(value as string) ?? ""}
+            onChange={(v) => onChange(v)}
             placeholder={defaultPlaceholder(field)}
-            onChange={(e) => onChange(e.target.value)}
+            previewClassName="h-12 w-12 rounded-md object-cover"
           />
-          {!!value && typeof value === "string" && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={value}
-              alt={field.label}
-              className="mt-2 h-20 w-20 rounded-md border object-cover"
-            />
-          )}
         </Wrap>
       );
     case "color":

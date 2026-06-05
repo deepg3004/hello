@@ -7,6 +7,7 @@ import { Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ImageUpload } from "@/components/ui/image-upload";
 import { useToast } from "@/hooks/use-toast";
 import { saveStorefrontDesignAction } from "@/actions/storefront";
 import {
@@ -118,8 +119,25 @@ export function StorefrontDesigner({
             </div>
           </Section>
 
+          {/* Branding */}
+          <Section title="Branding">
+            <div className="grid gap-3">
+              <Field label="Logo (shown in the header)">
+                <ImageUpload value={cfg.logo} onChange={(v) => patch({ logo: v })} placeholder="Upload or paste a logo URL" previewClassName="h-10 w-16 rounded object-contain" />
+              </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Favicon (browser tab icon)">
+                  <ImageUpload value={cfg.favicon} onChange={(v) => patch({ favicon: v })} placeholder="32×32 PNG/ICO" />
+                </Field>
+                <Field label="Browser tab / SEO title">
+                  <Input value={cfg.title} onChange={(e) => patch({ title: e.target.value })} placeholder="e.g. The Atelier — Premium Store" />
+                </Field>
+              </div>
+            </div>
+          </Section>
+
           {/* Accent + font */}
-          <Section title="Brand">
+          <Section title="Colors & type">
             <div className="flex flex-wrap gap-4">
               <div>
                 <Label className="text-xs">Accent color (optional override)</Label>

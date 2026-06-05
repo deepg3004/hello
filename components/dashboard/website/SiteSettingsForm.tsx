@@ -7,6 +7,7 @@ import { Loader2, Plus, Trash2 } from "lucide-react";
 import { saveSiteSettingsAction } from "@/actions/site";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ImageUpload } from "@/components/ui/image-upload";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 
@@ -81,12 +82,12 @@ export function SiteSettingsForm({ initial }: { initial: SiteSettingsInitial }) 
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label className="text-sm font-medium">Favicon URL</Label>
-          <Input value={favicon} onChange={(e) => setFavicon(e.target.value)} placeholder="https://…/favicon.png" />
+          <Label className="text-sm font-medium">Favicon</Label>
+          <ImageUpload value={favicon} onChange={setFavicon} placeholder="32×32 PNG/ICO" />
         </div>
         <div className="space-y-1.5">
           <Label className="text-sm font-medium">Social share image (OG)</Label>
-          <Input value={ogImage} onChange={(e) => setOgImage(e.target.value)} placeholder="https://…/share.png" />
+          <ImageUpload value={ogImage} onChange={setOgImage} placeholder="1200×630 share image" />
         </div>
       </div>
 
