@@ -4,18 +4,22 @@ import Link from "next/link";
 import {
   ArrowLeft,
   Coins,
+  Contact,
   CreditCard,
   FileText,
+  Globe,
   GraduationCap,
   KeyRound,
   LayoutDashboard,
   LifeBuoy,
   Mail,
   Plug,
+  Receipt,
   ScrollText,
   Send,
   ShieldCheck,
   Sliders,
+  Store,
   Users,
 } from "lucide-react";
 
@@ -60,6 +64,15 @@ export function AdminSidebar({
         { href: "/admin/transactions", label: "Transactions", Icon: CreditCard },
         { href: "/admin/seller-wallets", label: "Seller Wallets", Icon: Coins },
         { href: "/admin/gateways", label: "Gateways", Icon: Plug },
+      ],
+    },
+    {
+      label: "Data",
+      items: [
+        { href: "/admin/customers", label: "Customers", Icon: Contact },
+        { href: "/admin/store", label: "Store", Icon: Store },
+        { href: "/admin/invoxai-tr", label: "InvoxAI-TR", Icon: Receipt },
+        { href: "/admin/domains", label: "Domains", Icon: Globe },
       ],
     },
     {
