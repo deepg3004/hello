@@ -9,7 +9,11 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
+      // Premium base: hairline border, soft elevation, and on the dark shell a
+      // faint inner highlight for a glass edge. Smooth shadow transition so any
+      // page-level hover lift feels considered.
       "rounded-xl border border-border bg-card text-card-foreground shadow-card",
+      "transition-shadow duration-200 dark:ring-1 dark:ring-inset dark:ring-white/[0.04]",
       className
     )}
     {...props}
