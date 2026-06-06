@@ -15,10 +15,12 @@ import {
 } from "@/lib/domains";
 import {
   deleteRecord,
+  getCustomHostname,
   provisionCustomHostname,
   resolveCnameChain,
   upsertCname,
 } from "@/lib/cloudflare";
+import type { DcvRecord } from "@/lib/cloudflare";
 import { getRedis } from "@/lib/redis";
 
 interface Ok {
@@ -171,11 +173,11 @@ export async function claimCustomDomainAction(input: {
 
   const admin = createAdminClient();
 
-  // Pro / Business plan + feature flag gate.
+  // Feature-flag gate only — custom domains are available on every plan.
   const [{ data: profile }, { data: flag }] = await Promise.all([
     admin
       .from("user_profiles")
-      .select("subscription_plan, custom_domain")
+      .select("custom_domain")
       .eq("id", ctx.ownerId)
       .single(),
     admin
@@ -184,13 +186,6 @@ export async function claimCustomDomainAction(input: {
       .eq("key", "feature_custom_domains")
       .maybeSingle(),
   ]);
-  const plan = (profile?.subscription_plan ?? "free") as string;
-  if (plan !== "pro" && plan !== "business") {
-    return {
-      ok: false,
-      message: "Custom domains require the Pro plan or higher.",
-    };
-  }
   if (flag?.value === "false") {
     return {
       ok: false,
@@ -278,17 +273,33 @@ export async function verifyCustomDomainAction(): Promise<Result> {
     };
   }
 
-  // CNAME verified — kick off cert provisioning.
-  let certStatus: "provisioning" | "active" = "active";
+  // CNAME verified — register the hostname with Cloudflare for SaaS so it
+  // mints a TLS cert. CF returns the cert state + any DCV records the seller
+  // still has to add.
+  let certStatus: "pending" | "provisioning" | "active" = "active";
+  let dcv: DcvRecord[] | null = null;
   const provision = await provisionCustomHostname(domain);
   if (provision.skipped) {
-    // Operator's running cert-manager on the VPS — leave the row marked
-    // active and let cert-manager take it from here.
+    // Cloudflare for SaaS isn't configured — operator runs cert-manager on the
+    // VPS instead, so leave the row marked active and let that take over.
     certStatus = "active";
-  } else if (provision.ok) {
-    certStatus = "provisioning";
+  } else if (provision.ok && provision.data) {
+    certStatus = provision.data.certStatus === "failed"
+      ? "provisioning"
+      : provision.data.certStatus;
+    dcv = provision.data.dcv.length ? provision.data.dcv : null;
   } else {
-    certStatus = "active"; // CF rejected (e.g. already onboarded) — assume ok
+    // CF rejected the POST (commonly: hostname already onboarded). Read the
+    // existing record back so we still capture its real status + DCV.
+    const existing = await getCustomHostname(domain);
+    if (existing.ok && existing.data) {
+      certStatus = existing.data.certStatus === "failed"
+        ? "provisioning"
+        : existing.data.certStatus;
+      dcv = existing.data.dcv.length ? existing.data.dcv : null;
+    } else {
+      certStatus = "provisioning";
+    }
   }
 
   await admin
@@ -298,6 +309,7 @@ export async function verifyCustomDomainAction(): Promise<Result> {
       custom_domain_cert_status: certStatus,
       custom_domain_last_checked_at: nowIso,
       custom_domain_last_error: null,
+      custom_domain_dcv: dcv,
     })
     .eq("id", ctx.ownerId);
 
@@ -306,9 +318,72 @@ export async function verifyCustomDomainAction(): Promise<Result> {
   return {
     ok: true,
     message:
-      certStatus === "provisioning"
-        ? "Verified! Certificate is being issued — usually live in a few minutes."
-        : "Verified and live.",
+      certStatus === "active"
+        ? "Verified and live."
+        : dcv
+          ? "Verified! Add the extra SSL record shown below, then click Refresh status."
+          : "Verified! Certificate is being issued — usually live in a few minutes.",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Custom domain — poll cert status (provisioning → active)
+// ---------------------------------------------------------------------------
+
+export async function refreshCustomDomainStatusAction(): Promise<Result> {
+  const actor = await requireActor("domains.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("user_profiles")
+    .select("custom_domain")
+    .eq("id", ctx.ownerId)
+    .single();
+  const domain = profile?.custom_domain;
+  if (!domain) {
+    return { ok: false, message: "No custom domain to check." };
+  }
+
+  const current = await getCustomHostname(domain);
+  if (current.skipped) {
+    return { ok: true, message: "Certificate is managed on the server." };
+  }
+  if (!current.ok) {
+    return {
+      ok: false,
+      message: current.message ?? "Couldn't reach Cloudflare.",
+    };
+  }
+  if (!current.data) {
+    return {
+      ok: false,
+      message: "Cloudflare has no record for this domain yet — try Verify DNS.",
+    };
+  }
+
+  const { certStatus, dcv, error } = current.data;
+  const dbStatus = certStatus === "failed" ? "failed" : certStatus;
+  await admin
+    .from("user_profiles")
+    .update({
+      custom_domain_cert_status: dbStatus,
+      custom_domain_last_checked_at: new Date().toISOString(),
+      custom_domain_last_error: error,
+      custom_domain_dcv: dcv.length ? dcv : null,
+    })
+    .eq("id", ctx.ownerId);
+
+  revalidatePath("/dashboard/settings/domains");
+  return {
+    ok: true,
+    message:
+      certStatus === "active"
+        ? "Certificate is live 🎉"
+        : certStatus === "failed"
+          ? "Validation failed — check the record values and try again."
+          : "Still issuing — add the SSL record below if shown, then check again.",
   };
 }
 

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { requirePageActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { appRootHost, platformRootDomain } from "@/lib/domains";
+import type { DcvRecord } from "@/lib/cloudflare";
 import { DomainSettingsForm } from "@/components/dashboard/DomainSettingsForm";
 
 export const metadata = { title: "Domains · Settings" };
@@ -23,7 +24,7 @@ export default async function DomainsSettingsPage() {
     admin
       .from("user_profiles")
       .select(
-        "subdomain, subdomain_claimed_at, custom_domain, custom_domain_verified_at, custom_domain_cert_status, custom_domain_last_checked_at, custom_domain_last_error, subscription_plan",
+        "subdomain, subdomain_claimed_at, custom_domain, custom_domain_verified_at, custom_domain_cert_status, custom_domain_last_checked_at, custom_domain_last_error, custom_domain_dcv, subscription_plan",
       )
       .eq("id", ctx.ownerId)
       .single(),
@@ -35,8 +36,9 @@ export default async function DomainsSettingsPage() {
   ]);
 
   const plan = (profile?.subscription_plan ?? "free") as string;
-  const canUseCustomDomains =
-    (plan === "pro" || plan === "business") && flag?.value !== "false";
+  // Custom domains are available to every seller — only the platform-wide
+  // feature flag can switch them off (no plan gate).
+  const canUseCustomDomains = flag?.value !== "false";
 
   return (
     <div className="space-y-6">
@@ -64,6 +66,9 @@ export default async function DomainsSettingsPage() {
         }
         customDomainLastCheckedAt={profile?.custom_domain_last_checked_at ?? null}
         customDomainLastError={profile?.custom_domain_last_error ?? null}
+        customDomainDcv={
+          (profile?.custom_domain_dcv ?? null) as DcvRecord[] | null
+        }
         canUseCustomDomains={canUseCustomDomains}
         plan={plan}
       />
