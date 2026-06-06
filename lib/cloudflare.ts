@@ -170,9 +170,78 @@ export async function resolveCnameChain(
 // Custom-hostname provisioning (Cloudflare for SaaS) — best-effort
 // ─────────────────────────────────────────────────────────────────────────
 
+// Raw shape of a Cloudflare custom_hostname object (only the bits we read).
+interface CfCustomHostname {
+  id: string;
+  hostname: string;
+  status?: string; // active | pending | ...
+  ssl?: {
+    status?: string; // pending_validation | pending_deployment | active | ...
+    validation_records?: Array<{
+      txt_name?: string;
+      txt_value?: string;
+      http_url?: string;
+      http_body?: string;
+    }>;
+    validation_errors?: Array<{ message?: string }>;
+  };
+  ownership_verification?: { type?: string; name?: string; value?: string };
+  ownership_verification_http?: { http_url?: string; http_body?: string };
+}
+
 export interface CustomHostnameResult {
   id: string;
   status: string;
+  certStatus: "pending" | "provisioning" | "active" | "failed";
+  dcv: DcvRecord[];
+  error: string | null;
+}
+
+/** A domain-control-validation record the seller must add to issue the cert. */
+export interface DcvRecord {
+  type: "txt" | "cname";
+  name: string;
+  value: string;
+}
+
+/** Map a Cloudflare ssl/hostname status onto our 4-state cert lifecycle. */
+function mapCertStatus(
+  ch: CfCustomHostname,
+): "pending" | "provisioning" | "active" | "failed" {
+  const ssl = (ch.ssl?.status ?? "").toLowerCase();
+  if (ssl === "active") return "active";
+  if ((ch.ssl?.validation_errors?.length ?? 0) > 0) return "failed";
+  if (ssl.startsWith("pending") || ssl === "initializing" || ssl === "deleted")
+    return "provisioning";
+  if (ssl) return "provisioning";
+  return "pending";
+}
+
+/** Pull the seller-actionable DCV records out of a custom_hostname object. */
+function extractDcv(ch: CfCustomHostname): DcvRecord[] {
+  const out: DcvRecord[] = [];
+  for (const rec of ch.ssl?.validation_records ?? []) {
+    if (rec.txt_name && rec.txt_value) {
+      out.push({ type: "txt", name: rec.txt_name, value: rec.txt_value });
+    }
+  }
+  // Pre-validation hostname ownership check (CNAME/TXT) some plans require.
+  const ov = ch.ownership_verification;
+  if (ov?.name && ov.value) {
+    const t = (ov.type ?? "txt").toLowerCase() === "cname" ? "cname" : "txt";
+    out.push({ type: t, name: ov.name, value: ov.value });
+  }
+  return out;
+}
+
+function shapeCustomHostname(ch: CfCustomHostname): CustomHostnameResult {
+  return {
+    id: ch.id,
+    status: ch.status ?? "",
+    certStatus: mapCertStatus(ch),
+    dcv: extractDcv(ch),
+    error: ch.ssl?.validation_errors?.[0]?.message ?? null,
+  };
 }
 
 /**
@@ -185,7 +254,7 @@ export async function provisionCustomHostname(
 ): Promise<CloudflareResult<CustomHostnameResult>> {
   const cfg = readConfig();
   if (!cfg) return { ok: true, skipped: true };
-  return cfFetch<CustomHostnameResult>(
+  const res = await cfFetch<CfCustomHostname>(
     `/zones/${cfg.zoneId}/custom_hostnames`,
     {
       method: "POST",
@@ -193,13 +262,37 @@ export async function provisionCustomHostname(
       body: {
         hostname,
         ssl: {
-          method: "http",
+          method: "txt",
           type: "dv",
           settings: { min_tls_version: "1.2" },
         },
       },
     },
   );
+  if (res.ok && res.data) {
+    return { ok: true, data: shapeCustomHostname(res.data) };
+  }
+  return { ok: res.ok, message: res.message, skipped: res.skipped };
+}
+
+/**
+ * Read back the current state of a seller's custom hostname (cert status +
+ * any DCV records still outstanding). Used to poll provisioning → active.
+ */
+export async function getCustomHostname(
+  hostname: string,
+): Promise<CloudflareResult<CustomHostnameResult | null>> {
+  const cfg = readConfig();
+  if (!cfg) return { ok: true, skipped: true };
+  const res = await cfFetch<CfCustomHostname[]>(
+    `/zones/${cfg.zoneId}/custom_hostnames?hostname=${encodeURIComponent(
+      hostname,
+    )}`,
+    { method: "GET", token: cfg.apiToken },
+  );
+  if (!res.ok) return { ok: false, message: res.message };
+  const ch = res.data?.[0];
+  return { ok: true, data: ch ? shapeCustomHostname(ch) : null };
 }
 
 // ── Internal ────────────────────────────────────────────────────────────

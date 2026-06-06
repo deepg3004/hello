@@ -26,9 +26,11 @@ import { useToast } from "@/hooks/use-toast";
 import {
   claimCustomDomainAction,
   claimSubdomainAction,
+  refreshCustomDomainStatusAction,
   removeCustomDomainAction,
   verifyCustomDomainAction,
 } from "@/actions/domains";
+import type { DcvRecord } from "@/lib/cloudflare";
 import {
   HARD_RESERVED_SUBDOMAINS,
   normaliseDomain,
@@ -49,6 +51,7 @@ interface Props {
   customDomainCertStatus: CertStatus;
   customDomainLastCheckedAt: string | null;
   customDomainLastError: string | null;
+  customDomainDcv: DcvRecord[] | null;
   canUseCustomDomains: boolean;
   plan: string;
 }
@@ -134,6 +137,21 @@ export function DomainSettingsForm(props: Props) {
         return;
       }
       toast({ title: "Verified", description: res.message });
+    });
+  }
+
+  function refreshStatus() {
+    startTransition(async () => {
+      const res = await refreshCustomDomainStatusAction();
+      if (!res.ok) {
+        toast({
+          variant: "destructive",
+          title: "Couldn't refresh",
+          description: res.message,
+        });
+        return;
+      }
+      toast({ title: "Status updated", description: res.message });
     });
   }
 
@@ -274,9 +292,6 @@ export function DomainSettingsForm(props: Props) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             Custom domain
-            {!props.canUseCustomDomains && (
-              <Badge variant="outline">Pro / Business</Badge>
-            )}
             {props.customDomainVerifiedAt && (
               <Badge
                 variant="outline"
@@ -297,9 +312,8 @@ export function DomainSettingsForm(props: Props) {
         <CardContent className="space-y-4">
           {!props.canUseCustomDomains && (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-900/10 dark:text-amber-200">
-              {props.plan === "free" || props.plan === "starter"
-                ? "Custom domains require the Pro plan or higher."
-                : "Custom domains are disabled platform-wide right now. Check back later."}
+              Custom domains are disabled platform-wide right now. Check back
+              later.
             </div>
           )}
 
@@ -384,6 +398,65 @@ export function DomainSettingsForm(props: Props) {
                 </p>
               </div>
 
+              {props.customDomainDcv && props.customDomainDcv.length > 0 && (
+                <div className="rounded-md border border-blue-200 bg-blue-50/60 p-3 text-sm dark:border-blue-500/30 dark:bg-blue-900/10">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                    Extra record to finish the SSL certificate
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Add this at your DNS host so we can issue the HTTPS
+                    certificate, then click “Refresh status”.
+                  </p>
+                  <div className="mt-2 space-y-2">
+                    {props.customDomainDcv.map((rec, i) => (
+                      <div
+                        key={`${rec.name}-${i}`}
+                        className="grid grid-cols-3 gap-2 font-mono text-xs"
+                      >
+                        <div>
+                          <p className="text-[10px] text-muted-foreground">
+                            Type
+                          </p>
+                          <p className="uppercase">{rec.type}</p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] text-muted-foreground">
+                            Name / Host
+                          </p>
+                          <div className="flex items-center gap-1">
+                            <span className="truncate">{rec.name}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => copy(rec.name, "Name")}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] text-muted-foreground">
+                            Value
+                          </p>
+                          <div className="flex items-center gap-1">
+                            <span className="truncate">{rec.value}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => copy(rec.value, "Value")}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 text-sm">
                 <div>
                   <p className="font-medium">
@@ -403,10 +476,26 @@ export function DomainSettingsForm(props: Props) {
                     </p>
                   )}
                 </div>
-                <Button onClick={verifyCustomDomain} disabled={pending}>
-                  {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Verify DNS
-                </Button>
+                <div className="flex items-center gap-2">
+                  {props.customDomainVerifiedAt &&
+                    props.customDomainCertStatus !== "active" && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={refreshStatus}
+                        disabled={pending}
+                      >
+                        {pending && (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        Refresh status
+                      </Button>
+                    )}
+                  <Button onClick={verifyCustomDomain} disabled={pending}>
+                    {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Verify DNS
+                  </Button>
+                </div>
               </div>
             </>
           )}
