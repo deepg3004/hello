@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 import type { Branding } from "@/lib/settings";
@@ -22,16 +22,10 @@ export function AdminShell({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  // Portaled overlays render into <body>; set `dark` on <html> while the admin
-  // is mounted so dialogs/dropdowns/selects match the dark shell.
-  useEffect(() => {
-    const html = document.documentElement;
-    html.classList.add("dark", "dash-surface");
-    return () => html.classList.remove("dark", "dash-surface");
-  }, []);
-
+  // Theme is driven globally by ThemeProvider (default light). `dash-surface`
+  // makes admin render the premium navy palette when dark is active.
   return (
-    <div className="dark dash-surface app-canvas min-h-screen bg-background text-foreground">
+    <div className="dash-surface app-canvas min-h-screen bg-background text-foreground">
       {/* Desktop fixed sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 md:flex">
         <AdminSidebar
@@ -45,7 +39,7 @@ export function AdminShell({
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
           side="left"
-          className="dark dash-surface w-60 border-0 p-0"
+          className="dash-surface w-60 border-0 p-0"
           style={{ background: "#050810" }}
         >
           <AdminSidebar

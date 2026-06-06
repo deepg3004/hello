@@ -132,8 +132,7 @@
      `.dash-surface` marker class sits on the DashboardShell root, so light mode
      keeps the global cream theme and dark mode gets the navy SaaS look. This is
      what lets the dashboard support BOTH light and dark. */
-  .dark .dash-surface,
-  .dark.dash-surface {
+  .dark .dash-surface {
     --background: 229 64% 5%;          /* #050816 */
     --card: 222 47% 11%;              /* #0F172A */
     --popover: 222 47% 11%;

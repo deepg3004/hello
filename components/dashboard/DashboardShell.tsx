@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 
@@ -50,27 +50,11 @@ export function DashboardShell({
   // whole screen.
   const isEditor = /\/dashboard\/(pages|website)\/[^/]+\/edit\/?$/.test(pathname);
 
-  // Portaled overlays (Dialog / DropdownMenu / Select / Popover / Tooltip /
-  // Toast) render into <body>, OUTSIDE this shell — so without `dark` on <html>
-  // they'd pop up in the light theme over the dark dashboard. Toggle `dark` on
-  // <html> while the (non-editor) dashboard is mounted so overlays match. The
-  // editor stays light (its live storefront preview must render light).
-  useEffect(() => {
-    if (isEditor) return;
-    const html = document.documentElement;
-    html.classList.add("dark", "dash-surface");
-    return () => html.classList.remove("dark", "dash-surface");
-  }, [isEditor]);
-
+  // Theme is driven globally by ThemeProvider (toggles `.dark` on <html>),
+  // default light. The `dash-surface` marker makes the dashboard render its
+  // premium navy palette whenever dark is active, and the cream palette in light.
   return (
-    <div
-      className={cn(
-        "dash-surface app-screen-h flex flex-col overflow-hidden bg-background text-foreground",
-        // Premium dark-glass shell everywhere EXCEPT the full-screen page editor,
-        // whose live preview must render the seller's own (light) storefront.
-        !isEditor && "dark",
-      )}
-    >
+    <div className="dash-surface app-screen-h flex flex-col overflow-hidden bg-background text-foreground">
       {/* Past-due banner — full width, sits above the whole layout. */}
       {showPastDue && (
         <div className="flex-shrink-0 bg-rose-600 px-4 py-2 text-center text-sm font-medium text-white">
@@ -111,7 +95,7 @@ export function DashboardShell({
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetContent
             side="left"
-            className="dark dash-surface w-64 border-0 bg-[#020617] p-0"
+            className="dash-surface w-64 border-0 bg-[#020617] p-0"
           >
             <Sidebar
               pathname={pathname}
