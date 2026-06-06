@@ -15,6 +15,7 @@ import {
   createSellerGatewayOrder,
   gatewayClientFields,
 } from "@/lib/checkout-gateway";
+import { walletCoversPlatformFee } from "@/lib/order-fulfillment";
 import { fireMarketingWebhook } from "@/lib/marketing";
 import { sendEmail } from "@/lib/email";
 import { SHELL } from "@/lib/emails/layout";
@@ -103,6 +104,17 @@ export async function POST(request: Request) {
 
   // ── Paid → seller gateway, hold a seat, return checkout ────────────────────
   const amountPaise = Math.round(price * 100);
+  if (
+    !(await walletCoversPlatformFee(
+      { sellerUserId: ev.user_id, orderAmountPaise: amountPaise },
+      admin,
+    ))
+  ) {
+    return NextResponse.json(
+      { error: "This event is temporarily unavailable. Please try again later." },
+      { status: 402 },
+    );
+  }
   const gw = await createSellerGatewayOrder(ev.user_id, {
     amountPaise,
     currency: ev.currency ?? "INR",

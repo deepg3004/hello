@@ -16,6 +16,7 @@ import {
   createSellerGatewayOrder,
   gatewayClientFields,
 } from "@/lib/checkout-gateway";
+import { walletCoversPlatformFee } from "@/lib/order-fulfillment";
 import { validateCart, type CartItemInput } from "@/lib/cart";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { validateCartCoupon, reserveCoupon, releaseCoupon } from "@/lib/coupons";
@@ -130,6 +131,22 @@ export async function POST(request: Request) {
   }
 
   const totalPaise = Math.max(0, cart.subtotalPaise - discountPaise) + shippingPaise;
+
+  // Wallet gate: block checkout if the seller's wallet can't cover the platform
+  // fee (when require_wallet_balance is on) — otherwise the sale completes but
+  // the fee goes uncollected.
+  if (
+    !(await walletCoversPlatformFee(
+      { sellerUserId: seller.id, orderAmountPaise: totalPaise },
+      admin,
+    ))
+  ) {
+    if (couponId) await releaseCoupon(couponId, email);
+    return NextResponse.json(
+      { error: "This store is temporarily unavailable. Please try again later." },
+      { status: 402 },
+    );
+  }
 
   // No-funds model: the order is created on the seller's OWN gateway (any
   // supported provider — Razorpay, Cashfree, …) via the driver.

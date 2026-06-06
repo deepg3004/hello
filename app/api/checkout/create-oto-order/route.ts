@@ -14,6 +14,7 @@ import {
   createSellerGatewayOrder,
   gatewayClientFields,
 } from "@/lib/checkout-gateway";
+import { walletCoversPlatformFee } from "@/lib/order-fulfillment";
 import { verifyOtoToken, OTO_COOKIE_NAME } from "@/lib/oto-token";
 
 interface OtoConfig {
@@ -123,6 +124,18 @@ export async function POST() {
     invoxai_seller_id: seller.id,
     kind: "oto",
   };
+  if (
+    !(await walletCoversPlatformFee(
+      { sellerUserId: seller.id, orderAmountPaise: amountPaise },
+      admin,
+    ))
+  ) {
+    return NextResponse.json(
+      { error: "This store is temporarily unavailable. Please try again later." },
+      { status: 402 },
+    );
+  }
+
   const gw = await createSellerGatewayOrder(seller.id, {
     amountPaise,
     currency: otoCurrency,

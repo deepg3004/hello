@@ -15,6 +15,7 @@ import {
   createSellerGatewayOrder,
   gatewayClientFields,
 } from "@/lib/checkout-gateway";
+import { walletCoversPlatformFee } from "@/lib/order-fulfillment";
 import { generateSlots, type AvailabilityWindow } from "@/lib/booking";
 import { fireMarketingWebhook } from "@/lib/marketing";
 import { sendEmail } from "@/lib/email";
@@ -133,6 +134,17 @@ export async function POST(request: Request) {
 
   // ── Paid → seller gateway required, hold the slot, return checkout ──────────
   const amountPaise = Math.round(price * 100);
+  if (
+    !(await walletCoversPlatformFee(
+      { sellerUserId: bt.user_id, orderAmountPaise: amountPaise },
+      admin,
+    ))
+  ) {
+    return NextResponse.json(
+      { error: "This booking is temporarily unavailable. Please try again later." },
+      { status: 402 },
+    );
+  }
   const gw = await createSellerGatewayOrder(bt.user_id, {
     amountPaise,
     currency: bt.currency ?? "INR",

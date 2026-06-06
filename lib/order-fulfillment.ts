@@ -9,11 +9,60 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getWalletFeePaise } from "@/lib/wallet";
 import { notifyLowWalletBalance } from "@/lib/notifications/events";
-import { getFeeConfig } from "@/lib/settings";
+import { getFeeConfig, getRequireWalletBalance } from "@/lib/settings";
 import { resolvePlatformFeePaise, feeCategoryForPage } from "@/lib/fees";
 import type { PlanKey } from "@/lib/plans";
 
 type DB = SupabaseClient;
+
+/**
+ * Wallet-balance gate for checkout. Returns false (→ block the order) ONLY when
+ * the admin setting `require_wallet_balance` is on AND the seller's wallet can't
+ * cover the per-order platform fee. Returns true when the gate is off, the fee
+ * is zero, the balance is sufficient, or anything errors (fail-open so a
+ * transient error never blocks every checkout).
+ *
+ * Without this, an empty-wallet seller still took payments (money goes straight
+ * to their gateway in the no-funds model) while the platform fee silently went
+ * uncollected. Mirror of the fee resolution in chargePlatformWalletFee.
+ */
+export async function walletCoversPlatformFee(
+  args: {
+    sellerUserId: string;
+    orderAmountPaise: number;
+    feeCategory?: string | null;
+  },
+  admin: DB,
+): Promise<boolean> {
+  try {
+    if (!(await getRequireWalletBalance())) return true; // gate disabled
+    const { data: sellerProfile } = await admin
+      .from("user_profiles")
+      .select("subscription_plan")
+      .eq("id", args.sellerUserId)
+      .single();
+    const plan = (sellerProfile?.subscription_plan ?? "free") as PlanKey;
+    const resolved = resolvePlatformFeePaise(
+      {
+        plan,
+        feeCategory: args.feeCategory ?? null,
+        orderAmountPaise: args.orderAmountPaise,
+      },
+      await getFeeConfig(),
+    );
+    const feePaise = resolved ?? getWalletFeePaise(plan);
+    if (feePaise <= 0) return true;
+    const { data: w } = await admin
+      .from("seller_wallets")
+      .select("balance_paise")
+      .eq("seller_user_id", args.sellerUserId)
+      .maybeSingle();
+    return Number(w?.balance_paise ?? 0) >= feePaise;
+  } catch (e) {
+    console.error("[wallet-gate] check failed", e);
+    return true; // fail-open — never block all checkout on an internal error
+  }
+}
 
 /**
  * Decrement inventory for a paid order's product (Session 10). No-op for
