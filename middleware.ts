@@ -149,22 +149,24 @@ interface CachedLookup {
 const HOST_LOOKUP_TTL_MS = 5 * 60 * 1000;
 const hostLookupCache = new Map<string, CachedLookup>();
 
-async function lookupHost(
-  request: NextRequest,
-  host: string,
-): Promise<CachedLookup | null> {
+async function lookupHost(host: string): Promise<CachedLookup | null> {
   const cleaned = host.toLowerCase().split(":")[0]!;
   const cached = hostLookupCache.get(cleaned);
   if (cached && Date.now() - cached.fetchedAt < HOST_LOOKUP_TTL_MS) {
     return cached;
   }
   try {
-    const u = request.nextUrl.clone();
-    u.pathname = "/api/domains/lookup";
-    u.search = `?host=${encodeURIComponent(cleaned)}`;
-    const res = await fetch(u.toString(), {
-      headers: { accept: "application/json" },
-    });
+    // Resolve against the LOCAL app, never the public hostname. Reconstructing
+    // the public URL (https://<host>/...) makes the server fetch ITSELF back
+    // out through DNS/nginx/TLS — a flaky self-loop that was returning null in
+    // prod, breaking custom-domain routing AND the subdomain→custom redirect.
+    // The endpoint keys off ?host=, so this internal call's Host header is
+    // irrelevant.
+    const base = `http://127.0.0.1:${process.env.PORT ?? "3000"}`;
+    const res = await fetch(
+      `${base}/api/domains/lookup?host=${encodeURIComponent(cleaned)}`,
+      { headers: { accept: "application/json" } },
+    );
     if (!res.ok) return null;
     const body = (await res.json()) as {
       kind?: "subdomain" | "custom_domain" | null;
@@ -314,7 +316,7 @@ export async function middleware(request: NextRequest) {
           // redirect the whole subdomain there (path + query preserved). Cached
           // lookup; if it's cold/unavailable we just fall through to the normal
           // local rewrite below, so this can never strand the subdomain.
-          const lookup = await lookupHost(request, rawHost);
+          const lookup = await lookupHost(rawHost);
           if (lookup?.redirect_to_custom) {
             const target = request.nextUrl.clone();
             target.protocol = "https:";
@@ -323,7 +325,7 @@ export async function middleware(request: NextRequest) {
             return NextResponse.redirect(target, 308);
           }
         } else {
-          const lookup = await lookupHost(request, rawHost);
+          const lookup = await lookupHost(rawHost);
           username = lookup?.user_id ? lookup.username : null;
         }
         if (username) {
