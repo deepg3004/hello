@@ -143,6 +143,7 @@ interface CachedLookup {
   kind: "subdomain" | "custom_domain" | null;
   user_id: string | null;
   username: string | null;
+  redirect_to_custom: string | null;
   fetchedAt: number;
 }
 const HOST_LOOKUP_TTL_MS = 5 * 60 * 1000;
@@ -169,11 +170,13 @@ async function lookupHost(
       kind?: "subdomain" | "custom_domain" | null;
       user_id?: string | null;
       username?: string | null;
+      redirect_to_custom?: string | null;
     };
     const fresh: CachedLookup = {
       kind: body.kind ?? null,
       user_id: body.user_id ?? null,
       username: body.username ?? null,
+      redirect_to_custom: body.redirect_to_custom ?? null,
       fetchedAt: Date.now(),
     };
     hostLookupCache.set(cleaned, fresh);
@@ -306,7 +309,20 @@ export async function middleware(request: NextRequest) {
         // subdomain. Local resolution can never do that. Custom domains (not
         // *.invoxai.io) still use the API lookup.
         let username = extractSubdomain(rawHost);
-        if (!username) {
+        if (username) {
+          // Seller may have opted to make their custom domain canonical — if so
+          // redirect the whole subdomain there (path + query preserved). Cached
+          // lookup; if it's cold/unavailable we just fall through to the normal
+          // local rewrite below, so this can never strand the subdomain.
+          const lookup = await lookupHost(request, rawHost);
+          if (lookup?.redirect_to_custom) {
+            const target = request.nextUrl.clone();
+            target.protocol = "https:";
+            target.host = lookup.redirect_to_custom;
+            target.port = "";
+            return NextResponse.redirect(target, 308);
+          }
+        } else {
           const lookup = await lookupHost(request, rawHost);
           username = lookup?.user_id ? lookup.username : null;
         }

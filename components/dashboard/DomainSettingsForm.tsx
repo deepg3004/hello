@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 
 import {
@@ -28,6 +29,7 @@ import {
   claimSubdomainAction,
   refreshCustomDomainStatusAction,
   removeCustomDomainAction,
+  setSubdomainRedirectAction,
   verifyCustomDomainAction,
 } from "@/actions/domains";
 import type { DcvRecord } from "@/lib/cloudflare";
@@ -45,6 +47,7 @@ interface Props {
   rootDomain: string;
   appRootHost: string;
   customDomainTarget: string;
+  subdomainRedirectToCustom: boolean;
   subdomain: string | null;
   subdomainClaimedAt: string | null;
   customDomain: string | null;
@@ -98,6 +101,29 @@ export function DomainSettingsForm(props: Props) {
   );
   const cd = normaliseDomain(customDomain);
   const cdValid = validateDomain(cd);
+
+  // ── Subdomain → custom-domain redirect toggle
+  const [redirectOn, setRedirectOn] = useState(
+    props.subdomainRedirectToCustom,
+  );
+
+  function toggleRedirect(next: boolean) {
+    const prev = redirectOn;
+    setRedirectOn(next); // optimistic
+    startTransition(async () => {
+      const res = await setSubdomainRedirectAction({ enabled: next });
+      if (!res.ok) {
+        setRedirectOn(prev); // revert on failure
+        toast({
+          variant: "destructive",
+          title: "Couldn't update",
+          description: res.message,
+        });
+        return;
+      }
+      toast({ title: next ? "Redirect on" : "Redirect off", description: res.message });
+    });
+  }
 
   function saveCustomDomain() {
     if (!cdValid.ok) {
@@ -503,6 +529,33 @@ export function DomainSettingsForm(props: Props) {
                   </Button>
                 </div>
               </div>
+
+              {props.customDomainVerifiedAt && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 text-sm">
+                  <div className="min-w-0 pr-3">
+                    <p className="font-medium">
+                      Redirect my InvoxAI subdomain to this domain
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {props.subdomain ? (
+                        <>
+                          Send <code>{props.subdomain}.{props.rootDomain}</code>{" "}
+                          → <code>{props.customDomain}</code> for every page, so
+                          your custom domain is the only address visitors see.
+                        </>
+                      ) : (
+                        <>Claim a subdomain above first to use this.</>
+                      )}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={redirectOn}
+                    onCheckedChange={toggleRedirect}
+                    disabled={pending || !props.subdomain}
+                    aria-label="Redirect subdomain to custom domain"
+                  />
+                </div>
+              )}
             </>
           )}
         </CardContent>

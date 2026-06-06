@@ -382,9 +382,59 @@ export async function removeCustomDomainAction(): Promise<Result> {
       custom_domain_cert_status: null,
       custom_domain_last_checked_at: null,
       custom_domain_last_error: null,
+      // No custom domain left to redirect to — disable the toggle.
+      subdomain_redirect_to_custom: false,
     })
     .eq("id", ctx.ownerId);
   await bustHostCache(previous);
   revalidatePath("/dashboard/settings/domains");
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Subdomain → custom-domain redirect toggle
+// ---------------------------------------------------------------------------
+
+export async function setSubdomainRedirectAction(input: {
+  enabled: boolean;
+}): Promise<Result> {
+  const actor = await requireActor("domains.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("user_profiles")
+    .select("subdomain, custom_domain, custom_domain_verified_at")
+    .eq("id", ctx.ownerId)
+    .single();
+
+  // Can't redirect to a custom domain that isn't set up + verified yet.
+  if (
+    input.enabled &&
+    !(profile?.custom_domain && profile.custom_domain_verified_at)
+  ) {
+    return {
+      ok: false,
+      message: "Verify your custom domain first, then turn this on.",
+    };
+  }
+
+  const { error } = await admin
+    .from("user_profiles")
+    .update({ subdomain_redirect_to_custom: input.enabled })
+    .eq("id", ctx.ownerId);
+  if (error) return { ok: false, message: error.message };
+
+  // Bust the subdomain's host-lookup cache so middleware picks up the change.
+  if (profile?.subdomain) {
+    await bustHostCache(`${profile.subdomain}.${platformRootDomain()}`);
+  }
+  revalidatePath("/dashboard/settings/domains");
+  return {
+    ok: true,
+    message: input.enabled
+      ? "Your subdomain now redirects to your custom domain. It may take a few minutes to take effect."
+      : "Redirect turned off — your subdomain serves your store directly again.",
+  };
 }

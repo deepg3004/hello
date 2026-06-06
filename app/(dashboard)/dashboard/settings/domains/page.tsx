@@ -28,7 +28,7 @@ export default async function DomainsSettingsPage() {
     admin
       .from("user_profiles")
       .select(
-        "subdomain, subdomain_claimed_at, custom_domain, custom_domain_verified_at, custom_domain_cert_status, custom_domain_last_checked_at, custom_domain_last_error, custom_domain_dcv, subscription_plan",
+        "subdomain, subdomain_claimed_at, custom_domain, custom_domain_verified_at, custom_domain_cert_status, custom_domain_last_checked_at, custom_domain_last_error, custom_domain_dcv, subdomain_redirect_to_custom, subscription_plan",
       )
       .eq("id", ctx.ownerId)
       .single(),
@@ -57,6 +57,9 @@ export default async function DomainsSettingsPage() {
         rootDomain={platformRootDomain()}
         appRootHost={appRootHost()}
         customDomainTarget={customDomainTargetIps()[0] ?? "187.127.172.108"}
+        subdomainRedirectToCustom={
+          profile?.subdomain_redirect_to_custom ?? false
+        }
         subdomain={profile?.subdomain ?? null}
         subdomainClaimedAt={profile?.subdomain_claimed_at ?? null}
         customDomain={profile?.custom_domain ?? null}

@@ -30,6 +30,9 @@ interface LookupBody {
   kind: "subdomain" | "custom_domain" | null;
   user_id: string | null;
   username: string | null;
+  /** The seller's verified custom domain to redirect this subdomain to, when
+   *  the seller has turned on subdomain→custom redirect. null otherwise. */
+  redirect_to_custom?: string | null;
 }
 
 export async function GET(request: Request) {
@@ -67,15 +70,27 @@ export async function GET(request: Request) {
   if (sub) {
     const { data: profile } = await admin
       .from("user_profiles")
-      .select("id, subdomain")
+      .select(
+        "id, subdomain, custom_domain, custom_domain_verified_at, subdomain_redirect_to_custom",
+      )
       .eq("subdomain", sub)
       .maybeSingle();
     if (profile?.subdomain) {
+      // Surface a redirect target only when the seller opted in AND their
+      // custom domain is actually verified — otherwise we'd redirect to a
+      // dead host.
+      const redirectTo =
+        profile.subdomain_redirect_to_custom &&
+        profile.custom_domain &&
+        profile.custom_domain_verified_at
+          ? (profile.custom_domain as string)
+          : null;
       body = {
         ok: true,
         kind: "subdomain",
         user_id: profile.id as string,
         username: profile.subdomain,
+        redirect_to_custom: redirectTo,
       };
     } else {
       body = { ok: true, kind: null, user_id: null, username: null };
