@@ -42,7 +42,12 @@ export const cashfreeGateway: PaymentGateway = {
         order_currency: input.currency ?? "INR",
         order_note: Object.values(input.notes ?? {}).join(" ").slice(0, 200) || undefined,
         customer_details: {
-          customer_id: input.customer?.email || input.receipt,
+          // Cashfree requires customer_id to be alphanumeric + underscore/hyphen
+          // only (no "@" or "."), so we can't pass the raw email — sanitise it.
+          customer_id:
+            (input.customer?.email || input.receipt)
+              .replace(/[^a-zA-Z0-9_-]/g, "_")
+              .slice(0, 50) || input.receipt,
           customer_email: input.customer?.email || "buyer@example.com",
           customer_phone: input.customer?.phone || "9999999999",
           customer_name: input.customer?.name,
