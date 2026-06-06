@@ -157,11 +157,13 @@ async function launchCashfree(
     h.onError("Couldn't start Cashfree checkout.");
     return;
   }
-  try {
-    await loadScript(CASHFREE_SDK);
-  } catch {
-    h.onError("Couldn't load the payment SDK. Refresh and try again.");
-    return;
+  if (!(window as unknown as { Cashfree?: CashfreeFn }).Cashfree) {
+    try {
+      await loadScript(CASHFREE_SDK);
+    } catch {
+      h.onError("Couldn't load the payment SDK. Refresh and try again.");
+      return;
+    }
   }
   const Cashfree = (window as unknown as { Cashfree?: CashfreeFn }).Cashfree;
   if (!Cashfree) {
@@ -201,14 +203,17 @@ export async function launchCheckout(
   res: CreateOrderResponse,
   h: LaunchHandlers,
 ): Promise<void> {
-  // Ensure the Razorpay SDK is present for the common case (no-op if already
-  // loaded); Cashfree loads its own SDK on demand.
+  // Ensure the Razorpay SDK is present. Skip loading when it's already on the
+  // page — some flows preload it via their own hook, and waiting on a `load`
+  // event that already fired would hang forever (Razorpay would never open).
   if (res.gateway !== "cashfree") {
-    try {
-      await loadScript(RAZORPAY_SDK);
-    } catch {
-      h.onError("Couldn't load the payment SDK. Refresh and try again.");
-      return;
+    if (!(window as unknown as { Razorpay?: RazorpayCtor }).Razorpay) {
+      try {
+        await loadScript(RAZORPAY_SDK);
+      } catch {
+        h.onError("Couldn't load the payment SDK. Refresh and try again.");
+        return;
+      }
     }
     launchRazorpay(res, h);
     return;
