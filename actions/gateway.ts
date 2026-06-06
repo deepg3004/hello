@@ -121,11 +121,10 @@ export async function verifyGatewayAction(input: {
   if (!GATEWAY_TYPES.includes(gateway_type)) {
     return { ok: false, message: "Unsupported gateway" };
   }
-  if (gateway_type !== "razorpay") {
+  if (!isLiveGateway(gateway_type)) {
     return {
       ok: false,
-      message:
-        "Only Razorpay is supported right now — more gateways are coming soon.",
+      message: "This gateway isn't available yet — more are coming soon.",
     };
   }
   const keys: GatewayKeys = {
