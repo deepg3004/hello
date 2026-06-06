@@ -23,7 +23,7 @@ export function AdminShell({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="app-canvas min-h-screen bg-background">
+    <div className="dark dash-surface app-canvas min-h-screen bg-background text-foreground">
       {/* Desktop fixed sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 md:flex">
         <AdminSidebar
@@ -37,7 +37,7 @@ export function AdminShell({
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
           side="left"
-          className="w-60 border-0 p-0"
+          className="dark dash-surface w-60 border-0 p-0"
           style={{ background: "#050810" }}
         >
           <AdminSidebar
@@ -51,7 +51,9 @@ export function AdminShell({
 
       <div className="md:pl-60">
         <AdminTopbar profile={profile} onMenuClick={() => setOpen(true)} />
-        <main className="px-4 py-6 md:px-8 md:py-8">{children}</main>
+        <main className="relative aurora-bg px-4 py-6 md:px-8 md:py-8">
+          <div className="animate-fade-in-scale">{children}</div>
+        </main>
       </div>
     </div>
   );

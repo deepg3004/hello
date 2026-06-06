@@ -51,7 +51,14 @@ export function DashboardShell({
   const isEditor = /\/dashboard\/(pages|website)\/[^/]+\/edit\/?$/.test(pathname);
 
   return (
-    <div className="dash-surface app-screen-h flex flex-col overflow-hidden bg-background text-foreground">
+    <div
+      className={cn(
+        "dash-surface app-screen-h flex flex-col overflow-hidden bg-background text-foreground",
+        // Premium dark-glass shell everywhere EXCEPT the full-screen page editor,
+        // whose live preview must render the seller's own (light) storefront.
+        !isEditor && "dark",
+      )}
+    >
       {/* Past-due banner — full width, sits above the whole layout. */}
       {showPastDue && (
         <div className="flex-shrink-0 bg-rose-600 px-4 py-2 text-center text-sm font-medium text-white">
@@ -92,7 +99,7 @@ export function DashboardShell({
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetContent
             side="left"
-            className="dash-surface w-64 border-0 bg-[#020617] p-0"
+            className="dark dash-surface w-64 border-0 bg-[#020617] p-0"
           >
             <Sidebar
               pathname={pathname}
@@ -116,14 +123,15 @@ export function DashboardShell({
           />
           <main
             className={cn(
-              "flex-1 overflow-y-auto overscroll-contain bg-background",
+              "relative flex-1 overflow-y-auto overscroll-contain bg-background",
+              !isEditor && "aurora-bg",
               isEditor ? "p-0" : "p-4 md:p-6",
             )}
           >
             <div
               className={cn(
                 "w-full",
-                isEditor ? "h-full" : "mx-auto max-w-7xl",
+                isEditor ? "h-full" : "mx-auto max-w-7xl animate-fade-in-scale",
               )}
             >
               {children}
