@@ -15,11 +15,12 @@ export default async function GatewaySettingsPage() {
 
   const admin = createAdminClient();
   // Only non-secret status fields — the encrypted keys never leave the server.
-  const { data: existing } = await admin
+  // A seller can connect several gateways and switch the active one.
+  const { data: gateways } = await admin
     .from("seller_gateway_config")
     .select("gateway_type, is_active, is_verified")
     .eq("seller_user_id", ctx.ownerId)
-    .maybeSingle();
+    .order("gateway_type");
 
   return (
     <div className="space-y-6">
@@ -35,7 +36,7 @@ export default async function GatewaySettingsPage() {
       </div>
 
       <GatewaySettingsForm
-        existing={(existing ?? null) as ExistingGateway | null}
+        gateways={(gateways ?? []) as ExistingGateway[]}
         liveGateways={liveGateways()}
       />
 

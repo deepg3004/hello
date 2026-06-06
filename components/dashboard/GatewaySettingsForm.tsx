@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, Trash2 } from "lucide-react";
 
 import {
   Card,
@@ -14,13 +14,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { saveGatewayConfigAction, verifyGatewayAction } from "@/actions/gateway";
+import {
+  saveGatewayConfigAction,
+  verifyGatewayAction,
+  setActiveGatewayAction,
+  removeGatewayAction,
+} from "@/actions/gateway";
 
-// Which gateways are selectable is decided by the server (liveGateways()), so we
-// only enable the ones whose buyer-facing checkout is wired end-to-end. The rest
-// render disabled ("coming soon") to stop sellers connecting a gateway that
-// would 402 at checkout.
 const GATEWAYS = [
   { value: "razorpay", label: "Razorpay" },
   { value: "cashfree", label: "Cashfree" },
@@ -28,6 +30,10 @@ const GATEWAYS = [
   { value: "instamojo", label: "Instamojo" },
   { value: "stripe", label: "Stripe" },
 ] as const;
+
+const LABEL: Record<string, string> = Object.fromEntries(
+  GATEWAYS.map((g) => [g.value, g.label]),
+);
 
 // Per-provider credential labels (each gateway names its keys differently).
 const FIELDS: Record<string, { id: string; secret: string; idPh: string }> = {
@@ -45,10 +51,10 @@ export interface ExistingGateway {
 }
 
 export function GatewaySettingsForm({
-  existing,
+  gateways = [],
   liveGateways = ["razorpay"],
 }: {
-  existing: ExistingGateway | null;
+  gateways?: ExistingGateway[];
   liveGateways?: string[];
 }) {
   const { toast } = useToast();
@@ -56,16 +62,21 @@ export function GatewaySettingsForm({
   const [pending, startTransition] = useTransition();
 
   const [gatewayType, setGatewayType] = useState(
-    existing?.gateway_type ?? "razorpay",
+    liveGateways[0] ?? "razorpay",
   );
   const [keyId, setKeyId] = useState("");
   const [keySecret, setKeySecret] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
-  // Reflect a just-saved connection immediately, independent of the server
-  // re-fetch (router-cache timing can otherwise leave the banner stale).
-  const [saved, setSaved] = useState<ExistingGateway | null>(existing);
   const [testing, setTesting] = useState(false);
   const f = FIELDS[gatewayType] ?? FIELDS.razorpay!;
+
+  const hasActive = gateways.some((g) => g.is_active);
+
+  function clearKeys() {
+    setKeyId("");
+    setKeySecret("");
+    setWebhookSecret("");
+  }
 
   function test() {
     if (!keyId.trim() || !keySecret.trim()) {
@@ -86,9 +97,7 @@ export function GatewaySettingsForm({
           : { variant: "destructive", title: "Test failed", description: res.message },
       );
       if (res.ok) {
-        // A successful test verifies AND activates the gateway server-side —
-        // reflect that immediately (router-cache can lag the banner).
-        setSaved({ gateway_type: gatewayType, is_active: true, is_verified: true });
+        clearKeys();
         router.refresh();
       }
     });
@@ -96,11 +105,7 @@ export function GatewaySettingsForm({
 
   function save() {
     if (!keyId.trim() || !keySecret.trim()) {
-      toast({
-        variant: "destructive",
-        title: "Missing keys",
-        description: "Enter both the Key ID and Key Secret.",
-      });
+      toast({ variant: "destructive", title: "Missing keys", description: "Enter both the Key ID and Key Secret." });
       return;
     }
     startTransition(async () => {
@@ -111,132 +116,193 @@ export function GatewaySettingsForm({
         webhook_secret: webhookSecret || undefined,
       });
       if (!res.ok) {
-        toast({
-          variant: "destructive",
-          title: "Couldn't save",
-          description: res.message,
-        });
+        toast({ variant: "destructive", title: "Couldn't save", description: res.message });
         return;
       }
-      // Clear the secret fields after a successful save — we never show them back.
-      setKeySecret("");
-      setWebhookSecret("");
-      setSaved({ gateway_type: gatewayType, is_active: true, is_verified: false });
-      toast({
-        title: "Gateway connected 🎉",
-        description: "Your keys are saved and encrypted.",
-      });
-      // Re-render from the server so the "Currently connected" banner reflects
-      // the new gateway without a manual reload (revalidatePath alone won't
-      // refresh this already-hydrated client view).
+      clearKeys();
+      toast({ title: "Gateway saved 🎉", description: res.message ?? "Keys saved and encrypted." });
       router.refresh();
     });
   }
 
+  function makeActive(type: string) {
+    startTransition(async () => {
+      const res = await setActiveGatewayAction({ gateway_type: type });
+      toast(
+        res.ok
+          ? { title: "Active gateway switched", description: res.message }
+          : { variant: "destructive", title: "Couldn't switch", description: res.message },
+      );
+      if (res.ok) router.refresh();
+    });
+  }
+
+  function remove(type: string) {
+    if (!confirm(`Remove your ${LABEL[type] ?? type} keys?`)) return;
+    startTransition(async () => {
+      const res = await removeGatewayAction({ gateway_type: type });
+      toast(
+        res.ok
+          ? { title: "Gateway removed", description: res.message }
+          : { variant: "destructive", title: "Couldn't remove", description: res.message },
+      );
+      if (res.ok) router.refresh();
+    });
+  }
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Connect your gateway</CardTitle>
-        <CardDescription>
-          Buyer payments go directly to your own gateway account. Keys are
-          encrypted at rest and never shown back.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {(saved ?? existing) && (
-          <>
-            <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-              {(saved ?? existing)!.is_verified ? (
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              ) : (
-                <Loader2 className="h-4 w-4 text-muted-foreground" />
-              )}
-              <span className="text-muted-foreground">
-                Currently connected:{" "}
-                <span className="font-medium text-foreground">
-                  {(saved ?? existing)!.gateway_type}
-                </span>
-                {(saved ?? existing)!.is_verified
-                  ? " (verified)"
-                  : " (pending verification)"}
-              </span>
+    <div className="space-y-6">
+      {/* ── Connected gateways list + switch ─────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Your payment gateways</CardTitle>
+          <CardDescription>
+            Connect as many as you like — your keys for each are saved. Exactly
+            one is <strong>active</strong> at a time; that&apos;s the one buyers
+            pay through. Switch instantly with “Make active”.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {gateways.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              No gateways connected yet. Add one below.
+            </p>
+          )}
+          {!hasActive && gateways.length > 0 && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-900/10 dark:text-amber-200">
+              ⚠️ No active gateway — your store can&apos;t take payments. Click
+              <strong> Make active</strong> on one below.
             </div>
-            {!(saved ?? existing)!.is_active && (
-              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-900/10 dark:text-amber-200">
-                ⚠️ This gateway is <strong>inactive</strong>, so your store
-                can&apos;t take payments right now. Click{" "}
-                <strong>Test connection</strong> below (or re-save your keys) to
-                switch it back on.
+          )}
+          {gateways.map((g) => (
+            <div
+              key={g.gateway_type}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 text-sm"
+            >
+              <div className="flex items-center gap-2">
+                <span className="font-medium">
+                  {LABEL[g.gateway_type] ?? g.gateway_type}
+                </span>
+                {g.is_active ? (
+                  <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+                    <CheckCircle2 className="mr-1 h-3 w-3" />
+                    Active
+                  </Badge>
+                ) : (
+                  <Badge variant="outline">Inactive</Badge>
+                )}
+                <Badge variant="outline" className="text-xs">
+                  {g.is_verified ? "verified" : "unverified"}
+                </Badge>
               </div>
-            )}
-          </>
-        )}
+              <div className="flex items-center gap-2">
+                {!g.is_active && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => makeActive(g.gateway_type)}
+                    disabled={pending || testing}
+                  >
+                    Make active
+                  </Button>
+                )}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => remove(g.gateway_type)}
+                  disabled={pending || testing}
+                  title="Remove"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
-        <div>
-          <Label className="text-xs">Gateway</Label>
-          <select
-            value={gatewayType}
-            onChange={(e) => setGatewayType(e.target.value)}
-            className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {GATEWAYS.map((g) => {
-              const enabled = liveGateways.includes(g.value);
-              return (
-                <option key={g.value} value={g.value} disabled={!enabled}>
-                  {g.label}
-                  {enabled ? "" : " (coming soon)"}
-                </option>
-              );
-            })}
-          </select>
-        </div>
+      {/* ── Add / update a gateway ───────────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Connect / update a gateway</CardTitle>
+          <CardDescription>
+            Buyer payments go directly to your own gateway account. Keys are
+            encrypted at rest and never shown back.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label className="text-xs">Gateway</Label>
+            <select
+              value={gatewayType}
+              onChange={(e) => setGatewayType(e.target.value)}
+              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {GATEWAYS.map((g) => {
+                const enabled = liveGateways.includes(g.value);
+                return (
+                  <option key={g.value} value={g.value} disabled={!enabled}>
+                    {g.label}
+                    {enabled ? "" : " (coming soon)"}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
 
-        <div>
-          <Label className="text-xs">{f.id}</Label>
-          <Input
-            value={keyId}
-            onChange={(e) => setKeyId(e.target.value)}
-            placeholder={f.idPh}
-            className="mt-1"
-            autoComplete="off"
-          />
-        </div>
+          <div>
+            <Label className="text-xs">{f.id}</Label>
+            <Input
+              value={keyId}
+              onChange={(e) => setKeyId(e.target.value)}
+              placeholder={f.idPh}
+              className="mt-1"
+              autoComplete="off"
+            />
+          </div>
 
-        <div>
-          <Label className="text-xs">{f.secret}</Label>
-          <Input
-            type="password"
-            value={keySecret}
-            onChange={(e) => setKeySecret(e.target.value)}
-            placeholder="••••••••••••••••"
-            className="mt-1"
-            autoComplete="off"
-          />
-        </div>
+          <div>
+            <Label className="text-xs">{f.secret}</Label>
+            <Input
+              type="password"
+              value={keySecret}
+              onChange={(e) => setKeySecret(e.target.value)}
+              placeholder="••••••••••••••••"
+              className="mt-1"
+              autoComplete="off"
+            />
+          </div>
 
-        <div>
-          <Label className="text-xs">Webhook Secret (optional)</Label>
-          <Input
-            type="password"
-            value={webhookSecret}
-            onChange={(e) => setWebhookSecret(e.target.value)}
-            placeholder="••••••••••••••••"
-            className="mt-1"
-            autoComplete="off"
-          />
-        </div>
+          <div>
+            <Label className="text-xs">Webhook Secret (optional)</Label>
+            <Input
+              type="password"
+              value={webhookSecret}
+              onChange={(e) => setWebhookSecret(e.target.value)}
+              placeholder="••••••••••••••••"
+              className="mt-1"
+              autoComplete="off"
+            />
+          </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={save} disabled={pending || testing}>
-            {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {existing ? "Update keys" : "Connect gateway"}
-          </Button>
-          <Button variant="outline" onClick={test} disabled={pending || testing}>
-            {testing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Test connection
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={save} disabled={pending || testing}>
+              {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save keys
+            </Button>
+            <Button variant="outline" onClick={test} disabled={pending || testing}>
+              {testing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Test &amp; verify
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            “Test &amp; verify” checks the keys live and saves them.
+            {hasActive
+              ? " It won’t change your active gateway — use “Make active” above to switch."
+              : " The first gateway you connect becomes active automatically."}
+          </p>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

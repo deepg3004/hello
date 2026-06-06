@@ -76,6 +76,19 @@ export async function saveGatewayConfigAction(input: {
   }
 
   const admin = createAdminClient();
+
+  // Multi-gateway: keep the seller's other gateways; only (re)write this
+  // gateway_type's row. Don't disrupt a working live gateway — preserve an
+  // existing row's active flag, and auto-activate only when nothing is active
+  // yet (so the first gateway "just works"). Switching active is explicit.
+  const { data: rows } = await admin
+    .from("seller_gateway_config")
+    .select("gateway_type, is_active")
+    .eq("seller_user_id", ctx.ownerId);
+  const existingRow = rows?.find((r) => r.gateway_type === gateway_type);
+  const anyActive = (rows ?? []).some((r) => r.is_active);
+  const is_active = existingRow ? !!existingRow.is_active : !anyActive;
+
   const { error } = await admin.from("seller_gateway_config").upsert(
     {
       seller_user_id: ctx.ownerId,
@@ -83,12 +96,12 @@ export async function saveGatewayConfigAction(input: {
       key_id_enc,
       key_secret_enc,
       webhook_secret_enc,
-      is_active: true,
+      is_active,
       // Re-saving keys means they must be proven again with a test payment.
       is_verified: false,
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "seller_user_id" },
+    { onConflict: "seller_user_id,gateway_type" },
   );
 
   if (error) {
@@ -97,7 +110,12 @@ export async function saveGatewayConfigAction(input: {
   }
 
   revalidatePath("/dashboard/settings/gateway");
-  return { ok: true };
+  return {
+    ok: true,
+    message: is_active
+      ? undefined
+      : "Saved & encrypted. Click “Make active” to take payments through this gateway.",
+  };
 }
 
 /**
@@ -146,47 +164,111 @@ export async function verifyGatewayAction(input: {
   if (!result.ok) return { ok: false, message: result.message ?? "Connection failed" };
 
   const admin = createAdminClient();
-  // A successful live test is also the seller's signal that this gateway should
-  // be collecting payments — (re)activate it alongside marking it verified.
-  // Without this, a gateway that ended up is_active=false (e.g. an admin toggle
-  // or a stale row) stayed dark with no seller-facing way to switch it back on,
-  // so checkout kept 402'ing ("store can't accept payments") even though the
-  // keys were valid.
-  const { data: updated } = await admin
-    .from("seller_gateway_config")
-    .update({
-      is_verified: true,
-      is_active: true,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("seller_user_id", user.id)
-    .eq("gateway_type", gateway_type)
-    .select("seller_user_id");
 
-  // If there was no stored row yet (seller tested before saving), persist the
-  // validated keys now so "Test connection" alone is enough to go live.
-  if (!updated || updated.length === 0) {
-    try {
-      await admin.from("seller_gateway_config").upsert(
-        {
-          seller_user_id: user.id,
-          gateway_type,
-          key_id_enc: encryptGatewayKey(keys.key_id),
-          key_secret_enc: encryptGatewayKey(keys.key_secret),
-          webhook_secret_enc: keys.webhook_secret
-            ? encryptGatewayKey(keys.webhook_secret)
-            : null,
-          is_active: true,
-          is_verified: true,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "seller_user_id" },
-      );
-    } catch (e) {
-      console.error("[verifyGatewayAction] persist-on-verify failed", e);
-    }
+  // Multi-gateway: store + verify THIS gateway. Activate it only if the seller
+  // has no active gateway yet — switching the active one is an explicit action
+  // (setActiveGatewayAction), so a test never silently hijacks a live gateway.
+  const { data: rows } = await admin
+    .from("seller_gateway_config")
+    .select("gateway_type, is_active")
+    .eq("seller_user_id", user.id);
+  const existingRow = rows?.find((r) => r.gateway_type === gateway_type);
+  const anyActive = (rows ?? []).some((r) => r.is_active);
+  const activate = existingRow ? !!existingRow.is_active || !anyActive : !anyActive;
+
+  try {
+    await admin.from("seller_gateway_config").upsert(
+      {
+        seller_user_id: user.id,
+        gateway_type,
+        key_id_enc: encryptGatewayKey(keys.key_id),
+        key_secret_enc: encryptGatewayKey(keys.key_secret),
+        webhook_secret_enc: keys.webhook_secret
+          ? encryptGatewayKey(keys.webhook_secret)
+          : null,
+        is_active: activate,
+        is_verified: true,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "seller_user_id,gateway_type" },
+    );
+  } catch (e) {
+    console.error("[verifyGatewayAction] persist-on-verify failed", e);
+    return { ok: false, message: "Couldn't save the verified keys." };
   }
 
   revalidatePath("/dashboard/settings/gateway");
-  return { ok: true, message: "Connection verified — your gateway is live." };
+  return {
+    ok: true,
+    message: activate
+      ? "Connection verified — this gateway is live."
+      : "Connection verified & saved. Click “Make active” to switch to it.",
+  };
+}
+
+/**
+ * Instantly switch which connected gateway is active (the one checkout uses).
+ * Exactly one active per seller: deactivate the rest, activate the chosen one.
+ */
+export async function setActiveGatewayAction(input: {
+  gateway_type: string;
+}): Promise<Result> {
+  const actor = await requireActor("gateway.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const gateway_type = input.gateway_type as GatewayType;
+  if (!GATEWAY_TYPES.includes(gateway_type)) {
+    return { ok: false, message: "Unsupported gateway" };
+  }
+
+  const admin = createAdminClient();
+  const { data: row } = await admin
+    .from("seller_gateway_config")
+    .select("gateway_type")
+    .eq("seller_user_id", ctx.ownerId)
+    .eq("gateway_type", gateway_type)
+    .maybeSingle();
+  if (!row) return { ok: false, message: "Connect that gateway first." };
+
+  const now = new Date().toISOString();
+  await admin
+    .from("seller_gateway_config")
+    .update({ is_active: false, updated_at: now })
+    .eq("seller_user_id", ctx.ownerId)
+    .neq("gateway_type", gateway_type);
+  const { error } = await admin
+    .from("seller_gateway_config")
+    .update({ is_active: true, updated_at: now })
+    .eq("seller_user_id", ctx.ownerId)
+    .eq("gateway_type", gateway_type);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/dashboard/settings/gateway");
+  return { ok: true, message: `Now taking payments through ${gateway_type}.` };
+}
+
+/** Remove a connected gateway (deletes its stored keys). */
+export async function removeGatewayAction(input: {
+  gateway_type: string;
+}): Promise<Result> {
+  const actor = await requireActor("gateway.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const gateway_type = input.gateway_type as GatewayType;
+  if (!GATEWAY_TYPES.includes(gateway_type)) {
+    return { ok: false, message: "Unsupported gateway" };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("seller_gateway_config")
+    .delete()
+    .eq("seller_user_id", ctx.ownerId)
+    .eq("gateway_type", gateway_type);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/dashboard/settings/gateway");
+  return { ok: true, message: "Gateway removed." };
 }

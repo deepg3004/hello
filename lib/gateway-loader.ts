@@ -31,6 +31,9 @@ export async function loadSellerGatewayKeys(
   sellerUserId: string,
 ): Promise<GatewayKeys | null> {
   const admin = createAdminClient();
+  // A seller may have several gateways connected; checkout uses the ONE marked
+  // active. limit(1)+maybeSingle keeps this safe even if data ever drifts to
+  // zero/two active rows.
   const { data } = await admin
     .from("seller_gateway_config")
     .select(
@@ -38,7 +41,9 @@ export async function loadSellerGatewayKeys(
     )
     .eq("seller_user_id", sellerUserId)
     .eq("is_active", true)
-    .single();
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   if (!data) return null;
 
