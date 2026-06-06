@@ -11,8 +11,10 @@ import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
-import { createOrderOnKeys } from "@/lib/razorpay";
+import {
+  createSellerGatewayOrder,
+  gatewayClientFields,
+} from "@/lib/checkout-gateway";
 import { fireMarketingWebhook } from "@/lib/marketing";
 import { sendEmail } from "@/lib/email";
 import { SHELL } from "@/lib/emails/layout";
@@ -100,21 +102,20 @@ export async function POST(request: Request) {
   }
 
   // ── Paid → seller gateway, hold a seat, return checkout ────────────────────
-  const keys = await loadSellerGatewayKeys(ev.user_id);
-  if (!keys || keys.gateway_type !== "razorpay") {
-    return NextResponse.json({ error: "This event can't take payments yet." }, { status: 402 });
-  }
-
   const amountPaise = Math.round(price * 100);
-  let rzpOrder: { id: string };
-  try {
-    rzpOrder = (await createOrderOnKeys(
-      { key_id: keys.key_id, key_secret: keys.key_secret },
-      { amount: amountPaise, currency: ev.currency ?? "INR", receipt: nanoid(10), notes: { kind: "event", event_slug: slug } },
-    )) as unknown as { id: string };
-  } catch (e) {
-    console.error("[events/register] razorpay order failed", e);
-    return NextResponse.json({ error: "Payment gateway temporarily unavailable." }, { status: 502 });
+  const gw = await createSellerGatewayOrder(ev.user_id, {
+    amountPaise,
+    currency: ev.currency ?? "INR",
+    receipt: nanoid(10),
+    notes: { kind: "event", event_slug: slug },
+    customer: {
+      name: body.buyer_name ?? undefined,
+      email,
+      phone: body.buyer_phone ?? undefined,
+    },
+  });
+  if (!gw.ok) {
+    return NextResponse.json({ error: gw.error }, { status: gw.status });
   }
 
   const { data: regId, error } = await admin.rpc("register_for_event", {
@@ -124,7 +125,7 @@ export async function POST(request: Request) {
     p_buyer_phone: body.buyer_phone?.trim() || null,
     p_status: "pending",
     p_amount: price,
-    p_gateway_order_id: rzpOrder.id,
+    p_gateway_order_id: gw.providerOrderId,
   });
   if (error) {
     console.error("[events/register] rpc failed (paid)", error);
@@ -138,10 +139,9 @@ export async function POST(request: Request) {
     ok: true,
     paid: true,
     registration_id: regId,
-    razorpay_order_id: rzpOrder.id,
+    ...gatewayClientFields(gw.gateway, gw.providerOrderId, gw.client),
     amount: amountPaise,
     currency: ev.currency ?? "INR",
-    key: keys.key_id,
     title: ev.title,
     buyer_name: body.buyer_name ?? "",
     buyer_email: email,

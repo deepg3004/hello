@@ -15,6 +15,10 @@ import {
 } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
 import { formatINR } from "@/lib/utils";
+import {
+  launchCheckout,
+  type CreateOrderResponse,
+} from "@/lib/checkout-launch";
 import { useCart, lineKey } from "./CartProvider";
 
 const RAZORPAY_SDK = "https://checkout.razorpay.com/v1/checkout.js";
@@ -134,60 +138,25 @@ export function CartDrawer() {
           coupon_code: applied?.code || undefined,
         }),
       });
-      const body = (await res.json()) as {
-        ok?: boolean;
-        error?: string;
-        key?: string;
-        amount?: number;
-        currency?: string;
-        name?: string;
-        description?: string;
-        razorpay_order_id?: string;
-        order_id?: string;
-      };
-      if (!res.ok || !body.ok || !body.razorpay_order_id) {
+      const body = (await res.json()) as CreateOrderResponse;
+      if (!res.ok || !body.ok || !body.gateway) {
         throw new Error(body.error ?? "Couldn't start checkout");
       }
 
-      const Razorpay = getRazorpay();
-      if (!Razorpay) throw new Error("Payment is still loading");
-      const rzp = new Razorpay({
-        key: body.key!,
-        amount: body.amount!,
-        currency: body.currency ?? "INR",
-        name: body.name ?? "InvoxAI",
-        description: body.description,
-        order_id: body.razorpay_order_id,
-        prefill: { name, email, contact: phone },
-        theme: { color: "#4f46e5" },
-        modal: { ondismiss: () => setPaying(false) },
-        handler: async (r) => {
-          try {
-            const vr = await fetch("/api/checkout/verify-cart-payment", {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({
-                razorpay_order_id: r.razorpay_order_id,
-                razorpay_payment_id: r.razorpay_payment_id,
-                razorpay_signature: r.razorpay_signature,
-                order_id: body.order_id,
-              }),
-            });
-            const vb = (await vr.json()) as { ok?: boolean; redirect_url?: string; error?: string };
-            if (!vr.ok || !vb.ok) throw new Error(vb.error ?? "Verification failed");
-            clear();
-            window.location.href = vb.redirect_url ?? "/";
-          } catch (e) {
-            setPaying(false);
-            toast({
-              variant: "destructive",
-              title: "Payment captured but verification failed",
-              description: e instanceof Error ? e.message : undefined,
-            });
-          }
+      await launchCheckout(body, {
+        verifyUrl: "/api/checkout/verify-cart-payment",
+        prefill: { name, email, phone },
+        themeColor: "#4f46e5",
+        onSuccess: ({ redirect_url }) => {
+          clear();
+          window.location.href = redirect_url ?? "/";
         },
+        onError: (msg) => {
+          setPaying(false);
+          toast({ variant: "destructive", title: "Checkout failed", description: msg });
+        },
+        onDismiss: () => setPaying(false),
       });
-      rzp.open();
     } catch (e) {
       setPaying(false);
       toast({ variant: "destructive", title: "Checkout failed", description: e instanceof Error ? e.message : undefined });

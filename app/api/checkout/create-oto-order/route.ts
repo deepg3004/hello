@@ -10,8 +10,10 @@ import { cookies } from "next/headers";
 import { nanoid } from "nanoid";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createOrderOnKeys } from "@/lib/razorpay";
-import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
+import {
+  createSellerGatewayOrder,
+  gatewayClientFields,
+} from "@/lib/checkout-gateway";
 import { verifyOtoToken, OTO_COOKIE_NAME } from "@/lib/oto-token";
 
 interface OtoConfig {
@@ -104,29 +106,13 @@ export async function POST() {
     return NextResponse.json({ error: "Seller missing" }, { status: 404 });
   }
 
-  // No-funds model: the OTO is created on the SELLER's own gateway. No platform
-  // collect/escrow path — a seller without a connected gateway can't sell.
-  const keys = await loadSellerGatewayKeys(seller.id);
-  const sellerGateway =
-    keys && keys.gateway_type === "razorpay"
-      ? { key_id: keys.key_id, key_secret: keys.key_secret }
-      : null;
-  if (!sellerGateway) {
-    return NextResponse.json(
-      {
-        error:
-          "This store can't accept payments yet — the seller hasn't connected a payment gateway.",
-      },
-      { status: 402 },
-    );
-  }
+  // No-funds model: the OTO is created on the SELLER's own gateway (any
+  // supported provider) via the driver. A seller without a gateway can't sell.
   const gatewayOwner: "seller" = "seller";
   // Seller's own gateway → full amount is the seller's; no commission split.
   const amountPaise = Math.round(priceOverride * 100);
-  const commissionPaise = 0;
-  const sellerPaise = amountPaise;
   const commission = 0;
-  const sellerAmount = sellerPaise / 100;
+  const sellerAmount = amountPaise / 100;
 
   const otoOrderId = crypto.randomUUID();
   const otoCurrency = product.currency ?? "INR";
@@ -137,21 +123,19 @@ export async function POST() {
     invoxai_seller_id: seller.id,
     kind: "oto",
   };
-  let razorpayOrder: { id: string };
-  try {
-    // Seller's own gateway — the seller is the merchant of record.
-    razorpayOrder = (await createOrderOnKeys(sellerGateway, {
-      amount: amountPaise,
-      currency: otoCurrency,
-      receipt: nanoid(10),
-      notes: otoNotes,
-    })) as unknown as { id: string };
-  } catch (e) {
-    console.error("[create-oto-order] razorpay createOrder failed", e);
-    return NextResponse.json(
-      { error: "Payment gateway is temporarily unavailable. Please try again." },
-      { status: 502 },
-    );
+  const gw = await createSellerGatewayOrder(seller.id, {
+    amountPaise,
+    currency: otoCurrency,
+    receipt: nanoid(10),
+    notes: otoNotes,
+    customer: {
+      name: parent.buyer_name ?? undefined,
+      email: parent.buyer_email,
+      phone: parent.buyer_phone ?? undefined,
+    },
+  });
+  if (!gw.ok) {
+    return NextResponse.json({ error: gw.error }, { status: gw.status });
   }
 
   await admin.from("orders").insert({
@@ -169,9 +153,9 @@ export async function POST() {
     seller_amount: sellerAmount,
     currency: otoCurrency,
     status: "pending",
-    payment_gateway: "razorpay",
+    payment_gateway: gw.gateway,
     gateway_owner: gatewayOwner,
-    gateway_order_id: razorpayOrder.id,
+    gateway_order_id: gw.providerOrderId,
   });
 
   // Mark the parent as having accepted the OTO offer.
@@ -182,11 +166,10 @@ export async function POST() {
 
   return NextResponse.json({
     ok: true,
-    razorpay_order_id: razorpayOrder.id,
+    ...gatewayClientFields(gw.gateway, gw.providerOrderId, gw.client),
     order_id: otoOrderId,
     amount: amountPaise,
     currency: otoCurrency,
-    key: sellerGateway?.key_id ?? process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
     name: "InvoxAI",
     description: product.name,
     buyer_name: parent.buyer_name ?? "",

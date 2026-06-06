@@ -11,8 +11,10 @@ import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
-import { createOrderOnKeys } from "@/lib/razorpay";
+import {
+  createSellerGatewayOrder,
+  gatewayClientFields,
+} from "@/lib/checkout-gateway";
 import { generateSlots, type AvailabilityWindow } from "@/lib/booking";
 import { fireMarketingWebhook } from "@/lib/marketing";
 import { sendEmail } from "@/lib/email";
@@ -130,32 +132,20 @@ export async function POST(request: Request) {
   }
 
   // ── Paid → seller gateway required, hold the slot, return checkout ──────────
-  const keys = await loadSellerGatewayKeys(bt.user_id);
-  if (!keys || keys.gateway_type !== "razorpay") {
-    return NextResponse.json(
-      { error: "This booking can't take payments yet." },
-      { status: 402 },
-    );
-  }
-
   const amountPaise = Math.round(price * 100);
-  let rzpOrder: { id: string };
-  try {
-    rzpOrder = (await createOrderOnKeys(
-      { key_id: keys.key_id, key_secret: keys.key_secret },
-      {
-        amount: amountPaise,
-        currency: bt.currency ?? "INR",
-        receipt: nanoid(10),
-        notes: { kind: "booking", booking_slug: slug },
-      },
-    )) as unknown as { id: string };
-  } catch (e) {
-    console.error("[bookings/create] razorpay order failed", e);
-    return NextResponse.json(
-      { error: "Payment gateway temporarily unavailable." },
-      { status: 502 },
-    );
+  const gw = await createSellerGatewayOrder(bt.user_id, {
+    amountPaise,
+    currency: bt.currency ?? "INR",
+    receipt: nanoid(10),
+    notes: { kind: "booking", booking_slug: slug },
+    customer: {
+      name: body.buyer_name ?? undefined,
+      email,
+      phone: body.buyer_phone ?? undefined,
+    },
+  });
+  if (!gw.ok) {
+    return NextResponse.json({ error: gw.error }, { status: gw.status });
   }
 
   const { data: row, error } = await admin
@@ -170,7 +160,7 @@ export async function POST(request: Request) {
       end_at: endAt.toISOString(),
       status: "pending",
       amount: price,
-      gateway_order_id: rzpOrder.id,
+      gateway_order_id: gw.providerOrderId,
     })
     .select("id")
     .single();
@@ -185,10 +175,9 @@ export async function POST(request: Request) {
     ok: true,
     paid: true,
     booking_id: row.id,
-    razorpay_order_id: rzpOrder.id,
+    ...gatewayClientFields(gw.gateway, gw.providerOrderId, gw.client),
     amount: amountPaise,
     currency: bt.currency ?? "INR",
-    key: keys.key_id,
     title: bt.title,
     buyer_name: body.buyer_name ?? "",
     buyer_email: email,

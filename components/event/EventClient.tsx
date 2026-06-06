@@ -6,6 +6,10 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatINR } from "@/lib/utils";
+import {
+  launchCheckout,
+  type CreateOrderResponse,
+} from "@/lib/checkout-launch";
 
 const RAZORPAY_SDK = "https://checkout.razorpay.com/v1/checkout.js";
 
@@ -80,14 +84,8 @@ export function EventClient({
           buyer_phone: phone.trim() || undefined,
         }),
       });
-      const b = (await res.json()) as {
-        ok?: boolean;
+      const b = (await res.json()) as CreateOrderResponse & {
         free?: boolean;
-        error?: string;
-        key?: string;
-        amount?: number;
-        currency?: string;
-        razorpay_order_id?: string;
         registration_id?: string;
       };
       if (!res.ok || !b.ok) throw new Error(b.error ?? "Couldn't register");
@@ -98,41 +96,21 @@ export function EventClient({
         return;
       }
 
-      const Razorpay = getRazorpay();
-      if (!Razorpay) throw new Error("Payment is still loading");
-      const rzp = new Razorpay({
-        key: b.key!,
-        amount: b.amount!,
-        currency: b.currency ?? currency,
-        name: "InvoxAI",
-        description: title,
-        order_id: b.razorpay_order_id!,
-        prefill: { name, email, contact: phone },
-        theme: { color: "#4f46e5" },
-        modal: { ondismiss: () => setBusy(false) },
-        handler: async (r) => {
-          try {
-            const vr = await fetch("/api/events/verify", {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({
-                registration_id: b.registration_id,
-                razorpay_order_id: r.razorpay_order_id,
-                razorpay_payment_id: r.razorpay_payment_id,
-                razorpay_signature: r.razorpay_signature,
-              }),
-            });
-            const vb = (await vr.json()) as { ok?: boolean; error?: string };
-            if (!vr.ok || !vb.ok) throw new Error(vb.error ?? "Verification failed");
-            setDone(true);
-            setBusy(false);
-          } catch (e) {
-            setBusy(false);
-            setError(e instanceof Error ? e.message : "Verification failed");
-          }
+      await launchCheckout(b, {
+        verifyUrl: "/api/events/verify",
+        verifyExtra: { registration_id: b.registration_id },
+        prefill: { name, email, phone },
+        themeColor: "#4f46e5",
+        onSuccess: () => {
+          setDone(true);
+          setBusy(false);
         },
+        onError: (msg) => {
+          setBusy(false);
+          setError(msg);
+        },
+        onDismiss: () => setBusy(false),
       });
-      rzp.open();
     } catch (e) {
       setBusy(false);
       setError(e instanceof Error ? e.message : "Something went wrong");

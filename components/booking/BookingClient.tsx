@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { Slot } from "@/lib/booking";
+import { launchCheckout } from "@/lib/checkout-launch";
 
 interface RazorpayResponse {
   razorpay_order_id: string;
@@ -83,39 +84,21 @@ export function BookingClient({
         setSubmitting(false);
         return;
       }
-      // Paid → open Razorpay on the seller's gateway.
-      const Rzp = (window as unknown as { Razorpay?: RzpCtor }).Razorpay;
-      if (!Rzp) {
-        toast({ variant: "destructive", title: "Payment unavailable", description: "Refresh and try again." });
-        setSubmitting(false);
-        return;
-      }
-      const rzp = new Rzp({
-        key: data.key,
-        order_id: data.razorpay_order_id,
-        amount: data.amount,
-        currency: data.currency,
-        name: title,
-        prefill: { name: data.buyer_name, email: data.buyer_email, contact: data.buyer_phone },
-        handler: async (response: RazorpayResponse) => {
-          const v = await fetch("/api/bookings/verify", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              booking_id: data.booking_id,
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-            }),
-          });
-          const vd = await v.json();
-          if (v.ok && vd.ok) setDone(true);
-          else toast({ variant: "destructive", title: "Payment not confirmed", description: vd.error });
+      // Paid → open the seller's gateway (Razorpay or Cashfree).
+      await launchCheckout(data, {
+        verifyUrl: "/api/bookings/verify",
+        verifyExtra: { booking_id: data.booking_id },
+        prefill: { name: data.buyer_name, email: data.buyer_email, phone: data.buyer_phone },
+        onSuccess: () => {
+          setDone(true);
           setSubmitting(false);
         },
-        modal: { ondismiss: () => setSubmitting(false) },
+        onError: (msg) => {
+          toast({ variant: "destructive", title: "Payment not confirmed", description: msg });
+          setSubmitting(false);
+        },
+        onDismiss: () => setSubmitting(false),
       });
-      rzp.open();
     } catch (e) {
       toast({ variant: "destructive", title: "Network error", description: e instanceof Error ? e.message : String(e) });
       setSubmitting(false);

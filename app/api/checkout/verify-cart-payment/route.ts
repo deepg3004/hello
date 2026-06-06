@@ -9,7 +9,8 @@ import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyPaymentWithSecret } from "@/lib/razorpay";
-import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
+import { loadSellerGatewayKeys, type GatewayType } from "@/lib/gateway-loader";
+import { getGateway, isLiveGateway } from "@/lib/gateways";
 import { chargePlatformWalletFee } from "@/lib/order-fulfillment";
 import { fulfillCartOrder } from "@/lib/cart-fulfillment";
 
@@ -26,14 +27,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature, order_id } = body;
-  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !order_id) {
+  if (!order_id) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
 
   const admin = createAdminClient();
   const { data: order } = await admin
     .from("orders")
-    .select("id, status, seller_user_id, buyer_email, buyer_name, source, gateway_owner")
+    .select(
+      "id, status, seller_user_id, buyer_email, buyer_name, source, gateway_owner, payment_gateway, gateway_order_id",
+    )
     .eq("id", order_id)
     .single();
   if (!order || order.source !== "cart") {
@@ -43,16 +46,38 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, order_id, redirect_url: `/order/${order_id}`, already_paid: true });
   }
 
-  // Verify the signature with the seller's own gateway secret.
+  // Confirm with the gateway the order was created on: Razorpay by signature,
+  // others (Cashfree) by order status via the driver.
+  const provider = (order.payment_gateway ?? "razorpay") as GatewayType;
   const keys = await loadSellerGatewayKeys(order.seller_user_id);
-  const valid = keys
-    ? verifyPaymentWithSecret(
-        { razorpay_order_id, razorpay_payment_id, razorpay_signature },
-        keys.key_secret,
-      )
-    : false;
+  let valid = false;
+  let paymentRef: string | null = null;
+  let signatureRef: string | null = null;
+  if (provider === "razorpay") {
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+    }
+    valid = keys
+      ? verifyPaymentWithSecret(
+          { razorpay_order_id, razorpay_payment_id, razorpay_signature },
+          keys.key_secret,
+        )
+      : false;
+    paymentRef = razorpay_payment_id;
+    signatureRef = razorpay_signature;
+  } else if (isLiveGateway(provider)) {
+    valid =
+      keys && order.gateway_order_id
+        ? await getGateway(provider).verifyPayment(keys, {
+            orderId: order.gateway_order_id,
+          })
+        : false;
+    paymentRef = order.gateway_order_id ?? null;
+  } else {
+    return NextResponse.json({ error: "Unsupported gateway" }, { status: 400 });
+  }
   if (!valid) {
-    return NextResponse.json({ error: "Signature mismatch" }, { status: 401 });
+    return NextResponse.json({ error: "Payment not confirmed" }, { status: 401 });
   }
 
   // Atomic pending→paid so every side-effect runs exactly once.
@@ -60,8 +85,8 @@ export async function POST(request: Request) {
     .from("orders")
     .update({
       status: "paid",
-      gateway_payment_id: razorpay_payment_id,
-      gateway_signature: razorpay_signature,
+      gateway_payment_id: paymentRef,
+      gateway_signature: signatureRef,
       paid_at: new Date().toISOString(),
     })
     .eq("id", order_id)

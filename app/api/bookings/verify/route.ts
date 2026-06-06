@@ -9,7 +9,8 @@
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
+import { loadSellerGatewayKeys, type GatewayType } from "@/lib/gateway-loader";
+import { getGateway, isLiveGateway } from "@/lib/gateways";
 import { verifyPaymentWithSecret } from "@/lib/razorpay";
 import { chargePlatformWalletFee } from "@/lib/order-fulfillment";
 import { fireMarketingWebhook } from "@/lib/marketing";
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Bad JSON" }, { status: 400 });
   }
   const { booking_id, razorpay_order_id, razorpay_payment_id, razorpay_signature } = body;
-  if (!booking_id || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+  if (!booking_id) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
 
@@ -42,20 +43,42 @@ export async function POST(request: Request) {
   if (!booking) {
     return NextResponse.json({ error: "Booking not found" }, { status: 404 });
   }
-  if (booking.gateway_order_id !== razorpay_order_id) {
-    return NextResponse.json({ error: "Order mismatch" }, { status: 400 });
-  }
 
-  // Verify with the seller's own secret (seller-gateway booking).
+  // Confirm on the seller's gateway (one gateway per seller → provider is the
+  // seller's currently-configured one). Razorpay by signature; Cashfree by
+  // order status.
   const keys = await loadSellerGatewayKeys(booking.seller_user_id);
-  const ok = keys
-    ? verifyPaymentWithSecret(
-        { razorpay_order_id, razorpay_payment_id, razorpay_signature },
-        keys.key_secret,
-      )
-    : false;
+  const provider = (keys?.gateway_type ?? "razorpay") as GatewayType;
+  let ok = false;
+  let paymentRef: string | null = null;
+  let signatureRef: string | null = null;
+  if (provider === "razorpay") {
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+    }
+    if (booking.gateway_order_id !== razorpay_order_id) {
+      return NextResponse.json({ error: "Order mismatch" }, { status: 400 });
+    }
+    ok = keys
+      ? verifyPaymentWithSecret(
+          { razorpay_order_id, razorpay_payment_id, razorpay_signature },
+          keys.key_secret,
+        )
+      : false;
+    paymentRef = razorpay_payment_id;
+    signatureRef = razorpay_signature;
+  } else if (keys && isLiveGateway(provider)) {
+    ok = booking.gateway_order_id
+      ? await getGateway(provider).verifyPayment(keys, {
+          orderId: booking.gateway_order_id,
+        })
+      : false;
+    paymentRef = booking.gateway_order_id ?? null;
+  } else {
+    return NextResponse.json({ error: "Unsupported gateway" }, { status: 400 });
+  }
   if (!ok) {
-    return NextResponse.json({ error: "Signature mismatch" }, { status: 401 });
+    return NextResponse.json({ error: "Payment not confirmed" }, { status: 401 });
   }
 
   // Idempotent — already confirmed.
@@ -75,11 +98,11 @@ export async function POST(request: Request) {
       seller_amount: Number(booking.amount),
       platform_commission: 0,
       status: "paid",
-      payment_gateway: "razorpay",
+      payment_gateway: provider,
       gateway_owner: "seller",
-      gateway_order_id: razorpay_order_id,
-      gateway_payment_id: razorpay_payment_id,
-      gateway_signature: razorpay_signature,
+      gateway_order_id: booking.gateway_order_id,
+      gateway_payment_id: paymentRef,
+      gateway_signature: signatureRef,
     })
     .select("id")
     .single();
@@ -97,7 +120,7 @@ export async function POST(request: Request) {
       type: "sale",
       amount: Number(booking.amount),
       status: "completed",
-      reference_id: razorpay_payment_id,
+      reference_id: paymentRef,
       notes: `Booking ${booking_id.slice(-8)}`,
     });
     await chargePlatformWalletFee(

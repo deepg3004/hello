@@ -12,8 +12,10 @@ import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
-import { createOrderOnKeys } from "@/lib/razorpay";
+import {
+  createSellerGatewayOrder,
+  gatewayClientFields,
+} from "@/lib/checkout-gateway";
 import { validateCart, type CartItemInput } from "@/lib/cart";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { validateCartCoupon, reserveCoupon, releaseCoupon } from "@/lib/coupons";
@@ -129,36 +131,28 @@ export async function POST(request: Request) {
 
   const totalPaise = Math.max(0, cart.subtotalPaise - discountPaise) + shippingPaise;
 
-  // No-funds model: the order is created on the seller's OWN Razorpay gateway.
-  const keys = await loadSellerGatewayKeys(seller.id);
-  const sellerGateway =
-    keys && keys.gateway_type === "razorpay"
-      ? { key_id: keys.key_id, key_secret: keys.key_secret }
-      : null;
-  if (!sellerGateway) {
-    if (couponId) await releaseCoupon(couponId, email);
-    return NextResponse.json(
-      { error: "This store can't accept payments yet." },
-      { status: 402 },
-    );
-  }
-
+  // No-funds model: the order is created on the seller's OWN gateway (any
+  // supported provider — Razorpay, Cashfree, …) via the driver.
   const orderId = crypto.randomUUID();
-  let razorpayOrder: { id: string };
-  try {
-    razorpayOrder = (await createOrderOnKeys(sellerGateway, {
-      amount: totalPaise,
-      currency: "INR",
-      receipt: nanoid(10),
-      notes: { invoxai_order_id: orderId, invoxai_seller_id: seller.id, kind: "cart", buyer_email: email },
-    })) as unknown as { id: string };
-  } catch (err) {
-    console.error("[create-cart-order] razorpay createOrder failed", err);
+  const gw = await createSellerGatewayOrder(seller.id, {
+    amountPaise: totalPaise,
+    currency: "INR",
+    receipt: nanoid(10),
+    notes: {
+      invoxai_order_id: orderId,
+      invoxai_seller_id: seller.id,
+      kind: "cart",
+      buyer_email: email,
+    },
+    customer: {
+      name: body.buyer_name ?? undefined,
+      email,
+      phone: body.buyer_phone ?? undefined,
+    },
+  });
+  if (!gw.ok) {
     if (couponId) await releaseCoupon(couponId, email);
-    return NextResponse.json(
-      { error: "Payment gateway is temporarily unavailable. Please try again." },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: gw.error }, { status: gw.status });
   }
 
   const { error: orderErr } = await admin.from("orders").insert({
@@ -177,9 +171,9 @@ export async function POST(request: Request) {
     currency: "INR",
     status: "pending",
     source: "cart",
-    payment_gateway: "razorpay",
+    payment_gateway: gw.gateway,
     gateway_owner: "seller",
-    gateway_order_id: razorpayOrder.id,
+    gateway_order_id: gw.providerOrderId,
     ip_address: ip === "unknown" ? null : ip,
   });
   if (orderErr) {
@@ -210,13 +204,12 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    razorpay_order_id: razorpayOrder.id,
+    ...gatewayClientFields(gw.gateway, gw.providerOrderId, gw.client),
     order_id: orderId,
     amount: totalPaise,
     shipping_fee: shippingPaise / 100,
     discount_amount: discountPaise / 100,
     currency: "INR",
-    key: sellerGateway.key_id,
     name: "InvoxAI",
     description: `${cart.lines.length} item${cart.lines.length === 1 ? "" : "s"}`,
     buyer_name: body.buyer_name ?? "",

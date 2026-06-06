@@ -5,6 +5,10 @@ import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import {
+  launchCheckout,
+  type CreateOrderResponse,
+} from "@/lib/checkout-launch";
 
 // window.Razorpay is declared globally in CheckoutForm.tsx. We reuse those
 // types here via a lightweight inferred shape — no second `declare global`.
@@ -53,23 +57,11 @@ export function OtoCheckoutButton({ ctaText, declineText }: OtoCheckoutButtonPro
       return;
     }
     setBusy(true);
-    let body: {
-      razorpay_order_id?: string;
-      order_id?: string;
-      amount?: number;
-      currency?: string;
-      key?: string;
-      name?: string;
-      description?: string;
-      buyer_name?: string;
-      buyer_email?: string;
-      buyer_phone?: string;
-      error?: string;
-    };
+    let body: CreateOrderResponse;
     try {
       const res = await fetch("/api/checkout/create-oto-order", { method: "POST" });
-      body = (await res.json()) as typeof body;
-      if (!res.ok || !body.razorpay_order_id) {
+      body = (await res.json()) as CreateOrderResponse;
+      if (!res.ok || !body.gateway) {
         throw new Error(body.error ?? "Couldn't start checkout");
       }
     } catch (e) {
@@ -82,48 +74,25 @@ export function OtoCheckoutButton({ ctaText, declineText }: OtoCheckoutButtonPro
       return;
     }
 
-    const options: RazorpayOptions = {
-      key: body.key,
-      amount: body.amount!,
-      currency: body.currency ?? "INR",
-      name: body.name ?? "InvoxAI",
-      description: body.description ?? "One-time offer",
-      order_id: body.razorpay_order_id!,
+    await launchCheckout(body, {
+      verifyUrl: "/api/checkout/verify-payment",
       prefill: {
         name: body.buyer_name,
         email: body.buyer_email,
-        contact: body.buyer_phone,
+        phone: body.buyer_phone,
       },
-      theme: { color: "#0f0f10" },
-      handler: async (response) => {
-        try {
-          const v = await fetch("/api/checkout/verify-payment", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-              order_id: body.order_id,
-            }),
-          });
-          const vbody = (await v.json()) as { ok?: boolean; redirect_url?: string; error?: string };
-          if (!v.ok || !vbody.ok) throw new Error(vbody.error ?? "Verification failed");
-          // Skip another OTO redirect on the follow-on order.
-          window.location.href = `/order/${body.order_id}?status=success`;
-        } catch (e) {
-          setBusy(false);
-          toast({
-            title: "Verification failed",
-            description: e instanceof Error ? e.message : String(e),
-            variant: "destructive",
-          });
-        }
+      themeColor: "#0f0f10",
+      onSuccess: () => {
+        // Go straight to the order page — skip the verify redirect so we don't
+        // chain into another OTO on the follow-on order.
+        window.location.href = `/order/${body.order_id}?status=success`;
       },
-      modal: { ondismiss: () => setBusy(false) },
-    };
-    const rzp = new window.Razorpay!(options);
-    rzp.open();
+      onError: (msg) => {
+        setBusy(false);
+        toast({ title: "Payment failed", description: msg, variant: "destructive" });
+      },
+      onDismiss: () => setBusy(false),
+    });
   }
 
   return (
