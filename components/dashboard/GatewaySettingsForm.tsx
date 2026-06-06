@@ -125,12 +125,12 @@ export function GatewaySettingsForm({
     });
   }
 
-  function makeActive(type: string) {
+  function setPrimary(type: string) {
     startTransition(async () => {
       const res = await setActiveGatewayAction({ gateway_type: type });
       toast(
         res.ok
-          ? { title: "Active gateway switched", description: res.message }
+          ? { title: "Primary gateway switched", description: res.message }
           : { variant: "destructive", title: "Couldn't switch", description: res.message },
       );
       if (res.ok) router.refresh();
@@ -157,9 +157,9 @@ export function GatewaySettingsForm({
         <CardHeader>
           <CardTitle className="text-base">Your payment gateways</CardTitle>
           <CardDescription>
-            Connect as many as you like — your keys for each are saved. Exactly
-            one is <strong>active</strong> at a time; that&apos;s the one buyers
-            pay through. Switch instantly with “Make active”.
+            Connect as many as you like — your keys for each are saved. One is
+            your <strong>Primary</strong> account; that&apos;s the one buyers pay
+            through. Switch instantly with “Set as primary”.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -170,8 +170,8 @@ export function GatewaySettingsForm({
           )}
           {!hasActive && gateways.length > 0 && (
             <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-900/10 dark:text-amber-200">
-              ⚠️ No active gateway — your store can&apos;t take payments. Click
-              <strong> Make active</strong> on one below.
+              ⚠️ No primary gateway — your store can&apos;t take payments. Click
+              <strong> Set as primary</strong> on one below.
             </div>
           )}
           {gateways.map((g) => (
@@ -186,10 +186,10 @@ export function GatewaySettingsForm({
                 {g.is_active ? (
                   <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
                     <CheckCircle2 className="mr-1 h-3 w-3" />
-                    Active
+                    Primary
                   </Badge>
                 ) : (
-                  <Badge variant="outline">Inactive</Badge>
+                  <Badge variant="outline">Backup</Badge>
                 )}
                 <Badge variant="outline" className="text-xs">
                   {g.is_verified ? "verified" : "unverified"}
@@ -200,10 +200,10 @@ export function GatewaySettingsForm({
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => makeActive(g.gateway_type)}
+                    onClick={() => setPrimary(g.gateway_type)}
                     disabled={pending || testing}
                   >
-                    Make active
+                    Set as primary
                   </Button>
                 )}
                 <Button
@@ -298,8 +298,8 @@ export function GatewaySettingsForm({
           <p className="text-xs text-muted-foreground">
             “Test &amp; verify” checks the keys live and saves them.
             {hasActive
-              ? " It won’t change your active gateway — use “Make active” above to switch."
-              : " The first gateway you connect becomes active automatically."}
+              ? " It won’t change your primary gateway — use “Set as primary” above to switch."
+              : " The first gateway you connect becomes your primary automatically."}
           </p>
         </CardContent>
       </Card>
