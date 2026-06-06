@@ -17,12 +17,15 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { saveGatewayConfigAction, verifyGatewayAction } from "@/actions/gateway";
 
+// Only Razorpay is wired through checkout today; the other drivers exist but
+// aren't routed yet, so they're shown disabled ("coming soon") to stop sellers
+// connecting a gateway that would silently 402 at checkout.
 const GATEWAYS = [
-  { value: "razorpay", label: "Razorpay" },
-  { value: "cashfree", label: "Cashfree" },
-  { value: "payu", label: "PayU" },
-  { value: "instamojo", label: "Instamojo" },
-  { value: "stripe", label: "Stripe" },
+  { value: "razorpay", label: "Razorpay", enabled: true },
+  { value: "cashfree", label: "Cashfree (coming soon)", enabled: false },
+  { value: "payu", label: "PayU (coming soon)", enabled: false },
+  { value: "instamojo", label: "Instamojo (coming soon)", enabled: false },
+  { value: "stripe", label: "Stripe (coming soon)", enabled: false },
 ] as const;
 
 // Per-provider credential labels (each gateway names its keys differently).
@@ -79,7 +82,12 @@ export function GatewaySettingsForm({
           ? { title: "Connection OK ✅", description: res.message }
           : { variant: "destructive", title: "Test failed", description: res.message },
       );
-      if (res.ok) router.refresh();
+      if (res.ok) {
+        // A successful test verifies AND activates the gateway server-side —
+        // reflect that immediately (router-cache can lag the banner).
+        setSaved({ gateway_type: gatewayType, is_active: true, is_verified: true });
+        router.refresh();
+      }
     });
   }
 
@@ -133,22 +141,32 @@ export function GatewaySettingsForm({
       </CardHeader>
       <CardContent className="space-y-4">
         {(saved ?? existing) && (
-          <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-            {(saved ?? existing)!.is_verified ? (
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            ) : (
-              <Loader2 className="h-4 w-4 text-muted-foreground" />
-            )}
-            <span className="text-muted-foreground">
-              Currently connected:{" "}
-              <span className="font-medium text-foreground">
-                {(saved ?? existing)!.gateway_type}
+          <>
+            <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+              {(saved ?? existing)!.is_verified ? (
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              ) : (
+                <Loader2 className="h-4 w-4 text-muted-foreground" />
+              )}
+              <span className="text-muted-foreground">
+                Currently connected:{" "}
+                <span className="font-medium text-foreground">
+                  {(saved ?? existing)!.gateway_type}
+                </span>
+                {(saved ?? existing)!.is_verified
+                  ? " (verified)"
+                  : " (pending verification)"}
               </span>
-              {(saved ?? existing)!.is_verified
-                ? " (verified)"
-                : " (pending verification)"}
-            </span>
-          </div>
+            </div>
+            {!(saved ?? existing)!.is_active && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-900/10 dark:text-amber-200">
+                ⚠️ This gateway is <strong>inactive</strong>, so your store
+                can&apos;t take payments right now. Click{" "}
+                <strong>Test connection</strong> below (or re-save your keys) to
+                switch it back on.
+              </div>
+            )}
+          </>
         )}
 
         <div>
@@ -159,7 +177,7 @@ export function GatewaySettingsForm({
             className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {GATEWAYS.map((g) => (
-              <option key={g.value} value={g.value}>
+              <option key={g.value} value={g.value} disabled={!g.enabled}>
                 {g.label}
               </option>
             ))}

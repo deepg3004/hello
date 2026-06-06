@@ -27,9 +27,9 @@ export default async function GatewaySettingsPage() {
           Payment Gateway
         </h1>
         <p className="text-sm text-muted-foreground">
-          Connect your own Razorpay or Cashfree account. Buyer payments go
-          directly to you — InvoxAI deducts a small platform fee from your
-          wallet per order.
+          Connect your own Razorpay account. Buyer payments go directly to you
+          — InvoxAI deducts a small platform fee from your wallet per order.
+          (More gateways coming soon.)
         </p>
       </div>
 

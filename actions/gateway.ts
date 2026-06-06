@@ -42,6 +42,16 @@ export async function saveGatewayConfigAction(input: {
   if (!GATEWAY_TYPES.includes(gateway_type)) {
     return { ok: false, message: "Unsupported gateway" };
   }
+  // Checkout only routes Razorpay today (lib/gateway-loader + create-order).
+  // Reject the others up front so a seller never connects a gateway that would
+  // 402 at checkout.
+  if (gateway_type !== "razorpay") {
+    return {
+      ok: false,
+      message:
+        "Only Razorpay is supported right now — more gateways are coming soon.",
+    };
+  }
 
   const keyId = input.key_id?.trim();
   const keySecret = input.key_secret?.trim();
@@ -112,6 +122,13 @@ export async function verifyGatewayAction(input: {
   if (!GATEWAY_TYPES.includes(gateway_type)) {
     return { ok: false, message: "Unsupported gateway" };
   }
+  if (gateway_type !== "razorpay") {
+    return {
+      ok: false,
+      message:
+        "Only Razorpay is supported right now — more gateways are coming soon.",
+    };
+  }
   const keys: GatewayKeys = {
     gateway_type,
     key_id: input.key_id?.trim() ?? "",
@@ -131,12 +148,47 @@ export async function verifyGatewayAction(input: {
   if (!result.ok) return { ok: false, message: result.message ?? "Connection failed" };
 
   const admin = createAdminClient();
-  await admin
+  // A successful live test is also the seller's signal that this gateway should
+  // be collecting payments — (re)activate it alongside marking it verified.
+  // Without this, a gateway that ended up is_active=false (e.g. an admin toggle
+  // or a stale row) stayed dark with no seller-facing way to switch it back on,
+  // so checkout kept 402'ing ("store can't accept payments") even though the
+  // keys were valid.
+  const { data: updated } = await admin
     .from("seller_gateway_config")
-    .update({ is_verified: true, updated_at: new Date().toISOString() })
+    .update({
+      is_verified: true,
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    })
     .eq("seller_user_id", user.id)
-    .eq("gateway_type", gateway_type);
+    .eq("gateway_type", gateway_type)
+    .select("seller_user_id");
+
+  // If there was no stored row yet (seller tested before saving), persist the
+  // validated keys now so "Test connection" alone is enough to go live.
+  if (!updated || updated.length === 0) {
+    try {
+      await admin.from("seller_gateway_config").upsert(
+        {
+          seller_user_id: user.id,
+          gateway_type,
+          key_id_enc: encryptGatewayKey(keys.key_id),
+          key_secret_enc: encryptGatewayKey(keys.key_secret),
+          webhook_secret_enc: keys.webhook_secret
+            ? encryptGatewayKey(keys.webhook_secret)
+            : null,
+          is_active: true,
+          is_verified: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "seller_user_id" },
+      );
+    } catch (e) {
+      console.error("[verifyGatewayAction] persist-on-verify failed", e);
+    }
+  }
 
   revalidatePath("/dashboard/settings/gateway");
-  return { ok: true, message: "Connection verified." };
+  return { ok: true, message: "Connection verified — your gateway is live." };
 }
