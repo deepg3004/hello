@@ -126,7 +126,7 @@ function FeaturedCard({ video, onPlay }: { video: LearnVideo; onPlay: () => void
         <div className="flex flex-1 flex-col justify-center gap-3 p-6 text-white sm:w-1/2 sm:p-7">
           {video.badge_label && (
             <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#E53935] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-card" />
               {video.badge_label}
             </span>
           )}

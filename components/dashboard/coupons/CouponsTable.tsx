@@ -80,7 +80,7 @@ const SEG_ACTIVE: Record<string, string> = {
   active: "bg-emerald-500/15 text-emerald-700 ring-emerald-500/30 dark:text-emerald-300",
   scheduled: "bg-indigo-500/15 text-indigo-700 ring-indigo-500/30 dark:text-indigo-300",
   expired: "bg-rose-500/15 text-rose-700 ring-rose-500/30 dark:text-rose-300",
-  inactive: "bg-zinc-500/15 text-zinc-700 ring-zinc-500/30 dark:text-zinc-300",
+  inactive: "bg-zinc-500/15 text-muted-foreground ring-zinc-500/30 dark:text-zinc-300",
 };
 
 const SEGMENTS: Array<{ key: Lifecycle | "all"; label: string }> = [
@@ -455,8 +455,8 @@ function SegChip({
 function StatusChip({ status }: { status: string }) {
   const map: Record<string, string> = {
     active: "bg-emerald-100 text-emerald-800",
-    inactive: "bg-zinc-200 text-zinc-700",
-    expired: "bg-zinc-200 text-zinc-600",
+    inactive: "bg-zinc-200 text-muted-foreground",
+    expired: "bg-zinc-200 text-muted-foreground",
     depleted: "bg-amber-100 text-amber-800",
   };
   return (

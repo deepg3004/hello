@@ -227,7 +227,7 @@ const CHIP_ACTIVE: Record<string, string> = {
   pending: "bg-amber-500/15 text-amber-700 ring-amber-500/30 dark:text-amber-300",
   failed: "bg-rose-500/15 text-rose-700 ring-rose-500/30 dark:text-rose-300",
   refunded: "bg-violet-500/15 text-violet-700 ring-violet-500/30 dark:text-violet-300",
-  cancelled: "bg-zinc-400/15 text-zinc-700 ring-zinc-400/30 dark:text-zinc-300",
+  cancelled: "bg-zinc-400/15 text-muted-foreground ring-zinc-400/30 dark:text-zinc-300",
 };
 
 function StatusChip({

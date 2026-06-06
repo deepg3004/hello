@@ -373,7 +373,7 @@ export function ABTestClient(props: Props) {
       <div className="grid gap-4 md:grid-cols-2">
         <VariantCard
           label="Variant A · current"
-          accent="border-zinc-200"
+          accent="border-border"
           snapshot={snapshotA}
           isWinner={winner === "A"}
           onPromote={() => promote("A")}

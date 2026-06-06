@@ -46,7 +46,7 @@ const PLAN_TINT: Record<
 > = {
   free: {
     bar: "bg-zinc-300",
-    chip: "bg-zinc-100 text-zinc-700 border-zinc-200",
+    chip: "bg-muted text-muted-foreground border-border",
     dot: "bg-zinc-400",
     label: "Free",
   },
@@ -371,7 +371,7 @@ export default async function AdminOverview() {
                     i === 0
                       ? "bg-amber-400 text-zinc-950"
                       : i === 1
-                        ? "bg-zinc-300 text-zinc-800"
+                        ? "bg-zinc-300 text-foreground"
                         : i === 2
                           ? "bg-orange-400/80 text-zinc-950"
                           : "bg-muted text-muted-foreground",

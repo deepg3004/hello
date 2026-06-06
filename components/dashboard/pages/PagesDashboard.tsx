@@ -180,13 +180,13 @@ export function PagesDashboard({
       {/* ── Hero banner — colourful per category (cfg.heroGradient) ───── */}
       <DashboardHero title={cfg.label} blurb={cfg.blurb} gradient={cfg.heroGradient}>
         {atLimit ? (
-          <Button asChild className="bg-white text-slate-900 hover:bg-white/90">
+          <Button asChild className="bg-card text-foreground hover:bg-white/90">
             <Link href="/dashboard/upgrade?required=pro">
               <Sparkles className="mr-2 h-4 w-4" /> Upgrade to add more
             </Link>
           </Button>
         ) : (
-          <Button asChild className="bg-white text-zinc-900 hover:bg-white/90">
+          <Button asChild className="bg-card text-foreground hover:bg-white/90">
             <Link href={createPageHref(cfg)}>
               <Plus className="mr-2 h-4 w-4" /> {ctaLabel}
             </Link>

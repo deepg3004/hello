@@ -415,7 +415,7 @@ export function NotificationsSettingsForm(props: Props) {
           </span>
         </div>
         <div className="mt-2 flex items-center gap-2">
-          <X className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
+          <X className="h-3.5 w-3.5 text-muted-foreground dark:text-zinc-400" />
           <span>
             Notification delivery is best-effort — failures here never affect
             your payments or leads.

@@ -151,7 +151,7 @@ export function TwoFactorSettings() {
           enter the 6-digit code to confirm.
         </p>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={qr} alt="2FA QR code" className="h-44 w-44 rounded-lg border border-border bg-white p-2" />
+        <img src={qr} alt="2FA QR code" className="h-44 w-44 rounded-lg border border-border bg-card p-2" />
         {secret && (
           <p className="text-xs text-muted-foreground">
             Or enter this key manually: <code className="font-mono text-foreground">{secret}</code>
