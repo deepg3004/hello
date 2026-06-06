@@ -164,6 +164,10 @@ async function lookupHost(
     u.search = `?host=${encodeURIComponent(cleaned)}`;
     const res = await fetch(u.toString(), {
       headers: { accept: "application/json" },
+      // We have our own caches (in-process Map + Redis); don't let Next's Data
+      // Cache layer a stale copy on top, or toggling redirect-to-custom (and
+      // other host changes) would never take effect until a redeploy.
+      cache: "no-store",
     });
     if (!res.ok) return null;
     const body = (await res.json()) as {
