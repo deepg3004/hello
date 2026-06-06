@@ -5,7 +5,6 @@ import {
   BookOpen,
   Boxes,
   CalendarClock,
-  Coins,
   CreditCard,
   FileText,
   Globe,
@@ -73,7 +72,6 @@ const NAV_GROWTH: NavItem[] = [
 ];
 
 const NAV_ACCOUNT: NavItem[] = [
-  { href: "/dashboard/wallet", label: "Wallet", Icon: Coins, module: "wallet" },
   { href: "/dashboard/settings", label: "Settings", Icon: Settings },
 ];
 
@@ -121,6 +119,10 @@ export function Sidebar({
     !item.module || can(role, `${item.module}.view` as Capability);
   const navMain = NAV_MAIN.filter(visible);
   const navCrm = NAV_CRM.filter(visible);
+  // CRM is a parent that expands its sub-views when you're inside any of them.
+  const crmActive = navCrm.some(
+    (c) => pathname === c.href || pathname.startsWith(`${c.href}/`),
+  );
   const navGrowth = NAV_GROWTH.filter(visible);
   const canSettings = SETTINGS_MODULES.some((m) =>
     can(role, `${m}.view` as Capability),
@@ -207,15 +209,51 @@ export function Sidebar({
           </div>
         ))}
 
-        {navCrm.length > 0 && <SectionLabel>CRM</SectionLabel>}
-        {navCrm.map((item) => (
-          <NavRow
-            key={item.href}
-            item={item}
-            pathname={pathname}
-            onNavigate={onNavigate}
-          />
-        ))}
+        {navCrm.length > 0 && (
+          <div className="mt-1">
+            <Link
+              href={navCrm[0]!.href}
+              onClick={onNavigate}
+              className={cn(
+                "group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all duration-150",
+                crmActive
+                  ? "bg-[#7C3AED]/20 text-white ring-1 ring-inset ring-[#7C3AED]/30"
+                  : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100",
+              )}
+            >
+              <span
+                className={cn("nav-icon", crmActive && "nav-icon-active-purple")}
+              >
+                <Users className="h-4 w-4 opacity-90" />
+              </span>
+              <span className="flex-1 truncate">CRM</span>
+            </Link>
+            {crmActive && (
+              <div className="ml-7 mt-0.5 space-y-0.5 border-l border-[hsl(var(--sidebar-border))] pl-2">
+                {navCrm.map((sub) => {
+                  const active =
+                    pathname === sub.href ||
+                    pathname.startsWith(`${sub.href}/`);
+                  return (
+                    <Link
+                      key={sub.href}
+                      href={sub.href}
+                      onClick={onNavigate}
+                      className={cn(
+                        "block rounded-md px-2 py-1 text-[13px] transition",
+                        active
+                          ? "bg-[hsl(var(--sidebar-hover-bg))] text-white"
+                          : "text-[hsl(var(--sidebar-fg))]/70 hover:text-white",
+                      )}
+                    >
+                      {sub.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {navGrowth.length > 0 && <SectionLabel>Growth</SectionLabel>}
         {navGrowth.map((item) => (
