@@ -163,6 +163,26 @@ export async function resolveCnameChain(
     }
     current = next;
   }
+
+  // Apex fallback. A root domain (e.g. "invoxai.shop") can't hold a CNAME per
+  // RFC 1034, so providers expose an ALIAS/ANAME/flattened record that answers
+  // as A records instead — meaning the CNAME walk above finds nothing. Treat
+  // the domain as pointing at us when its A records resolve to the same IPs as
+  // the expected target (our Cloudflare ingress for hello.invoxai.io).
+  const [hostA, targetA] = await Promise.all([
+    dohLookup(current, "A"),
+    dohLookup(want, "A"),
+  ]);
+  const targetIps = targetA.records
+    .filter((r) => r.type === 1)
+    .map((r) => r.data);
+  const hostIps = new Set(
+    hostA.records.filter((r) => r.type === 1).map((r) => r.data),
+  );
+  if (targetIps.length > 0 && targetIps.some((ip) => hostIps.has(ip))) {
+    return { matched: true, chain: [...chain, `${current} A→${want}`], final: want };
+  }
+
   return { matched: false, chain, final: chain[chain.length - 1] ?? null };
 }
 
