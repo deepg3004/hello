@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 import type { Branding } from "@/lib/settings";
@@ -21,6 +21,14 @@ export function AdminShell({
 }: AdminShellProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  // Portaled overlays render into <body>; set `dark` on <html> while the admin
+  // is mounted so dialogs/dropdowns/selects match the dark shell.
+  useEffect(() => {
+    const html = document.documentElement;
+    html.classList.add("dark", "dash-surface");
+    return () => html.classList.remove("dark", "dash-surface");
+  }, []);
 
   return (
     <div className="dark dash-surface app-canvas min-h-screen bg-background text-foreground">

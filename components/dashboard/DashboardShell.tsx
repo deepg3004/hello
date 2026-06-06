@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 
@@ -49,6 +49,18 @@ export function DashboardShell({
   // max-width / padding so the 30/70 (controls / live-preview) split fills the
   // whole screen.
   const isEditor = /\/dashboard\/(pages|website)\/[^/]+\/edit\/?$/.test(pathname);
+
+  // Portaled overlays (Dialog / DropdownMenu / Select / Popover / Tooltip /
+  // Toast) render into <body>, OUTSIDE this shell — so without `dark` on <html>
+  // they'd pop up in the light theme over the dark dashboard. Toggle `dark` on
+  // <html> while the (non-editor) dashboard is mounted so overlays match. The
+  // editor stays light (its live storefront preview must render light).
+  useEffect(() => {
+    if (isEditor) return;
+    const html = document.documentElement;
+    html.classList.add("dark", "dash-surface");
+    return () => html.classList.remove("dark", "dash-surface");
+  }, [isEditor]);
 
   return (
     <div
