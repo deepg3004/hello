@@ -186,6 +186,15 @@ export async function resolveCnameChain(
   return { matched: false, chain, final: chain[chain.length - 1] ?? null };
 }
 
+/** Resolve a hostname's A records (IPv4 strings) via DoH. Empty on failure. */
+export async function resolveARecords(hostname: string): Promise<string[]> {
+  const { records } = await dohLookup(
+    hostname.toLowerCase().replace(/\.$/, ""),
+    "A",
+  );
+  return records.filter((r) => r.type === 1).map((r) => r.data);
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Custom-hostname provisioning (Cloudflare for SaaS) — best-effort
 // ─────────────────────────────────────────────────────────────────────────

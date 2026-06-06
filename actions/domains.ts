@@ -7,6 +7,7 @@ import { requireActor } from "@/lib/account-context";
 import {
   HARD_RESERVED_SUBDOMAINS,
   appRootHost,
+  customDomainTargetIps,
   normaliseDomain,
   normaliseSubdomain,
   platformRootDomain,
@@ -15,12 +16,9 @@ import {
 } from "@/lib/domains";
 import {
   deleteRecord,
-  getCustomHostname,
-  provisionCustomHostname,
-  resolveCnameChain,
+  resolveARecords,
   upsertCname,
 } from "@/lib/cloudflare";
-import type { DcvRecord } from "@/lib/cloudflare";
 import { getRedis } from "@/lib/redis";
 
 interface Ok {
@@ -233,6 +231,28 @@ export async function claimCustomDomainAction(input: {
   return { ok: true };
 }
 
+/**
+ * Best-effort liveness probe: does the domain already serve HTTPS with a cert
+ * our runtime trusts? A successful fetch means the TLS handshake completed
+ * (valid cert); any cert/connection error throws and we treat it as not-live.
+ */
+async function isServingHttps(domain: string): Promise<boolean> {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    const res = await fetch(`https://${domain}/`, {
+      method: "HEAD",
+      redirect: "manual",
+      signal: ctrl.signal,
+      cache: "no-store",
+    });
+    clearTimeout(timer);
+    return res.status > 0;
+  } catch {
+    return false;
+  }
+}
+
 export async function verifyCustomDomainAction(): Promise<Result> {
   const actor = await requireActor("domains.manage");
   if (!actor.ok) return { ok: false, message: actor.error };
@@ -249,67 +269,43 @@ export async function verifyCustomDomainAction(): Promise<Result> {
     return { ok: false, message: "No custom domain to verify." };
   }
 
-  const expected = appRootHost();
-  const { matched, chain, final } = await resolveCnameChain(domain, expected);
-
+  // We terminate TLS for custom domains on our ingress box (certbot + nginx),
+  // so the seller points an A record at it. Verify that A record resolves to us
+  // (apex domains can't CNAME, so this is the only portable check).
+  const targetIps = customDomainTargetIps();
+  const domainIps = await resolveARecords(domain);
+  const matched = domainIps.some((ip) => targetIps.includes(ip));
   const nowIso = new Date().toISOString();
+
   if (!matched) {
+    const seen = domainIps.length ? domainIps.join(", ") : "no A record";
     await admin
       .from("user_profiles")
       .update({
         custom_domain_verified_at: null,
         custom_domain_cert_status: "pending",
         custom_domain_last_checked_at: nowIso,
-        custom_domain_last_error: final
-          ? `CNAME points to ${final} (expected ${expected}). Chain: ${chain.join(" → ")}`
-          : `No CNAME found for ${domain} pointing to ${expected}.`,
+        custom_domain_last_error: `${domain} resolves to ${seen}; expected an A record pointing to ${targetIps[0]}.`,
       })
       .eq("id", ctx.ownerId);
     return {
       ok: false,
-      message: final
-        ? `CNAME currently points to ${final}. Update it to ${expected} and try again.`
-        : `No CNAME found for ${domain} pointing to ${expected} yet. DNS can take a few minutes to propagate.`,
+      message: `Point an A record for ${domain} to ${targetIps[0]} and try again. It currently resolves to ${seen}. DNS can take a few minutes to propagate.`,
     };
   }
 
-  // CNAME verified — register the hostname with Cloudflare for SaaS so it
-  // mints a TLS cert. CF returns the cert state + any DCV records the seller
-  // still has to add.
-  let certStatus: "pending" | "provisioning" | "active" = "active";
-  let dcv: DcvRecord[] | null = null;
-  const provision = await provisionCustomHostname(domain);
-  if (provision.skipped) {
-    // Cloudflare for SaaS isn't configured — operator runs cert-manager on the
-    // VPS instead, so leave the row marked active and let that take over.
-    certStatus = "active";
-  } else if (provision.ok && provision.data) {
-    certStatus = provision.data.certStatus === "failed"
-      ? "provisioning"
-      : provision.data.certStatus;
-    dcv = provision.data.dcv.length ? provision.data.dcv : null;
-  } else {
-    // CF rejected the POST (commonly: hostname already onboarded). Read the
-    // existing record back so we still capture its real status + DCV.
-    const existing = await getCustomHostname(domain);
-    if (existing.ok && existing.data) {
-      certStatus = existing.data.certStatus === "failed"
-        ? "provisioning"
-        : existing.data.certStatus;
-      dcv = existing.data.dcv.length ? existing.data.dcv : null;
-    } else {
-      certStatus = "provisioning";
-    }
-  }
-
+  // DNS is correct. The TLS cert is issued out-of-band on the ingress box.
+  // Probe HTTPS so we can show "live" immediately if the cert is already in
+  // place; otherwise mark provisioning until it's installed.
+  const live = await isServingHttps(domain);
   await admin
     .from("user_profiles")
     .update({
       custom_domain_verified_at: nowIso,
-      custom_domain_cert_status: certStatus,
+      custom_domain_cert_status: live ? "active" : "provisioning",
       custom_domain_last_checked_at: nowIso,
       custom_domain_last_error: null,
-      custom_domain_dcv: dcv,
+      custom_domain_dcv: null,
     })
     .eq("id", ctx.ownerId);
 
@@ -317,12 +313,9 @@ export async function verifyCustomDomainAction(): Promise<Result> {
   revalidatePath("/dashboard/settings/domains");
   return {
     ok: true,
-    message:
-      certStatus === "active"
-        ? "Verified and live."
-        : dcv
-          ? "Verified! Add the extra SSL record shown below, then click Refresh status."
-          : "Verified! Certificate is being issued — usually live in a few minutes.",
+    message: live
+      ? "Verified and live."
+      : "DNS verified! The SSL certificate is being issued — usually live within a few minutes. Click Refresh status to check.",
   };
 }
 
@@ -346,44 +339,26 @@ export async function refreshCustomDomainStatusAction(): Promise<Result> {
     return { ok: false, message: "No custom domain to check." };
   }
 
-  const current = await getCustomHostname(domain);
-  if (current.skipped) {
-    return { ok: true, message: "Certificate is managed on the server." };
-  }
-  if (!current.ok) {
-    return {
-      ok: false,
-      message: current.message ?? "Couldn't reach Cloudflare.",
-    };
-  }
-  if (!current.data) {
-    return {
-      ok: false,
-      message: "Cloudflare has no record for this domain yet — try Verify DNS.",
-    };
-  }
-
-  const { certStatus, dcv, error } = current.data;
-  const dbStatus = certStatus === "failed" ? "failed" : certStatus;
+  // TLS is terminated on our ingress box; poll the live HTTPS endpoint to see
+  // whether the certificate has been installed yet.
+  const live = await isServingHttps(domain);
   await admin
     .from("user_profiles")
     .update({
-      custom_domain_cert_status: dbStatus,
+      custom_domain_cert_status: live ? "active" : "provisioning",
       custom_domain_last_checked_at: new Date().toISOString(),
-      custom_domain_last_error: error,
-      custom_domain_dcv: dcv.length ? dcv : null,
+      custom_domain_last_error: live
+        ? null
+        : "Certificate not active yet — still being issued.",
     })
     .eq("id", ctx.ownerId);
 
   revalidatePath("/dashboard/settings/domains");
   return {
     ok: true,
-    message:
-      certStatus === "active"
-        ? "Certificate is live 🎉"
-        : certStatus === "failed"
-          ? "Validation failed — check the record values and try again."
-          : "Still issuing — add the SSL record below if shown, then check again.",
+    message: live
+      ? "Certificate is live 🎉"
+      : "Still issuing — the SSL certificate isn't active yet. Check again in a few minutes.",
   };
 }
 

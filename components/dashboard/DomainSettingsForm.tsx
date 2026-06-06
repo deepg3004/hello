@@ -44,6 +44,7 @@ type CertStatus = "pending" | "provisioning" | "active" | "failed" | null;
 interface Props {
   rootDomain: string;
   appRootHost: string;
+  customDomainTarget: string;
   subdomain: string | null;
   subdomainClaimedAt: string | null;
   customDomain: string | null;
@@ -120,7 +121,7 @@ export function DomainSettingsForm(props: Props) {
       toast({
         title: "Domain saved",
         description:
-          "Now add the CNAME on your DNS host and click Verify below.",
+          "Now add the A record on your DNS host and click Verify below.",
       });
     });
   }
@@ -304,9 +305,9 @@ export function DomainSettingsForm(props: Props) {
           </CardTitle>
           <CardDescription>
             Bring your own hostname — e.g.{" "}
-            <code>pages.yourbrand.com</code>. Two steps: add the domain here,
-            then a CNAME at your DNS host pointing to{" "}
-            <code>{props.appRootHost}</code>.
+            <code>pages.yourbrand.com</code> or your root domain. Two steps: add
+            the domain here, then an A record at your DNS host pointing to{" "}
+            <code>{props.customDomainTarget}</code>.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -369,7 +370,7 @@ export function DomainSettingsForm(props: Props) {
                 <div className="mt-2 grid grid-cols-3 gap-2 font-mono text-xs">
                   <div>
                     <p className="text-[10px] text-muted-foreground">Type</p>
-                    <p>CNAME</p>
+                    <p>A</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-muted-foreground">
@@ -378,14 +379,18 @@ export function DomainSettingsForm(props: Props) {
                     <p className="truncate">{leftLabel(props.customDomain)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-muted-foreground">Target</p>
+                    <p className="text-[10px] text-muted-foreground">Value / IP</p>
                     <div className="flex items-center gap-1">
-                      <span className="truncate">{props.appRootHost}</span>
+                      <span className="truncate">
+                        {props.customDomainTarget}
+                      </span>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        onClick={() => copy(props.appRootHost, "Target")}
+                        onClick={() =>
+                          copy(props.customDomainTarget, "IP address")
+                        }
                       >
                         <Copy className="h-3 w-3" />
                       </Button>
@@ -393,8 +398,9 @@ export function DomainSettingsForm(props: Props) {
                   </div>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  DNS records normally propagate in 1–10 minutes — sometimes
-                  longer if your TTL is high.
+                  Using a root domain? Add a second A record with Name{" "}
+                  <code>www</code> pointing to the same IP. DNS normally
+                  propagates in 1–10 minutes — longer if your TTL is high.
                 </p>
               </div>
 

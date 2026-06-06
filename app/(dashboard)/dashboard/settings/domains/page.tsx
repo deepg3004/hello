@@ -10,7 +10,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { requirePageActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { appRootHost, platformRootDomain } from "@/lib/domains";
+import {
+  appRootHost,
+  customDomainTargetIps,
+  platformRootDomain,
+} from "@/lib/domains";
 import type { DcvRecord } from "@/lib/cloudflare";
 import { DomainSettingsForm } from "@/components/dashboard/DomainSettingsForm";
 
@@ -52,6 +56,7 @@ export default async function DomainsSettingsPage() {
       <DomainSettingsForm
         rootDomain={platformRootDomain()}
         appRootHost={appRootHost()}
+        customDomainTarget={customDomainTargetIps()[0] ?? "187.127.172.108"}
         subdomain={profile?.subdomain ?? null}
         subdomainClaimedAt={profile?.subdomain_claimed_at ?? null}
         customDomain={profile?.custom_domain ?? null}

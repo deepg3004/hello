@@ -86,6 +86,20 @@ export function platformRootDomain(): string {
   return process.env.INVOXAI_PLATFORM_ROOT ?? "invoxai.io";
 }
 
+/**
+ * The public IP(s) of our ingress box that seller CUSTOM domains must point an
+ * A record at. We terminate TLS for custom domains on the VPS (certbot +
+ * nginx, provisioned by /usr/local/bin/invoxai-provision-domain.sh) rather than
+ * via Cloudflare for SaaS, so verification checks the domain's A record matches
+ * one of these instead of a CNAME target. Comma-separated env override.
+ */
+export function customDomainTargetIps(): string[] {
+  return (process.env.INVOXAI_CUSTOM_DOMAIN_IPS ?? "187.127.172.108")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 /** True when the host is one of OUR canonical hostnames — never rewrite
  *  to /seller-host. */
 export function isPlatformOwnHost(host: string): boolean {
