@@ -64,13 +64,50 @@ interface RazorpayInstance {
   open: () => void;
 }
 
+// Cashfree Checkout types (JS SDK v3)
+interface CashfreeCheckoutResult {
+  error?: { message?: string };
+  redirect?: boolean;
+  paymentDetails?: { paymentMessage?: string };
+}
+interface CashfreeInstance {
+  checkout: (opts: {
+    paymentSessionId: string;
+    redirectTarget?: string;
+  }) => Promise<CashfreeCheckoutResult>;
+}
+
 declare global {
   interface Window {
     Razorpay?: new (options: RazorpayOptions) => RazorpayInstance;
+    Cashfree?: (opts: { mode: "sandbox" | "production" }) => CashfreeInstance;
   }
 }
 
 const RAZORPAY_SDK = "https://checkout.razorpay.com/v1/checkout.js";
+const CASHFREE_SDK = "https://sdk.cashfree.com/js/v3/cashfree.js";
+
+/** Load the Cashfree JS SDK on demand (only when a buyer pays via Cashfree). */
+function loadCashfreeSdk(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined") return reject(new Error("no window"));
+    if (window.Cashfree) return resolve();
+    const existing = document.querySelector<HTMLScriptElement>(
+      `script[src="${CASHFREE_SDK}"]`,
+    );
+    if (existing) {
+      existing.addEventListener("load", () => resolve());
+      existing.addEventListener("error", () => reject(new Error("sdk load failed")));
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = CASHFREE_SDK;
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("sdk load failed"));
+    document.body.appendChild(s);
+  });
+}
 
 function useRazorpayScript() {
   const [ready, setReady] = useState(false);
@@ -420,6 +457,117 @@ export function CheckoutForm(props: CheckoutFormProps) {
     setCouponError(null);
   }
 
+  // Shared post-payment confirmation: verify on the server, fire pixels, show
+  // the success splash, redirect. Used by the Cashfree flow (Razorpay keeps its
+  // own inline handler). `verifyReqBody` must include order_id.
+  async function completeVerification(
+    verifyReqBody: Record<string, unknown>,
+    orderId: string,
+  ) {
+    const verifyRes = await fetch("/api/checkout/verify-payment", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(verifyReqBody),
+    });
+    const verifyBody = (await verifyRes.json()) as {
+      ok?: boolean;
+      redirect_url?: string;
+      error?: string;
+    };
+    if (!verifyRes.ok || !verifyBody.ok) {
+      throw new Error(verifyBody.error ?? "Verification failed");
+    }
+    try {
+      const pixelCfg = getRuntimePixelConfig();
+      if (pixelCfg) {
+        const purchaseArgs = {
+          value: total,
+          currency: currency ?? "INR",
+          order_id: orderId,
+        };
+        fireMetaPurchaseEvent(pixelCfg.meta_pixel_id, purchaseArgs);
+        fireGoogleConversion(pixelCfg.google_ads_id, pixelCfg.google_ads_label, {
+          value: total,
+          currency: currency ?? "INR",
+          transaction_id: orderId,
+        });
+        fireTikTokPurchase(pixelCfg.tiktok_pixel_id, purchaseArgs);
+      }
+    } catch (pixelErr) {
+      console.warn("[checkout] pixel fire failed", pixelErr);
+    }
+    setModalOpen(false);
+    setSuccess(true);
+    window.dispatchEvent(new Event("invox:checkout-complete"));
+    setTimeout(() => {
+      window.location.href = verifyBody.redirect_url ?? "/";
+    }, 700);
+  }
+
+  // Cashfree buyer flow: load the SDK, open the hosted modal with the payment
+  // session, then confirm by order status on the server (Cashfree has no
+  // in-checkout signature; the webhook is the backstop if the buyer drops off).
+  async function launchCashfree(createBody: {
+    order_id?: string;
+    cashfree?: { paymentSessionId?: string; mode?: string };
+  }) {
+    const cf = createBody.cashfree;
+    if (!cf?.paymentSessionId) {
+      setSubmitting(false);
+      setFailure("Couldn't start Cashfree checkout.");
+      return;
+    }
+    try {
+      await loadCashfreeSdk();
+    } catch {
+      setSubmitting(false);
+      setFailure("Couldn't load the payment SDK. Refresh and try again.");
+      return;
+    }
+    const Cashfree = window.Cashfree;
+    if (!Cashfree) {
+      setSubmitting(false);
+      setFailure("Payment SDK unavailable.");
+      return;
+    }
+    const cashfree = Cashfree({
+      mode: cf.mode === "production" ? "production" : "sandbox",
+    });
+    setModalOpen(true);
+    let result: CashfreeCheckoutResult;
+    try {
+      result = await cashfree.checkout({
+        paymentSessionId: cf.paymentSessionId,
+        redirectTarget: "_modal",
+      });
+    } catch (e) {
+      setSubmitting(false);
+      setModalOpen(false);
+      setFailure(e instanceof Error ? e.message : "Payment failed.");
+      return;
+    }
+    if (result?.error) {
+      setSubmitting(false);
+      setModalOpen(false);
+      setFailure(result.error.message ?? "Payment was not completed.");
+      return;
+    }
+    try {
+      await completeVerification(
+        { order_id: createBody.order_id },
+        createBody.order_id ?? "",
+      );
+    } catch (e) {
+      setSubmitting(false);
+      setModalOpen(false);
+      setFailure(
+        e instanceof Error
+          ? `Payment may have gone through but we couldn't confirm it: ${e.message}`
+          : "Couldn't confirm payment — contact support with your order id.",
+      );
+    }
+  }
+
   async function onSubmit(values: FormValues) {
     setFailure(null);
     if (preview) {
@@ -466,6 +614,8 @@ export function CheckoutForm(props: CheckoutFormProps) {
 
     let createBody: {
       ok?: boolean;
+      gateway?: string;
+      cashfree?: { paymentSessionId?: string; mode?: string };
       razorpay_order_id?: string;
       order_id?: string;
       amount?: number;
@@ -521,12 +671,25 @@ export function CheckoutForm(props: CheckoutFormProps) {
         }),
       });
       createBody = (await res.json()) as typeof createBody;
-      if (!res.ok || !createBody.razorpay_order_id) {
+      if (!res.ok || !createBody.gateway) {
         throw new Error(createBody.error ?? "Couldn't start checkout");
       }
     } catch (err) {
       setSubmitting(false);
       setFailure(err instanceof Error ? err.message : String(err));
+      return;
+    }
+
+    // Cashfree uses its own SDK + status-based confirmation.
+    if (createBody.gateway === "cashfree") {
+      await launchCashfree(createBody);
+      return;
+    }
+
+    // Razorpay (default) — open Razorpay Checkout inline.
+    if (!createBody.razorpay_order_id) {
+      setSubmitting(false);
+      setFailure("Couldn't start checkout");
       return;
     }
 

@@ -10,7 +10,8 @@ import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyPayment, verifyPaymentWithSecret } from "@/lib/razorpay";
-import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
+import { loadSellerGatewayKeys, type GatewayType } from "@/lib/gateway-loader";
+import { getGateway, isLiveGateway } from "@/lib/gateways";
 import { notifyPaymentReceived } from "@/lib/notifications/events";
 import { chargePlatformWalletFee, decrementStockForOrder } from "@/lib/order-fulfillment";
 import { fireMarketingWebhook } from "@/lib/marketing";
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
   }
 
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature, order_id } = body;
-  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !order_id) {
+  if (!order_id) {
     return NextResponse.json(
       { error: "Missing required fields" },
       { status: 400 },
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
   const { data: order } = await admin
     .from("orders")
     .select(
-      "id, page_id, seller_user_id, product_id, amount, platform_commission, seller_amount, currency, coupon_id, status, buyer_email, buyer_name, buyer_address, source, gateway_owner",
+      "id, page_id, seller_user_id, product_id, amount, platform_commission, seller_amount, currency, coupon_id, status, buyer_email, buyer_name, buyer_address, source, gateway_owner, payment_gateway, gateway_order_id",
     )
     .eq("id", order_id)
     .single();
@@ -68,27 +69,52 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Wrong checkout endpoint for this order" }, { status: 400 });
   }
 
-  // Verify the in-checkout signature with the secret of the gateway the order
-  // was created on (Phase 4). Platform orders use the platform secret; orders
-  // created on a seller's own gateway must be checked with the seller's secret.
+  // Confirm the payment with the gateway the order was created on. Razorpay
+  // returns an in-checkout signature we HMAC-verify (platform secret for
+  // platform orders, the seller's secret for seller-gateway orders). Other
+  // providers (Cashfree) have no in-checkout signature, so we confirm by
+  // fetching the order status from the seller's gateway via its driver.
+  const provider = (order.payment_gateway ?? "razorpay") as GatewayType;
   let signatureValid: boolean;
-  if (order.gateway_owner === "seller") {
+  let paymentRef: string | null = null; // stored as gateway_payment_id
+  let signatureRef: string | null = null; // stored as gateway_signature
+
+  if (provider === "razorpay") {
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+    if (order.gateway_owner === "seller") {
+      const keys = await loadSellerGatewayKeys(order.seller_user_id);
+      signatureValid = keys
+        ? verifyPaymentWithSecret(
+            { razorpay_order_id, razorpay_payment_id, razorpay_signature },
+            keys.key_secret,
+          )
+        : false;
+    } else {
+      signatureValid = verifyPayment({
+        razorpay_order_id,
+        razorpay_payment_id,
+        razorpay_signature,
+      });
+    }
+    paymentRef = razorpay_payment_id;
+    signatureRef = razorpay_signature;
+  } else if (isLiveGateway(provider)) {
     const keys = await loadSellerGatewayKeys(order.seller_user_id);
-    signatureValid = keys
-      ? verifyPaymentWithSecret(
-          { razorpay_order_id, razorpay_payment_id, razorpay_signature },
-          keys.key_secret,
-        )
-      : false;
+    signatureValid =
+      keys && order.gateway_order_id
+        ? await getGateway(provider).verifyPayment(keys, {
+            orderId: order.gateway_order_id,
+          })
+        : false;
+    paymentRef = order.gateway_order_id ?? null;
+    signatureRef = null;
   } else {
-    signatureValid = verifyPayment({
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature,
-    });
+    return NextResponse.json({ error: "Unsupported gateway" }, { status: 400 });
   }
   if (!signatureValid) {
-    return NextResponse.json({ error: "Signature mismatch" }, { status: 401 });
+    return NextResponse.json({ error: "Payment not confirmed" }, { status: 401 });
   }
 
   if (order.status === "paid") {
@@ -135,8 +161,8 @@ export async function POST(request: Request) {
     .from("orders")
     .update({
       status: "paid",
-      gateway_payment_id: razorpay_payment_id,
-      gateway_signature: razorpay_signature,
+      gateway_payment_id: paymentRef,
+      gateway_signature: signatureRef,
       paid_at: paidAt,
       exp_variant: expVariant,
     })
@@ -185,7 +211,7 @@ export async function POST(request: Request) {
     .from("orders")
     .update({
       status: "paid",
-      gateway_payment_id: razorpay_payment_id,
+      gateway_payment_id: paymentRef,
       paid_at: paidAt,
     })
     .eq("parent_order_id", order_id)
@@ -200,8 +226,8 @@ export async function POST(request: Request) {
       type: "sale",
       amount: Number(order.seller_amount),
       status: "completed",
-      reference_id: razorpay_payment_id,
-      notes: `Sale ${razorpay_order_id}`,
+      reference_id: paymentRef,
+      notes: `Sale ${order.gateway_order_id ?? order_id}`,
     },
     {
       user_id: order.seller_user_id,
@@ -209,8 +235,8 @@ export async function POST(request: Request) {
       type: "commission",
       amount: -Number(order.platform_commission),
       status: "completed",
-      reference_id: razorpay_payment_id,
-      notes: `Platform commission ${razorpay_order_id}`,
+      reference_id: paymentRef,
+      notes: `Platform commission ${order.gateway_order_id ?? order_id}`,
     },
   ]);
 

@@ -17,15 +17,16 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { saveGatewayConfigAction, verifyGatewayAction } from "@/actions/gateway";
 
-// Only Razorpay is wired through checkout today; the other drivers exist but
-// aren't routed yet, so they're shown disabled ("coming soon") to stop sellers
-// connecting a gateway that would silently 402 at checkout.
+// Which gateways are selectable is decided by the server (liveGateways()), so we
+// only enable the ones whose buyer-facing checkout is wired end-to-end. The rest
+// render disabled ("coming soon") to stop sellers connecting a gateway that
+// would 402 at checkout.
 const GATEWAYS = [
-  { value: "razorpay", label: "Razorpay", enabled: true },
-  { value: "cashfree", label: "Cashfree (coming soon)", enabled: false },
-  { value: "payu", label: "PayU (coming soon)", enabled: false },
-  { value: "instamojo", label: "Instamojo (coming soon)", enabled: false },
-  { value: "stripe", label: "Stripe (coming soon)", enabled: false },
+  { value: "razorpay", label: "Razorpay" },
+  { value: "cashfree", label: "Cashfree" },
+  { value: "payu", label: "PayU" },
+  { value: "instamojo", label: "Instamojo" },
+  { value: "stripe", label: "Stripe" },
 ] as const;
 
 // Per-provider credential labels (each gateway names its keys differently).
@@ -45,8 +46,10 @@ export interface ExistingGateway {
 
 export function GatewaySettingsForm({
   existing,
+  liveGateways = ["razorpay"],
 }: {
   existing: ExistingGateway | null;
+  liveGateways?: string[];
 }) {
   const { toast } = useToast();
   const router = useRouter();
@@ -176,11 +179,15 @@ export function GatewaySettingsForm({
             onChange={(e) => setGatewayType(e.target.value)}
             className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            {GATEWAYS.map((g) => (
-              <option key={g.value} value={g.value} disabled={!g.enabled}>
-                {g.label}
-              </option>
-            ))}
+            {GATEWAYS.map((g) => {
+              const enabled = liveGateways.includes(g.value);
+              return (
+                <option key={g.value} value={g.value} disabled={!enabled}>
+                  {g.label}
+                  {enabled ? "" : " (coming soon)"}
+                </option>
+              );
+            })}
           </select>
         </div>
 

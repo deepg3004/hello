@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireActor } from "@/lib/account-context";
 import { encryptGatewayKey } from "@/lib/gateway-crypto";
 import type { GatewayType, GatewayKeys } from "@/lib/gateway-loader";
-import { getGateway } from "@/lib/gateways";
+import { getGateway, isLiveGateway } from "@/lib/gateways";
 
 const GATEWAY_TYPES: GatewayType[] = [
   "razorpay",
@@ -42,14 +42,13 @@ export async function saveGatewayConfigAction(input: {
   if (!GATEWAY_TYPES.includes(gateway_type)) {
     return { ok: false, message: "Unsupported gateway" };
   }
-  // Checkout only routes Razorpay today (lib/gateway-loader + create-order).
-  // Reject the others up front so a seller never connects a gateway that would
-  // 402 at checkout.
-  if (gateway_type !== "razorpay") {
+  // Only gateways whose buyer-facing checkout is wired end-to-end (liveGateways)
+  // may be connected — otherwise a seller would save keys for a gateway that
+  // 402s at checkout.
+  if (!isLiveGateway(gateway_type)) {
     return {
       ok: false,
-      message:
-        "Only Razorpay is supported right now — more gateways are coming soon.",
+      message: "This gateway isn't available yet — more are coming soon.",
     };
   }
 

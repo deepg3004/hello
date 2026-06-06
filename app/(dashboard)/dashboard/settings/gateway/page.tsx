@@ -6,6 +6,7 @@ import {
   GatewaySettingsForm,
   type ExistingGateway,
 } from "@/components/dashboard/GatewaySettingsForm";
+import { liveGateways } from "@/lib/gateways";
 
 export const metadata = { title: "Payment Gateway · Settings" };
 
@@ -33,7 +34,10 @@ export default async function GatewaySettingsPage() {
         </p>
       </div>
 
-      <GatewaySettingsForm existing={(existing ?? null) as ExistingGateway | null} />
+      <GatewaySettingsForm
+        existing={(existing ?? null) as ExistingGateway | null}
+        liveGateways={liveGateways()}
+      />
 
       <div className="rounded-lg border bg-muted/40 p-4 text-sm">
         <p className="font-medium">Webhook setup (recommended)</p>

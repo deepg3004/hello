@@ -17,8 +17,17 @@ const REGISTRY: Record<GatewayType, PaymentGateway> = {
 };
 
 /** Providers whose buyer-facing checkout is fully wired end-to-end (frontend +
- *  verified). Only these should be routed in LIVE checkout. Others are
- *  backend-implemented and connectable, pending frontend SDK + sandbox testing. */
+ *  verified). Razorpay is always live; Cashfree is gated behind an env flag so
+ *  we can deploy the wiring dark, test it in sandbox, then flip it on without a
+ *  code change. Others remain backend-only (connectable once their frontend is
+ *  built). */
+export function liveGateways(): GatewayType[] {
+  const list: GatewayType[] = ["razorpay"];
+  if (process.env.CASHFREE_CHECKOUT_ENABLED === "true") list.push("cashfree");
+  return list;
+}
+
+/** @deprecated use liveGateways() — kept so existing imports keep compiling. */
 export const LIVE_GATEWAYS: GatewayType[] = ["razorpay"];
 
 export function getGateway(type: GatewayType): PaymentGateway {
@@ -28,7 +37,7 @@ export function getGateway(type: GatewayType): PaymentGateway {
 }
 
 export function isLiveGateway(type: GatewayType): boolean {
-  return LIVE_GATEWAYS.includes(type);
+  return liveGateways().includes(type);
 }
 
 export type { PaymentGateway } from "@/lib/gateways/types";

@@ -15,8 +15,8 @@ import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createOrderOnKeys } from "@/lib/razorpay";
 import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
+import { getGateway, isLiveGateway } from "@/lib/gateways";
 import {
   reserveCoupon,
   releaseCoupon,
@@ -325,11 +325,7 @@ export async function POST(request: Request) {
   // seller who hasn't connected a gateway cannot accept payments (no platform
   // collect/escrow path exists anymore).
   const keys = await loadSellerGatewayKeys(seller.id);
-  const sellerGateway =
-    keys && keys.gateway_type === "razorpay"
-      ? { key_id: keys.key_id, key_secret: keys.key_secret }
-      : null;
-  if (!sellerGateway) {
+  if (!keys || !isLiveGateway(keys.gateway_type)) {
     if (couponId) await releaseCoupon(couponId, buyer_email);
     return NextResponse.json(
       {
@@ -392,8 +388,9 @@ export async function POST(request: Request) {
   const orderId = crypto.randomUUID();
   const shortReceipt = nanoid(10);
 
-  // 6. Razorpay order — created on the SELLER's own gateway (the seller is the
-  //    merchant of record; no Route transfer, no platform escrow).
+  // 6. Provider order — created on the SELLER's own gateway via the
+  //    provider-agnostic driver (Razorpay, Cashfree, …). The seller is the
+  //    merchant of record; no Route transfer, no platform escrow.
   const sharedNotes = {
     invoxai_order_id: orderId,
     invoxai_page_id: page_id,
@@ -402,19 +399,28 @@ export async function POST(request: Request) {
     invoxai_bump_amount: String(bumpAmount),
     buyer_email,
   };
-  let razorpayOrder: { id: string; amount: number | string } | null = null;
+  let providerOrder: {
+    providerOrderId: string;
+    client: Record<string, unknown>;
+  } | null = null;
   try {
-    razorpayOrder = (await createOrderOnKeys(sellerGateway, {
-      amount: totalPaise,
+    const result = await getGateway(keys.gateway_type).createOrder(keys, {
+      amountPaise: totalPaise,
       currency,
       receipt: shortReceipt,
       notes: sharedNotes,
-    })) as unknown as { id: string; amount: number | string };
+      customer: {
+        name: buyer_name ?? undefined,
+        email: buyer_email,
+        phone: buyer_phone ?? undefined,
+      },
+    });
+    providerOrder = { providerOrderId: result.providerOrderId, client: result.client };
   } catch (err) {
     if (couponId) await releaseCoupon(couponId, buyer_email);
     // Log the real gateway error server-side; never surface its text to the
     // browser (it can leak account IDs, internal flags, etc.).
-    console.error("[create-order] razorpay createOrder failed", err);
+    console.error("[create-order] gateway createOrder failed", err);
     return NextResponse.json(
       { error: "Payment gateway is temporarily unavailable. Please try again." },
       { status: 502 },
@@ -438,9 +444,9 @@ export async function POST(request: Request) {
     seller_amount: sellerAmount,
     currency,
     status: "pending",
-    payment_gateway: "razorpay",
+    payment_gateway: keys.gateway_type,
     gateway_owner: gatewayOwner,
-    gateway_order_id: razorpayOrder.id,
+    gateway_order_id: providerOrder.providerOrderId,
     coupon_id: couponId,
     discount_amount: discountAmount,
     utm_source: utm_source ?? null,
@@ -481,9 +487,9 @@ export async function POST(request: Request) {
       seller_amount: bumpSellerPaise / 100,
       currency,
       status: "pending",
-      payment_gateway: "razorpay",
+      payment_gateway: keys.gateway_type,
       gateway_owner: gatewayOwner,
-      gateway_order_id: razorpayOrder.id,
+      gateway_order_id: providerOrder.providerOrderId,
       ip_address: ip,
     });
   }
@@ -503,13 +509,11 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    razorpay_order_id: razorpayOrder.id,
+    gateway: keys.gateway_type,
     order_id: orderId,
     amount: totalPaise,
     shipping_fee: shippingFee,
     currency,
-    // Seller-gateway orders must open Checkout with the SELLER's key id.
-    key: sellerGateway?.key_id ?? process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
     name: "InvoxAI",
     description: product.name,
     buyer_name: buyer_name ?? "",
@@ -517,5 +521,12 @@ export async function POST(request: Request) {
     buyer_phone: buyer_phone ?? "",
     discount_amount: discountAmount,
     gross_amount: grossAmount,
+    // Razorpay: the browser opens Razorpay Checkout with the seller's key id.
+    razorpay_order_id:
+      keys.gateway_type === "razorpay" ? providerOrder.providerOrderId : undefined,
+    key: keys.gateway_type === "razorpay" ? keys.key_id : undefined,
+    // Cashfree: the browser opens the Cashfree SDK with this payment session.
+    cashfree:
+      keys.gateway_type === "cashfree" ? providerOrder.client : undefined,
   });
 }
