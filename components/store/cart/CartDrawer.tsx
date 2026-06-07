@@ -143,6 +143,20 @@ export function CartDrawer() {
     setPromoError(null);
   }
 
+  // Close the drawer and clear the `pointer-events: none` lock Radix puts on
+  // <body> while a modal Sheet is open — otherwise a payment-gateway modal
+  // mounted on <body> is unclickable on mobile. Re-clear on the next frame in
+  // case Radix re-asserts it during the close animation.
+  function releaseBodyLock() {
+    setOpen(false);
+    if (typeof document !== "undefined") {
+      const clear = () => document.body.style.removeProperty("pointer-events");
+      clear();
+      setTimeout(clear, 60);
+      setTimeout(clear, 300);
+    }
+  }
+
   async function checkout() {
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       toast({ variant: "destructive", title: "Enter a valid email" });
@@ -172,6 +186,13 @@ export function CartDrawer() {
         throw new Error(body.error ?? "Couldn't start checkout");
       }
 
+      // The cart drawer is a Radix Sheet (modal): while open it sets
+      // `pointer-events: none` on <body> and traps focus. The Razorpay/Cashfree
+      // modal mounts on <body>, so on mobile its buttons become unclickable.
+      // Close the drawer and release the lock before launching the gateway;
+      // reopen the drawer if the buyer dismisses or payment fails.
+      releaseBodyLock();
+
       await launchCheckout(body, {
         verifyUrl: "/api/checkout/verify-cart-payment",
         prefill: { name, email, phone },
@@ -182,9 +203,13 @@ export function CartDrawer() {
         },
         onError: (msg) => {
           setPaying(false);
+          setOpen(true);
           toast({ variant: "destructive", title: "Checkout failed", description: msg });
         },
-        onDismiss: () => setPaying(false),
+        onDismiss: () => {
+          setPaying(false);
+          setOpen(true);
+        },
       });
     } catch (e) {
       setPaying(false);
