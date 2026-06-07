@@ -170,7 +170,7 @@ export function CourseLanding(props: CourseLandingProps) {
         </div>
       </div>
 
-      <main className="mx-auto grid max-w-6xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_360px]">
+      <main className="mx-auto grid max-w-6xl gap-10 px-4 pt-10 pb-40 sm:px-6 lg:grid-cols-[1fr_360px] lg:pb-10">
         {/* Left column */}
         <div className="min-w-0 space-y-10">
           {/* What you'll learn */}
@@ -365,7 +365,7 @@ export function CourseLanding(props: CourseLandingProps) {
       </main>
 
       {/* Sticky mobile buy bar */}
-      <div className="sf-band sf-border fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t px-4 py-3 shadow-lg lg:hidden">
+      <div className="sf-band sf-border fixed inset-x-0 bottom-16 z-40 flex items-center justify-between gap-3 border-t px-4 py-3 shadow-lg md:bottom-0 lg:hidden">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           {priceRupees != null ? (
             <span className="text-lg font-bold">{formatINR(Math.round(priceRupees * 100))}</span>

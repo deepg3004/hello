@@ -127,3 +127,9 @@ export function useCart(): CartContextValue {
   if (!ctx) throw new Error("useCart must be used within a CartProvider");
   return ctx;
 }
+
+/** Like useCart but returns null instead of throwing when there's no provider
+ *  (e.g. the bottom nav renders on course/legal pages that have no cart). */
+export function useCartOptional(): CartContextValue | null {
+  return useContext(CartContext);
+}

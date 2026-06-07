@@ -157,7 +157,7 @@ export function ProductBuyPanel({ product }: { product: BuyPanelProduct }) {
     </div>
 
       {/* Sticky mobile buy bar */}
-      <div className="sf-band sf-border fixed inset-x-0 bottom-0 z-40 border-t px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.18)] md:hidden">
+      <div className="sf-band sf-border fixed inset-x-0 bottom-16 z-40 border-t px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.18)] md:hidden">
         <div className="mb-2 flex items-baseline justify-between gap-2">
           <span className="flex items-baseline gap-2">
             <span className="text-lg font-bold">{formatINR(Math.round(price * 100))}</span>
