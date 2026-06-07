@@ -675,6 +675,25 @@ export async function POST(request: Request) {
     console.error("[verify-payment] course enrollment failed", e);
   }
 
+  // 6c. Digital download — if the purchased product is a digital product with
+  //     a file, grant the buyer a download + email the link (idempotent).
+  try {
+    if (order.product_id) {
+      const { grantDigitalDownloads } = await import("@/lib/downloads");
+      await grantDigitalDownloads(
+        {
+          orderId: order.id,
+          sellerUserId: order.seller_user_id,
+          buyerEmail: order.buyer_email,
+          productIds: [order.product_id],
+        },
+        admin,
+      );
+    }
+  } catch (e) {
+    console.error("[verify-payment] digital download grant failed", e);
+  }
+
   // 7. OTO — if the page has an OTO configured AND this is the original
   // (non-OTO) order, mint a 15-min signed cookie and redirect to /p/<slug>/oto.
   let redirectTarget = redirectUrl(order_id, order.page_id);

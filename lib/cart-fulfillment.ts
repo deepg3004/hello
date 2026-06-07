@@ -80,6 +80,26 @@ export async function fulfillCartOrder(order: OrderLite, admin: DB): Promise<voi
     console.error("[cart-fulfillment] receipt email failed", e);
   }
 
+  // Digital downloads — grant + email links for any digital products in the
+  // cart (idempotent per order+product). Best-effort.
+  try {
+    const productIds = lines.map((l) => l.product_id).filter((id): id is string => !!id);
+    if (productIds.length > 0) {
+      const { grantDigitalDownloads } = await import("@/lib/downloads");
+      await grantDigitalDownloads(
+        {
+          orderId: order.id,
+          sellerUserId: order.seller_user_id,
+          buyerEmail: order.buyer_email,
+          productIds,
+        },
+        admin,
+      );
+    }
+  } catch (e) {
+    console.error("[cart-fulfillment] digital download grant failed", e);
+  }
+
   // Settle coupon usage in Postgres (exactly-once — the caller already won the
   // pending→paid transition before calling this). Best-effort.
   try {

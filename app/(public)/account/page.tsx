@@ -7,6 +7,7 @@ import Link from "next/link";
 import {
   BookOpen,
   CalendarClock,
+  Download,
   FileText,
   Hash,
   Receipt,
@@ -118,6 +119,30 @@ export default async function BuyerAccountPage() {
       status: b.status,
       title: bt?.title ?? "Booking",
       location: bt?.location ?? null,
+    };
+  });
+
+  // Digital download grants for this buyer.
+  const { data: dlRaw } = await admin
+    .from("download_grants")
+    .select("token, file_name, download_limit, downloads_used, created_at, products(name)")
+    .eq("buyer_email", email)
+    .order("created_at", { ascending: false })
+    .limit(100);
+  const downloads = ((dlRaw ?? []) as Array<{
+    token: string;
+    file_name: string | null;
+    download_limit: number | null;
+    downloads_used: number;
+    products: { name: string } | { name: string }[] | null;
+  }>).map((d) => {
+    const p = Array.isArray(d.products) ? d.products[0] : d.products;
+    const remaining = d.download_limit == null ? null : Math.max(0, d.download_limit - (d.downloads_used ?? 0));
+    return {
+      token: d.token,
+      name: p?.name ?? d.file_name ?? "Download",
+      remaining,
+      limit: d.download_limit,
     };
   });
 
@@ -317,6 +342,50 @@ export default async function BuyerAccountPage() {
               </Card>
             );
           })}
+        </div>
+      )}
+
+      {/* Downloads */}
+      {downloads.length > 0 && (
+        <div className="mt-8">
+          <h2 className="mb-3 flex items-center gap-2 font-sora text-lg font-semibold">
+            <Download className="h-5 w-5 text-primary" />
+            Your downloads
+          </h2>
+          <div className="space-y-3">
+            {downloads.map((d) => {
+              const exhausted = d.remaining === 0;
+              return (
+                <Card key={d.token}>
+                  <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{d.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {d.limit == null
+                          ? "Unlimited downloads"
+                          : exhausted
+                            ? "Download limit reached"
+                            : `${d.remaining} of ${d.limit} download${d.limit === 1 ? "" : "s"} left`}
+                      </p>
+                    </div>
+                    {exhausted ? (
+                      <Button size="sm" variant="outline" disabled>
+                        <Download className="mr-1.5 h-3.5 w-3.5" />
+                        Limit reached
+                      </Button>
+                    ) : (
+                      <Button asChild size="sm">
+                        <a href={`/api/download/${d.token}`}>
+                          <Download className="mr-1.5 h-3.5 w-3.5" />
+                          Download
+                        </a>
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
         </div>
       )}
 

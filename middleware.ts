@@ -238,6 +238,7 @@ export async function middleware(request: NextRequest) {
         pathname.startsWith("/order/") ||
         pathname.startsWith("/course/") ||
         pathname.startsWith("/unlock/") ||
+        pathname.startsWith("/download/") ||
         pathname.startsWith("/book/") ||
         pathname.startsWith("/event/") ||
         pathname.startsWith("/affiliate/") ||
@@ -290,6 +291,7 @@ export async function middleware(request: NextRequest) {
         pathname.startsWith("/account") ||
         pathname.startsWith("/team/") ||
         pathname.startsWith("/unlock/") ||
+        pathname.startsWith("/download/") ||
         pathname.startsWith("/book/") ||
         pathname.startsWith("/event/") ||
         pathname.startsWith("/preview/");
