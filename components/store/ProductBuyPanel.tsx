@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Minus, Plus, ShoppingCart, Zap } from "lucide-react";
 
 import { formatINR } from "@/lib/utils";
@@ -20,8 +20,14 @@ export interface BuyPanelProduct {
 
 /** Detail-page purchase controls: variant choice, quantity, add-to-cart, buy-now. */
 export function ProductBuyPanel({ product }: { product: BuyPanelProduct }) {
-  const { add, openCart } = useCart();
+  const { add, openCart, setFloatingBar } = useCart();
   const { toast } = useToast();
+
+  // Tell the cart to lift its floating pill above our mobile buy bar.
+  useEffect(() => {
+    setFloatingBar(true);
+    return () => setFloatingBar(false);
+  }, [setFloatingBar]);
   const hasVariants = product.variants.length > 0;
   const [variantId, setVariantId] = useState<string | null>(
     hasVariants ? product.variants[0].id : null,
@@ -65,6 +71,7 @@ export function ProductBuyPanel({ product }: { product: BuyPanelProduct }) {
   }
 
   return (
+    <>
     <div className="space-y-5">
       <div className="flex items-baseline gap-3">
         <span className="text-3xl font-bold">{formatINR(Math.round(price * 100))}</span>
@@ -114,7 +121,8 @@ export function ProductBuyPanel({ product }: { product: BuyPanelProduct }) {
         )}
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row">
+      {/* Inline buttons on tablet/desktop; on mobile the fixed bottom bar takes over. */}
+      <div className="hidden gap-2 md:flex md:flex-col lg:flex-row">
         <button
           onClick={onAdd}
           disabled={soldOut}
@@ -132,5 +140,33 @@ export function ProductBuyPanel({ product }: { product: BuyPanelProduct }) {
         </button>
       </div>
     </div>
+
+      {/* Sticky mobile buy bar */}
+      <div className="sf-band sf-border fixed inset-x-0 bottom-0 z-40 border-t px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.18)] md:hidden">
+        <div className="mb-2 flex items-baseline justify-between gap-2">
+          <span className="text-lg font-bold">{formatINR(Math.round(price * 100))}</span>
+          {stock != null && stock > 0 && stock <= 5 && (
+            <span className="text-xs font-medium text-rose-500">Only {stock} left</span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={onAdd}
+            disabled={soldOut}
+            className="sf-btn-outline inline-flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {added ? <Check className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
+            {soldOut ? "Sold out" : added ? "Added" : "Add to cart"}
+          </button>
+          <button
+            onClick={onBuyNow}
+            disabled={soldOut}
+            className="sf-btn inline-flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Zap className="h-4 w-4" /> Buy now
+          </button>
+        </div>
+      </div>
+    </>
   );
 }

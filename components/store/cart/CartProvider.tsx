@@ -37,6 +37,10 @@ interface CartContextValue {
   isOpen: boolean;
   setOpen: (open: boolean) => void;
   openCart: () => void;
+  /** True when a page renders a fixed mobile buy bar at the bottom (product
+   *  detail), so the floating cart pill lifts above it on small screens. */
+  floatingBar: boolean;
+  setFloatingBar: (v: boolean) => void;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -54,6 +58,7 @@ export function CartProvider({
   const [items, setItems] = useState<CartItem[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [isOpen, setOpen] = useState(false);
+  const [floatingBar, setFloatingBar] = useState(false);
 
   useEffect(() => {
     try {
@@ -107,8 +112,8 @@ export function CartProvider({
   const value = useMemo<CartContextValue>(() => {
     const count = items.reduce((n, p) => n + p.quantity, 0);
     const subtotal = items.reduce((s, p) => s + p.price * p.quantity, 0);
-    return { items, count, subtotal, add, setQty, remove, clear, isOpen, setOpen, openCart };
-  }, [items, add, setQty, remove, clear, isOpen, openCart]);
+    return { items, count, subtotal, add, setQty, remove, clear, isOpen, setOpen, openCart, floatingBar, setFloatingBar };
+  }, [items, add, setQty, remove, clear, isOpen, openCart, floatingBar]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

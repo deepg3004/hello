@@ -188,7 +188,7 @@ export default async function ProductDetailPage({ params }: Props) {
   return (
     <CartProvider username={params.username}>
       <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName} sellerId={profile.id}>
-        <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        <main className="mx-auto max-w-5xl px-4 pt-8 pb-28 sm:px-6 md:pb-8">
           <nav className="sf-muted mb-6 text-sm">
             <Link href="/store" className="transition hover:opacity-80">
               Store

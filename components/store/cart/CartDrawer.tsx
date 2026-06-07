@@ -64,7 +64,7 @@ function useRazorpay() {
 }
 
 export function CartDrawer() {
-  const { items, count, subtotal, setQty, remove, clear, isOpen: open, setOpen } = useCart();
+  const { items, count, subtotal, setQty, remove, clear, isOpen: open, setOpen, floatingBar } = useCart();
   const { toast } = useToast();
   const razorpayReady = useRazorpay();
   const [paying, setPaying] = useState(false);
@@ -171,7 +171,10 @@ export function CartDrawer() {
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <button
-          className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-full bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-lg hover:bg-zinc-700"
+          className={
+            "fixed right-5 z-40 inline-flex items-center gap-2 rounded-full bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-lg hover:bg-zinc-700 md:bottom-5 " +
+            (floatingBar ? "bottom-24" : "bottom-5")
+          }
           aria-label="Open cart"
         >
           <ShoppingCart className="h-4 w-4" />
