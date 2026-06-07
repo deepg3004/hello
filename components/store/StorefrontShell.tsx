@@ -40,7 +40,7 @@ export function StorefrontShell({
       <div className="flex-1">{children}</div>
       {chrome?.footer.enabled && <StorefrontFooter footer={chrome.footer} brandName={name} />}
       {sellerId && <StorefrontTracker sellerId={sellerId} />}
-      <StorefrontBottomNav />
+      <StorefrontBottomNav nav={chrome?.bottomNav} />
     </div>
   );
 }

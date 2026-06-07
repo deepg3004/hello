@@ -343,6 +343,22 @@ export interface FooterColumn {
   title: string;
   links: MenuItem[];
 }
+/** Curated icon keys for the mobile bottom nav (mapped to lucide in the UI). */
+export const NAV_ICONS = [
+  "home", "store", "bag", "grid", "graduation", "book", "cart", "user",
+  "heart", "search", "phone", "info", "sparkles", "tag", "gift", "calendar",
+] as const;
+export type NavIcon = (typeof NAV_ICONS)[number];
+
+export interface BottomNavItem {
+  key: string;
+  type: "link" | "cart"; // cart opens the cart drawer; link navigates to url
+  label: string;
+  icon: string; // a NAV_ICONS key
+  url: string; // used when type === "link"
+  visible: boolean;
+}
+
 export interface ChromeConfig {
   header: {
     enabled: boolean;
@@ -353,6 +369,8 @@ export interface ChromeConfig {
     logoUrl: string; // where the logo links (default "/")
     showAuth: boolean; // show buyer Login / Sign up
   };
+  /** Mobile app-style bottom tab bar (phones only). Seller-configurable. */
+  bottomNav: { enabled: boolean; items: BottomNavItem[] };
   footer: {
     enabled: boolean;
     text: string;
@@ -393,6 +411,20 @@ export const LEGAL_DOCS = [
 ] as const;
 export type LegalDoc = (typeof LEGAL_DOCS)[number]["key"];
 
+/** Default mobile bottom-nav items (Home · Store · Courses · Cart · Account). */
+export function defaultBottomNav(): ChromeConfig["bottomNav"] {
+  return {
+    enabled: true,
+    items: [
+      { key: "home", type: "link", label: "Home", icon: "home", url: "/", visible: true },
+      { key: "store", type: "link", label: "Store", icon: "store", url: "/store", visible: true },
+      { key: "courses", type: "link", label: "Courses", icon: "graduation", url: "/course", visible: true },
+      { key: "cart", type: "cart", label: "Cart", icon: "cart", url: "", visible: true },
+      { key: "account", type: "link", label: "Account", icon: "user", url: "/account", visible: true },
+    ],
+  };
+}
+
 export function defaultChromeConfig(): ChromeConfig {
   return {
     header: {
@@ -408,6 +440,7 @@ export function defaultChromeConfig(): ChromeConfig {
       logoUrl: "/",
       showAuth: true,
     },
+    bottomNav: defaultBottomNav(),
     footer: {
       enabled: true,
       text: "",
@@ -442,6 +475,30 @@ function cleanMenu(v: unknown, max = 12): MenuItem[] {
     .slice(0, max);
 }
 
+function cleanBottomNav(v: unknown): ChromeConfig["bottomNav"] {
+  const def = defaultBottomNav();
+  if (!v || typeof v !== "object") return def;
+  const o = v as Record<string, unknown>;
+  const enabled = typeof o.enabled === "boolean" ? o.enabled : true;
+  if (!Array.isArray(o.items)) return { enabled, items: def.items };
+  const items = (o.items as unknown[])
+    .map((it) => {
+      const r = (it ?? {}) as Record<string, unknown>;
+      const type: "link" | "cart" = r.type === "cart" ? "cart" : "link";
+      return {
+        key: typeof r.key === "string" && r.key ? r.key.slice(0, 32) : "item",
+        type,
+        label: typeof r.label === "string" ? r.label.trim().slice(0, 20) : "",
+        icon: typeof r.icon === "string" && r.icon ? r.icon.slice(0, 24) : "grid",
+        url: typeof r.url === "string" ? r.url.trim().slice(0, 400) : "",
+        visible: typeof r.visible === "boolean" ? r.visible : true,
+      };
+    })
+    .filter((it) => it.label && (it.type === "cart" || it.url))
+    .slice(0, 6);
+  return { enabled, items: items.length ? items : def.items };
+}
+
 /** Merge stored (possibly partial) chrome with defaults. */
 export function resolveChromeConfig(raw: unknown): ChromeConfig {
   const base = defaultChromeConfig();
@@ -460,6 +517,7 @@ export function resolveChromeConfig(raw: unknown): ChromeConfig {
       logoUrl: typeof h.logoUrl === "string" && h.logoUrl.trim() ? h.logoUrl.trim() : "/",
       showAuth: typeof h.showAuth === "boolean" ? h.showAuth : true,
     },
+    bottomNav: c.bottomNav !== undefined ? cleanBottomNav(c.bottomNav) : base.bottomNav,
     footer: {
       enabled: typeof f.enabled === "boolean" ? f.enabled : base.footer.enabled,
       text: typeof f.text === "string" ? f.text : "",

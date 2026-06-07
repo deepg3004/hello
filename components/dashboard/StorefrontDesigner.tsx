@@ -7,20 +7,24 @@ import { Check, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { useToast } from "@/hooks/use-toast";
 import { saveStorefrontDesignAction, saveStorefrontChromeAction } from "@/actions/storefront";
 import { FEATURE_ICON_MAP } from "@/components/store/featureIcons";
+import { NAV_ICON_MAP } from "@/components/store/navIcons";
 import {
   STOREFRONT_THEME_LIST,
   FONTS,
   themeCssVars,
   LEGAL_DOCS,
   FEATURE_ICONS,
+  NAV_ICONS,
   SURFACES,
   type SurfaceConfig,
   type Surface,
   type ChromeConfig,
+  type BottomNavItem,
   type MenuItem,
   type Banner,
   type Testimonial,
@@ -453,6 +457,21 @@ function ChromeEditor({
         <BrandLogosEditor logos={chrome.brandLogos} onChange={(brandLogos) => setChrome({ ...chrome, brandLogos })} />
       </Section>
 
+      {/* Mobile bottom bar */}
+      <Section title="Mobile bottom bar">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">App-style tab bar shown on phones. Hide, rename, re-icon or re-link any tab.</p>
+          <Switch
+            checked={chrome.bottomNav.enabled}
+            onCheckedChange={(enabled) => setChrome({ ...chrome, bottomNav: { ...chrome.bottomNav, enabled } })}
+          />
+        </div>
+        <BottomNavEditor
+          items={chrome.bottomNav.items}
+          onChange={(items) => setChrome({ ...chrome, bottomNav: { ...chrome.bottomNav, items } })}
+        />
+      </Section>
+
       <Button onClick={onSave} disabled={pending}>
         {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
         Save header & footer
@@ -606,6 +625,70 @@ function FeaturesChromeEditor({ items, onChange }: { items: Feature[]; onChange:
       {items.length < 8 && (
         <Button variant="outline" size="sm" onClick={() => onChange([...items, { icon: "truck", image: "", title: "", text: "" }])}>
           <Plus className="mr-1.5 h-4 w-4" /> Add feature
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function BottomNavEditor({ items, onChange }: { items: BottomNavItem[]; onChange: (i: BottomNavItem[]) => void }) {
+  const set = (i: number, p: Partial<BottomNavItem>) => onChange(items.map((it, idx) => (idx === i ? { ...it, ...p } : it)));
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= items.length) return;
+    const next = [...items];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+  return (
+    <div className="space-y-3">
+      {items.map((it, i) => (
+        <div key={it.key + i} className="space-y-2 rounded-lg border p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Switch checked={it.visible} onCheckedChange={(visible) => set(i, { visible })} />
+              <span className="text-xs text-muted-foreground">{it.visible ? "Shown" : "Hidden"}</span>
+              {it.type === "cart" && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Cart</span>}
+            </div>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up">↑</Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => move(i, 1)} disabled={i === items.length - 1} aria-label="Move down">↓</Button>
+              {it.type !== "cart" && (
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => onChange(items.filter((_, idx) => idx !== i))} aria-label="Remove">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {NAV_ICONS.map((key) => {
+              const Icon = NAV_ICON_MAP[key];
+              return (
+                <button
+                  key={key}
+                  onClick={() => set(i, { icon: key })}
+                  title={key}
+                  className={"flex h-7 w-7 items-center justify-center rounded border transition " + (it.icon === key ? "border-primary bg-primary/10 text-primary" : "hover:bg-muted")}
+                >
+                  <Icon className="h-4 w-4" />
+                </button>
+              );
+            })}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Input value={it.label} onChange={(e) => set(i, { label: e.target.value })} placeholder="Label" />
+            <Input
+              value={it.url}
+              onChange={(e) => set(i, { url: e.target.value })}
+              placeholder={it.type === "cart" ? "Opens cart" : "/store"}
+              disabled={it.type === "cart"}
+            />
+          </div>
+        </div>
+      ))}
+      {items.length < 6 && (
+        <Button variant="outline" size="sm" onClick={() => onChange([...items, { key: `c${items.length}`, type: "link", label: "", icon: "grid", url: "", visible: true }])}>
+          <Plus className="mr-1.5 h-4 w-4" /> Add tab
         </Button>
       )}
     </div>
