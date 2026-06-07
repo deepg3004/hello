@@ -124,6 +124,8 @@ export async function updateFulfillmentAction(input: {
 // pricing tiers.
 // ----------------------------------------------------------------------------
 
+export type ProductType = "digital" | "physical" | "service";
+
 export interface CatalogProductInput {
   name: string;
   price: number;
@@ -133,12 +135,41 @@ export interface CatalogProductInput {
   requires_shipping?: boolean;
   stock?: number | null;
   sku?: string | null;
+  product_type?: ProductType;
+  /** `pfile:<path>` sentinel for a private digital file, or null. */
+  file_url?: string | null;
+  file_name?: string | null;
+  download_limit?: number | null;
 }
 
 function normStock(stock: number | null | undefined): number | null {
   return stock === null || stock === undefined
     ? null
     : Math.max(0, Math.floor(Number(stock)));
+}
+
+function normType(t: ProductType | undefined): ProductType {
+  return t === "physical" || t === "service" ? t : "digital";
+}
+
+function normLimit(n: number | null | undefined): number | null {
+  if (n === null || n === undefined || n === 0) return null;
+  const v = Math.floor(Number(n));
+  return v > 0 ? v : null;
+}
+
+/** Columns shared by create + update for the digital/physical/service fields. */
+function typeFields(input: CatalogProductInput) {
+  const product_type = normType(input.product_type);
+  const isDigital = product_type === "digital";
+  return {
+    product_type,
+    // Shipping is derived from the type so it can't drift.
+    requires_shipping: product_type === "physical",
+    file_url: isDigital ? input.file_url?.trim() || null : null,
+    file_name: isDigital ? input.file_name?.trim()?.slice(0, 200) || null : null,
+    download_limit: isDigital ? normLimit(input.download_limit) : null,
+  };
 }
 
 export async function createCatalogProductAction(
@@ -203,9 +234,9 @@ export async function createCatalogProductAction(
       is_catalog: true,
       image_url: input.image_url?.trim() || null,
       category: input.category?.trim() || null,
-      requires_shipping: !!input.requires_shipping,
       stock: normStock(input.stock),
       sku: input.sku?.trim() || null,
+      ...typeFields(input),
     })
     .select("id")
     .single();
@@ -259,10 +290,10 @@ export async function updateCatalogProductAction(
       price,
       image_url: input.image_url?.trim() || null,
       category: input.category?.trim() || null,
-      requires_shipping: !!input.requires_shipping,
       stock: normStock(input.stock),
       sku: input.sku?.trim() || null,
       active: input.active ?? true,
+      ...typeFields(input),
     })
     .eq("id", productId);
   if (error) return { ok: false, message: error.message };

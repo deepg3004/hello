@@ -11,6 +11,7 @@ import {
   setProductVariantsAction,
   setProductImagesAction,
   type CatalogProductInput,
+  type ProductType,
 } from "@/actions/store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,10 @@ export interface CatalogProduct {
   stock: number | null;
   sku: string | null;
   active: boolean;
+  product_type: ProductType;
+  file_url: string | null;
+  file_name: string | null;
+  download_limit: number | null;
   slug: string | null;
   variants: CatalogVariant[];
   images: string[];
@@ -74,6 +79,10 @@ function emptyDraft(): Draft {
     stock: null,
     sku: "",
     active: true,
+    product_type: "digital",
+    file_url: "",
+    file_name: "",
+    download_limit: null,
   };
 }
 
@@ -109,11 +118,33 @@ export function CatalogManager({
       stock: p.stock,
       sku: p.sku ?? "",
       active: p.active,
+      product_type: p.product_type,
+      file_url: p.file_url ?? "",
+      file_name: p.file_name ?? "",
+      download_limit: p.download_limit,
     });
     setEditing(p.id);
   }
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
+
+  const [uploadingFile, setUploadingFile] = useState(false);
+  async function onPickFile(file: File) {
+    setUploadingFile(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/uploads/product-file", { method: "POST", body: fd });
+      const b = (await res.json()) as { path?: string; name?: string; error?: string };
+      if (!res.ok || !b.path) throw new Error(b.error ?? "Upload failed");
+      setDraft((d) => ({ ...d, file_url: `pfile:${b.path}`, file_name: b.name ?? file.name }));
+      toast({ title: "File uploaded" });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Upload failed", description: e instanceof Error ? e.message : undefined });
+    } finally {
+      setUploadingFile(false);
+    }
+  }
 
   function save() {
     if (!draft.name.trim()) {
@@ -316,13 +347,75 @@ export function CatalogManager({
               <Label>Main image</Label>
               <ImageUpload value={draft.image_url ?? ""} onChange={(v) => set("image_url", v)} />
             </div>
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <p className="text-sm font-medium">Physical product</p>
-                <p className="text-xs text-muted-foreground">Collect a delivery address at checkout.</p>
+            <div className="grid gap-1.5">
+              <Label>Product type</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  ["digital", "Digital", "Downloadable file"],
+                  ["physical", "Physical", "Ships to buyer"],
+                  ["service", "Service", "No file / shipping"],
+                ] as const).map(([val, label, hint]) => {
+                  const on = (draft.product_type ?? "digital") === val;
+                  return (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => set("product_type", val)}
+                      className={
+                        "rounded-lg border p-2.5 text-left transition " +
+                        (on ? "border-primary bg-primary/10" : "hover:bg-muted")
+                      }
+                    >
+                      <span className="block text-sm font-medium">{label}</span>
+                      <span className="block text-[11px] text-muted-foreground">{hint}</span>
+                    </button>
+                  );
+                })}
               </div>
-              <Switch checked={draft.requires_shipping} onCheckedChange={(v) => set("requires_shipping", v)} />
             </div>
+
+            {(draft.product_type ?? "digital") === "digital" && (
+              <div className="grid gap-3 rounded-lg border p-3">
+                <div className="grid gap-1.5">
+                  <Label>Downloadable file</Label>
+                  {draft.file_url ? (
+                    <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                      <span className="truncate">{draft.file_name || "Uploaded file"}</span>
+                      <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setDraft((d) => ({ ...d, file_url: "", file_name: "" }))}>
+                        Remove
+                      </Button>
+                    </div>
+                  ) : (
+                    <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed p-3 text-sm text-muted-foreground hover:bg-muted">
+                      {uploadingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                      {uploadingFile ? "Uploading…" : "Upload file (PDF, ZIP, video… up to 50 MB)"}
+                      <input
+                        type="file"
+                        className="hidden"
+                        disabled={uploadingFile}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) void onPickFile(f);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Download limit (blank = unlimited)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    placeholder="e.g. 3"
+                    value={draft.download_limit ?? ""}
+                    onChange={(e) => set("download_limit", e.target.value === "" ? null : Number(e.target.value))}
+                  />
+                  <p className="text-[11px] text-muted-foreground">Max times each buyer can download after purchase.</p>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label>Stock (blank = untracked)</Label>

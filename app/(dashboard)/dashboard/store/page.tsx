@@ -86,7 +86,7 @@ export default async function StoreDashboardPage() {
   const { data: catalogRaw } = await admin
     .from("products")
     .select(
-      "id, name, price, description, image_url, category, requires_shipping, stock, sku, active, pages!products_page_id_fkey(slug), product_variants(id, name, price, stock, sku, active, sort_order), product_images(url, sort_order)",
+      "id, name, price, description, image_url, category, requires_shipping, stock, sku, active, product_type, file_url, file_name, download_limit, pages!products_page_id_fkey(slug), product_variants(id, name, price, stock, sku, active, sort_order), product_images(url, sort_order)",
     )
     .eq("user_id", ctx.ownerId)
     .eq("is_catalog", true)
@@ -102,6 +102,10 @@ export default async function StoreDashboardPage() {
     stock: number | null;
     sku: string | null;
     active: boolean;
+    product_type: "digital" | "physical" | "service" | null;
+    file_url: string | null;
+    file_name: string | null;
+    download_limit: number | null;
     pages?: { slug: string } | { slug: string }[] | null;
     product_variants?: Array<{ id: string; name: string; price: number; stock: number | null; sku: string | null; active: boolean; sort_order: number }> | null;
     product_images?: Array<{ url: string; sort_order: number }> | null;
@@ -116,6 +120,10 @@ export default async function StoreDashboardPage() {
     stock: r.stock,
     sku: r.sku,
     active: r.active,
+    product_type: r.product_type ?? "digital",
+    file_url: r.file_url,
+    file_name: r.file_name,
+    download_limit: r.download_limit,
     slug: (Array.isArray(r.pages) ? r.pages[0] : r.pages)?.slug ?? null,
     variants: (r.product_variants ?? [])
       .sort((a, b) => a.sort_order - b.sort_order)
