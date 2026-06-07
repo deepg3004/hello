@@ -366,11 +366,14 @@ export function CourseLanding(props: CourseLandingProps) {
 
       {/* Sticky mobile buy bar */}
       <div className="sf-band sf-border fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t px-4 py-3 shadow-lg lg:hidden">
-        <div className="flex items-baseline gap-2">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           {priceRupees != null ? (
             <span className="text-lg font-bold">{formatINR(Math.round(priceRupees * 100))}</span>
           ) : (
             <span className="text-lg font-bold">Free</span>
+          )}
+          {off > 0 && originalPriceRupees != null && (
+            <span className="text-xs sf-muted line-through">{formatINR(Math.round(originalPriceRupees * 100))}</span>
           )}
           {off > 0 && <span className="text-xs font-semibold text-rose-500">{off}% off</span>}
         </div>

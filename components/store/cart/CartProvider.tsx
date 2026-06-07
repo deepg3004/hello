@@ -41,6 +41,8 @@ interface CartContextValue {
    *  detail), so the floating cart pill lifts above it on small screens. */
   floatingBar: boolean;
   setFloatingBar: (v: boolean) => void;
+  /** Seller account id, used to fetch publicly-listed promo codes. */
+  sellerId: string | null;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -49,9 +51,11 @@ const CartContext = createContext<CartContextValue | null>(null);
  *  store's username/subdomain). */
 export function CartProvider({
   username,
+  sellerId = null,
   children,
 }: {
   username: string;
+  sellerId?: string | null;
   children: React.ReactNode;
 }) {
   const key = `invox_cart_${username}`;
@@ -112,8 +116,8 @@ export function CartProvider({
   const value = useMemo<CartContextValue>(() => {
     const count = items.reduce((n, p) => n + p.quantity, 0);
     const subtotal = items.reduce((s, p) => s + p.price * p.quantity, 0);
-    return { items, count, subtotal, add, setQty, remove, clear, isOpen, setOpen, openCart, floatingBar, setFloatingBar };
-  }, [items, add, setQty, remove, clear, isOpen, openCart, floatingBar]);
+    return { items, count, subtotal, add, setQty, remove, clear, isOpen, setOpen, openCart, floatingBar, setFloatingBar, sellerId };
+  }, [items, add, setQty, remove, clear, isOpen, openCart, floatingBar, sellerId]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

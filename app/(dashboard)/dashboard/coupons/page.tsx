@@ -19,7 +19,7 @@ export default async function CouponsPage() {
       admin
         .from("coupons")
         .select(
-          "id, code, discount_type, discount_value, min_order, max_discount, total_limit, per_customer_limit, usage_count, starts_at, expires_at, page_ids, active, created_at",
+          "id, code, discount_type, discount_value, min_order, max_discount, total_limit, per_customer_limit, usage_count, starts_at, expires_at, page_ids, active, show_at_checkout, created_at",
         )
         .eq("user_id", ctx.ownerId)
         .order("created_at", { ascending: false }),

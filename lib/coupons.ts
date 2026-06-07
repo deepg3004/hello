@@ -214,6 +214,73 @@ export async function validateCartCoupon(args: {
   };
 }
 
+export interface AvailableCoupon {
+  code: string;
+  discount_type: "percentage" | "fixed";
+  discount_value: number;
+  min_order: number;
+  /** Short human label, e.g. "10% OFF" or "₹100 OFF". */
+  label: string;
+}
+
+/**
+ * Public list of coupons a seller has opted to surface at checkout
+ * (show_at_checkout = true). Filters to currently-valid codes only:
+ * active, within the start/expiry window, and total-limit not exhausted
+ * (best-effort via usage_count — the apply step re-validates fully).
+ *
+ * - With page_id (single-page checkout): include all-page coupons OR ones
+ *   whose page_ids contains this page.
+ * - Without page_id (whole-cart checkout): only non-page-restricted coupons,
+ *   matching validateCartCoupon's rule.
+ */
+export async function listAvailableCoupons(args: {
+  seller_id: string;
+  page_id?: string;
+}): Promise<AvailableCoupon[]> {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("coupons")
+    .select(
+      "code, discount_type, discount_value, min_order, total_limit, usage_count, starts_at, expires_at, page_ids",
+    )
+    .eq("user_id", args.seller_id)
+    .eq("active", true)
+    .eq("show_at_checkout", true)
+    .order("created_at", { ascending: false })
+    .limit(24);
+
+  const now = nowIso();
+  const out: AvailableCoupon[] = [];
+  for (const c of data ?? []) {
+    if (c.starts_at && c.starts_at > now) continue;
+    if (c.expires_at && c.expires_at < now) continue;
+    if (
+      c.total_limit != null &&
+      Number(c.usage_count ?? 0) >= Number(c.total_limit)
+    ) {
+      continue;
+    }
+    const restricted = Array.isArray(c.page_ids) && c.page_ids.length > 0;
+    if (args.page_id) {
+      if (restricted && !c.page_ids.includes(args.page_id)) continue;
+    } else if (restricted) {
+      continue;
+    }
+    const isPct = c.discount_type === "percentage";
+    out.push({
+      code: c.code as string,
+      discount_type: c.discount_type as "percentage" | "fixed",
+      discount_value: Number(c.discount_value),
+      min_order: Number(c.min_order ?? 0),
+      label: isPct
+        ? `${Number(c.discount_value)}% OFF`
+        : `₹${Number(c.discount_value)} OFF`,
+    });
+  }
+  return out;
+}
+
 /**
  * Atomically reserve a coupon slot during order creation. Returns false if
  * the limit was hit by a concurrent buyer.

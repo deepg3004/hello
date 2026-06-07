@@ -63,8 +63,14 @@ function useRazorpay() {
   return ready;
 }
 
+interface AvailableCouponLite {
+  code: string;
+  label: string;
+  min_order: number;
+}
+
 export function CartDrawer() {
-  const { items, count, subtotal, setQty, remove, clear, isOpen: open, setOpen, floatingBar } = useCart();
+  const { items, count, subtotal, setQty, remove, clear, isOpen: open, setOpen, floatingBar, sellerId } = useCart();
   const { toast } = useToast();
   const razorpayReady = useRazorpay();
   const [paying, setPaying] = useState(false);
@@ -79,14 +85,35 @@ export function CartDrawer() {
   const [promo, setPromo] = useState("");
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState<{ code: string; discount: number } | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [avail, setAvail] = useState<AvailableCouponLite[] | null>(null);
 
   const discount = applied ? Math.min(subtotal, applied.discount) : 0;
   const payable = Math.max(0, subtotal - discount);
 
-  async function applyPromo() {
-    const code = promo.trim();
+  // Load the seller's publicly-listed promo codes once the cart is open.
+  useEffect(() => {
+    if (!open || !sellerId || avail !== null) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/checkout/available-coupons?seller=${encodeURIComponent(sellerId)}`);
+        const b = (await res.json()) as { coupons?: AvailableCouponLite[] };
+        if (!cancelled) setAvail(b.coupons ?? []);
+      } catch {
+        if (!cancelled) setAvail([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, sellerId, avail]);
+
+  async function applyPromo(codeArg?: string) {
+    const code = (codeArg ?? promo).trim();
     if (!code) return;
     setApplying(true);
+    setPromoError(null);
     try {
       const res = await fetch("/api/checkout/validate-cart-coupon", {
         method: "POST",
@@ -98,12 +125,13 @@ export function CartDrawer() {
         }),
       });
       const b = (await res.json()) as { ok?: boolean; code?: string; discount_amount?: number; error?: string };
-      if (!res.ok || !b.ok) throw new Error(b.error ?? "Invalid promo code");
+      if (!res.ok || !b.ok) throw new Error(b.error ?? "This promo code isn’t available.");
       setApplied({ code: b.code ?? code, discount: b.discount_amount ?? 0 });
+      setPromo(b.code ?? code);
       toast({ title: `Promo applied — ${formatINR(Math.round((b.discount_amount ?? 0) * 100))} off` });
     } catch (e) {
       setApplied(null);
-      toast({ variant: "destructive", title: "Couldn't apply promo", description: e instanceof Error ? e.message : undefined });
+      setPromoError(e instanceof Error ? e.message : "This promo code isn’t available.");
     } finally {
       setApplying(false);
     }
@@ -112,6 +140,7 @@ export function CartDrawer() {
   function clearPromo() {
     setApplied(null);
     setPromo("");
+    setPromoError(null);
   }
 
   async function checkout() {
@@ -242,16 +271,46 @@ export function CartDrawer() {
                 <span>−{formatINR(Math.round(discount * 100))}</span>
               </div>
             ) : (
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Promo code"
-                  value={promo}
-                  onChange={(e) => setPromo(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && applyPromo()}
-                />
-                <Button variant="outline" onClick={applyPromo} disabled={applying || !promo.trim()}>
-                  {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
-                </Button>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Promo code"
+                    value={promo}
+                    onChange={(e) => {
+                      setPromo(e.target.value.toUpperCase());
+                      setPromoError(null);
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && applyPromo()}
+                    className="uppercase"
+                  />
+                  <Button variant="outline" onClick={() => applyPromo()} disabled={applying || !promo.trim()}>
+                    {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
+                  </Button>
+                </div>
+                {promoError && <p className="text-xs text-rose-600">{promoError}</p>}
+                {avail && avail.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">Available offers — tap to apply</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {avail.map((c) => (
+                        <button
+                          key={c.code}
+                          type="button"
+                          onClick={() => applyPromo(c.code)}
+                          disabled={applying}
+                          title={c.min_order > 0 ? `Min order ₹${c.min_order}` : undefined}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-emerald-400/60 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-500/20 disabled:opacity-50 dark:text-emerald-300"
+                        >
+                          <span className="font-mono font-semibold">{c.code}</span>
+                          <span className="opacity-80">{c.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {avail && avail.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No promo codes available right now.</p>
+                )}
               </div>
             )}
             <div className="flex justify-between text-sm font-semibold">

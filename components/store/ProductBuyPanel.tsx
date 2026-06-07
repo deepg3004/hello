@@ -12,6 +12,8 @@ export interface BuyPanelProduct {
   product_id: string;
   name: string;
   price: number;
+  /** Regular ("was") price for strike-through display, when on offer. */
+  original_price: number | null;
   image_url: string | null;
   slug: string;
   stock: number | null;
@@ -40,6 +42,11 @@ export function ProductBuyPanel({ product }: { product: BuyPanelProduct }) {
   const stock = variant ? variant.stock : product.stock;
   const soldOut = stock != null && stock <= 0;
   const maxQty = stock != null ? Math.max(1, stock) : 99;
+
+  // "Was" price for the strike-through / save badge (product-level offer).
+  const original = product.original_price;
+  const onOffer = original != null && original > price;
+  const offPct = onOffer ? Math.round(((original - price) / original) * 100) : 0;
 
   function toCart(): VariantOption | null | false {
     if (soldOut) return false;
@@ -73,8 +80,16 @@ export function ProductBuyPanel({ product }: { product: BuyPanelProduct }) {
   return (
     <>
     <div className="space-y-5">
-      <div className="flex items-baseline gap-3">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className="text-3xl font-bold">{formatINR(Math.round(price * 100))}</span>
+        {onOffer && (
+          <>
+            <span className="text-base sf-muted line-through">{formatINR(Math.round(original * 100))}</span>
+            <span className="rounded-full bg-rose-500/10 px-2 py-0.5 text-xs font-semibold text-rose-500">
+              {offPct}% off
+            </span>
+          </>
+        )}
       </div>
 
       {hasVariants && (
@@ -144,7 +159,15 @@ export function ProductBuyPanel({ product }: { product: BuyPanelProduct }) {
       {/* Sticky mobile buy bar */}
       <div className="sf-band sf-border fixed inset-x-0 bottom-0 z-40 border-t px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.18)] md:hidden">
         <div className="mb-2 flex items-baseline justify-between gap-2">
-          <span className="text-lg font-bold">{formatINR(Math.round(price * 100))}</span>
+          <span className="flex items-baseline gap-2">
+            <span className="text-lg font-bold">{formatINR(Math.round(price * 100))}</span>
+            {onOffer && (
+              <>
+                <span className="text-sm sf-muted line-through">{formatINR(Math.round(original * 100))}</span>
+                <span className="text-xs font-semibold text-rose-500">{offPct}% off</span>
+              </>
+            )}
+          </span>
           {stock != null && stock > 0 && stock <= 5 && (
             <span className="text-xs font-medium text-rose-500">Only {stock} left</span>
           )}

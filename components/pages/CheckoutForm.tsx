@@ -228,6 +228,9 @@ export function CheckoutForm(props: CheckoutFormProps) {
   const [couponOpen, setCouponOpen] = useState(false);
   const [applyingCoupon, setApplyingCoupon] = useState(false);
   const [couponError, setCouponError] = useState<string | null>(null);
+  const [availCoupons, setAvailCoupons] = useState<
+    { code: string; label: string; min_order: number }[]
+  >([]);
   const [coupon, setCoupon] = useState<AppliedCoupon | null>(null);
   // Brief celebratory popup when a coupon is applied (holds the saved amount).
   const [celebrateSaved, setCelebrateSaved] = useState<number | null>(null);
@@ -342,6 +345,30 @@ export function CheckoutForm(props: CheckoutFormProps) {
       }
     })();
     // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Load the seller's publicly-listed promo codes for this page.
+  useEffect(() => {
+    if (preview) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/coupons/available?page_id=${encodeURIComponent(props.pageId)}`);
+        const b = (await res.json()) as {
+          coupons?: { code: string; label: string; min_order: number }[];
+        };
+        if (!cancelled && b.coupons && b.coupons.length > 0) {
+          setAvailCoupons(b.coupons);
+          setCouponOpen(true); // surface the offers
+        }
+      } catch {
+        /* non-fatal */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1292,6 +1319,28 @@ export function CheckoutForm(props: CheckoutFormProps) {
                 </div>
                 {couponError && (
                   <p className="text-xs text-rose-600">{couponError}</p>
+                )}
+                {availCoupons.length > 0 && (
+                  <div className="space-y-1.5 pt-1">
+                    <p className="text-xs font-medium text-zinc-500">
+                      Available offers — tap to apply
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {availCoupons.map((c) => (
+                        <button
+                          key={c.code}
+                          type="button"
+                          onClick={() => applyCoupon(c.code)}
+                          disabled={applyingCoupon}
+                          title={c.min_order > 0 ? `Min order ₹${c.min_order}` : undefined}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-emerald-400/70 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+                        >
+                          <span className="font-mono font-semibold">{c.code}</span>
+                          <span className="opacity-80">{c.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </>
             )}

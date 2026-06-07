@@ -50,6 +50,7 @@ export interface CouponDialogProps {
     expires_at: string | null;
     page_ids: string[];
     active: boolean;
+    show_at_checkout: boolean;
   };
 }
 
@@ -91,6 +92,7 @@ export function CouponDialog({ open, onOpenChange, pages, initial }: CouponDialo
   const [startsAt, setStartsAt] = useState(toLocalInput(initial?.starts_at ?? null));
   const [expiresAt, setExpiresAt] = useState(toLocalInput(initial?.expires_at ?? null));
   const [active, setActive] = useState(initial?.active ?? true);
+  const [showAtCheckout, setShowAtCheckout] = useState(initial?.show_at_checkout ?? false);
   const [allPages, setAllPages] = useState((initial?.page_ids?.length ?? 0) === 0);
   const [selectedPages, setSelectedPages] = useState<Set<string>>(
     new Set(initial?.page_ids ?? []),
@@ -112,6 +114,7 @@ export function CouponDialog({ open, onOpenChange, pages, initial }: CouponDialo
       setStartsAt(toLocalInput(initial.starts_at));
       setExpiresAt(toLocalInput(initial.expires_at));
       setActive(initial.active);
+      setShowAtCheckout(initial.show_at_checkout ?? false);
       setAllPages((initial.page_ids?.length ?? 0) === 0);
       setSelectedPages(new Set(initial.page_ids ?? []));
     }
@@ -137,6 +140,7 @@ export function CouponDialog({ open, onOpenChange, pages, initial }: CouponDialo
       expires_at: fromLocalInput(expiresAt),
       page_ids: allPages ? [] : Array.from(selectedPages),
       active,
+      show_at_checkout: showAtCheckout,
     };
     setSubmitting(true);
     const r = editing
@@ -301,6 +305,17 @@ export function CouponDialog({ open, onOpenChange, pages, initial }: CouponDialo
               </p>
             </div>
             <Switch checked={active} onCheckedChange={setActive} />
+          </div>
+
+          <div className="flex items-center justify-between rounded-md border bg-muted/30 p-3">
+            <div>
+              <Label>Show at checkout</Label>
+              <p className="text-xs text-muted-foreground">
+                Publicly list this code so buyers can tap to apply it. Leave off
+                to keep it secret (only people with the code can use it).
+              </p>
+            </div>
+            <Switch checked={showAtCheckout} onCheckedChange={setShowAtCheckout} />
           </div>
         </div>
 

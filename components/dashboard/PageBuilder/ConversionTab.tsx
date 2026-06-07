@@ -819,6 +819,7 @@ function CouponQuickAdd({
         expires_at: null,
         page_ids: [pageId],
         active: true,
+        show_at_checkout: false,
       });
       if (!res.ok) {
         toast({ title: "Couldn't create coupon", description: res.message, variant: "destructive" });

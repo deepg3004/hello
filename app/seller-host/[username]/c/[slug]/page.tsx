@@ -123,7 +123,7 @@ export default async function CollectionPage({ params }: Props) {
     : [];
 
   return (
-    <CartProvider username={params.username}>
+    <CartProvider username={params.username} sellerId={profile.id}>
     <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName} sellerId={profile.id}>
       <main className="mx-auto max-w-5xl px-6 py-12">
         <div className="mb-8">

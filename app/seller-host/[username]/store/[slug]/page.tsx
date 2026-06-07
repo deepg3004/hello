@@ -172,6 +172,10 @@ export default async function ProductDetailPage({ params }: Props) {
     product_id: prod.id,
     name: prod.name ?? "Product",
     price: Number(prod.price ?? 0),
+    original_price:
+      prod.original_price != null && Number(prod.original_price) > 0
+        ? Number(prod.original_price)
+        : null,
     image_url: prod.image_url,
     slug: params.slug,
     stock: prod.stock,
@@ -186,7 +190,7 @@ export default async function ProductDetailPage({ params }: Props) {
   const sellerName = profile.legal_business_name ?? profile.full_name ?? params.username;
 
   return (
-    <CartProvider username={params.username}>
+    <CartProvider username={params.username} sellerId={profile.id}>
       <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName} sellerId={profile.id}>
         <main className="mx-auto max-w-5xl px-4 pt-8 pb-28 sm:px-6 md:pb-8">
           <nav className="sf-muted mb-6 text-sm">
@@ -214,13 +218,8 @@ export default async function ProductDetailPage({ params }: Props) {
                 </a>
               )}
 
-              {prod.original_price && prod.original_price > prod.price && (
-                <p className="text-sm">
-                  <span className="sf-muted line-through">₹{prod.original_price}</span>{" "}
-                  <span className="font-semibold text-rose-500">Save ₹{Math.round(prod.original_price - prod.price)}</span>
-                </p>
-              )}
-
+              {/* Price (with strike-through "was" + % off) is rendered inside
+                  the buy panel so it stays in sync with the selected variant. */}
               <ProductBuyPanel product={buyProduct} />
 
               {cfg.sections.trust && (

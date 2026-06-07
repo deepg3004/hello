@@ -18,6 +18,8 @@ export interface CouponInput {
   expires_at: string | null;
   page_ids: string[];
   active: boolean;
+  /** When true, the code is publicly listed at checkout for buyers to tap. */
+  show_at_checkout: boolean;
 }
 
 export interface CouponActionResult {
@@ -107,6 +109,7 @@ export async function createCouponAction(
       expires_at: input.expires_at,
       page_ids: input.page_ids,
       active: input.active,
+      show_at_checkout: input.show_at_checkout,
     })
     .select("id")
     .single();
@@ -166,6 +169,7 @@ export async function updateCouponAction(
       expires_at: input.expires_at,
       page_ids: input.page_ids,
       active: input.active,
+      show_at_checkout: input.show_at_checkout,
     })
     .eq("id", id);
   if (error) return { ok: false, message: error.message };
@@ -218,6 +222,7 @@ export async function duplicateCouponAction(id: string): Promise<CouponActionRes
       expires_at: c.expires_at,
       page_ids: c.page_ids,
       active: false, // duplicates default to inactive
+      show_at_checkout: c.show_at_checkout ?? false,
     })
     .select("id")
     .single();

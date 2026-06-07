@@ -58,6 +58,7 @@ export interface CouponRow {
   expires_at: string | null;
   page_ids: string[];
   active: boolean;
+  show_at_checkout: boolean;
   created_at: string;
 }
 
