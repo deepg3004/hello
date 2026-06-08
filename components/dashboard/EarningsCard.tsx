@@ -110,8 +110,12 @@ export function EarningsCard({
                 contentStyle={{
                   borderRadius: 12,
                   border: "1px solid hsl(var(--border))",
+                  background: "hsl(var(--popover))",
+                  color: "hsl(var(--popover-foreground))",
                   fontSize: 12,
                 }}
+                itemStyle={{ color: "hsl(var(--popover-foreground))" }}
+                labelStyle={{ color: "hsl(var(--muted-foreground))" }}
               />
               <Area
                 type="monotone"
