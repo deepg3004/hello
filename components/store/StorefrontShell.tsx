@@ -1,8 +1,11 @@
+import { cookies } from "next/headers";
+
 import {
   themeCssVars,
   type SurfaceConfig,
   type ChromeConfig,
 } from "@/lib/storefront-theme";
+import { BUYER_COOKIE, verifyBuyerSession } from "@/lib/buyer-portal";
 import { StorefrontHeader } from "@/components/store/StorefrontHeader";
 import { StorefrontFooter } from "@/components/store/StorefrontFooter";
 import { StorefrontTracker } from "@/components/store/StorefrontTracker";
@@ -27,6 +30,9 @@ export function StorefrontShell({
   const vars = themeCssVars(cfg);
   const showBar = cfg.sections.announcement && !!cfg.announcement.trim();
   const name = brandName ?? "Store";
+  // Show "My Account" instead of Login/Sign-up when the buyer is signed in.
+  const buyerCookie = cookies().get(BUYER_COOKIE)?.value;
+  const buyerLoggedIn = !!(buyerCookie && verifyBuyerSession(buyerCookie));
   return (
     <div className="sf-root flex min-h-screen flex-col pb-16 md:pb-0" style={vars as React.CSSProperties}>
       {showBar && (
@@ -35,7 +41,12 @@ export function StorefrontShell({
         </div>
       )}
       {chrome?.header.enabled && (
-        <StorefrontHeader header={chrome.header} brandName={name} logo={cfg.logo} />
+        <StorefrontHeader
+          header={chrome.header}
+          brandName={name}
+          logo={cfg.logo}
+          buyerLoggedIn={buyerLoggedIn}
+        />
       )}
       <div className="flex-1">{children}</div>
       {chrome?.footer.enabled && <StorefrontFooter footer={chrome.footer} brandName={name} />}

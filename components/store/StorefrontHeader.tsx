@@ -12,10 +12,14 @@ export function StorefrontHeader({
   header,
   brandName,
   logo,
+  buyerLoggedIn = false,
 }: {
   header: ChromeConfig["header"];
   brandName: string;
   logo: string;
+  /** When the buyer has an active session, show "My Account" instead of the
+   *  Login / Sign-up buttons. */
+  buyerLoggedIn?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const path = usePathname() || "/";
@@ -56,16 +60,24 @@ export function StorefrontHeader({
               {header.ctaLabel}
             </a>
           )}
-          {header.showAuth && (
-            <span className="flex items-center gap-2">
-              <a href={authHref("login")} className="sf-btn-outline inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold transition hover:opacity-80">
-                <User className="h-4 w-4" /> Login
+          {header.showAuth &&
+            (buyerLoggedIn ? (
+              <a
+                href="/account"
+                className="sf-btn-outline inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold transition hover:opacity-80"
+              >
+                <User className="h-4 w-4" /> My Account
               </a>
-              <a href={authHref("signup")} className="sf-btn px-3.5 py-2 text-sm font-semibold">
-                Sign up
-              </a>
-            </span>
-          )}
+            ) : (
+              <span className="flex items-center gap-2">
+                <a href={authHref("login")} className="sf-btn-outline inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold transition hover:opacity-80">
+                  <User className="h-4 w-4" /> Login
+                </a>
+                <a href={authHref("signup")} className="sf-btn px-3.5 py-2 text-sm font-semibold">
+                  Sign up
+                </a>
+              </span>
+            ))}
         </nav>
 
         {/* Mobile toggle */}
@@ -88,16 +100,25 @@ export function StorefrontHeader({
                 {header.ctaLabel}
               </a>
             )}
-            {header.showAuth && (
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <a href={authHref("login")} className="sf-btn-outline px-3 py-2 text-center text-sm font-semibold">
-                  Login
+            {header.showAuth &&
+              (buyerLoggedIn ? (
+                <a
+                  href="/account"
+                  onClick={() => setOpen(false)}
+                  className="sf-btn-outline mt-2 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-center text-sm font-semibold"
+                >
+                  <User className="h-4 w-4" /> My Account
                 </a>
-                <a href={authHref("signup")} className="sf-btn px-3 py-2 text-center text-sm font-semibold">
-                  Sign up
-                </a>
-              </div>
-            )}
+              ) : (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <a href={authHref("login")} className="sf-btn-outline px-3 py-2 text-center text-sm font-semibold">
+                    Login
+                  </a>
+                  <a href={authHref("signup")} className="sf-btn px-3 py-2 text-center text-sm font-semibold">
+                    Sign up
+                  </a>
+                </div>
+              ))}
           </nav>
         </div>
       )}
