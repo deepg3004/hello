@@ -297,7 +297,7 @@ export default async function CoursePage({
     productId
       ? admin
           .from("products")
-          .select("price, original_price, pages!products_page_id_fkey(slug, type, template_id, status)")
+          .select("price, original_price, pages!products_page_id_fkey(id, slug, type, template_id, status)")
           .eq("id", productId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
@@ -404,6 +404,19 @@ export default async function CoursePage({
   const cfg = resolveSurfaceConfig(seller?.storefront_config, "course");
   const chrome = resolveChromeConfig(seller?.storefront_config);
 
+  // Inline checkout (direct on-site, no separate /p payment page).
+  const pageId = (page as { id?: string } | null)?.id ?? null;
+  const checkout =
+    page && page.status === "published" && pageId && productId
+      ? {
+          pageId,
+          productId,
+          productName: course.title as string,
+          price: Number(product?.price ?? 0),
+          accent: cfg.accent ?? null,
+        }
+      : null;
+
   return (
     <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName ?? "Course"} sellerId={sellerUserId}>
     <CourseLanding
@@ -429,6 +442,7 @@ export default async function CoursePage({
       priceRupees={product ? Number(product.price) : null}
       originalPriceRupees={product && product.original_price != null ? Number(product.original_price) : null}
       checkoutUrl={checkoutUrl}
+      checkout={checkout}
       previewLessons={previewLessons}
       previewToken={signPreviewToken(courseId)}
       rating={summary}
