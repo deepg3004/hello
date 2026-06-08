@@ -73,47 +73,48 @@
   }
 
   .dark {
-    /* Neutral charcoal canvas (not blue) — the monochrome look inverted.
-       CTA buttons flip to near-white with charcoal text (Vercel/Linear dark). */
-    --background: 240 5% 6%;           /* #0E0E0F */
-    --foreground: 0 0% 95%;
-    --card: 240 4% 9%;                 /* #161617 elevated */
-    --card-foreground: 0 0% 95%;
-    --popover: 240 4% 10%;
-    --popover-foreground: 0 0% 95%;
-    --primary: 0 0% 98%;               /* near-white CTA */
-    --primary-foreground: 240 6% 8%;
-    --secondary: 240 4% 14%;
-    --secondary-foreground: 0 0% 95%;
-    --muted: 240 4% 14%;
-    --muted-foreground: 0 0% 62%;
-    --accent: 240 4% 16%;
-    --accent-foreground: 0 0% 95%;
+    /* Modern Dark Glass — premium navy canvas with an indigo-forward CTA and
+       glowing glass surfaces. Unified with the dashboard navy so marketing,
+       auth, checkout and app all share one cohesive dark look. */
+    --background: 226 48% 6%;          /* #080d1c deep navy */
+    --foreground: 210 22% 96%;         /* cool near-white */
+    --card: 222 47% 11%;               /* #0F172A elevated glass */
+    --card-foreground: 210 22% 96%;
+    --popover: 222 47% 12%;
+    --popover-foreground: 210 22% 96%;
+    --primary: 262 83% 62%;            /* indigo CTA */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 33% 16%;
+    --secondary-foreground: 210 22% 96%;
+    --muted: 217 33% 15%;
+    --muted-foreground: 215 20% 66%;
+    --accent: 217 33% 18%;
+    --accent-foreground: 210 22% 96%;
     --destructive: 0 72% 55%;
     --destructive-foreground: 0 0% 100%;
-    --border: 240 4% 18%;
-    --input: 240 4% 18%;
-    --ring: 262 83% 64%;               /* purple focus accent */
+    --border: 222 34% 18%;             /* indigo-tinted hairline */
+    --input: 222 34% 18%;
+    --ring: 262 83% 66%;               /* indigo focus accent */
 
     /* Sidebar — even darker than the canvas */
-    --sidebar-bg: 240 6% 4%;
-    --sidebar-fg: 0 0% 72%;
+    --sidebar-bg: 229 64% 4%;          /* #030615 */
+    --sidebar-fg: 215 20% 74%;
     --sidebar-active-bg: 262 83% 60%;
-    --sidebar-hover-bg: 240 4% 13%;
-    --sidebar-border: 240 4% 12%;
-    --metric-bg: 240 4% 9%;
+    --sidebar-hover-bg: 217 33% 16%;
+    --sidebar-border: 222 34% 16%;
+    --metric-bg: 222 47% 11%;
 
-    --progress-fill: 0 0% 96%;
-    --progress-track: 240 4% 20%;
+    --progress-fill: 262 83% 64%;
+    --progress-track: 217 33% 20%;
 
-    /* Accent gradient + glow — purple, tuned for dark */
+    /* Accent gradient + glow — indigo→violet, tuned for dark */
     --brand-gradient: linear-gradient(120deg, hsl(262 83% 64%), hsl(248 84% 66%));
     --glow-indigo: 262 83% 64%;
-    --glass-bg: 240 4% 10%;
-    --glass-alpha: 0.62;
+    --glass-bg: 222 47% 12%;
+    --glass-alpha: 0.55;
     --aurora-1: 262 83% 58%;
     --aurora-2: 248 84% 60%;
-    --aurora-3: 189 90% 45%;
+    --aurora-3: 199 90% 48%;
   }
 }
 

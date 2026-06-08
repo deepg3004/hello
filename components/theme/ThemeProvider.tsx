@@ -46,13 +46,14 @@ function applyClass(resolved: "light" | "dark") {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   // Initialise from what the no-flash script already decided, falling back to
-  // the stored value. Defaults to "light".
-  const [theme, setThemeState] = useState<Theme>("light");
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
+  // the stored value. Defaults to "dark" (Modern Dark Glass look); users who
+  // previously chose a theme keep it, and the toggle still switches to light.
+  const [theme, setThemeState] = useState<Theme>("dark");
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
 
   // Hydrate stored preference once on mount.
   useEffect(() => {
-    const stored = (localStorage.getItem(THEME_STORAGE_KEY) as Theme) || "light";
+    const stored = (localStorage.getItem(THEME_STORAGE_KEY) as Theme) || "dark";
     setThemeState(stored);
   }, []);
 
@@ -118,4 +119,4 @@ export function useTheme(): ThemeContextValue {
  * first paint, preventing a light→dark flash. Kept here so the logic lives
  * next to the provider it mirrors.
  */
-export const NO_FLASH_SCRIPT = `(function(){try{var t=localStorage.getItem('${THEME_STORAGE_KEY}')||'light';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);var r=document.documentElement;r.classList.toggle('dark',d);r.style.colorScheme=d?'dark':'light';}catch(e){}})();`;
+export const NO_FLASH_SCRIPT = `(function(){try{var t=localStorage.getItem('${THEME_STORAGE_KEY}')||'dark';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);var r=document.documentElement;r.classList.toggle('dark',d);r.style.colorScheme=d?'dark':'light';}catch(e){}})();`;
