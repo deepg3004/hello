@@ -439,43 +439,24 @@ export default async function BuyerAccountPage() {
   // ── Tab content ───────────────────────────────────────────────────────
   const dashboardNode = (
     <div className="space-y-6">
-      <div>
-        <h2 className="font-sora text-lg font-semibold">Hello!</h2>
-        <p className="text-sm text-muted-foreground">
-          From your account you can view your{" "}
-          <span className="font-medium text-foreground">orders</span>, manage
-          your{" "}
-          <span className="font-medium text-foreground">downloads</span> and
-          access your courses, memberships and bookings.
+      <div className="rounded-xl border bg-gradient-to-br from-primary/[0.06] to-transparent p-5">
+        <h2 className="font-sora text-lg font-semibold">Welcome back 👋</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          View your orders, download your files, and open your courses,
+          memberships and bookings — all in one place.
         </p>
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-lg border bg-muted/30 px-4 py-3">
-          <p className="text-xs text-muted-foreground">Orders</p>
-          <p className="font-sora text-xl font-semibold">{orders.length}</p>
-        </div>
-        <div className="rounded-lg border bg-muted/30 px-4 py-3">
-          <p className="text-xs text-muted-foreground">Total spent</p>
-          <p className="font-sora text-xl font-semibold">{inr(totalSpent)}</p>
-        </div>
-        <div className="rounded-lg border bg-muted/30 px-4 py-3">
-          <p className="text-xs text-muted-foreground">Courses</p>
-          <p className="font-sora text-xl font-semibold">{courseList.length}</p>
-        </div>
-        <div className="rounded-lg border bg-muted/30 px-4 py-3">
-          <p className="text-xs text-muted-foreground">Downloads</p>
-          <p className="font-sora text-xl font-semibold">{downloads.length}</p>
-        </div>
-      </div>
-      {paidOrders.length > 0 && (
+      {paidOrders.length > 0 ? (
         <div>
-          <h3 className="mb-2 text-sm font-medium text-muted-foreground">
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
             Recent orders
           </h3>
           <div className="space-y-3">
             {orders.slice(0, 3).map((o) => renderOrderCard(o))}
           </div>
         </div>
+      ) : (
+        emptyState("No purchases found for this email yet.")
       )}
     </div>
   );
@@ -667,23 +648,56 @@ export default async function BuyerAccountPage() {
     tabs.push({ key: "bookings", label: "Bookings", count: bookings.length, content: bookingsNode });
   tabs.push({ key: "account", label: "Account details", content: accountNode });
 
+  // Persistent summary — shown above the tabs so Orders / Total spent stay
+  // visible on every tab (not just the dashboard).
+  const summaryCards: Array<{
+    icon: ReactNode;
+    label: string;
+    value: string | number;
+  }> = [
+    { icon: <ShoppingBag className="h-4 w-4" />, label: "Orders", value: orders.length },
+    { icon: <Receipt className="h-4 w-4" />, label: "Total spent", value: inr(totalSpent) },
+    { icon: <BookOpen className="h-4 w-4" />, label: "Courses", value: courseList.length },
+    { icon: <Download className="h-4 w-4" />, label: "Downloads", value: downloads.length },
+  ];
+
   // Keep the account content on a neutral surface (bg-background) so it stays
   // readable even when wrapped in a dark storefront theme below.
   const inner = (
     <div className="bg-background text-foreground">
-      <main className="mx-auto max-w-5xl px-4 py-10 md:py-14">
+      <main className="mx-auto max-w-5xl px-4 py-8 md:py-12">
         {/* Header */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <ShoppingBag className="h-6 w-6 text-primary" />
-            <div>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 font-sora text-lg font-bold uppercase text-primary">
+              {email.trim().charAt(0) || "?"}
+            </div>
+            <div className="min-w-0">
               <h1 className="font-sora text-2xl font-bold tracking-tight">
                 My Account
               </h1>
-              <p className="text-sm text-muted-foreground">{email}</p>
+              <p className="truncate text-sm text-muted-foreground">{email}</p>
             </div>
           </div>
           <BuyerLogoutButton />
+        </div>
+
+        {/* Summary cards — always visible */}
+        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {summaryCards.map((s) => (
+            <div
+              key={s.label}
+              className="rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md"
+            >
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <span className="text-primary">{s.icon}</span>
+                <span className="text-xs font-medium">{s.label}</span>
+              </div>
+              <p className="mt-1.5 font-sora text-2xl font-bold tracking-tight">
+                {s.value}
+              </p>
+            </div>
+          ))}
         </div>
 
         <BuyerAccountShell tabs={tabs} />
