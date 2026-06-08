@@ -12,6 +12,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { Sidebar } from "./Sidebar";
 import { Topbar, type TopbarProfile } from "./Topbar";
+import { CommandPalette } from "./CommandPalette";
 
 interface DashboardShellProps {
   profile: TopbarProfile;
@@ -55,6 +56,7 @@ export function DashboardShell({
   // premium navy palette whenever dark is active, and the cream palette in light.
   return (
     <div className="dash-surface app-screen-h flex flex-col overflow-hidden bg-background text-foreground">
+      {!isEditor && <CommandPalette />}
       {/* Past-due banner — full width, sits above the whole layout. */}
       {showPastDue && (
         <div className="flex-shrink-0 bg-rose-600 px-4 py-2 text-center text-sm font-medium text-white">
