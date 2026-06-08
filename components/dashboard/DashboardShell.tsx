@@ -120,7 +120,7 @@ export function DashboardShell({
           <main
             className={cn(
               "relative flex-1 overflow-y-auto overscroll-contain bg-background",
-              !isEditor && "aurora-bg",
+              !isEditor && "aurora-bg grid-overlay",
               isEditor ? "p-0" : "p-4 md:p-6",
             )}
           >
