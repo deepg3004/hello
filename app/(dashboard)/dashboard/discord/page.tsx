@@ -36,7 +36,7 @@ export default async function DiscordListPage() {
   }>;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <DashboardHero
         title="Group Integrations"
         blurb="Sell paid access to your Discord server. Buyers get a one-time invite the moment they pay, and access expires automatically on your schedule."

@@ -243,6 +243,13 @@ export async function updateCourseAction(input: {
   instructor_bio?: string | null;
   instructor_avatar?: string | null;
   promo_video_url?: string | null;
+  offer_config?: {
+    enabled: boolean;
+    title: string;
+    text: string;
+    cta_label: string;
+    cta_url: string;
+  } | null;
 }): Promise<Result> {
   const userId = await currentUserId();
   if (!userId) return { ok: false, message: "Not signed in" };
@@ -269,6 +276,18 @@ export async function updateCourseAction(input: {
   if (input.instructor_bio !== undefined) patch.instructor_bio = input.instructor_bio;
   if (input.instructor_avatar !== undefined) patch.instructor_avatar = input.instructor_avatar;
   if (input.promo_video_url !== undefined) patch.promo_video_url = input.promo_video_url;
+  if (input.offer_config !== undefined) {
+    const o = input.offer_config;
+    patch.offer_config = o
+      ? {
+          enabled: !!o.enabled,
+          title: (o.title ?? "").trim().slice(0, 120),
+          text: (o.text ?? "").trim().slice(0, 300),
+          cta_label: (o.cta_label ?? "").trim().slice(0, 40),
+          cta_url: (o.cta_url ?? "").trim().slice(0, 500),
+        }
+      : null;
+  }
 
   const { error } = await admin.from("courses").update(patch).eq("id", input.id);
   if (error) {

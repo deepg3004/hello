@@ -21,7 +21,7 @@ export default async function CourseEditPage({
   const { data: course } = await admin
     .from("courses")
     .select(
-      "id, seller_user_id, product_id, title, subtitle, description, thumbnail_url, status, category, level, language, what_you_learn, requirements, who_for, instructor_name, instructor_bio, instructor_avatar, promo_video_url",
+      "id, seller_user_id, product_id, title, subtitle, description, thumbnail_url, status, category, level, language, what_you_learn, requirements, who_for, instructor_name, instructor_bio, instructor_avatar, promo_video_url, offer_config",
     )
     .eq("id", params.id)
     .single();
@@ -84,6 +84,7 @@ export default async function CourseEditPage({
     instructor_bio: course.instructor_bio ?? "",
     instructor_avatar: course.instructor_avatar ?? "",
     promo_video_url: course.promo_video_url ?? "",
+    offer_config: (course.offer_config as EditorCourse["offer_config"]) ?? null,
   };
 
   // Sellable state — the linked product's price + its sales page (if any).

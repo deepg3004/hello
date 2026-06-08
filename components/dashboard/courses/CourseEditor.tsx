@@ -65,6 +65,13 @@ export interface EditorCourse {
   instructor_bio: string;
   instructor_avatar: string;
   promo_video_url: string;
+  offer_config: {
+    enabled: boolean;
+    title: string;
+    text: string;
+    cta_label: string;
+    cta_url: string;
+  } | null;
 }
 
 const LEVELS = ["Beginner", "Intermediate", "Advanced", "All levels"];
@@ -105,6 +112,15 @@ export function CourseEditor({
   const [instrBio, setInstrBio] = useState(course.instructor_bio);
   const [instrAvatar, setInstrAvatar] = useState(course.instructor_avatar);
   const [promo, setPromo] = useState(course.promo_video_url);
+  const [offerOn, setOfferOn] = useState(course.offer_config?.enabled ?? false);
+  const [offerTitle, setOfferTitle] = useState(course.offer_config?.title ?? "");
+  const [offerText, setOfferText] = useState(course.offer_config?.text ?? "");
+  const [offerCtaLabel, setOfferCtaLabel] = useState(
+    course.offer_config?.cta_label ?? "",
+  );
+  const [offerCtaUrl, setOfferCtaUrl] = useState(
+    course.offer_config?.cta_url ?? "",
+  );
   const [price, setPrice] = useState(sale ? String(sale.price) : "");
   const [origPrice, setOrigPrice] = useState(
     sale?.originalPrice ? String(sale.originalPrice) : "",
@@ -155,6 +171,13 @@ export function CourseEditor({
         instructor_bio: instrBio,
         instructor_avatar: instrAvatar,
         promo_video_url: promo,
+        offer_config: {
+          enabled: offerOn,
+          title: offerTitle,
+          text: offerText,
+          cta_label: offerCtaLabel,
+          cta_url: offerCtaUrl,
+        },
       });
       if (!res.ok) {
         toast({ variant: "destructive", title: "Couldn't save", description: res.message });
@@ -368,6 +391,74 @@ export function CourseEditor({
           <p className="text-xs text-muted-foreground">
             Tip: mark a lesson below as a <strong>free preview</strong> so visitors can watch it before buying.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Offer popup</CardTitle>
+          <CardDescription>
+            A promotional popup shown to students on the course player (appears
+            a few seconds in, once per session). Leave off to fall back to your
+            storefront promo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={offerOn}
+              onChange={(e) => setOfferOn(e.target.checked)}
+              className="h-4 w-4 rounded border-border"
+            />
+            Show an offer popup on this course
+          </label>
+          <div>
+            <Label className="text-xs">Headline</Label>
+            <Input
+              value={offerTitle}
+              onChange={(e) => setOfferTitle(e.target.value)}
+              placeholder="Get 30% off my advanced course"
+              maxLength={120}
+              className="mt-1"
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Subtext (optional)</Label>
+            <Input
+              value={offerText}
+              onChange={(e) => setOfferText(e.target.value)}
+              placeholder="Limited-time bundle for current students"
+              maxLength={300}
+              className="mt-1"
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <Label className="text-xs">Button label (optional)</Label>
+              <Input
+                value={offerCtaLabel}
+                onChange={(e) => setOfferCtaLabel(e.target.value)}
+                placeholder="Claim the offer"
+                maxLength={40}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Button link (optional)</Label>
+              <Input
+                value={offerCtaUrl}
+                onChange={(e) => setOfferCtaUrl(e.target.value)}
+                placeholder="https://…"
+                maxLength={500}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <Button onClick={saveCourse} disabled={pending}>
+            {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Save offer
+          </Button>
         </CardContent>
       </Card>
 
