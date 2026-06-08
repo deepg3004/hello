@@ -127,12 +127,18 @@ export function CoursePlayerClient({
           : `${Math.random().toString(36).slice(2)}${Date.now()}`;
     }
     let stop = false;
+    // Newest device wins: claim the seat on mount (force) so THIS device always
+    // plays and any other open device is kicked on its next heartbeat. Later
+    // heartbeats don't force, so once another device opens and claims, this one
+    // detects it lost the seat and blocks (until the user takes it back).
+    let first = true;
     const tick = async () => {
-      const active = await beat(false);
+      const active = await beat(first);
+      first = false;
       if (!stop && active !== null) setBlocked(!active);
     };
     void tick();
-    const id = setInterval(() => void tick(), 20_000);
+    const id = setInterval(() => void tick(), 8_000);
     return () => {
       stop = true;
       clearInterval(id);

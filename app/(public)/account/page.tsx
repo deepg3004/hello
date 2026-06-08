@@ -141,6 +141,9 @@ export default async function BuyerAccountPage() {
   // Narrowed to string here, but the narrowing is lost inside nested helpers
   // (renderOrderCard) — capture it so course-token signing stays type-safe.
   const buyerEmail: string = email;
+  // Match the buyer's email case-INSENSITIVELY so orders placed with a
+  // different capitalisation still surface (LIKE wildcards escaped).
+  const emailLike = email.replace(/([\\%_])/g, "\\$1");
 
   // Paid orders for this email across all sellers.
   const { data: ordersRaw } = await admin
@@ -148,7 +151,7 @@ export default async function BuyerAccountPage() {
     .select(
       "id, seller_user_id, product_id, page_id, amount, currency, status, created_at, products(name), pages(title, slug)",
     )
-    .eq("buyer_email", email)
+    .ilike("buyer_email", emailLike)
     .in("status", ["paid", "partially_refunded", "refunded"])
     .order("created_at", { ascending: false })
     .limit(200);
@@ -172,19 +175,19 @@ export default async function BuyerAccountPage() {
       admin
         .from("course_enrollments")
         .select("course_id, order_id, courses(title)")
-        .eq("buyer_email", email),
+        .ilike("buyer_email", emailLike),
       admin
         .from("telegram_memberships")
         .select("order_id, expires_at, status, telegram_vip_groups(group_name)")
-        .eq("buyer_email", email),
+        .ilike("buyer_email", emailLike),
       admin
         .from("discord_memberships")
         .select("order_id, expires_at, status, invite_link, discord_servers(guild_name)")
-        .eq("buyer_email", email),
+        .ilike("buyer_email", emailLike),
       admin
         .from("invoices")
         .select("order_id")
-        .eq("buyer_email", email)
+        .ilike("buyer_email", emailLike)
         .eq("status", "generated"),
     ]);
 
@@ -192,7 +195,7 @@ export default async function BuyerAccountPage() {
   const { data: bookingRaw } = await admin
     .from("bookings")
     .select("id, start_at, status, booking_types(title, location)")
-    .eq("buyer_email", email)
+    .ilike("buyer_email", emailLike)
     .neq("status", "cancelled")
     .order("start_at", { ascending: true })
     .limit(50);
@@ -216,7 +219,7 @@ export default async function BuyerAccountPage() {
   const { data: dlRaw } = await admin
     .from("download_grants")
     .select("token, file_name, download_limit, downloads_used, created_at, products(name)")
-    .eq("buyer_email", email)
+    .ilike("buyer_email", emailLike)
     .order("created_at", { ascending: false })
     .limit(100);
   const downloads = ((dlRaw ?? []) as Array<{

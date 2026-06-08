@@ -18,8 +18,10 @@ import { verifyCourseToken } from "@/lib/course-token";
 export const dynamic = "force-dynamic";
 
 // A seat is considered free if its last heartbeat is older than this. Must be
-// comfortably larger than the client heartbeat interval so a live tab keeps it.
-const STALE_SECONDS = 45;
+// comfortably larger than the client heartbeat interval (8s) so a live tab keeps
+// it, but small enough that a blocked device recovers quickly once the other
+// device closes.
+const STALE_SECONDS = 25;
 
 export async function POST(request: Request) {
   let body: { t?: string; session_id?: string; force?: boolean };
