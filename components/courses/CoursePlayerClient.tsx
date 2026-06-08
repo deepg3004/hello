@@ -13,6 +13,7 @@ import {
 
 import { resolvePlaySource } from "@/lib/learn/video";
 import { cn } from "@/lib/utils";
+import { CustomVideo } from "@/components/courses/CustomVideo";
 import {
   CourseOfferPopup,
   type CourseOffer,
@@ -298,16 +299,18 @@ export function CoursePlayerClient({
                 </p>
               </div>
             ) : source.kind === "file" ? (
-              <video
+              <CustomVideo
                 src={source.src}
-                controls
-                controlsList="nodownload nofullscreen noremoteplayback"
-                disablePictureInPicture
-                onContextMenu={(e) => e.preventDefault()}
-                className="h-full w-full object-contain"
+                onToggleFullscreen={toggleFullscreen}
+                isFs={isFs}
               />
             ) : source.kind === "signed" ? (
-              <SignedVideo src={source.src} token={token} />
+              <SignedVideo
+                src={source.src}
+                token={token}
+                onToggleFullscreen={toggleFullscreen}
+                isFs={isFs}
+              />
             ) : (
               <iframe
                 src={source.src}
@@ -318,7 +321,7 @@ export function CoursePlayerClient({
               />
             )}
             {!blocked && source && watermark ? <Watermark label={watermark} /> : null}
-            {!blocked && (source || lessonType === "image" || lessonType === "pdf") && (
+            {!blocked && (lessonType === "image" || lessonType === "pdf") && (
               <button
                 type="button"
                 onClick={toggleFullscreen}
@@ -465,10 +468,20 @@ export function CoursePlayerClient({
 
 /** Exchanges a private `cmedia:` source for a short-lived signed URL, then plays
  *  it. Re-fetches when the source changes (switching lessons). */
-function SignedVideo({ src, token }: { src: string; token: string }) {
+function SignedVideo({
+  src,
+  token,
+  onToggleFullscreen,
+  isFs,
+}: {
+  src: string;
+  token: string;
+  onToggleFullscreen?: () => void;
+  isFs?: boolean;
+}) {
   const [media, setMedia] = useState<{ url: string; kind: string } | null>(null);
   const [error, setError] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
 
   // Resolve the cmedia: source → { url, kind }. kind 'hls' = encrypted stream.
   useEffect(() => {
@@ -495,13 +508,13 @@ function SignedVideo({ src, token }: { src: string; token: string }) {
     };
   }, [src, token]);
 
-  // Attach the encrypted HLS stream: native HLS (Safari) or hls.js. The key URL
-  // in the playlist is same-origin, so the buyer token / seller cookie carries.
+  // Attach the encrypted HLS stream to the CustomVideo's element: native HLS
+  // (Safari) or hls.js. The key URL in the playlist is same-origin, so the
+  // buyer token / seller cookie carries.
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !media || media.kind !== "hls") return;
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = media.url;
+    if (!videoEl || !media || media.kind !== "hls") return;
+    if (videoEl.canPlayType("application/vnd.apple.mpegurl")) {
+      videoEl.src = media.url;
       return;
     }
     let cancelled = false;
@@ -513,20 +526,20 @@ function SignedVideo({ src, token }: { src: string; token: string }) {
         if (Hls.isSupported()) {
           const inst = new Hls();
           inst.loadSource(media.url);
-          inst.attachMedia(video);
+          inst.attachMedia(videoEl);
           hls = inst;
         } else {
-          video.src = media.url;
+          videoEl.src = media.url;
         }
       } catch {
-        video.src = media.url;
+        videoEl.src = media.url;
       }
     })();
     return () => {
       cancelled = true;
       hls?.destroy();
     };
-  }, [media]);
+  }, [media, videoEl]);
 
   if (error) {
     return (
@@ -543,14 +556,12 @@ function SignedVideo({ src, token }: { src: string; token: string }) {
     );
   }
   return (
-    <video
-      ref={videoRef}
+    <CustomVideo
+      key={media.url}
       src={media.kind === "hls" ? undefined : media.url}
-      controls
-      controlsList="nodownload nofullscreen noremoteplayback"
-      disablePictureInPicture
-      onContextMenu={(e) => e.preventDefault()}
-      className="h-full w-full object-contain"
+      onVideoEl={setVideoEl}
+      onToggleFullscreen={onToggleFullscreen}
+      isFs={isFs}
     />
   );
 }
