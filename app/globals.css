@@ -366,11 +366,18 @@
   .aurora-bg { position: relative; isolation: isolate; }
   .aurora-bg::before {
     content: "";
-    @apply pointer-events-none absolute inset-0 -z-10;
+    @apply pointer-events-none absolute -z-10;
+    inset: -20%;
     background:
-      radial-gradient(38rem 30rem at 8% -6%, hsl(var(--aurora-1) / 0.28), transparent 62%),
-      radial-gradient(36rem 28rem at 98% 8%, hsl(var(--aurora-2) / 0.24), transparent 62%),
-      radial-gradient(34rem 28rem at 50% 112%, hsl(var(--aurora-3) / 0.18), transparent 60%);
+      radial-gradient(38rem 30rem at 8% -6%, hsl(var(--aurora-1) / 0.30), transparent 62%),
+      radial-gradient(36rem 28rem at 98% 8%, hsl(var(--aurora-2) / 0.26), transparent 62%),
+      radial-gradient(34rem 28rem at 50% 112%, hsl(var(--aurora-3) / 0.20), transparent 60%);
+    /* Slow drifting "moving lights" — premium living background. */
+    animation: auroraDrift 26s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aurora-bg::before { animation: none; }
   }
   /* Faint grid overlay for engineered depth — masked to fade at the edges. */
   .grid-overlay::after {
@@ -538,4 +545,11 @@
 }
 .sf-marquee:hover {
   animation-play-state: paused;
+}
+
+/* Drifting aurora orbs — subtle "moving lights" behind app/marketing/auth
+   surfaces (see .aurora-bg). Transform-only so it's GPU-cheap. */
+@keyframes auroraDrift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(2.5%, -2%, 0) scale(1.08); }
 }
