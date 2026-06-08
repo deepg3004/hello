@@ -7,6 +7,7 @@ import { verifyCourseToken, signPreviewToken } from "@/lib/course-token";
 import { createEnrollmentForOrder } from "@/lib/courses";
 import { publicPageUrl } from "@/lib/page-url";
 import { extractSubdomain } from "@/lib/domains";
+import { formatINR } from "@/lib/utils";
 import { getReviewSummary, getReviewSummaries, listReviews } from "@/lib/reviews";
 import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-theme";
 import { StorefrontShell } from "@/components/store/StorefrontShell";
@@ -156,6 +157,97 @@ export default async function CoursePage({
           completed: completed.has(l.id),
         })),
     }));
+    // ── Cross-sell: more from this creator + an optional offer popup ──
+    const { data: sellerRow } = await admin
+      .from("user_profiles")
+      .select("full_name, legal_business_name, storefront_config")
+      .eq("id", sellerUserId)
+      .maybeSingle();
+    const creatorName =
+      sellerRow?.legal_business_name ?? sellerRow?.full_name ?? null;
+
+    const [{ data: otherCourses }, { data: catalogProducts }] = await Promise.all([
+      admin
+        .from("courses")
+        .select("id, slug, title, thumbnail_url, product_id")
+        .eq("seller_user_id", sellerUserId)
+        .eq("status", "published")
+        .neq("id", courseId)
+        .order("created_at", { ascending: false })
+        .limit(6),
+      admin
+        .from("products")
+        .select(
+          "id, name, image_url, price, pages!products_page_id_fkey(slug, status)",
+        )
+        .eq("user_id", sellerUserId)
+        .eq("is_catalog", true)
+        .eq("active", true)
+        .limit(6),
+    ]);
+
+    const coursePids = ((otherCourses ?? []) as Array<{ product_id: string | null }>)
+      .map((c) => c.product_id)
+      .filter((x): x is string => !!x);
+    const coursePrice = new Map<string, number>();
+    if (coursePids.length) {
+      const { data: pr } = await admin
+        .from("products")
+        .select("id, price")
+        .in("id", coursePids);
+      for (const x of (pr ?? []) as Array<{ id: string; price: number | null }>) {
+        coursePrice.set(x.id, Number(x.price ?? 0));
+      }
+    }
+
+    const moreItems: Array<{
+      title: string;
+      image: string | null;
+      priceLabel: string | null;
+      href: string;
+    }> = [];
+    for (const c of (otherCourses ?? []) as Array<{
+      id: string;
+      slug: string | null;
+      title: string;
+      thumbnail_url: string | null;
+      product_id: string | null;
+    }>) {
+      const price = c.product_id ? coursePrice.get(c.product_id) : null;
+      moreItems.push({
+        title: c.title,
+        image: c.thumbnail_url,
+        priceLabel: price ? formatINR(Math.round(price * 100)) : null,
+        href: `/course/${c.slug ?? c.id}`,
+      });
+    }
+    for (const p of (catalogProducts ?? []) as Array<{
+      name: string;
+      image_url: string | null;
+      price: number | null;
+      pages: { slug: string; status: string } | { slug: string; status: string }[] | null;
+    }>) {
+      const pg = Array.isArray(p.pages) ? p.pages[0] : p.pages;
+      if (!pg || pg.status !== "published") continue;
+      moreItems.push({
+        title: p.name,
+        image: p.image_url,
+        priceLabel: p.price ? formatINR(Math.round(Number(p.price) * 100)) : null,
+        href: `/${pg.slug}`,
+      });
+    }
+
+    const courseCfg = resolveSurfaceConfig(sellerRow?.storefront_config, "course");
+    const offer =
+      courseCfg.sections.promo && courseCfg.promoTitle?.trim()
+        ? {
+            title: courseCfg.promoTitle,
+            text: courseCfg.promoText || null,
+            ctaLabel: courseCfg.promoCtaLabel || null,
+            ctaUrl: courseCfg.promoCtaUrl || null,
+          }
+        : null;
+
     return (
       <CoursePlayerClient
         token={token}
@@ -163,6 +255,10 @@ export default async function CoursePage({
         description={(course.description as string | null) ?? null}
         modules={playerModules}
         watermark={payload?.email ?? null}
+        creatorName={creatorName}
+        moreItems={moreItems}
+        offer={offer}
+        courseKey={courseId}
       />
     );
   }
