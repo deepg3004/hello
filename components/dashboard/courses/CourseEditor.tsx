@@ -41,6 +41,8 @@ export interface EditorLesson {
   content: string;
   duration_label: string;
   is_preview: boolean;
+  lesson_type: "video" | "text" | "pdf" | "image";
+  asset_url: string;
 }
 export interface EditorModule {
   id: string;
@@ -623,7 +625,9 @@ function LessonBlock({ lesson: l }: { lesson: EditorLesson }) {
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState(l.title);
+  const [type, setType] = useState<EditorLesson["lesson_type"]>(l.lesson_type);
   const [video, setVideo] = useState(l.video_url);
+  const [asset, setAsset] = useState(l.asset_url);
   const [content, setContent] = useState(l.content);
   const [duration, setDuration] = useState(l.duration_label);
   const [isPreview, setIsPreview] = useState(l.is_preview);
@@ -633,7 +637,9 @@ function LessonBlock({ lesson: l }: { lesson: EditorLesson }) {
       const res = await updateLessonAction({
         lessonId: l.id,
         title,
+        lesson_type: type,
         video_url: video,
+        asset_url: asset,
         content,
         duration_label: duration,
         is_preview: isPreview,
@@ -667,14 +673,41 @@ function LessonBlock({ lesson: l }: { lesson: EditorLesson }) {
         </Button>
       </div>
       <div>
-        <Label className="text-[11px] text-muted-foreground">Video (YouTube/Vimeo link or upload)</Label>
-        <UploadField value={video} onChange={setVideo} accept="video" />
+        <Label className="text-[11px] text-muted-foreground">Lesson type</Label>
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value as EditorLesson["lesson_type"])}
+          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+        >
+          <option value="video">Video</option>
+          <option value="text">Text</option>
+          <option value="pdf">PDF</option>
+          <option value="image">Image</option>
+        </select>
       </div>
+      {type === "video" && (
+        <div>
+          <Label className="text-[11px] text-muted-foreground">Video (YouTube/Vimeo link, direct URL, or upload)</Label>
+          <UploadField value={video} onChange={setVideo} accept="video" />
+        </div>
+      )}
+      {type === "pdf" && (
+        <div>
+          <Label className="text-[11px] text-muted-foreground">PDF (paste a URL or upload)</Label>
+          <UploadField value={asset} onChange={setAsset} accept="pdf" />
+        </div>
+      )}
+      {type === "image" && (
+        <div>
+          <Label className="text-[11px] text-muted-foreground">Image (paste a URL or upload)</Label>
+          <UploadField value={asset} onChange={setAsset} accept="image" />
+        </div>
+      )}
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
-        rows={2}
-        placeholder="Lesson notes (optional)"
+        rows={type === "text" ? 8 : 2}
+        placeholder={type === "text" ? "Write the lesson text here…" : "Lesson notes (optional)"}
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
       />
       <div className="flex items-center justify-between">
@@ -703,7 +736,7 @@ function UploadField({
 }: {
   value: string;
   onChange: (url: string) => void;
-  accept: "image" | "video";
+  accept: "image" | "video" | "pdf";
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -738,7 +771,13 @@ function UploadField({
       <input
         ref={fileRef}
         type="file"
-        accept={accept === "image" ? "image/*" : "video/*"}
+        accept={
+          accept === "image"
+            ? "image/*"
+            : accept === "pdf"
+              ? "application/pdf,.pdf"
+              : "video/*"
+        }
         className="hidden"
         onChange={onFile}
       />

@@ -390,6 +390,9 @@ export async function addLessonAction(input: {
   return { ok: true };
 }
 
+const LESSON_TYPES = ["video", "text", "pdf", "image"] as const;
+type LessonType = (typeof LESSON_TYPES)[number];
+
 export async function updateLessonAction(input: {
   lessonId: string;
   title?: string;
@@ -397,6 +400,8 @@ export async function updateLessonAction(input: {
   content?: string | null;
   duration_label?: string | null;
   is_preview?: boolean;
+  lesson_type?: LessonType;
+  asset_url?: string | null;
 }): Promise<Result> {
   const userId = await currentUserId();
   if (!userId) return { ok: false, message: "Not signed in" };
@@ -409,6 +414,10 @@ export async function updateLessonAction(input: {
   if (input.content !== undefined) patch.content = input.content || null;
   if (input.duration_label !== undefined) patch.duration_label = input.duration_label || null;
   if (input.is_preview !== undefined) patch.is_preview = !!input.is_preview;
+  if (input.lesson_type !== undefined && LESSON_TYPES.includes(input.lesson_type)) {
+    patch.lesson_type = input.lesson_type;
+  }
+  if (input.asset_url !== undefined) patch.asset_url = input.asset_url || null;
   const { error } = await admin.from("course_lessons").update(patch).eq("id", input.lessonId);
   if (error) return { ok: false, message: error.message };
   revalidatePath(`/dashboard/courses/${courseId}`);
