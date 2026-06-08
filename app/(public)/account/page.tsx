@@ -2,6 +2,7 @@
 // course, Telegram membership and invoice tied to the buyer's email, across all
 // sellers. Resolves on the apex/app host (see middleware allow-list).
 
+import type { ReactNode } from "react";
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import {
@@ -105,14 +106,41 @@ async function resolveStoreHost(
 }
 
 export default async function BuyerAccountPage() {
+  const admin = createAdminClient();
+
+  // On a seller's storefront host, wrap content in that store's themed chrome
+  // (header, footer and — crucially on mobile — the bottom nav). Applies to
+  // BOTH the login screen and the logged-in account so the nav never vanishes.
+  const storeHost = await resolveStoreHost(admin);
+  const withChrome = (node: ReactNode): ReactNode => {
+    if (!storeHost) return node;
+    const cfg = resolveSurfaceConfig(storeHost.storefront_config, "home");
+    const chrome = resolveChromeConfig(storeHost.storefront_config);
+    const brandName =
+      storeHost.legal_business_name ?? storeHost.full_name ?? "Store";
+    return (
+      <StorefrontShell
+        cfg={cfg}
+        chrome={chrome}
+        brandName={brandName}
+        sellerId={storeHost.id}
+      >
+        {node}
+      </StorefrontShell>
+    );
+  };
+
   const token = cookies().get(BUYER_COOKIE)?.value;
   const email = token ? verifyBuyerSession(token) : null;
-  if (!email) return <BuyerLogin />;
+  if (!email)
+    return withChrome(
+      <div className="bg-background text-foreground">
+        <BuyerLogin />
+      </div>,
+    );
   // Narrowed to string here, but the narrowing is lost inside nested helpers
   // (renderOrderCard) — capture it so course-token signing stays type-safe.
   const buyerEmail: string = email;
-
-  const admin = createAdminClient();
 
   // Paid orders for this email across all sellers.
   const { data: ordersRaw } = await admin
@@ -663,24 +691,5 @@ export default async function BuyerAccountPage() {
     </div>
   );
 
-  // On a seller's storefront host, render inside that store's themed chrome so
-  // the header, footer and — crucially on mobile — the bottom nav are present.
-  const storeHost = await resolveStoreHost(admin);
-  if (!storeHost) return inner;
-
-  const cfg = resolveSurfaceConfig(storeHost.storefront_config, "home");
-  const chrome = resolveChromeConfig(storeHost.storefront_config);
-  const brandName =
-    storeHost.legal_business_name ?? storeHost.full_name ?? "Store";
-
-  return (
-    <StorefrontShell
-      cfg={cfg}
-      chrome={chrome}
-      brandName={brandName}
-      sellerId={storeHost.id}
-    >
-      {inner}
-    </StorefrontShell>
-  );
+  return withChrome(inner);
 }
