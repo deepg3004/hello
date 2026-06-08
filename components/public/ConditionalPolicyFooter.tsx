@@ -24,6 +24,7 @@ export function ConditionalPolicyFooter({ hideRoot = false }: { hideRoot?: boole
     p.startsWith("/course") ||
     p.startsWith("/c/") ||
     p.startsWith("/legal") ||
+    p.startsWith("/account") ||
     (hideRoot && (p === "/" || p === ""));
   if (onStorefront) return null;
   return <PolicyFooter />;

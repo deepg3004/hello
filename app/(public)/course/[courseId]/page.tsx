@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyCourseToken, signPreviewToken } from "@/lib/course-token";
 import { createEnrollmentForOrder } from "@/lib/courses";
 import { publicPageUrl } from "@/lib/page-url";
-import { extractSubdomain } from "@/lib/domains";
+import { extractSubdomain, platformRootDomain } from "@/lib/domains";
 import { formatINR } from "@/lib/utils";
 import { getReviewSummary, getReviewSummaries, listReviews } from "@/lib/reviews";
 import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-theme";
@@ -160,11 +160,22 @@ export default async function CoursePage({
     // ── Cross-sell: more from this creator + an optional offer popup ──
     const { data: sellerRow } = await admin
       .from("user_profiles")
-      .select("full_name, legal_business_name, storefront_config")
+      .select(
+        "full_name, legal_business_name, storefront_config, subdomain, custom_domain, custom_domain_verified_at",
+      )
       .eq("id", sellerUserId)
       .maybeSingle();
     const creatorName =
       sellerRow?.legal_business_name ?? sellerRow?.full_name ?? null;
+
+    // The seller's OWN store origin, so cross-sell links stay on their branded
+    // site instead of leaking to the InvoxAI app/apex host.
+    const sellerOrigin =
+      sellerRow?.custom_domain && sellerRow.custom_domain_verified_at
+        ? `https://${sellerRow.custom_domain}`
+        : sellerRow?.subdomain
+          ? `https://${sellerRow.subdomain}.${platformRootDomain()}`
+          : (process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io");
 
     const [{ data: otherCourses }, { data: catalogProducts }] = await Promise.all([
       admin
@@ -218,7 +229,7 @@ export default async function CoursePage({
         title: c.title,
         image: c.thumbnail_url,
         priceLabel: price ? formatINR(Math.round(price * 100)) : null,
-        href: `/course/${c.slug ?? c.id}`,
+        href: `${sellerOrigin}/course/${c.slug ?? c.id}`,
       });
     }
     for (const p of (catalogProducts ?? []) as Array<{
@@ -233,7 +244,7 @@ export default async function CoursePage({
         title: p.name,
         image: p.image_url,
         priceLabel: p.price ? formatINR(Math.round(Number(p.price) * 100)) : null,
-        href: `/${pg.slug}`,
+        href: `${sellerOrigin}/${pg.slug}`,
       });
     }
 
