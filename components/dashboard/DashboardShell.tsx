@@ -82,7 +82,7 @@ export function DashboardShell({
             full-screen page editor. */}
         <aside
           className={cn(
-            "hidden w-64 flex-shrink-0 border-r border-[#1E293B]",
+            "hidden w-64 flex-shrink-0 border-r border-[hsl(var(--sidebar-border))]",
             !isEditor && "md:block",
           )}
         >
@@ -99,7 +99,7 @@ export function DashboardShell({
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetContent
             side="left"
-            className="dash-surface w-64 border-0 bg-[#020617] p-0"
+            className="dash-surface w-64 border-0 bg-[hsl(var(--sidebar-bg))] p-0"
           >
             <Sidebar
               pathname={pathname}
