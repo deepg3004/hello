@@ -13,6 +13,17 @@ import {
 
 import { resolvePlaySource } from "@/lib/learn/video";
 import { cn } from "@/lib/utils";
+import {
+  CourseOfferPopup,
+  type CourseOffer,
+} from "@/components/courses/CourseOfferPopup";
+
+export interface MoreItem {
+  title: string;
+  image: string | null;
+  priceLabel: string | null;
+  href: string;
+}
 
 export interface PlayerLesson {
   id: string;
@@ -35,6 +46,10 @@ export function CoursePlayerClient({
   modules,
   preview = false,
   watermark,
+  creatorName = null,
+  moreItems = [],
+  offer = null,
+  courseKey = "",
 }: {
   token: string;
   title: string;
@@ -44,6 +59,14 @@ export function CoursePlayerClient({
   preview?: boolean;
   /** Buyer identity (email) stamped over the video as an anti-piracy overlay. */
   watermark?: string | null;
+  /** Seller's display name, for the "More from …" cross-sell heading. */
+  creatorName?: string | null;
+  /** Other products/courses from the same creator to promote on this page. */
+  moreItems?: MoreItem[];
+  /** Optional promotional offer popup (from the seller's storefront promo). */
+  offer?: CourseOffer | null;
+  /** Stable key for de-duping the offer popup per course (sessionStorage). */
+  courseKey?: string;
 }) {
   const flat = useMemo(() => modules.flatMap((m) => m.lessons), [modules]);
   const [done, setDone] = useState<Set<string>>(
@@ -163,10 +186,13 @@ export function CoursePlayerClient({
         ) : (
           <div className="mt-3 flex items-center gap-3">
             <div className="h-2 w-48 overflow-hidden rounded-full bg-muted">
-              <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-500"
+                style={{ width: `${pct}%` }}
+              />
             </div>
-            <span className="text-xs text-muted-foreground">
-              {completedCount}/{total} complete
+            <span className="text-xs font-medium text-muted-foreground">
+              {pct}% · {completedCount}/{total} complete
             </span>
           </div>
         )}
@@ -331,6 +357,51 @@ export function CoursePlayerClient({
           ))}
         </aside>
       </div>
+
+      {/* More from this creator — cross-sell the seller's other products */}
+      {moreItems.length > 0 && (
+        <section className="mt-10">
+          <h2 className="mb-4 font-sora text-lg font-semibold">
+            {creatorName ? `More from ${creatorName}` : "More to explore"}
+          </h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {moreItems.map((it, n) => (
+              <a
+                key={`${it.href}-${n}`}
+                href={it.href}
+                className="group overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md"
+              >
+                <div className="aspect-video w-full overflow-hidden bg-muted">
+                  {it.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={it.image}
+                      alt={it.title}
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                      <PlayCircle className="h-7 w-7" />
+                    </div>
+                  )}
+                </div>
+                <div className="p-3">
+                  <p className="line-clamp-2 text-sm font-medium">{it.title}</p>
+                  {it.priceLabel && (
+                    <p className="mt-1 text-sm font-semibold text-primary">
+                      {it.priceLabel}
+                    </p>
+                  )}
+                </div>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {offer && courseKey && (
+        <CourseOfferPopup offer={offer} courseKey={courseKey} />
+      )}
     </main>
   );
 }
