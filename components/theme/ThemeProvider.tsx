@@ -17,10 +17,9 @@ import {
 } from "react";
 
 export type Theme = "light" | "dark" | "system";
-// Bumped to -v2 with the Modern Dark Glass redesign so EXISTING users (who had
-// an old "invox-theme" preference, usually light) start fresh on the new dark
-// default. Their toggle still works and writes this new key.
-export const THEME_STORAGE_KEY = "invox-theme-v2";
+// Bumped to -v3 with the Lite (pink/blue/white) theme so existing users start
+// fresh on the new light default. Their toggle still works (writes this key).
+export const THEME_STORAGE_KEY = "invox-theme-v3";
 
 interface ThemeContextValue {
   /** The user's stored preference. */
@@ -51,12 +50,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // Initialise from what the no-flash script already decided, falling back to
   // the stored value. Defaults to "dark" (Modern Dark Glass look); users who
   // previously chose a theme keep it, and the toggle still switches to light.
-  const [theme, setThemeState] = useState<Theme>("dark");
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
+  const [theme, setThemeState] = useState<Theme>("light");
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
 
   // Hydrate stored preference once on mount.
   useEffect(() => {
-    const stored = (localStorage.getItem(THEME_STORAGE_KEY) as Theme) || "dark";
+    const stored = (localStorage.getItem(THEME_STORAGE_KEY) as Theme) || "light";
     setThemeState(stored);
   }, []);
 
@@ -122,4 +121,4 @@ export function useTheme(): ThemeContextValue {
  * first paint, preventing a light→dark flash. Kept here so the logic lives
  * next to the provider it mirrors.
  */
-export const NO_FLASH_SCRIPT = `(function(){try{var t=localStorage.getItem('${THEME_STORAGE_KEY}')||'dark';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);var r=document.documentElement;r.classList.toggle('dark',d);r.style.colorScheme=d?'dark':'light';}catch(e){}})();`;
+export const NO_FLASH_SCRIPT = `(function(){try{var t=localStorage.getItem('${THEME_STORAGE_KEY}')||'light';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);var r=document.documentElement;r.classList.toggle('dark',d);r.style.colorScheme=d?'dark':'light';}catch(e){}})();`;

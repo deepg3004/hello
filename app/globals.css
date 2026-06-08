@@ -11,65 +11,64 @@
      / gold appear ONLY as restrained accents. (Linear + Stripe vibe.)
      ════════════════════════════════════════════════════════════════════ */
   :root {
-    /* Brand-accent palette (used sparingly: glows, badges, focus, links) */
-    --brand-purple: 262 83% 58%;       /* #7C3AED */
-    --brand-cyan:   189 94% 43%;       /* #06B6D4 */
+    /* LITE theme — clean white surfaces, blue primary CTA, pink accent.
+       Brand aliases repointed to blue/pink so existing utility usages follow. */
+    --brand-purple: 221 83% 53%;       /* repointed → blue #2563EB */
+    --brand-cyan:   199 89% 48%;       /* sky blue */
     --brand-gold:   48 96% 53%;        /* #FACC15 */
-    --brand-violet: 262 83% 58%;       /* alias kept for existing usages */
-    /* Legacy aliases repointed so old utility usages don't break */
-    --brand-indigo: 262 83% 58%;
-    --brand-indigo-light: 262 60% 95%;
+    --brand-violet: 330 81% 60%;       /* → pink #EC4899 */
+    --brand-indigo: 221 83% 53%;       /* → blue */
+    --brand-indigo-light: 214 100% 96%;
     --brand-amber: 48 96% 53%;
     --brand-emerald: 158 64% 40%;
-    --brand-rose: 0 84% 60%;
-    --brand-slate: 240 5% 9%;
+    --brand-rose: 330 81% 60%;         /* pink */
+    --brand-slate: 222 47% 11%;
 
-    /* shadcn tokens — light */
-    --background: 48 65% 95%;          /* #FBF8EC warm cream */
-    --foreground: 240 2% 10%;          /* #181819 charcoal */
-    --card: 60 11% 98%;                /* #FBFBFA surface */
-    --card-foreground: 240 2% 10%;
-    --popover: 60 11% 98%;
-    --popover-foreground: 240 2% 10%;
-    --primary: 240 5% 7%;              /* #121214 charcoal-black CTA */
+    /* shadcn tokens — Lite (white + blue + pink) */
+    --background: 0 0% 100%;           /* white */
+    --foreground: 222 47% 11%;         /* #0F172A slate */
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 221 83% 53%;            /* #2563EB blue CTA */
     --primary-foreground: 0 0% 100%;
-    --secondary: 45 14% 95%;           /* #F3F2EF soft neutral */
-    --secondary-foreground: 240 2% 10%;
-    --muted: 45 14% 95%;
-    --muted-foreground: 60 0% 44%;     /* #717170 */
-    --accent: 45 14% 93%;              /* neutral hover */
-    --accent-foreground: 240 2% 10%;
+    --secondary: 214 48% 97%;          /* light blue-gray */
+    --secondary-foreground: 222 47% 15%;
+    --muted: 214 48% 97%;
+    --muted-foreground: 215 16% 47%;   /* slate-500 */
+    --accent: 327 73% 97%;             /* very light pink hover */
+    --accent-foreground: 222 47% 15%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 43 11% 88%;              /* #E4E2DD ultra-light */
-    --input: 43 11% 88%;
-    --ring: 262 83% 58%;               /* purple focus accent */
+    --border: 215 28% 91%;             /* light slate border */
+    --input: 215 28% 91%;
+    --ring: 221 83% 53%;               /* blue focus */
     --radius: 0.875rem;                /* 14px cards */
 
-    /* Progress — #111 fill on #D9D7D2 track */
-    --progress-fill: 0 0% 7%;
-    --progress-track: 43 8% 84%;
+    --progress-fill: 221 83% 53%;      /* blue */
+    --progress-track: 214 30% 91%;
 
-    /* Sidebar — charcoal rail, purple active accent */
-    --sidebar-bg: 240 5% 8%;
+    /* Sidebar — kept dark-branded (Sidebar.tsx pins its own dark bg) */
+    --sidebar-bg: 222 47% 7%;
     --sidebar-fg: 0 0% 78%;
-    --sidebar-active-bg: 262 83% 58%;
+    --sidebar-active-bg: 221 83% 53%;
     --sidebar-active-fg: 0 0% 100%;
-    --sidebar-hover-bg: 240 4% 14%;
-    --sidebar-border: 240 4% 14%;
-    --metric-bg: 60 11% 98%;
-    --metric-shadow: 43 11% 88%;
+    --sidebar-hover-bg: 222 30% 16%;
+    --sidebar-border: 222 30% 16%;
+    --metric-bg: 0 0% 100%;
+    --metric-shadow: 215 28% 91%;
 
-    /* Accent gradient (purple→cyan) for brand-showcase moments only */
-    --brand-gradient: linear-gradient(120deg, hsl(262 83% 58%), hsl(248 84% 60%));
-    --glow-indigo: 262 83% 58%;        /* var name kept; now purple */
+    /* Accent gradient — pink → blue */
+    --brand-gradient: linear-gradient(120deg, hsl(330 81% 60%), hsl(221 83% 53%));
+    --glow-indigo: 221 83% 53%;        /* var name kept; now blue */
     /* Glass surface */
-    --glass-bg: 60 11% 98%;
+    --glass-bg: 0 0% 100%;
     --glass-alpha: 0.7;
-    /* Ambient glow tints — purple/cyan, very subtle */
-    --aurora-1: 262 83% 58%;
-    --aurora-2: 248 84% 60%;
-    --aurora-3: 189 94% 43%;
+    /* Ambient glow tints — pink + blue, soft */
+    --aurora-1: 330 81% 62%;
+    --aurora-2: 221 83% 60%;
+    --aurora-3: 199 89% 60%;
   }
 
   .dark {
