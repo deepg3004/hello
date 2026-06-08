@@ -208,6 +208,10 @@ interface AppliedCoupon {
   discount_amount: number;
 }
 
+// Per-device remember-me for returning buyers (name/email/phone they last used
+// on this storefront). Origin-scoped, so it never crosses storefronts.
+const BUYER_LS_KEY = "invoxai_buyer_info";
+
 export function CheckoutForm(props: CheckoutFormProps) {
   const { toast } = useToast();
   const razorpayReady = useRazorpayScript();
@@ -406,6 +410,174 @@ export function CheckoutForm(props: CheckoutFormProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Returning-customer auto-fill ──────────────────────────────────────
+  // Recognise a repeat buyer and prefill name/email/phone: first from the
+  // details they used last time on this device (localStorage, instant), then
+  // from their signed-in session (verified, via /api/buyer/profile) which wins
+  // for any still-empty field. Only fills fields the buyer hasn't typed, and
+  // defers to the cart-recovery prefill (?r=) above when present.
+  const [recognized, setRecognized] = useState(false);
+  function fillEmptyBuyer(b: {
+    name?: string;
+    email?: string;
+    phone?: string;
+  }): boolean {
+    let touched = false;
+    if (b.name && !form.getValues("buyer_name")) {
+      form.setValue("buyer_name", b.name);
+      touched = true;
+    }
+    if (b.email && !form.getValues("buyer_email")) {
+      form.setValue("buyer_email", b.email);
+      lastCapturedEmailRef.current = b.email;
+      touched = true;
+    }
+    if (b.phone && !form.getValues("buyer_phone")) {
+      form.setValue("buyer_phone", b.phone);
+      touched = true;
+    }
+    return touched;
+  }
+  useEffect(() => {
+    if (preview || typeof window === "undefined") return;
+    if (new URLSearchParams(window.location.search).get("r")) return;
+
+    try {
+      const raw = window.localStorage.getItem(BUYER_LS_KEY);
+      if (raw) fillEmptyBuyer(JSON.parse(raw));
+    } catch {
+      /* private mode / bad json — ignore */
+    }
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/buyer/profile", { cache: "no-store" });
+        if (!res.ok) return;
+        const body = (await res.json()) as {
+          ok?: boolean;
+          buyer?: { name?: string; email?: string; phone?: string };
+        };
+        if (body.ok && body.buyer) {
+          fillEmptyBuyer(body.buyer);
+          setRecognized(true);
+        }
+      } catch {
+        /* offline — localStorage already applied */
+      }
+    })();
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist the buyer's details for next time, after a successful payment.
+  function stashBuyerLocally() {
+    if (preview || typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        BUYER_LS_KEY,
+        JSON.stringify({
+          name: form.getValues("buyer_name") || "",
+          email: form.getValues("buyer_email") || "",
+          phone: form.getValues("buyer_phone") || "",
+        }),
+      );
+    } catch {
+      /* private mode — ignore */
+    }
+  }
+
+  // ── Returning-customer login (email OTP) ──────────────────────────────
+  // Lets a buyer who purchased before pull their saved details in, by proving
+  // the email with a 6-digit code (reuses the /account buyer-portal flow).
+  const [rcOpen, setRcOpen] = useState(false);
+  const [rcStage, setRcStage] = useState<"email" | "otp">("email");
+  const [rcEmail, setRcEmail] = useState("");
+  const [rcOtp, setRcOtp] = useState("");
+  const [rcBusy, setRcBusy] = useState(false);
+  const [rcMsg, setRcMsg] = useState<string | null>(null);
+
+  async function rcSendCode() {
+    const email = rcEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setRcMsg("Enter a valid email address.");
+      return;
+    }
+    setRcBusy(true);
+    setRcMsg(null);
+    try {
+      const res = await fetch("/api/buyer/request-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok) {
+        setRcStage("otp");
+        setRcMsg("If that email has purchases, a code is on its way.");
+      } else {
+        const b = (await res.json().catch(() => ({}))) as { error?: string };
+        setRcMsg(b.error ?? "Couldn't send a code. Try again.");
+      }
+    } catch {
+      setRcMsg("Network error. Try again.");
+    } finally {
+      setRcBusy(false);
+    }
+  }
+
+  async function rcVerify() {
+    const email = rcEmail.trim().toLowerCase();
+    const otp = rcOtp.trim();
+    if (!/^\d{4,8}$/.test(otp)) {
+      setRcMsg("Enter the code from your email.");
+      return;
+    }
+    setRcBusy(true);
+    setRcMsg(null);
+    try {
+      const res = await fetch("/api/buyer/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp }),
+      });
+      if (!res.ok) {
+        const b = (await res.json().catch(() => ({}))) as { error?: string };
+        setRcMsg(b.error ?? "That code didn't work.");
+        return;
+      }
+      // Cookie is set — pull the verified profile and fill the form.
+      try {
+        const pr = await fetch("/api/buyer/profile", { cache: "no-store" });
+        const body = (await pr.json()) as {
+          ok?: boolean;
+          buyer?: { name?: string; email?: string; phone?: string };
+        };
+        if (body.ok && body.buyer) {
+          if (body.buyer.name) form.setValue("buyer_name", body.buyer.name);
+          if (body.buyer.email) {
+            form.setValue("buyer_email", body.buyer.email);
+            lastCapturedEmailRef.current = body.buyer.email;
+          }
+          if (body.buyer.phone) form.setValue("buyer_phone", body.buyer.phone);
+          setRecognized(true);
+        }
+      } catch {
+        /* profile fetch failed — cookie is still set, fields stay as typed */
+      }
+      setRcOpen(false);
+      setRcStage("email");
+      setRcOtp("");
+      setRcMsg(null);
+      toast({
+        title: "Welcome back",
+        description: "We've filled in your details.",
+      });
+    } catch {
+      setRcMsg("Network error. Try again.");
+    } finally {
+      setRcBusy(false);
+    }
+  }
+
   // Fire-and-forget pre-capture on email blur once the user types a valid
   // address. The server is idempotent, so accidental double-fires are fine.
   function maybePreCapture() {
@@ -523,6 +695,7 @@ export function CheckoutForm(props: CheckoutFormProps) {
     } catch (pixelErr) {
       console.warn("[checkout] pixel fire failed", pixelErr);
     }
+    stashBuyerLocally();
     setModalOpen(false);
     setSuccess(true);
     window.dispatchEvent(new Event("invox:checkout-complete"));
@@ -781,6 +954,7 @@ export function CheckoutForm(props: CheckoutFormProps) {
 
           // Show the success splash for ~700ms then redirect — gives the
           // buyer's eye time to land on the green check before navigation.
+          stashBuyerLocally();
           setModalOpen(false);
           setSuccess(true);
           // Tell the exit guard payment is done so it doesn't warn "leave?"
@@ -1100,6 +1274,92 @@ export function CheckoutForm(props: CheckoutFormProps) {
           onSubmit={form.handleSubmit(onSubmit)}
           className="space-y-3"
         >
+
+          {/* Returning-customer login — pull saved details via email OTP */}
+          {!preview && !recognized && (
+            <div className="rounded-lg border border-dashed border-zinc-300 dark:border-white/10 bg-zinc-50/60 dark:bg-white/5 px-3 py-2 text-sm">
+              {!rcOpen ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRcOpen(true);
+                    setRcEmail(form.getValues("buyer_email") || "");
+                  }}
+                  className="font-medium text-zinc-700 dark:text-zinc-200 hover:underline"
+                >
+                  Returning customer?{" "}
+                  <span style={{ color: primaryColor }}>Log in to auto-fill</span>
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  {rcStage === "email" ? (
+                    <div className="flex gap-2">
+                      <Input
+                        type="email"
+                        inputMode="email"
+                        autoComplete="email"
+                        placeholder="Email you bought with"
+                        value={rcEmail}
+                        onChange={(e) => setRcEmail(e.target.value)}
+                        disabled={rcBusy}
+                      />
+                      <Button
+                        type="button"
+                        onClick={rcSendCode}
+                        disabled={rcBusy}
+                        style={{ backgroundColor: primaryColor }}
+                      >
+                        {rcBusy ? "…" : "Send code"}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        placeholder="6-digit code"
+                        value={rcOtp}
+                        onChange={(e) => setRcOtp(e.target.value)}
+                        disabled={rcBusy}
+                      />
+                      <Button
+                        type="button"
+                        onClick={rcVerify}
+                        disabled={rcBusy}
+                        style={{ backgroundColor: primaryColor }}
+                      >
+                        {rcBusy ? "…" : "Verify"}
+                      </Button>
+                    </div>
+                  )}
+                  {rcMsg && (
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {rcMsg}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRcOpen(false);
+                      setRcStage("email");
+                      setRcOtp("");
+                      setRcMsg(null);
+                    }}
+                    className="text-xs text-zinc-400 hover:underline"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {recognized && (
+            <p className="text-sm text-emerald-600 dark:text-emerald-400">
+              ✓ Welcome back — we&apos;ve filled in your details.
+            </p>
+          )}
 
           {nameOptional ? (
             // pwyl card: email → price selector → phone → optional name

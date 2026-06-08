@@ -91,6 +91,38 @@ export function CartDrawer() {
   const discount = applied ? Math.min(subtotal, applied.discount) : 0;
   const payable = Math.max(0, subtotal - discount);
 
+  // Returning-customer auto-fill: prefill name/email/phone from the details
+  // saved on this device, then from the signed-in buyer session (verified).
+  // Only fills empty fields so it never clobbers what the buyer typed.
+  useEffect(() => {
+    const fill = (b: { name?: string; email?: string; phone?: string }) => {
+      if (b.name) setName((v) => v || b.name!);
+      if (b.email) setEmail((v) => v || b.email!);
+      if (b.phone) setPhone((v) => v || b.phone!);
+    };
+    try {
+      const raw = window.localStorage.getItem("invoxai_buyer_info");
+      if (raw) fill(JSON.parse(raw));
+    } catch {
+      /* ignore */
+    }
+    void (async () => {
+      try {
+        const res = await fetch("/api/buyer/profile", { cache: "no-store" });
+        if (!res.ok) return;
+        const body = (await res.json()) as {
+          ok?: boolean;
+          buyer?: { name?: string; email?: string; phone?: string };
+        };
+        if (body.ok && body.buyer) fill(body.buyer);
+      } catch {
+        /* offline — localStorage already applied */
+      }
+    })();
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Load the seller's publicly-listed promo codes once the cart is open.
   useEffect(() => {
     if (!open || !sellerId || avail !== null) return;
@@ -198,6 +230,14 @@ export function CartDrawer() {
         prefill: { name, email, phone },
         themeColor: "#4f46e5",
         onSuccess: ({ redirect_url }) => {
+          try {
+            window.localStorage.setItem(
+              "invoxai_buyer_info",
+              JSON.stringify({ name, email, phone }),
+            );
+          } catch {
+            /* ignore */
+          }
           clear();
           window.location.href = redirect_url ?? "/";
         },
