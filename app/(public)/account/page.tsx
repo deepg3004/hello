@@ -2,7 +2,7 @@
 // course, Telegram membership and invoice tied to the buyer's email, across all
 // sellers. Resolves on the apex/app host (see middleware allow-list).
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import {
   BookOpen,
@@ -21,6 +21,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { BUYER_COOKIE, verifyBuyerSession } from "@/lib/buyer-portal";
 import { signCourseToken } from "@/lib/course-token";
 import { formatINR } from "@/lib/utils";
+import {
+  extractSubdomain,
+  isPlatformOwnHost,
+  platformRootDomain,
+} from "@/lib/domains";
+import {
+  resolveSurfaceConfig,
+  resolveChromeConfig,
+} from "@/lib/storefront-theme";
+import { StorefrontShell } from "@/components/store/StorefrontShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -47,6 +57,51 @@ function fmtDate(iso: string | null): string {
   } catch {
     return "";
   }
+}
+
+interface StoreHost {
+  id: string;
+  subdomain: string | null;
+  full_name: string | null;
+  legal_business_name: string | null;
+  storefront_config: unknown;
+}
+
+/**
+ * The seller whose storefront the buyer is browsing, derived from the request
+ * host (a `*.invoxai.io` subdomain or a verified custom domain). Lets /account
+ * render inside that storefront's themed chrome — header, footer and the mobile
+ * bottom nav — instead of as a bare page. Returns null on the platform's own
+ * hosts (apex / app.* ), where there is no single seller context.
+ */
+async function resolveStoreHost(
+  admin: ReturnType<typeof createAdminClient>,
+): Promise<StoreHost | null> {
+  const host = (headers().get("host") ?? "").toLowerCase().split(":")[0] ?? "";
+  if (!host || isPlatformOwnHost(host)) return null;
+
+  const sub = extractSubdomain(host);
+  if (sub) {
+    const { data } = await admin
+      .from("user_profiles")
+      .select("id, subdomain, full_name, legal_business_name, storefront_config")
+      .eq("subdomain", sub)
+      .maybeSingle();
+    return data?.id ? (data as StoreHost) : null;
+  }
+
+  // A label under our apex that isn't a claimed subdomain — no seller.
+  if (host.endsWith(`.${platformRootDomain()}`)) return null;
+
+  // Otherwise treat it as a custom domain (only when verified).
+  const { data } = await admin
+    .from("user_profiles")
+    .select(
+      "id, subdomain, full_name, legal_business_name, custom_domain_verified_at, storefront_config",
+    )
+    .eq("custom_domain", host)
+    .maybeSingle();
+  return data?.id && data.custom_domain_verified_at ? (data as StoreHost) : null;
 }
 
 export default async function BuyerAccountPage() {
@@ -584,23 +639,48 @@ export default async function BuyerAccountPage() {
     tabs.push({ key: "bookings", label: "Bookings", count: bookings.length, content: bookingsNode });
   tabs.push({ key: "account", label: "Account details", content: accountNode });
 
-  return (
-    <main className="mx-auto max-w-5xl px-4 py-10 md:py-14">
-      {/* Header */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <ShoppingBag className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="font-sora text-2xl font-bold tracking-tight">
-              My Account
-            </h1>
-            <p className="text-sm text-muted-foreground">{email}</p>
+  // Keep the account content on a neutral surface (bg-background) so it stays
+  // readable even when wrapped in a dark storefront theme below.
+  const inner = (
+    <div className="bg-background text-foreground">
+      <main className="mx-auto max-w-5xl px-4 py-10 md:py-14">
+        {/* Header */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <ShoppingBag className="h-6 w-6 text-primary" />
+            <div>
+              <h1 className="font-sora text-2xl font-bold tracking-tight">
+                My Account
+              </h1>
+              <p className="text-sm text-muted-foreground">{email}</p>
+            </div>
           </div>
+          <BuyerLogoutButton />
         </div>
-        <BuyerLogoutButton />
-      </div>
 
-      <BuyerAccountShell tabs={tabs} />
-    </main>
+        <BuyerAccountShell tabs={tabs} />
+      </main>
+    </div>
+  );
+
+  // On a seller's storefront host, render inside that store's themed chrome so
+  // the header, footer and — crucially on mobile — the bottom nav are present.
+  const storeHost = await resolveStoreHost(admin);
+  if (!storeHost) return inner;
+
+  const cfg = resolveSurfaceConfig(storeHost.storefront_config, "home");
+  const chrome = resolveChromeConfig(storeHost.storefront_config);
+  const brandName =
+    storeHost.legal_business_name ?? storeHost.full_name ?? "Store";
+
+  return (
+    <StorefrontShell
+      cfg={cfg}
+      chrome={chrome}
+      brandName={brandName}
+      sellerId={storeHost.id}
+    >
+      {inner}
+    </StorefrontShell>
   );
 }
