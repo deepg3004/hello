@@ -35,6 +35,7 @@ import { StorefrontShell } from "@/components/store/StorefrontShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { BuyerLogin } from "@/components/buyer/BuyerLogin";
 import { BuyerLogoutButton } from "@/components/buyer/BuyerLogoutButton";
 import {
@@ -432,11 +433,7 @@ export default async function BuyerAccountPage() {
   }
 
   const emptyState = (msg: string) => (
-    <Card>
-      <CardContent className="py-12 text-center text-muted-foreground">
-        {msg}
-      </CardContent>
-    </Card>
+    <EmptyState icon={ShoppingBag} title={msg} />
   );
 
   // ── Tab content ───────────────────────────────────────────────────────

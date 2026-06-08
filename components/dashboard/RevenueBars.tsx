@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Inbox } from "lucide-react";
 
 import { usePublicPageUrl } from "@/components/dashboard/SellerContext";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { cn, truncate } from "@/lib/utils";
 
 interface RevenueBarsProps {
@@ -40,12 +41,11 @@ export function RevenueBars({ rows }: RevenueBarsProps) {
 
   if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/30 px-4 py-8 text-center">
-        <Inbox className="h-6 w-6 text-muted-foreground/60" />
-        <p className="mt-2 text-sm text-muted-foreground">
-          No revenue yet. Top pages appear here once orders come in.
-        </p>
-      </div>
+      <EmptyState
+        icon={Inbox}
+        title="No revenue yet"
+        description="Top pages appear here once orders come in."
+      />
     );
   }
 
