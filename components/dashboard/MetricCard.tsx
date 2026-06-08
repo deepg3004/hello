@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { CountUpText } from "@/components/ui/CountUpText";
 
 export type MetricAccent = "indigo" | "violet" | "emerald" | "amber" | "rose";
 
@@ -74,7 +75,7 @@ export function MetricCard({
 
       {/* Middle: value */}
       <div className="mt-3 font-sora text-[1.7rem] font-bold leading-none tracking-tight tabular-nums text-foreground">
-        {value}
+        {typeof value === "string" ? <CountUpText text={value} /> : value}
       </div>
 
       {/* Bottom: hint + optional trend chip */}
