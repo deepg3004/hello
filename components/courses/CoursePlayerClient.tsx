@@ -7,6 +7,7 @@ import {
   Loader2,
   Maximize2,
   Minimize2,
+  MonitorPlay,
   PlayCircle,
 } from "lucide-react";
 
@@ -69,6 +70,60 @@ export function CoursePlayerClient({
     }
   }
 
+  // ── Single-screen enforcement ─────────────────────────────────────────
+  // Heartbeat a per-tab session id; if another device owns the seat we block
+  // playback (video unmounts) until the buyer takes over here.
+  const sessionIdRef = useRef<string>("");
+  const [blocked, setBlocked] = useState(false);
+  const [takingOver, setTakingOver] = useState(false);
+
+  async function beat(force = false): Promise<boolean | null> {
+    try {
+      const res = await fetch("/api/courses/session", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          t: token,
+          session_id: sessionIdRef.current,
+          force,
+        }),
+      });
+      const b = (await res.json()) as { active?: boolean; control?: boolean };
+      return b.control ? !!b.active : true;
+    } catch {
+      return null; // network blip — never block on it
+    }
+  }
+
+  useEffect(() => {
+    if (preview) return;
+    if (!sessionIdRef.current) {
+      sessionIdRef.current =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Math.random().toString(36).slice(2)}${Date.now()}`;
+    }
+    let stop = false;
+    const tick = async () => {
+      const active = await beat(false);
+      if (!stop && active !== null) setBlocked(!active);
+    };
+    void tick();
+    const id = setInterval(() => void tick(), 20_000);
+    return () => {
+      stop = true;
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, preview]);
+
+  async function takeOver() {
+    setTakingOver(true);
+    const active = await beat(true);
+    if (active) setBlocked(false);
+    setTakingOver(false);
+  }
+
   const active = flat.find((l) => l.id === activeId) ?? null;
   const source = active ? resolvePlaySource(active.video_url) : null;
   const total = flat.length;
@@ -128,7 +183,31 @@ export function CoursePlayerClient({
               isFs ? "flex h-screen items-center justify-center" : "aspect-video",
             )}
           >
-            {!source ? (
+            {blocked ? (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center text-white/80">
+                <MonitorPlay className="h-9 w-9 text-white/60" />
+                <div>
+                  <p className="font-semibold">Playing on another device</p>
+                  <p className="mt-1 text-sm text-white/60">
+                    This course can be watched on one screen at a time. Close it
+                    on the other device, or continue here.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={takeOver}
+                  disabled={takingOver}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/90 disabled:opacity-60"
+                >
+                  {takingOver ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <MonitorPlay className="h-4 w-4" />
+                  )}
+                  Watch here instead
+                </button>
+              </div>
+            ) : !source ? (
               <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-white/70">
                 <PlayCircle className="h-8 w-8" />
                 <p className="text-sm">
@@ -155,8 +234,8 @@ export function CoursePlayerClient({
                 className="h-full w-full"
               />
             )}
-            {source && watermark ? <Watermark label={watermark} /> : null}
-            {source && (
+            {!blocked && source && watermark ? <Watermark label={watermark} /> : null}
+            {!blocked && source && (
               <button
                 type="button"
                 onClick={toggleFullscreen}
