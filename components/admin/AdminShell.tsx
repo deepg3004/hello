@@ -53,7 +53,7 @@ export function AdminShell({
 
       <div className="md:pl-60">
         <AdminTopbar profile={profile} onMenuClick={() => setOpen(true)} />
-        <main className="relative aurora-bg px-4 py-6 md:px-8 md:py-8">
+        <main className="relative aurora-bg grid-overlay px-4 py-6 md:px-8 md:py-8">
           <div className="animate-fade-in-scale">{children}</div>
         </main>
       </div>
