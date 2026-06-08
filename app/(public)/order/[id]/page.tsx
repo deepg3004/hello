@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Home, RotateCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Confetti } from "@/components/ui/Confetti";
 import { PaymentSuccessShare } from "@/components/pages/PaymentSuccessShare";
 import { TelegramInviteCard } from "@/components/pages/TelegramInviteCard";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -152,6 +153,7 @@ export default async function OrderConfirmationPage({
     >
       <div className="mx-auto max-w-xl space-y-6">
         {/* Animated status circle */}
+        {paid && <Confetti />}
         {paid && <StatusCircle variant="success" />}
         {failed && <StatusCircle variant="failure" />}
         {!paid && !failed && <StatusCircle variant="pending" />}
