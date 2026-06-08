@@ -26,6 +26,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BuyerLogin } from "@/components/buyer/BuyerLogin";
 import { BuyerLogoutButton } from "@/components/buyer/BuyerLogoutButton";
+import {
+  BuyerAccountShell,
+  type AccountTab,
+} from "@/components/buyer/BuyerAccountShell";
 
 export const metadata = { title: "Your purchases" };
 export const dynamic = "force-dynamic";
@@ -49,6 +53,9 @@ export default async function BuyerAccountPage() {
   const token = cookies().get(BUYER_COOKIE)?.value;
   const email = token ? verifyBuyerSession(token) : null;
   if (!email) return <BuyerLogin />;
+  // Narrowed to string here, but the narrowing is lost inside nested helpers
+  // (renderOrderCard) — capture it so course-token signing stays type-safe.
+  const buyerEmail: string = email;
 
   const admin = createAdminClient();
 
@@ -213,145 +220,192 @@ export default async function BuyerAccountPage() {
     .filter((o) => o.status !== "refunded")
     .reduce((a, o) => a + Number(o.amount ?? 0), 0);
 
-  return (
-    <main className="mx-auto max-w-3xl px-4 py-10 md:py-14">
-      {/* Header */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <ShoppingBag className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="font-sora text-2xl font-bold tracking-tight">
-              Your purchases
-            </h1>
-            <p className="text-sm text-muted-foreground">{email}</p>
+  // ── Flat lists for the Courses / Memberships tabs (paid orders only) ──
+  const paidOrders = orders.filter((o) => o.status === "paid");
+  const courseList = paidOrders
+    .map((o) => {
+      const c = courseByOrder.get(o.id);
+      if (!c) return null;
+      return {
+        id: o.id,
+        title: c.title,
+        href: `/course/${c.courseId}?t=${signCourseToken({
+          course_id: c.courseId,
+          order_id: o.id,
+          email,
+        })}`,
+      };
+    })
+    .filter((x): x is { id: string; title: string; href: string } => x !== null);
+
+  const membershipList = paidOrders
+    .map((o) => {
+      const tg = tgByOrder.get(o.id) ?? null;
+      const dc = dcByOrder.get(o.id) ?? null;
+      if (!tg && !dc) return null;
+      return { id: o.id, tg, dc };
+    })
+    .filter((x) => x !== null) as Array<{
+    id: string;
+    tg: { group: string; expiresAt: string | null; status: string } | null;
+    dc: {
+      server: string;
+      expiresAt: string | null;
+      inviteLink: string | null;
+    } | null;
+  }>;
+
+  // ── Reusable order card (used in Orders + the Dashboard preview) ──────
+  function renderOrderCard(o: (typeof orders)[number]) {
+    const product = Array.isArray(o.products) ? o.products[0] : o.products;
+    const page = Array.isArray(o.pages) ? o.pages[0] : o.pages;
+    const title = product?.name ?? page?.title ?? "Your purchase";
+    const course = courseByOrder.get(o.id);
+    const tg = tgByOrder.get(o.id);
+    const dc = dcByOrder.get(o.id);
+    const hasInvoice = invoiceOrders.has(o.id);
+    const courseHref =
+      course && o.status === "paid"
+        ? `/course/${course.courseId}?t=${signCourseToken({
+            course_id: course.courseId,
+            order_id: o.id,
+            email: buyerEmail,
+          })}`
+        : null;
+
+    return (
+      <Card key={o.id}>
+        <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="truncate font-medium">{title}</p>
+              {o.status !== "paid" && (
+                <Badge variant="secondary" className="capitalize">
+                  {o.status.replace("_", " ")}
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {inr(o.amount)} · {fmtDate(o.created_at)}
+            </p>
+            {tg && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                <Send className="mr-1 inline h-3 w-3" />
+                {tg.group}
+                {tg.expiresAt ? ` · access until ${fmtDate(tg.expiresAt)}` : ""}
+              </p>
+            )}
+            {dc && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                <Hash className="mr-1 inline h-3 w-3" />
+                {dc.server}
+                {dc.expiresAt ? ` · access until ${fmtDate(dc.expiresAt)}` : ""}
+              </p>
+            )}
           </div>
-        </div>
-        <BuyerLogoutButton />
+
+          <div className="flex flex-wrap items-center gap-2">
+            {courseHref && (
+              <Button asChild size="sm">
+                <Link href={courseHref}>
+                  <BookOpen className="mr-1.5 h-3.5 w-3.5" />
+                  Open course
+                </Link>
+              </Button>
+            )}
+            {dc?.inviteLink && o.status === "paid" && (
+              <Button asChild size="sm">
+                <a href={dc.inviteLink} target="_blank" rel="noreferrer">
+                  <Hash className="mr-1.5 h-3.5 w-3.5" />
+                  Join Discord
+                </a>
+              </Button>
+            )}
+            {hasInvoice && (
+              <Button asChild variant="outline" size="sm">
+                <a
+                  href={`/api/orders/${o.id}/invoice`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <FileText className="mr-1.5 h-3.5 w-3.5" />
+                  Invoice
+                </a>
+              </Button>
+            )}
+            <Button asChild variant="ghost" size="sm">
+              <Link href={`/order/${o.id}`}>
+                <Receipt className="mr-1.5 h-3.5 w-3.5" />
+                Details
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const emptyState = (msg: string) => (
+    <Card>
+      <CardContent className="py-12 text-center text-muted-foreground">
+        {msg}
+      </CardContent>
+    </Card>
+  );
+
+  // ── Tab content ───────────────────────────────────────────────────────
+  const dashboardNode = (
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-sora text-lg font-semibold">Hello!</h2>
+        <p className="text-sm text-muted-foreground">
+          From your account you can view your{" "}
+          <span className="font-medium text-foreground">orders</span>, manage
+          your{" "}
+          <span className="font-medium text-foreground">downloads</span> and
+          access your courses, memberships and bookings.
+        </p>
       </div>
-
-      {/* Summary */}
-      {orders.length > 0 && (
-        <div className="mb-6 flex gap-4">
-          <div className="rounded-lg border bg-muted/30 px-4 py-3">
-            <p className="text-xs text-muted-foreground">Orders</p>
-            <p className="font-sora text-xl font-semibold">{orders.length}</p>
-          </div>
-          <div className="rounded-lg border bg-muted/30 px-4 py-3">
-            <p className="text-xs text-muted-foreground">Total spent</p>
-            <p className="font-sora text-xl font-semibold">{inr(totalSpent)}</p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-lg border bg-muted/30 px-4 py-3">
+          <p className="text-xs text-muted-foreground">Orders</p>
+          <p className="font-sora text-xl font-semibold">{orders.length}</p>
+        </div>
+        <div className="rounded-lg border bg-muted/30 px-4 py-3">
+          <p className="text-xs text-muted-foreground">Total spent</p>
+          <p className="font-sora text-xl font-semibold">{inr(totalSpent)}</p>
+        </div>
+        <div className="rounded-lg border bg-muted/30 px-4 py-3">
+          <p className="text-xs text-muted-foreground">Courses</p>
+          <p className="font-sora text-xl font-semibold">{courseList.length}</p>
+        </div>
+        <div className="rounded-lg border bg-muted/30 px-4 py-3">
+          <p className="text-xs text-muted-foreground">Downloads</p>
+          <p className="font-sora text-xl font-semibold">{downloads.length}</p>
+        </div>
+      </div>
+      {paidOrders.length > 0 && (
+        <div>
+          <h3 className="mb-2 text-sm font-medium text-muted-foreground">
+            Recent orders
+          </h3>
+          <div className="space-y-3">
+            {orders.slice(0, 3).map((o) => renderOrderCard(o))}
           </div>
         </div>
       )}
+    </div>
+  );
 
-      {orders.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            No purchases found for this email yet.
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {orders.map((o) => {
-            const product = Array.isArray(o.products)
-              ? o.products[0]
-              : o.products;
-            const page = Array.isArray(o.pages) ? o.pages[0] : o.pages;
-            const title =
-              product?.name ?? page?.title ?? "Your purchase";
-            const course = courseByOrder.get(o.id);
-            const tg = tgByOrder.get(o.id);
-            const dc = dcByOrder.get(o.id);
-            const hasInvoice = invoiceOrders.has(o.id);
-            const courseHref =
-              course && o.status === "paid"
-                ? `/course/${course.courseId}?t=${signCourseToken({
-                    course_id: course.courseId,
-                    order_id: o.id,
-                    email,
-                  })}`
-                : null;
+  const ordersNode =
+    orders.length === 0
+      ? emptyState("No purchases found for this email yet.")
+      : <div className="space-y-3">{orders.map((o) => renderOrderCard(o))}</div>;
 
-            return (
-              <Card key={o.id}>
-                <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate font-medium">{title}</p>
-                      {o.status !== "paid" && (
-                        <Badge variant="secondary" className="capitalize">
-                          {o.status.replace("_", " ")}
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {inr(o.amount)} · {fmtDate(o.created_at)}
-                    </p>
-                    {tg && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        <Send className="mr-1 inline h-3 w-3" />
-                        {tg.group}
-                        {tg.expiresAt
-                          ? ` · access until ${fmtDate(tg.expiresAt)}`
-                          : ""}
-                      </p>
-                    )}
-                    {dc && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        <Hash className="mr-1 inline h-3 w-3" />
-                        {dc.server}
-                        {dc.expiresAt
-                          ? ` · access until ${fmtDate(dc.expiresAt)}`
-                          : ""}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    {courseHref && (
-                      <Button asChild size="sm">
-                        <Link href={courseHref}>
-                          <BookOpen className="mr-1.5 h-3.5 w-3.5" />
-                          Open course
-                        </Link>
-                      </Button>
-                    )}
-                    {dc?.inviteLink && o.status === "paid" && (
-                      <Button asChild size="sm">
-                        <a href={dc.inviteLink} target="_blank" rel="noreferrer">
-                          <Hash className="mr-1.5 h-3.5 w-3.5" />
-                          Join Discord
-                        </a>
-                      </Button>
-                    )}
-                    {hasInvoice && (
-                      <Button asChild variant="outline" size="sm">
-                        <a href={`/api/orders/${o.id}/invoice`} target="_blank" rel="noreferrer">
-                          <FileText className="mr-1.5 h-3.5 w-3.5" />
-                          Invoice
-                        </a>
-                      </Button>
-                    )}
-                    <Button asChild variant="ghost" size="sm">
-                      <Link href={`/order/${o.id}`}>
-                        <Receipt className="mr-1.5 h-3.5 w-3.5" />
-                        Details
-                      </Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Downloads */}
-      {downloads.length > 0 && (
-        <div className="mt-8">
-          <h2 className="mb-3 flex items-center gap-2 font-sora text-lg font-semibold">
-            <Download className="h-5 w-5 text-primary" />
-            Your downloads
-          </h2>
+  const downloadsNode =
+    downloads.length === 0
+      ? emptyState("No downloadable files yet.")
+      : (
           <div className="space-y-3">
             {downloads.map((d) => {
               const exhausted = d.remaining === 0;
@@ -386,16 +440,78 @@ export default async function BuyerAccountPage() {
               );
             })}
           </div>
-        </div>
-      )}
+        );
 
-      {/* Bookings */}
-      {bookings.length > 0 && (
-        <div className="mt-8">
-          <h2 className="mb-3 flex items-center gap-2 font-sora text-lg font-semibold">
-            <CalendarClock className="h-5 w-5 text-primary" />
-            Your bookings
-          </h2>
+  const coursesNode =
+    courseList.length === 0
+      ? emptyState("You haven't enrolled in any courses yet.")
+      : (
+          <div className="space-y-3">
+            {courseList.map((c) => (
+              <Card key={c.id}>
+                <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="truncate font-medium">{c.title}</p>
+                  <Button asChild size="sm">
+                    <Link href={c.href}>
+                      <BookOpen className="mr-1.5 h-3.5 w-3.5" />
+                      Open course
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        );
+
+  const membershipsNode =
+    membershipList.length === 0
+      ? emptyState("No community memberships yet.")
+      : (
+          <div className="space-y-3">
+            {membershipList.map((m) => (
+              <Card key={m.id}>
+                <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    {m.tg && (
+                      <p className="flex items-center gap-1.5 font-medium">
+                        <Send className="h-3.5 w-3.5 text-primary" />
+                        {m.tg.group}
+                      </p>
+                    )}
+                    {m.dc && (
+                      <p className="flex items-center gap-1.5 font-medium">
+                        <Hash className="h-3.5 w-3.5 text-primary" />
+                        {m.dc.server}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {(m.tg?.expiresAt || m.dc?.expiresAt)
+                        ? `Access until ${fmtDate(m.tg?.expiresAt ?? m.dc?.expiresAt ?? null)}`
+                        : "Active"}
+                    </p>
+                  </div>
+                  {m.dc?.inviteLink && (
+                    <Button asChild size="sm">
+                      <a
+                        href={m.dc.inviteLink}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <Hash className="mr-1.5 h-3.5 w-3.5" />
+                        Join Discord
+                      </a>
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        );
+
+  const bookingsNode =
+    bookings.length === 0
+      ? emptyState("No bookings yet.")
+      : (
           <div className="space-y-3">
             {bookings.map((b) => (
               <Card key={b.id}>
@@ -424,8 +540,67 @@ export default async function BuyerAccountPage() {
               </Card>
             ))}
           </div>
+        );
+
+  const accountNode = (
+    <Card>
+      <CardContent className="space-y-4 py-6">
+        <div>
+          <p className="text-xs text-muted-foreground">Signed in as</p>
+          <p className="font-medium">{email}</p>
         </div>
-      )}
+        <div className="flex flex-wrap gap-6">
+          <div>
+            <p className="text-xs text-muted-foreground">Orders</p>
+            <p className="font-sora text-lg font-semibold">{orders.length}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Total spent</p>
+            <p className="font-sora text-lg font-semibold">{inr(totalSpent)}</p>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          We recognise you by email — sign out on shared devices.
+        </p>
+        <BuyerLogoutButton />
+      </CardContent>
+    </Card>
+  );
+
+  // Always show Dashboard / Orders / Account; show the rest only when
+  // there's something in them (keeps the nav uncluttered for single-type
+  // buyers).
+  const tabs: AccountTab[] = [
+    { key: "dashboard", label: "Dashboard", content: dashboardNode },
+    { key: "orders", label: "Orders", count: orders.length, content: ordersNode },
+  ];
+  if (downloads.length)
+    tabs.push({ key: "downloads", label: "Downloads", count: downloads.length, content: downloadsNode });
+  if (courseList.length)
+    tabs.push({ key: "courses", label: "Courses", count: courseList.length, content: coursesNode });
+  if (membershipList.length)
+    tabs.push({ key: "memberships", label: "Memberships", count: membershipList.length, content: membershipsNode });
+  if (bookings.length)
+    tabs.push({ key: "bookings", label: "Bookings", count: bookings.length, content: bookingsNode });
+  tabs.push({ key: "account", label: "Account details", content: accountNode });
+
+  return (
+    <main className="mx-auto max-w-5xl px-4 py-10 md:py-14">
+      {/* Header */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <ShoppingBag className="h-6 w-6 text-primary" />
+          <div>
+            <h1 className="font-sora text-2xl font-bold tracking-tight">
+              My Account
+            </h1>
+            <p className="text-sm text-muted-foreground">{email}</p>
+          </div>
+        </div>
+        <BuyerLogoutButton />
+      </div>
+
+      <BuyerAccountShell tabs={tabs} />
     </main>
   );
 }
