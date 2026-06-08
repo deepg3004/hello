@@ -136,7 +136,7 @@ export function Sidebar({
   return (
     <div
       className="flex h-full flex-col text-[hsl(var(--sidebar-fg))]"
-      style={{ background: "#020617" }}
+      style={{ background: "hsl(var(--sidebar-bg))" }}
     >
       {/* ── Logo block ───────────────────────────────────────────────── */}
       <div
@@ -144,7 +144,7 @@ export function Sidebar({
           "relative flex h-16 shrink-0 items-center gap-2.5 px-5",
           // Subtle gradient hairline border below the logo block
           "after:absolute after:inset-x-4 after:bottom-0 after:h-px",
-          "after:bg-gradient-to-r after:from-transparent after:via-[#7C3AED]/40 after:to-transparent",
+          "after:bg-gradient-to-r after:from-transparent after:via-[hsl(var(--sidebar-active-bg))]/40 after:to-transparent",
         )}
       >
         <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-md bg-brand-gradient shadow-sm shadow-black/40">
@@ -163,7 +163,7 @@ export function Sidebar({
           <Link
             href="/dashboard"
             onClick={onNavigate}
-            className="block font-sora text-base font-semibold tracking-tight text-white"
+            className="block font-sora text-base font-semibold tracking-tight text-[hsl(var(--sidebar-fg-strong))]"
           >
             {branding.name}
           </Link>
@@ -196,8 +196,8 @@ export function Sidebar({
                         className={cn(
                           "block rounded-md px-2 py-1 text-[13px] transition",
                           active
-                            ? "bg-[hsl(var(--sidebar-hover-bg))] text-white"
-                            : "text-[hsl(var(--sidebar-fg))]/70 hover:text-white",
+                            ? "bg-[hsl(var(--sidebar-hover-bg))] text-[hsl(var(--sidebar-fg-strong))]"
+                            : "text-[hsl(var(--sidebar-fg))]/80 hover:text-[hsl(var(--sidebar-fg-strong))]",
                         )}
                       >
                         {sub.label}
@@ -217,8 +217,8 @@ export function Sidebar({
               className={cn(
                 "group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all duration-150",
                 crmActive
-                  ? "bg-[#7C3AED]/20 text-white ring-1 ring-inset ring-[#7C3AED]/30"
-                  : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100",
+                  ? "bg-[hsl(var(--sidebar-active-bg))] text-[hsl(var(--sidebar-active-fg))] shadow-sm"
+                  : "text-[hsl(var(--sidebar-fg))] hover:bg-[hsl(var(--sidebar-hover-bg))] hover:text-[hsl(var(--sidebar-fg-strong))]",
               )}
             >
               <span
@@ -242,8 +242,8 @@ export function Sidebar({
                       className={cn(
                         "block rounded-md px-2 py-1 text-[13px] transition",
                         active
-                          ? "bg-[hsl(var(--sidebar-hover-bg))] text-white"
-                          : "text-[hsl(var(--sidebar-fg))]/70 hover:text-white",
+                          ? "bg-[hsl(var(--sidebar-hover-bg))] text-[hsl(var(--sidebar-fg-strong))]"
+                          : "text-[hsl(var(--sidebar-fg))]/80 hover:text-[hsl(var(--sidebar-fg-strong))]",
                       )}
                     >
                       {sub.label}
@@ -298,7 +298,7 @@ export function Sidebar({
             <Button
               asChild
               size="sm"
-              className="mt-3 w-full bg-none bg-white text-[#7C3AED] hover:bg-white/90"
+              className="mt-3 w-full bg-none bg-white text-primary hover:bg-white/90"
             >
               <Link href="/dashboard/upgrade" onClick={onNavigate}>
                 Upgrade
@@ -311,7 +311,7 @@ export function Sidebar({
       {/* ── User row + sign-out ──────────────────────────────────────── */}
       <div
         className={cn(
-          "flex shrink-0 items-center gap-3 border-t border-[#1E293B]",
+          "flex shrink-0 items-center gap-3 border-t border-[hsl(var(--sidebar-border))]",
           "px-3 py-3",
         )}
       >
@@ -322,12 +322,12 @@ export function Sidebar({
               alt={profile.full_name ?? profile.email}
             />
           ) : null}
-          <AvatarFallback className="bg-[#7C3AED] text-xs text-white">
+          <AvatarFallback className="bg-primary text-xs text-primary-foreground">
             {makeInitials(profile.full_name ?? profile.email)}
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1 leading-tight">
-          <p className="truncate text-xs font-medium text-white">
+          <p className="truncate text-xs font-medium text-[hsl(var(--sidebar-fg-strong))]">
             {truncate(profile.full_name ?? "Seller", 22)}
           </p>
           <p className="truncate text-[11px] text-[hsl(var(--sidebar-fg))]/60">
@@ -343,7 +343,7 @@ export function Sidebar({
           <button
             type="submit"
             aria-label="Sign out"
-            className="rounded-md p-1.5 text-[hsl(var(--sidebar-fg))]/70 transition hover:bg-[hsl(var(--sidebar-hover-bg))] hover:text-white"
+            className="rounded-md p-1.5 text-[hsl(var(--sidebar-fg))]/70 transition hover:bg-[hsl(var(--sidebar-hover-bg))] hover:text-[hsl(var(--sidebar-fg-strong))]"
           >
             <LogOut className="h-4 w-4" />
           </button>
@@ -379,8 +379,8 @@ function NavRow({
       className={cn(
         "group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all duration-150",
         active
-          ? "bg-[#7C3AED]/20 text-white ring-1 ring-inset ring-[#7C3AED]/30"
-          : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100",
+          ? "bg-[hsl(var(--sidebar-active-bg))] text-[hsl(var(--sidebar-active-fg))] shadow-sm"
+          : "text-[hsl(var(--sidebar-fg))] hover:bg-[hsl(var(--sidebar-hover-bg))] hover:text-[hsl(var(--sidebar-fg-strong))]",
       )}
     >
       <span className={cn("nav-icon", active && "nav-icon-active-purple")}>

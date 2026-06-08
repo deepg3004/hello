@@ -49,13 +49,14 @@
     --progress-fill: 221 83% 53%;      /* blue */
     --progress-track: 214 30% 91%;
 
-    /* Sidebar — kept dark-branded (Sidebar.tsx pins its own dark bg) */
-    --sidebar-bg: 222 47% 7%;
-    --sidebar-fg: 0 0% 78%;
-    --sidebar-active-bg: 221 83% 53%;
+    /* Sidebar — LIGHT in the Lite theme (faint tint vs white content) */
+    --sidebar-bg: 214 44% 98%;
+    --sidebar-fg: 215 16% 45%;
+    --sidebar-fg-strong: 222 47% 11%;  /* hover/active label text */
+    --sidebar-active-bg: 221 83% 53%;  /* blue */
     --sidebar-active-fg: 0 0% 100%;
-    --sidebar-hover-bg: 222 30% 16%;
-    --sidebar-border: 222 30% 16%;
+    --sidebar-hover-bg: 214 48% 95%;
+    --sidebar-border: 215 28% 91%;
     --metric-bg: 0 0% 100%;
     --metric-shadow: 215 28% 91%;
 
@@ -98,6 +99,7 @@
     /* Sidebar — even darker than the canvas */
     --sidebar-bg: 229 64% 4%;          /* #030615 */
     --sidebar-fg: 215 20% 74%;
+    --sidebar-fg-strong: 0 0% 100%;
     --sidebar-active-bg: 262 83% 60%;
     --sidebar-hover-bg: 217 33% 16%;
     --sidebar-border: 222 34% 16%;
