@@ -94,7 +94,7 @@ export default async function CoursePage({
   const { data: lessonsRaw } = moduleIds.length
     ? await admin
         .from("course_lessons")
-        .select("id, module_id, title, video_url, content, duration_label, is_preview, sort_order")
+        .select("id, module_id, title, video_url, content, duration_label, is_preview, lesson_type, asset_url, sort_order")
         .in("module_id", moduleIds)
         .order("sort_order", { ascending: true })
     : { data: [] as never[] };
@@ -154,6 +154,8 @@ export default async function CoursePage({
           video_url: l.video_url ?? null,
           content: l.content ?? null,
           duration_label: l.duration_label ?? null,
+          lesson_type: (l.lesson_type as string | null) ?? "video",
+          asset_url: (l.asset_url as string | null) ?? null,
           completed: completed.has(l.id),
         })),
     }));

@@ -31,6 +31,10 @@ export interface PlayerLesson {
   video_url: string | null;
   content: string | null;
   duration_label: string | null;
+  /** "video" | "text" | "pdf" | "image" — defaults to video. */
+  lesson_type?: string;
+  /** Source URL for pdf / image lessons (video uses video_url). */
+  asset_url?: string | null;
   completed: boolean;
 }
 export interface PlayerModule {
@@ -154,7 +158,12 @@ export function CoursePlayerClient({
   }
 
   const active = flat.find((l) => l.id === activeId) ?? null;
-  const source = active ? resolvePlaySource(active.video_url) : null;
+  const lessonType = active?.lesson_type ?? "video";
+  const assetUrl = active?.asset_url ?? null;
+  const source =
+    active && lessonType === "video"
+      ? resolvePlaySource(active.video_url)
+      : null;
   const total = flat.length;
   const completedCount = done.size;
   const pct = total > 0 ? Math.round((completedCount / total) * 100) : 0;
@@ -212,7 +221,11 @@ export function CoursePlayerClient({
             onContextMenu={(e) => e.preventDefault()}
             className={cn(
               "relative w-full overflow-hidden rounded-xl bg-black",
-              isFs ? "flex h-screen items-center justify-center" : "aspect-video",
+              isFs
+                ? "flex h-screen items-center justify-center"
+                : lessonType === "text" || lessonType === "pdf"
+                  ? "h-[70vh]"
+                  : "aspect-video",
             )}
           >
             {blocked ? (
@@ -239,6 +252,44 @@ export function CoursePlayerClient({
                   Watch here instead
                 </button>
               </div>
+            ) : lessonType === "text" ? (
+              active?.content ? (
+                <div className="h-full w-full overflow-y-auto bg-card px-5 py-6 text-foreground sm:px-8">
+                  <p className="mx-auto max-w-2xl whitespace-pre-wrap text-sm leading-relaxed">
+                    {active.content}
+                  </p>
+                </div>
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-sm text-white/60">
+                  No text for this lesson.
+                </div>
+              )
+            ) : lessonType === "pdf" ? (
+              assetUrl ? (
+                <iframe
+                  src={assetUrl}
+                  title={active?.title ?? "PDF"}
+                  className="h-full w-full bg-white"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-sm text-white/60">
+                  No PDF for this lesson.
+                </div>
+              )
+            ) : lessonType === "image" ? (
+              assetUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={assetUrl}
+                  alt={active?.title ?? "Lesson image"}
+                  onContextMenu={(e) => e.preventDefault()}
+                  className="h-full w-full object-contain"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-sm text-white/60">
+                  No image for this lesson.
+                </div>
+              )
             ) : !source ? (
               <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-white/70">
                 <PlayCircle className="h-8 w-8" />
@@ -267,7 +318,7 @@ export function CoursePlayerClient({
               />
             )}
             {!blocked && source && watermark ? <Watermark label={watermark} /> : null}
-            {!blocked && source && (
+            {!blocked && (source || lessonType === "image" || lessonType === "pdf") && (
               <button
                 type="button"
                 onClick={toggleFullscreen}
@@ -309,7 +360,7 @@ export function CoursePlayerClient({
                 </button>
                 )}
               </div>
-              {active.content && (
+              {active.content && lessonType !== "text" && (
                 <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
                   {active.content}
                 </p>

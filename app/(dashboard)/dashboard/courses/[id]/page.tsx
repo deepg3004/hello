@@ -6,6 +6,7 @@ import {
   CourseEditor,
   type EditorCourse,
   type EditorModule,
+  type EditorLesson,
 } from "@/components/dashboard/courses/CourseEditor";
 
 export const metadata = { title: "Edit course" };
@@ -37,7 +38,7 @@ export default async function CourseEditPage({
   const { data: lessons } = moduleIds.length
     ? await admin
         .from("course_lessons")
-        .select("id, module_id, title, video_url, content, duration_label, is_preview, sort_order")
+        .select("id, module_id, title, video_url, content, duration_label, is_preview, lesson_type, asset_url, sort_order")
         .in("module_id", moduleIds)
         .order("sort_order", { ascending: true })
     : { data: [] as never[] };
@@ -61,6 +62,9 @@ export default async function CourseEditPage({
         content: l.content ?? "",
         duration_label: l.duration_label ?? "",
         is_preview: !!(l as { is_preview?: boolean }).is_preview,
+        lesson_type: ((l as { lesson_type?: string }).lesson_type ??
+          "video") as EditorLesson["lesson_type"],
+        asset_url: (l as { asset_url?: string | null }).asset_url ?? "",
       })),
   }));
 
