@@ -9,6 +9,11 @@
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  BUYER_COOKIE,
+  BUYER_COOKIE_TTL_DAYS,
+  signBuyerSession,
+} from "@/lib/buyer-portal";
 import { verifyPayment, verifyPaymentWithSecret } from "@/lib/razorpay";
 import { loadSellerGatewayKeys, type GatewayType } from "@/lib/gateway-loader";
 import { getGateway, isLiveGateway } from "@/lib/gateways";
@@ -119,12 +124,15 @@ export async function POST(request: Request) {
 
   if (order.status === "paid") {
     // Idempotent — already marked.
-    return NextResponse.json({
-      ok: true,
-      order_id,
-      redirect_url: redirectUrl(order_id, order.page_id),
-      already_paid: true,
-    });
+    return attachBuyerSession(
+      NextResponse.json({
+        ok: true,
+        order_id,
+        redirect_url: redirectUrl(order_id, order.page_id),
+        already_paid: true,
+      }),
+      order.buyer_email,
+    );
   }
 
   // 0. A/B — sniff the variant cookie for this page (if any).
@@ -183,12 +191,15 @@ export async function POST(request: Request) {
   // this, two racing verify calls (double-click / client retry) double-charge
   // the wallet fee and double-decrement stock.
   if (!didTransition) {
-    return NextResponse.json({
-      ok: true,
-      order_id,
-      redirect_url: redirectUrl(order_id, order.page_id),
-      already_paid: true,
-    });
+    return attachBuyerSession(
+      NextResponse.json({
+        ok: true,
+        order_id,
+        redirect_url: redirectUrl(order_id, order.page_id),
+        already_paid: true,
+      }),
+      order.buyer_email,
+    );
   }
 
   // 1b. AB conversion counters — best-effort. Revenue tracked in paise so we
@@ -737,9 +748,24 @@ export async function POST(request: Request) {
     redirect_url: redirectTarget,
   });
   if (setCookie) response.headers.set("Set-Cookie", setCookie);
-  return response;
+  return attachBuyerSession(response, order.buyer_email);
 }
 
 function redirectUrl(orderId: string, _pageId: string | null): string {
   return `/order/${orderId}?status=success`;
+}
+
+/** Sign the buyer into their account on this host right after a successful
+ *  purchase — so "My Account" + their orders are available with no separate
+ *  OTP login. Appended (not set) so it never clobbers other Set-Cookie. */
+function attachBuyerSession(res: NextResponse, email: string | null): NextResponse {
+  const e = email?.trim().toLowerCase();
+  if (e) {
+    const token = signBuyerSession(e);
+    res.headers.append(
+      "Set-Cookie",
+      `${BUYER_COOKIE}=${token}; Max-Age=${BUYER_COOKIE_TTL_DAYS * 86400}; Path=/; HttpOnly; SameSite=Lax`,
+    );
+  }
+  return res;
 }
