@@ -31,7 +31,7 @@ type PageRel = {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const COURSE_FIELDS =
-  "id, seller_user_id, product_id, title, subtitle, description, thumbnail_url, status, slug, category, level, language, what_you_learn, requirements, who_for, instructor_name, instructor_bio, instructor_avatar, updated_at";
+  "id, seller_user_id, product_id, title, subtitle, description, thumbnail_url, status, slug, category, level, language, what_you_learn, requirements, who_for, instructor_name, instructor_bio, instructor_avatar, offer_config, updated_at";
 
 function asList(v: unknown): string[] {
   return Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === "string") : [];
@@ -237,16 +237,27 @@ export default async function CoursePage({
       });
     }
 
+    // Per-course offer wins; otherwise fall back to the storefront promo.
+    const courseOffer = course.offer_config as
+      | { enabled?: boolean; title?: string; text?: string; cta_label?: string; cta_url?: string }
+      | null;
     const courseCfg = resolveSurfaceConfig(sellerRow?.storefront_config, "course");
     const offer =
-      courseCfg.sections.promo && courseCfg.promoTitle?.trim()
+      courseOffer?.enabled && courseOffer.title?.trim()
         ? {
-            title: courseCfg.promoTitle,
-            text: courseCfg.promoText || null,
-            ctaLabel: courseCfg.promoCtaLabel || null,
-            ctaUrl: courseCfg.promoCtaUrl || null,
+            title: courseOffer.title,
+            text: courseOffer.text || null,
+            ctaLabel: courseOffer.cta_label || null,
+            ctaUrl: courseOffer.cta_url || null,
           }
-        : null;
+        : courseCfg.sections.promo && courseCfg.promoTitle?.trim()
+          ? {
+              title: courseCfg.promoTitle,
+              text: courseCfg.promoText || null,
+              ctaLabel: courseCfg.promoCtaLabel || null,
+              ctaUrl: courseCfg.promoCtaUrl || null,
+            }
+          : null;
 
     return (
       <CoursePlayerClient

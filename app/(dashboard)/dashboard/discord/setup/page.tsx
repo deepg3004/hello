@@ -29,7 +29,7 @@ export default async function DiscordSetupPage() {
   }>).map((p) => ({ id: p.id, title: p.title ?? p.slug ?? "Untitled page" }));
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
+    <div className="mx-auto max-w-2xl space-y-6">
       <DashboardHero
         title="Connect Discord"
         blurb="Add your bot to a server, link a sales page, and buyers get an automatic invite after they pay."
