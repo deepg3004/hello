@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Circle, Loader2, PlayCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  Circle,
+  Loader2,
+  Maximize2,
+  Minimize2,
+  PlayCircle,
+} from "lucide-react";
 
 import { resolvePlaySource } from "@/lib/learn/video";
 import { cn } from "@/lib/utils";
@@ -43,6 +50,24 @@ export function CoursePlayerClient({
   );
   const [activeId, setActiveId] = useState<string | null>(flat[0]?.id ?? null);
   const [marking, setMarking] = useState(false);
+
+  // Fullscreen the player CONTAINER (not the bare <video>) so the watermark
+  // overlay stays on screen in fullscreen. Native fullscreen is suppressed via
+  // controlsList="nofullscreen" so buyers use this button instead.
+  const playerRef = useRef<HTMLDivElement>(null);
+  const [isFs, setIsFs] = useState(false);
+  useEffect(() => {
+    const onChange = () => setIsFs(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  function toggleFullscreen() {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => {});
+    } else {
+      void playerRef.current?.requestFullscreen().catch(() => {});
+    }
+  }
 
   const active = flat.find((l) => l.id === activeId) ?? null;
   const source = active ? resolvePlaySource(active.video_url) : null;
@@ -95,7 +120,14 @@ export function CoursePlayerClient({
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         {/* Player */}
         <div className="min-w-0">
-          <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black">
+          <div
+            ref={playerRef}
+            onContextMenu={(e) => e.preventDefault()}
+            className={cn(
+              "relative w-full overflow-hidden rounded-xl bg-black",
+              isFs ? "flex h-screen items-center justify-center" : "aspect-video",
+            )}
+          >
             {!source ? (
               <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-white/70">
                 <PlayCircle className="h-8 w-8" />
@@ -104,7 +136,14 @@ export function CoursePlayerClient({
                 </p>
               </div>
             ) : source.kind === "file" ? (
-              <video src={source.src} controls controlsList="nodownload" className="h-full w-full" />
+              <video
+                src={source.src}
+                controls
+                controlsList="nodownload nofullscreen noremoteplayback"
+                disablePictureInPicture
+                onContextMenu={(e) => e.preventDefault()}
+                className="h-full w-full object-contain"
+              />
             ) : source.kind === "signed" ? (
               <SignedVideo src={source.src} token={token} />
             ) : (
@@ -117,6 +156,20 @@ export function CoursePlayerClient({
               />
             )}
             {source && watermark ? <Watermark label={watermark} /> : null}
+            {source && (
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                aria-label={isFs ? "Exit fullscreen" : "Fullscreen"}
+                className="absolute bottom-2 right-2 z-10 rounded-md bg-black/55 p-1.5 text-white/90 backdrop-blur transition hover:bg-black/75"
+              >
+                {isFs ? (
+                  <Minimize2 className="h-4 w-4" />
+                ) : (
+                  <Maximize2 className="h-4 w-4" />
+                )}
+              </button>
+            )}
           </div>
 
           {active && (
@@ -287,8 +340,10 @@ function SignedVideo({ src, token }: { src: string; token: string }) {
       ref={videoRef}
       src={media.kind === "hls" ? undefined : media.url}
       controls
-      controlsList="nodownload"
-      className="h-full w-full"
+      controlsList="nodownload nofullscreen noremoteplayback"
+      disablePictureInPicture
+      onContextMenu={(e) => e.preventDefault()}
+      className="h-full w-full object-contain"
     />
   );
 }
