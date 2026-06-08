@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatINR } from "@/lib/utils";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 
 export interface EarningsPoint {
   /** yyyy-MM */
@@ -65,7 +66,10 @@ export function EarningsCard({
             <Info className="h-3 w-3 opacity-60" />
           </p>
           <p className="mt-1.5 font-sora text-3xl font-bold tracking-tight tabular-nums sm:text-4xl">
-            {formatINR(total * 100)}
+            <AnimatedNumber
+              value={total}
+              format={(n) => formatINR(Math.round(n) * 100)}
+            />
           </p>
         </div>
         <Select value={range} onValueChange={setRange}>
