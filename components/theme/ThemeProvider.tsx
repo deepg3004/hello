@@ -17,7 +17,10 @@ import {
 } from "react";
 
 export type Theme = "light" | "dark" | "system";
-export const THEME_STORAGE_KEY = "invox-theme";
+// Bumped to -v2 with the Modern Dark Glass redesign so EXISTING users (who had
+// an old "invox-theme" preference, usually light) start fresh on the new dark
+// default. Their toggle still works and writes this new key.
+export const THEME_STORAGE_KEY = "invox-theme-v2";
 
 interface ThemeContextValue {
   /** The user's stored preference. */
