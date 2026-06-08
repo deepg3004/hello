@@ -13,6 +13,7 @@ import {
   Signal,
   Star,
   Users,
+  X,
 } from "lucide-react";
 
 import { formatINR, formatDate } from "@/lib/utils";
@@ -20,6 +21,7 @@ import { Stars } from "@/components/store/Stars";
 import { ReviewsSection } from "@/components/store/ReviewsSection";
 import { cardClassName } from "@/components/store/ProductCard";
 import { CourseCard, type CourseCardItem } from "@/components/courses/CourseCard";
+import { CheckoutForm } from "@/components/pages/CheckoutForm";
 import type { CardStyle } from "@/lib/storefront-theme";
 import {
   CoursePreviewModal,
@@ -59,6 +61,15 @@ export interface CourseLandingProps {
   priceRupees: number | null;
   originalPriceRupees: number | null;
   checkoutUrl: string | null;
+  /** Inline (on-site) checkout — opens the checkout form in a modal instead of
+   *  navigating to the separate /p payment page. */
+  checkout?: {
+    pageId: string;
+    productId: string;
+    productName: string;
+    price: number;
+    accent: string | null;
+  } | null;
   previewLessons: PreviewLesson[];
   previewToken: string;
   rating: ReviewSummary;
@@ -103,6 +114,8 @@ export function CourseLanding(props: CourseLandingProps) {
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewStart, setPreviewStart] = useState<string | null>(null);
+  const checkout = props.checkout ?? null;
+  const [buyOpen, setBuyOpen] = useState(false);
   const lessonCount = modules.reduce((n, m) => n + m.lessons.length, 0);
   const off =
     originalPriceRupees != null && priceRupees != null && originalPriceRupees > priceRupees
@@ -329,7 +342,15 @@ export function CourseLanding(props: CourseLandingProps) {
                 )}
               </div>
 
-              {checkoutUrl ? (
+              {checkout ? (
+                <button
+                  type="button"
+                  onClick={() => setBuyOpen(true)}
+                  className="sf-btn mt-4 flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
+                >
+                  Enroll now
+                </button>
+              ) : checkoutUrl ? (
                 <a href={checkoutUrl} className="sf-btn mt-4 flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold">
                   Enroll now
                 </a>
@@ -377,7 +398,15 @@ export function CourseLanding(props: CourseLandingProps) {
           )}
           {off > 0 && <span className="text-xs font-semibold text-rose-500">{off}% off</span>}
         </div>
-        {checkoutUrl ? (
+        {checkout ? (
+          <button
+            type="button"
+            onClick={() => setBuyOpen(true)}
+            className="sf-btn px-5 py-2.5 text-sm font-semibold"
+          >
+            Enroll now
+          </button>
+        ) : checkoutUrl ? (
           <a href={checkoutUrl} className="sf-btn px-5 py-2.5 text-sm font-semibold">
             Enroll now
           </a>
@@ -385,6 +414,38 @@ export function CourseLanding(props: CourseLandingProps) {
           <span className="text-sm sf-muted">Opens soon</span>
         )}
       </div>
+
+      {/* Inline checkout — a PLAIN modal (not Radix) so it never sets
+          body{pointer-events:none}, which would make the Razorpay/Cashfree
+          popup unclickable (the cart-drawer bug). */}
+      {checkout && buyOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/60 p-4 sm:items-center"
+          onClick={() => setBuyOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-md rounded-2xl bg-background p-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setBuyOpen(false)}
+              aria-label="Close"
+              className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground transition hover:bg-muted"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <CheckoutForm
+              pageId={checkout.pageId}
+              productId={checkout.productId}
+              productName={checkout.productName}
+              price={checkout.price}
+              currency="INR"
+              primaryColor={checkout.accent ?? undefined}
+            />
+          </div>
+        </div>
+      )}
 
       {hasPreview && (
         <CoursePreviewModal
