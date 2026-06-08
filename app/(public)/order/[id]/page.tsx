@@ -146,7 +146,7 @@ export default async function OrderConfirmationPage({
   return (
     <main
       className={cn(
-        "min-h-screen bg-gradient-to-b from-zinc-50 to-white px-4 pt-12 md:py-16",
+        "min-h-screen bg-gradient-to-b from-background to-background px-4 pt-12 md:py-16",
         paid ? "pb-28 md:pb-16" : "pb-12",
       )}
     >
@@ -158,14 +158,14 @@ export default async function OrderConfirmationPage({
 
         {/* Heading + buyer line */}
         <div className="text-center">
-          <h1 className="font-sora text-3xl font-bold tracking-tight text-zinc-900 sm:text-[32px]">
+          <h1 className="font-sora text-3xl font-bold tracking-tight text-foreground sm:text-[32px]">
             {paid
               ? "Payment Successful! 🎉"
               : failed
                 ? "Payment Failed"
                 : "Order Received"}
           </h1>
-          <p className="mt-2 text-lg text-zinc-600 sm:text-xl">
+          <p className="mt-2 text-lg text-muted-foreground sm:text-xl">
             {paid
               ? `Thank you${order.buyer_name ? `, ${order.buyer_name}` : ""}`
               : failed
@@ -175,8 +175,8 @@ export default async function OrderConfirmationPage({
         </div>
 
         {/* Order summary card */}
-        <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-md">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-md">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             Order summary
           </p>
           <div className="mt-3 space-y-2.5">
@@ -186,14 +186,14 @@ export default async function OrderConfirmationPage({
               mono
             />
             {lineItems.length > 0 ? (
-              <div className="space-y-1.5 border-b border-zinc-100 pb-2.5">
+              <div className="space-y-1.5 border-b border-border pb-2.5">
                 {lineItems.map((it, i) => (
                   <div key={i} className="flex items-baseline justify-between gap-3 text-sm">
-                    <span className="text-zinc-700">
+                    <span className="text-foreground">
                       {it.name_snapshot}
-                      <span className="text-zinc-400"> × {it.quantity}</span>
+                      <span className="text-muted-foreground"> × {it.quantity}</span>
                     </span>
-                    <span className="font-medium text-zinc-900">
+                    <span className="font-medium text-foreground">
                       ₹{Number(it.line_amount).toLocaleString("en-IN")}
                     </span>
                   </div>
@@ -208,18 +208,18 @@ export default async function OrderConfirmationPage({
             />
             <KV label="Email" value={order.buyer_email} />
           </div>
-          <div className="mt-4 flex items-baseline justify-between border-t border-zinc-200 pt-4">
-            <span className="text-sm font-medium text-zinc-700">
+          <div className="mt-4 flex items-baseline justify-between border-t border-border pt-4">
+            <span className="text-sm font-medium text-foreground">
               {paid ? "Amount paid" : "Amount"}
             </span>
             <span
               className={
                 "font-sora text-3xl font-bold " +
-                (paid ? "text-emerald-600" : "text-zinc-900")
+                (paid ? "text-emerald-600" : "text-foreground")
               }
             >
               ₹{Number(order.amount).toLocaleString("en-IN")}
-              <span className="ml-1 text-xs font-normal text-zinc-500">
+              <span className="ml-1 text-xs font-normal text-muted-foreground">
                 {order.currency}
               </span>
             </span>
@@ -228,9 +228,9 @@ export default async function OrderConfirmationPage({
 
         {/* Course access — only when the product unlocks a course and paid */}
         {courseHref && (
-          <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-5 text-sm">
-            <p className="font-semibold text-indigo-900">🎓 Your course is ready</p>
-            <p className="mt-1 text-indigo-800">
+          <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-5 text-sm">
+            <p className="font-semibold text-indigo-200">🎓 Your course is ready</p>
+            <p className="mt-1 text-indigo-300">
               Access <span className="font-medium">{course!.title}</span> any time
               from this link (bookmark it).
             </p>
@@ -242,9 +242,9 @@ export default async function OrderConfirmationPage({
 
         {/* Lock Content — reveal the private content page after payment */}
         {unlockHref && (
-          <div className="rounded-2xl border border-violet-200 bg-violet-50 p-5 text-sm">
-            <p className="font-semibold text-violet-900">🔓 Your content is unlocked</p>
-            <p className="mt-1 text-violet-800">
+          <div className="rounded-2xl border border-violet-500/30 bg-violet-500/10 p-5 text-sm">
+            <p className="font-semibold text-violet-200">🔓 Your content is unlocked</p>
+            <p className="mt-1 text-violet-300">
               Open your private content page any time from this link (bookmark it).
             </p>
             <Button asChild className="mt-3 bg-violet-600 text-white hover:bg-violet-700">
@@ -264,7 +264,7 @@ export default async function OrderConfirmationPage({
 
         {/* Failure helper */}
         {failed && (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-900">
+          <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-5 text-sm text-rose-200">
             <p className="font-semibold">What to do</p>
             <p className="mt-1">
               The charge didn&apos;t go through. Your card / UPI account
@@ -318,9 +318,9 @@ export default async function OrderConfirmationPage({
         </div>
 
         {/* Footer line */}
-        <p className="pt-2 text-center text-[11px] text-zinc-400">
+        <p className="pt-2 text-center text-[11px] text-muted-foreground">
           Powered by{" "}
-          <span className="font-sora font-semibold text-zinc-500">InvoxAI</span>
+          <span className="font-sora font-semibold text-muted-foreground">InvoxAI</span>
         </p>
       </div>
     </main>
@@ -332,13 +332,13 @@ export default async function OrderConfirmationPage({
 function NotFoundShell() {
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col items-center justify-center px-6 py-16 text-center">
-      <p className="text-xs uppercase tracking-widest text-zinc-500">
+      <p className="text-xs uppercase tracking-widest text-muted-foreground">
         invoxai.io / order
       </p>
       <h1 className="mt-2 font-sora text-3xl font-bold tracking-tight">
         We couldn&apos;t find that order
       </h1>
-      <p className="mt-4 text-zinc-600">
+      <p className="mt-4 text-muted-foreground">
         If you just paid, give it a few seconds and refresh. Otherwise the
         order id may be wrong.
       </p>
@@ -370,7 +370,7 @@ function StatusCircle({
   return (
     <div className="flex justify-center">
       <div
-        className="relative flex h-24 w-24 items-center justify-center rounded-full bg-white shadow-lg"
+        className="relative flex h-24 w-24 items-center justify-center rounded-full bg-card shadow-lg"
         style={{
           animation:
             "ixaPopIn 380ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
@@ -495,12 +495,12 @@ function KV({
 }) {
   return (
     <div className="flex items-center justify-between gap-3 text-sm">
-      <span className="text-zinc-500">{label}</span>
+      <span className="text-muted-foreground">{label}</span>
       <span
         className={
           mono
-            ? "font-mono text-xs font-semibold text-zinc-900"
-            : "font-medium text-zinc-900"
+            ? "font-mono text-xs font-semibold text-foreground"
+            : "font-medium text-foreground"
         }
       >
         {value}

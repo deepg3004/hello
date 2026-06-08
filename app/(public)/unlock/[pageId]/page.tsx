@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 function Denied({ reason }: { reason: string }) {
   return (
     <main className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center px-6 text-center">
-      <Lock className="h-10 w-10 text-zinc-400" />
+      <Lock className="h-10 w-10 text-muted-foreground" />
       <h1 className="mt-4 font-sora text-xl font-semibold">Content locked</h1>
       <p className="mt-2 text-sm text-muted-foreground">{reason}</p>
       <Link
@@ -90,12 +90,12 @@ export default async function UnlockPage({
       </h1>
 
       {intro && (
-        <p className="mt-4 whitespace-pre-wrap text-zinc-700">{intro}</p>
+        <p className="mt-4 whitespace-pre-wrap text-muted-foreground">{intro}</p>
       )}
 
       {body && (
-        <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <p className="whitespace-pre-wrap leading-relaxed text-zinc-800">
+        <div className="mt-6 rounded-xl border border-border bg-card p-5 shadow-sm">
+          <p className="whitespace-pre-wrap leading-relaxed text-foreground">
             {body}
           </p>
         </div>
@@ -114,10 +114,10 @@ export default async function UnlockPage({
                 href={l.url}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm shadow-sm transition hover:border-primary hover:bg-primary/5"
+                className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 text-sm shadow-sm transition hover:border-primary hover:bg-primary/5"
               >
                 <span className="min-w-0">
-                  <span className="block truncate font-medium text-zinc-900">
+                  <span className="block truncate font-medium text-foreground">
                     {l.label || l.url}
                   </span>
                   {l.note && (
