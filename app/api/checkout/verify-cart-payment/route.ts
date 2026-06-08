@@ -8,11 +8,28 @@
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  BUYER_COOKIE,
+  BUYER_COOKIE_TTL_DAYS,
+  signBuyerSession,
+} from "@/lib/buyer-portal";
 import { verifyPaymentWithSecret } from "@/lib/razorpay";
 import { loadSellerGatewayKeys, type GatewayType } from "@/lib/gateway-loader";
 import { getGateway, isLiveGateway } from "@/lib/gateways";
 import { chargePlatformWalletFee } from "@/lib/order-fulfillment";
 import { fulfillCartOrder } from "@/lib/cart-fulfillment";
+
+/** Sign the buyer in on this host right after a successful cart purchase. */
+function attachBuyerSession(res: NextResponse, email: string | null): NextResponse {
+  const e = email?.trim().toLowerCase();
+  if (e) {
+    res.headers.append(
+      "Set-Cookie",
+      `${BUYER_COOKIE}=${signBuyerSession(e)}; Max-Age=${BUYER_COOKIE_TTL_DAYS * 86400}; Path=/; HttpOnly; SameSite=Lax`,
+    );
+  }
+  return res;
+}
 
 export async function POST(request: Request) {
   let body: {
@@ -43,7 +60,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
   if (order.status === "paid") {
-    return NextResponse.json({ ok: true, order_id, redirect_url: `/order/${order_id}`, already_paid: true });
+    return attachBuyerSession(NextResponse.json({ ok: true, order_id, redirect_url: `/order/${order_id}`, already_paid: true }), order.buyer_email);
   }
 
   // Confirm with the gateway the order was created on: Razorpay by signature,
@@ -93,7 +110,7 @@ export async function POST(request: Request) {
     .eq("status", "pending")
     .select("id");
   if (!paidRows || paidRows.length === 0) {
-    return NextResponse.json({ ok: true, order_id, redirect_url: `/order/${order_id}`, already_paid: true });
+    return attachBuyerSession(NextResponse.json({ ok: true, order_id, redirect_url: `/order/${order_id}`, already_paid: true }), order.buyer_email);
   }
 
   // Platform wallet fee — once per order (idempotent at the RPC layer).
@@ -114,5 +131,5 @@ export async function POST(request: Request) {
     admin,
   );
 
-  return NextResponse.json({ ok: true, order_id, redirect_url: `/order/${order_id}` });
+  return attachBuyerSession(NextResponse.json({ ok: true, order_id, redirect_url: `/order/${order_id}` }), order.buyer_email);
 }
