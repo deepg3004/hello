@@ -87,6 +87,12 @@ export const RADIUS: Record<RadiusKey, string> = {
 
 // ── Ready themes ─────────────────────────────────────────────────────────────
 export const STOREFRONT_THEMES: Record<string, StorefrontTheme> = {
+  "modern-dark-glass": {
+    key: "modern-dark-glass", label: "Modern Dark Glass", dark: true,
+    vars: { bg: "#080d1c", bg2: "#0f172a", surface: "rgba(17,26,48,0.72)", fg: "#eef2ff", muted: "#9aa6c4", border: "rgba(124,58,237,0.22)", accent: "#7c3aed", accentFg: "#ffffff" },
+    defaultFont: "modern-sans",
+    swatch: { bg: "#080d1c", accent: "#7c3aed" },
+  },
   "luxe-noir": {
     key: "luxe-noir", label: "Luxe Noir", dark: true,
     vars: { bg: "#0b0b0f", bg2: "#101017", surface: "#16161f", fg: "#f6f1e7", muted: "#a8a29e", border: "rgba(201,161,74,0.18)", accent: "#c9a14a", accentFg: "#1a1408" },
@@ -150,7 +156,7 @@ export const STOREFRONT_THEMES: Record<string, StorefrontTheme> = {
 };
 
 export const STOREFRONT_THEME_LIST = Object.values(STOREFRONT_THEMES);
-export const DEFAULT_THEME = "luxe-noir";
+export const DEFAULT_THEME = "modern-dark-glass";
 
 export interface SurfaceConfig {
   theme: string;
@@ -210,7 +216,7 @@ export function defaultSurfaceConfig(): SurfaceConfig {
     accent: null,
     font: null,
     hero: "banner",
-    card: "elevated",
+    card: "glass",
     radius: "soft",
     density: "comfortable",
     sections: { ratings: true, badges: true, related: true, trust: true, announcement: false, promo: false, topSelling: false, testimonials: false, faq: false, brands: false, features: false },
