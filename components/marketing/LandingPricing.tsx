@@ -54,9 +54,9 @@ export function LandingPricing() {
               <div
                 key={key}
                 className={cn(
-                  "relative flex flex-col rounded-2xl border bg-card p-6 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-md",
+                  "relative flex flex-col rounded-2xl border bg-card p-6 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-md dark:bg-card/80 dark:backdrop-blur-xl",
                   popular
-                    ? "border-transparent ring-2 ring-[hsl(var(--brand-purple))]"
+                    ? "border-transparent ring-2 ring-[hsl(var(--brand-purple))] dark:shadow-glow"
                     : "border-border",
                 )}
               >
