@@ -129,7 +129,11 @@ export type ProductType = "digital" | "physical" | "service";
 
 export interface CatalogProductInput {
   name: string;
+  /** Selling / offer price (what the buyer pays). */
   price: number;
+  /** Optional MRP / "real" price — shown struck-through with a % off badge
+   *  when it's higher than `price`. */
+  original_price?: number | null;
   description?: string | null;
   image_url?: string | null;
   category?: string | null;
@@ -157,6 +161,17 @@ function normLimit(n: number | null | undefined): number | null {
   if (n === null || n === undefined || n === 0) return null;
   const v = Math.floor(Number(n));
   return v > 0 ? v : null;
+}
+
+/** MRP / "was" price — kept only when it's a positive number above the selling
+ *  price (otherwise null, so no misleading strike-through shows). */
+function normOriginal(
+  original: number | null | undefined,
+  price: number,
+): number | null {
+  if (original === null || original === undefined) return null;
+  const v = Number(original);
+  return v > 0 && v > price ? v : null;
 }
 
 /** Columns shared by create + update for the digital/physical/service fields. */
@@ -229,6 +244,7 @@ export async function createCatalogProductAction(
       name,
       description: input.description?.trim() || null,
       price,
+      original_price: normOriginal(input.original_price, price),
       currency: "INR",
       type: "one_time",
       active: true,
@@ -289,6 +305,7 @@ export async function updateCatalogProductAction(
       name,
       description: input.description?.trim() || null,
       price,
+      original_price: normOriginal(input.original_price, price),
       image_url: input.image_url?.trim() || null,
       category: input.category?.trim() || null,
       stock: normStock(input.stock),

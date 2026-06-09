@@ -44,6 +44,7 @@ export interface CatalogProduct {
   id: string;
   name: string;
   price: number;
+  original_price: number | null;
   description: string | null;
   image_url: string | null;
   category: string | null;
@@ -73,6 +74,7 @@ function emptyDraft(): Draft {
   return {
     name: "",
     price: 0,
+    original_price: null,
     description: "",
     image_url: "",
     category: "",
@@ -112,6 +114,7 @@ export function CatalogManager({
     setDraft({
       name: p.name,
       price: p.price,
+      original_price: p.original_price ?? null,
       description: p.description ?? "",
       image_url: p.image_url ?? "",
       category: p.category ?? "",
@@ -356,18 +359,34 @@ export function CatalogManager({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label>Price (₹)</Label>
+                <Label>Offer price (₹)</Label>
                 <Input
                   type="number"
                   min={0}
                   value={draft.price || ""}
                   onChange={(e) => set("price", Number(e.target.value))}
                 />
+                <p className="text-[11px] text-muted-foreground">What the buyer pays.</p>
               </div>
               <div className="grid gap-1.5">
-                <Label>Category</Label>
-                <Input value={draft.category ?? ""} onChange={(e) => set("category", e.target.value)} placeholder="e.g. Ebooks" />
+                <Label>MRP / real price (₹)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={draft.original_price ?? ""}
+                  onChange={(e) =>
+                    set("original_price", e.target.value === "" ? null : Number(e.target.value))
+                  }
+                  placeholder="Optional"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Shows struck-through with a “% off” badge when above the offer price.
+                </p>
               </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Category</Label>
+              <Input value={draft.category ?? ""} onChange={(e) => set("category", e.target.value)} placeholder="e.g. Ebooks" />
             </div>
             <div className="grid gap-1.5">
               <Label>Description</Label>

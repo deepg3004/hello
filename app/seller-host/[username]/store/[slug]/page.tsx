@@ -219,7 +219,7 @@ export default async function ProductDetailPage({ params }: Props) {
 
   return (
     <CartProvider username={params.username} sellerId={profile.id}>
-      <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName} sellerId={profile.id} username={params.username}>
+      <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName} sellerId={profile.id} username={params.username} hideBottomNav>
         <main className="mx-auto max-w-5xl px-4 pt-8 pb-40 sm:px-6 md:pb-8">
           <nav className="sf-muted mb-6 text-sm">
             <Link href={withStorefrontBase(storefrontBasePath(params.username), "/store")} className="transition hover:opacity-80">
@@ -248,7 +248,7 @@ export default async function ProductDetailPage({ params }: Props) {
 
               {/* Price (with strike-through "was" + % off) is rendered inside
                   the buy panel so it stays in sync with the selected variant. */}
-              <ProductBuyPanel product={buyProduct} />
+              <ProductBuyPanel product={buyProduct} navHidden />
 
               {cfg.sections.trust && (
                 <TrustBadges

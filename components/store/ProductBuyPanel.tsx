@@ -20,8 +20,16 @@ export interface BuyPanelProduct {
   variants: { id: string; name: string; price: number; stock: number | null }[];
 }
 
-/** Detail-page purchase controls: variant choice, quantity, add-to-cart, buy-now. */
-export function ProductBuyPanel({ product }: { product: BuyPanelProduct }) {
+/** Detail-page purchase controls: variant choice, quantity, add-to-cart, buy-now.
+ *  `navHidden` drops the sticky mobile bar to the screen bottom when the
+ *  storefront bottom nav isn't rendered (the product page hides it). */
+export function ProductBuyPanel({
+  product,
+  navHidden = false,
+}: {
+  product: BuyPanelProduct;
+  navHidden?: boolean;
+}) {
   const { add, openCart, setFloatingBar } = useCart();
   const { toast } = useToast();
 
@@ -156,8 +164,12 @@ export function ProductBuyPanel({ product }: { product: BuyPanelProduct }) {
       </div>
     </div>
 
-      {/* Sticky mobile buy bar */}
-      <div className="sf-band sf-border fixed inset-x-0 bottom-16 z-40 border-t px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.18)] md:hidden">
+      {/* Sticky mobile buy bar — sits above the bottom nav, or at the screen
+          edge when the nav is hidden (product page). */}
+      <div
+        className={`sf-band sf-border fixed inset-x-0 ${navHidden ? "bottom-0" : "bottom-16"} z-40 border-t px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.18)] md:hidden`}
+        style={navHidden ? { paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" } : undefined}
+      >
         <div className="mb-2 flex items-baseline justify-between gap-2">
           <span className="flex items-baseline gap-2">
             <span className="text-lg font-bold">{formatINR(Math.round(price * 100))}</span>

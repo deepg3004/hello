@@ -86,7 +86,7 @@ export default async function StoreDashboardPage() {
   const { data: catalogRaw } = await admin
     .from("products")
     .select(
-      "id, name, price, description, image_url, category, requires_shipping, stock, sku, active, product_type, file_url, file_name, download_limit, pages!products_page_id_fkey(slug), product_variants(id, name, price, stock, sku, active, sort_order), product_images(url, sort_order)",
+      "id, name, price, original_price, description, image_url, category, requires_shipping, stock, sku, active, product_type, file_url, file_name, download_limit, pages!products_page_id_fkey(slug), product_variants(id, name, price, stock, sku, active, sort_order), product_images(url, sort_order)",
     )
     .eq("user_id", ctx.ownerId)
     .eq("is_catalog", true)
@@ -95,6 +95,7 @@ export default async function StoreDashboardPage() {
     id: string;
     name: string;
     price: number;
+    original_price: number | null;
     description: string | null;
     image_url: string | null;
     category: string | null;
@@ -113,6 +114,7 @@ export default async function StoreDashboardPage() {
     id: r.id,
     name: r.name,
     price: Number(r.price ?? 0),
+    original_price: r.original_price != null ? Number(r.original_price) : null,
     description: r.description,
     image_url: r.image_url,
     category: r.category,

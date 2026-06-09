@@ -21,6 +21,7 @@ export function StorefrontShell({
   brandName,
   sellerId,
   username,
+  hideBottomNav = false,
   children,
 }: {
   cfg: SurfaceConfig;
@@ -30,6 +31,9 @@ export function StorefrontShell({
   /** Seller username — used to prefix internal links when the storefront is
    *  viewed directly on the platform host (preview). */
   username?: string;
+  /** Hide the mobile bottom tab bar on this surface (e.g. the product page,
+   *  where a sticky Add-to-cart / Buy bar takes its place). */
+  hideBottomNav?: boolean;
   children: React.ReactNode;
 }) {
   const vars = themeCssVars(cfg);
@@ -40,7 +44,10 @@ export function StorefrontShell({
   const buyerCookie = cookies().get(BUYER_COOKIE)?.value;
   const buyerLoggedIn = !!(buyerCookie && verifyBuyerSession(buyerCookie));
   return (
-    <div className="sf-root flex min-h-screen flex-col pb-16 md:pb-0" style={vars as React.CSSProperties}>
+    <div
+      className={`sf-root flex min-h-screen flex-col ${hideBottomNav ? "" : "pb-16 md:pb-0"}`}
+      style={vars as React.CSSProperties}
+    >
       {showBar && (
         <div className="sf-accent-bg w-full px-4 py-2 text-center text-xs font-medium tracking-wide">
           {cfg.announcement}
@@ -59,7 +66,9 @@ export function StorefrontShell({
         <StorefrontFooter footer={chrome.footer} brandName={name} basePath={basePath} />
       )}
       {sellerId && <StorefrontTracker sellerId={sellerId} />}
-      <StorefrontBottomNav nav={chrome?.bottomNav} basePath={basePath} />
+      {!hideBottomNav && (
+        <StorefrontBottomNav nav={chrome?.bottomNav} basePath={basePath} />
+      )}
     </div>
   );
 }
