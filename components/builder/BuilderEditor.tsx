@@ -38,6 +38,7 @@ import {
   Plus,
   Redo2,
   Save,
+  Settings2,
   Smartphone,
   Tablet,
   Trash2,
@@ -49,6 +50,9 @@ import { useToast } from "@/hooks/use-toast";
 import { WIDGET_LIST, widgetDef, type FieldSpec } from "@/lib/builder/widget-registry";
 import { ICON_NAMES } from "@/components/builder/widgets/BuilderIcon";
 import { BlockRenderer } from "@/components/builder/BlockRenderer";
+import { AnimatedBackground, BACKGROUND_OPTIONS, type BackgroundStyle } from "@/components/builder/AnimatedBackground";
+import { MobileBottomBar, defaultPrimaryLabel, type BottomBarConfig, type PageType } from "@/components/builder/MobileBottomBar";
+import type { SiteContacts } from "@/components/builder/FloatingChat";
 import {
   asDocument,
   uid,
@@ -68,6 +72,9 @@ interface PageRow {
   id: string;
   name: string;
   content_json: unknown;
+  page_type?: PageType;
+  background_style?: string;
+  bottombar_json?: unknown;
 }
 
 type Tab = "content" | "style" | "advanced";
@@ -96,6 +103,13 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
   const [preview, setPreview] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Page-level settings (page mode only): type, background, mobile bottom bar.
+  const [pageType, setPageType] = useState<PageType>("landing");
+  const [bgStyle, setBgStyle] = useState<BackgroundStyle>("gradient");
+  const [bottombar, setBottombar] = useState<BottomBarConfig>({ enabled: true, channels: {} });
+  const [contacts, setContacts] = useState<SiteContacts>({});
+  const [pageSettingsOpen, setPageSettingsOpen] = useState(false);
+
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   // ── Load / bootstrap ────────────────────────────────────────────────────────
@@ -106,12 +120,18 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
         const res = await fetch("/api/builder/sites/me");
         const data = (await res.json()) as {
           pages?: PageRow[];
-          site?: { id?: string; header_json?: unknown; footer_json?: unknown };
+          site?: { id?: string; header_json?: unknown; footer_json?: unknown; contacts_json?: SiteContacts };
         };
         if (!alive) return;
         const first = data.pages?.[0] ?? null;
         setPage(first);
         setSiteId(data.site?.id);
+        setContacts(data.site?.contacts_json ?? {});
+        if (first) {
+          setPageType((first.page_type as PageType) ?? "landing");
+          setBgStyle((first.background_style as BackgroundStyle) ?? "gradient");
+          setBottombar((first.bottombar_json as BottomBarConfig) ?? { enabled: true, channels: {} });
+        }
         // Edit the page's content, or the site's GLOBAL header/footer document.
         const source =
           mode === "header"
@@ -267,7 +287,15 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
           : mode === "footer"
             ? { url: "/api/builder/sites/me/footer", body: { footer_json: doc } }
             : page
-              ? { url: `/api/builder/pages/${page.id}`, body: { content_json: doc } }
+              ? {
+                  url: `/api/builder/pages/${page.id}`,
+                  body: {
+                    content_json: doc,
+                    page_type: pageType,
+                    background_style: bgStyle,
+                    bottombar_json: bottombar,
+                  },
+                }
               : null;
       if (!req) return;
       const res = await fetch(req.url, {
@@ -388,12 +416,66 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
           <Button variant="outline" size="sm" onClick={addSection}>
             <Plus className="mr-1.5 h-4 w-4" /> Section
           </Button>
+          {mode === "page" && (
+            <Button variant="outline" size="sm" onClick={() => setPageSettingsOpen((o) => !o)}>
+              <Settings2 className="mr-1.5 h-4 w-4" /> Page
+            </Button>
+          )}
           <Button size="sm" onClick={save} disabled={saving}>
             {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
             Save
           </Button>
         </div>
       </div>
+
+      {/* Page settings (page mode) — type, background, mobile bottom bar */}
+      {mode === "page" && pageSettingsOpen && (
+        <div className="mb-4 grid gap-4 rounded-xl border border-border bg-card p-4 sm:grid-cols-3">
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs text-muted-foreground">Page type</span>
+            <select value={pageType} onChange={(e) => setPageType(e.target.value as PageType)} className={inputCls}>
+              <option value="payment">Payment (Buy)</option>
+              <option value="landing">Landing (CTA)</option>
+              <option value="leads">Leads (Submit)</option>
+            </select>
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs text-muted-foreground">Background</span>
+            <select value={bgStyle} onChange={(e) => setBgStyle(e.target.value as BackgroundStyle)} className={inputCls}>
+              {BACKGROUND_OPTIONS.map(([v, label]) => (
+                <option key={v} value={v}>{label}</option>
+              ))}
+            </select>
+          </label>
+          <div className="text-sm">
+            <span className="mb-1 block text-xs text-muted-foreground">Mobile bottom bar</span>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={bottombar.enabled !== false} onChange={(e) => setBottombar((b) => ({ ...b, enabled: e.target.checked }))} />
+              <span className="text-xs">Show bottom bar</span>
+            </label>
+            <div className="mt-2 grid grid-cols-2 gap-1">
+              {(["whatsapp", "telegram", "call", "instagram"] as const).map((k) => (
+                <label key={k} className="flex items-center gap-1.5 text-xs capitalize">
+                  <input
+                    type="checkbox"
+                    checked={!!bottombar.channels?.[k]}
+                    onChange={(e) => setBottombar((b) => ({ ...b, channels: { ...b.channels, [k]: e.target.checked } }))}
+                  />
+                  {k}
+                </label>
+              ))}
+            </div>
+          </div>
+          <label className="block text-sm sm:col-span-2">
+            <span className="mb-1 block text-xs text-muted-foreground">Primary button label (defaults by type)</span>
+            <input value={bottombar.primaryLabel ?? ""} onChange={(e) => setBottombar((b) => ({ ...b, primaryLabel: e.target.value }))} placeholder={defaultPrimaryLabel(pageType)} className={inputCls} />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs text-muted-foreground">Primary button link</span>
+            <input value={bottombar.primaryHref ?? ""} onChange={(e) => setBottombar((b) => ({ ...b, primaryHref: e.target.value }))} placeholder="#" className={inputCls} />
+          </label>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[170px_1fr_280px]">
         {/* Palette */}
@@ -415,8 +497,14 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
           </div>
         </aside>
 
-        {/* Canvas */}
-        <main className="min-h-[60vh] rounded-xl border border-border bg-background p-4">{canvasInner}</main>
+        {/* Canvas (with the page's animated background behind the content) */}
+        <main className="relative min-h-[60vh] overflow-hidden rounded-xl border border-border bg-background p-4">
+          {mode === "page" && <AnimatedBackground style={bgStyle} />}
+          <div className="relative z-10">{canvasInner}</div>
+          {mode === "page" && preview && (
+            <MobileBottomBar pageType={pageType} config={bottombar} contacts={contacts} device={device} />
+          )}
+        </main>
 
         {/* Settings */}
         <aside className="rounded-xl border border-border bg-card p-4">
