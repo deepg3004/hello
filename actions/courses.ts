@@ -20,6 +20,53 @@ async function currentUserId(): Promise<string | null> {
   return actor.ok ? actor.ctx.ownerId : null;
 }
 
+const VIDEO_BUCKET = "course-media";
+
+/** Re-enqueue a failed HLS transcode for one of the SELLER'S OWN videos. Course
+ *  video raw paths are namespaced `course/<ownerId>/video/...`, so a prefix
+ *  match proves ownership. Mirrors the admin retry but self-serve, so sellers
+ *  aren't stuck waiting on an operator after a failed upload. */
+export async function retryMyTranscodeAction(rawPath: string): Promise<Result> {
+  const actor = await requireActor("courses.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const path = (rawPath ?? "").replace(/^cmedia:/, "");
+  if (!path.startsWith(`course/${ctx.ownerId}/`)) {
+    return { ok: false, message: "That video isn't on your account." };
+  }
+
+  const admin = createAdminClient();
+  const { data: asset } = await admin
+    .from("hls_assets")
+    .select("raw_path")
+    .eq("raw_path", path)
+    .maybeSingle();
+  if (!asset) return { ok: false, message: "Video not found." };
+
+  // The raw upload must still exist (it's deleted after a successful encode).
+  const slash = path.lastIndexOf("/");
+  const dir = path.slice(0, slash);
+  const file = path.slice(slash + 1);
+  const { data: listed } = await admin.storage.from(VIDEO_BUCKET).list(dir, { search: file });
+  if (!(listed ?? []).some((f) => f.name === file)) {
+    return {
+      ok: false,
+      message: "The original upload is gone — please re-upload the video.",
+    };
+  }
+
+  await admin
+    .from("hls_assets")
+    .update({ status: "processing", error: null, updated_at: new Date().toISOString() })
+    .eq("raw_path", path);
+
+  const { enqueueHlsJob } = await import("@/lib/queues/hls");
+  await enqueueHlsJob(path);
+
+  return { ok: true };
+}
+
 /** Returns the course id if the user owns the course/module/lesson, else null. */
 async function ownedCourseId(
   admin: ReturnType<typeof createAdminClient>,

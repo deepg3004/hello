@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Eye, Loader2, Plus, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Eye, Loader2, Plus, RotateCcw, Trash2, Upload } from "lucide-react";
 
 import {
   Card,
@@ -23,6 +23,7 @@ import {
   deleteLessonAction,
   deleteModuleAction,
   makeCourseSellableAction,
+  retryMyTranscodeAction,
   updateCourseAction,
   updateLessonAction,
   updateModuleAction,
@@ -43,6 +44,8 @@ export interface EditorLesson {
   is_preview: boolean;
   lesson_type: "video" | "text" | "pdf" | "image";
   asset_url: string;
+  /** HLS transcode state for video lessons (null = not an HLS upload). */
+  transcode_status?: "processing" | "ready" | "failed" | null;
 }
 export interface EditorModule {
   id: string;
@@ -689,6 +692,7 @@ function LessonBlock({ lesson: l }: { lesson: EditorLesson }) {
         <div>
           <Label className="text-[11px] text-muted-foreground">Video (YouTube/Vimeo link, direct URL, or upload)</Label>
           <UploadField value={video} onChange={setVideo} accept="video" />
+          <TranscodeStatus status={l.transcode_status ?? null} rawPath={video} />
         </div>
       )}
       {type === "pdf" && (
@@ -725,6 +729,65 @@ function LessonBlock({ lesson: l }: { lesson: EditorLesson }) {
           Save lesson
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** Per-lesson HLS transcode state + self-serve retry. Only meaningful for an
+ *  uploaded course video (cmedia: path); other URLs render nothing. */
+function TranscodeStatus({
+  status,
+  rawPath,
+}: {
+  status: "processing" | "ready" | "failed" | null;
+  rawPath: string;
+}) {
+  const { toast } = useToast();
+  const router = useRouter();
+  const [retrying, setRetrying] = useState(false);
+  if (!status || !rawPath.startsWith("cmedia:")) return null;
+
+  async function retry() {
+    setRetrying(true);
+    const r = await retryMyTranscodeAction(rawPath);
+    setRetrying(false);
+    if (!r.ok) {
+      toast({ variant: "destructive", title: "Couldn't retry", description: r.message });
+      return;
+    }
+    toast({ title: "Re-processing started", description: "Refresh in a minute to see the status." });
+    router.refresh();
+  }
+
+  if (status === "ready") {
+    return (
+      <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+        <CheckCircle2 className="h-3.5 w-3.5" /> Video ready to stream
+      </p>
+    );
+  }
+  if (status === "processing") {
+    return (
+      <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing video… (you can keep editing)
+      </p>
+    );
+  }
+  // failed
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
+      <span className="inline-flex items-center gap-1.5 font-medium text-rose-600 dark:text-rose-400">
+        <AlertTriangle className="h-3.5 w-3.5" /> Video processing failed
+      </span>
+      <button
+        type="button"
+        onClick={retry}
+        disabled={retrying}
+        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 font-medium transition hover:bg-muted disabled:opacity-60"
+      >
+        {retrying ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+        Retry
+      </button>
     </div>
   );
 }

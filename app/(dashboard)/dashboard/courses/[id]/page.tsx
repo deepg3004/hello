@@ -50,6 +50,26 @@ export default async function CourseEditPage({
     .eq("active", true)
     .order("created_at", { ascending: false });
 
+  // Transcode status for each HLS video lesson (raw path = video_url minus the
+  // `cmedia:` prefix) so the editor can show Processing/Ready/Failed + retry.
+  const rawPaths = Array.from(
+    new Set(
+      (lessons ?? [])
+        .map((l) => (l.video_url ?? "").replace(/^cmedia:/, ""))
+        .filter((p) => p.startsWith(`course/${ctx.ownerId}/`)),
+    ),
+  );
+  const statusByPath = new Map<string, string>();
+  if (rawPaths.length) {
+    const { data: assets } = await admin
+      .from("hls_assets")
+      .select("raw_path, status")
+      .in("raw_path", rawPaths);
+    for (const a of (assets ?? []) as Array<{ raw_path: string; status: string }>) {
+      statusByPath.set(a.raw_path, a.status);
+    }
+  }
+
   const editorModules: EditorModule[] = (modules ?? []).map((m) => ({
     id: m.id,
     title: m.title,
@@ -65,6 +85,9 @@ export default async function CourseEditPage({
         lesson_type: ((l as { lesson_type?: string }).lesson_type ??
           "video") as EditorLesson["lesson_type"],
         asset_url: (l as { asset_url?: string | null }).asset_url ?? "",
+        transcode_status:
+          (statusByPath.get((l.video_url ?? "").replace(/^cmedia:/, "")) as
+            | EditorLesson["transcode_status"]) ?? null,
       })),
   }));
 
