@@ -150,6 +150,16 @@ export default async function WebsitePage() {
             initialPages={(pages ?? []) as SitePage[]}
             storeUrl={storeUrl}
             creatorCategory={profile?.creator_category ?? null}
+            hasFooter={(() => {
+              const cfg = (profile?.site_config as Record<string, unknown>) ?? {};
+              const cols = cfg.footer_columns;
+              const links = cfg.footer_links;
+              return (
+                !!(cfg.footer_text && String(cfg.footer_text).trim()) ||
+                (Array.isArray(cols) && cols.length > 0) ||
+                (Array.isArray(links) && links.length > 0)
+              );
+            })()}
           />
         </CardContent>
       </Card>

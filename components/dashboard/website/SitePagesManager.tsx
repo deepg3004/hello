@@ -22,6 +22,7 @@ import {
   deleteSitePageAction,
   setHomeSitePageAction,
   reorderSitePagesAction,
+  saveSiteSettingsAction,
 } from "@/actions/site";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,10 +56,14 @@ export function SitePagesManager({
   initialPages,
   storeUrl,
   creatorCategory,
+  hasFooter = false,
 }: {
   initialPages: SitePage[];
   storeUrl: string | null;
   creatorCategory?: string | null;
+  /** Whether the seller already configured a footer — so applying a template
+   *  doesn't overwrite it. */
+  hasFooter?: boolean;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -101,17 +106,48 @@ export function SitePagesManager({
 
   async function addFromPreset(blocks: unknown) {
     setBusy(true);
-    // Publish immediately so the seller's site goes live right away; they can
-    // keep editing afterwards.
+    // One-click full design: publish immediately so the site goes live, make it
+    // the HOME page (so the ready design becomes the live homepage even if other
+    // pages already exist), and seed a complete footer so the page ships with a
+    // header (auto nav + brand) AND a footer out of the box.
     const r = await createSitePageAction({ title: "Home", blocks, publish: true });
-    setBusy(false);
-    if (!r.ok) {
+    if (!r.ok || !r.pageId) {
+      setBusy(false);
       toast({ title: "Couldn't create", description: r.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Homepage published 🎉", description: "Opening the editor…" });
-    if (r.pageId) router.push(`/dashboard/website/${r.pageId}/edit`);
-    else router.refresh();
+    // If a different page was already Home, promote this fresh design to Home.
+    if (homePage && homePage.id !== r.pageId) {
+      await setHomeSitePageAction(r.pageId);
+    }
+    // Seed a complete footer (only the first time — never clobber a footer the
+    // seller already customised).
+    if (!hasFooter) {
+      await saveSiteSettingsAction({
+        footer_text: "Thanks for visiting — reach out any time.",
+        footer_columns: [
+          {
+            title: "Explore",
+            links: [
+              { label: "Home", url: "/" },
+              { label: "Store", url: "/store" },
+              { label: "Courses", url: "/course" },
+            ],
+          },
+          {
+            title: "Legal",
+            links: [
+              { label: "Privacy", url: "/legal/privacy" },
+              { label: "Terms", url: "/legal/terms" },
+              { label: "Refund", url: "/legal/refund" },
+            ],
+          },
+        ],
+      });
+    }
+    setBusy(false);
+    toast({ title: "Design applied & published 🎉", description: "Opening the editor…" });
+    router.push(`/dashboard/website/${r.pageId}/edit`);
   }
 
   async function togglePublish(p: SitePage) {
@@ -167,6 +203,38 @@ export function SitePagesManager({
         </Button>
       </div>
 
+      {/* Ready-made designs — ALWAYS available (not just on an empty site). One
+          click publishes a full homepage (sections + header nav + footer) and
+          makes it your live home. */}
+      <div className="rounded-lg border bg-card p-5">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold">Ready-made designs — one-click apply</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Pick a complete homepage (sections, header & footer included). It
+              publishes instantly and becomes your live home — edit anything after.
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {presets.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => addFromPreset(p.blocks)}
+              disabled={busy}
+              className="group rounded-lg border bg-background p-4 text-left transition hover:border-primary hover:shadow-sm disabled:opacity-50"
+            >
+              <span className="font-medium group-hover:text-primary">{p.label}</span>
+              <span className="mt-1 block text-xs text-muted-foreground">{p.description}</span>
+              <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary opacity-0 transition group-hover:opacity-100">
+                <Plus className="h-3 w-3" /> Apply this design
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {initialPages.length > 0 && !homeLive && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-900 dark:border-yellow-500/40 dark:bg-yellow-500/10 dark:text-yellow-200">
           <span>
@@ -184,38 +252,17 @@ export function SitePagesManager({
       )}
 
       {initialPages.length === 0 ? (
-        <div className="rounded-lg border border-dashed bg-muted/30 p-5">
-          <p className="text-sm font-medium">Start from a template</p>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            One click to create a ready-made homepage you can then edit.
-          </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {presets.map((p) => (
-              <button
-                key={p.key}
-                type="button"
-                onClick={() => addFromPreset(p.blocks)}
-                disabled={busy}
-                className="rounded-lg border bg-card p-4 text-left transition hover:border-primary disabled:opacity-50"
-              >
-                <span className="font-medium">{p.label}</span>
-                <span className="mt-1 block text-xs text-muted-foreground">
-                  {p.description}
-                </span>
-              </button>
-            ))}
-          </div>
-          <div className="mt-4 text-center text-xs text-muted-foreground">
-            or{" "}
-            <button
-              type="button"
-              onClick={addPage}
-              disabled={busy}
-              className="underline hover:text-foreground"
-            >
-              start with a blank page
-            </button>
-          </div>
+        <div className="rounded-lg border border-dashed bg-muted/30 p-5 text-center text-sm text-muted-foreground">
+          No pages yet — apply a ready design above, or{" "}
+          <button
+            type="button"
+            onClick={addPage}
+            disabled={busy}
+            className="underline hover:text-foreground"
+          >
+            start with a blank page
+          </button>
+          .
         </div>
       ) : (
         <div className="space-y-2">
