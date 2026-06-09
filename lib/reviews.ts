@@ -90,6 +90,59 @@ export async function listReviews(
 }
 
 /**
+ * Top verified reviews across ALL of a seller's products + courses, shaped as
+ * storefront `Testimonial`s. Used to auto-fill the storefront testimonials
+ * section with REAL social proof when the seller hasn't curated any. Picks
+ * published 4★+ reviews that have a written body, newest first.
+ */
+export async function getSellerTestimonials(
+  sellerUserId: string,
+  limit = 6,
+): Promise<
+  Array<{ name: string; role: string; quote: string; avatar: string; rating: number }>
+> {
+  const admin = createAdminClient();
+
+  // Subjects owned by this seller: catalog/product ids + course ids.
+  const [{ data: products }, { data: courses }] = await Promise.all([
+    admin.from("products").select("id").eq("user_id", sellerUserId),
+    admin.from("courses").select("id").eq("seller_user_id", sellerUserId),
+  ]);
+  const productIds = (products ?? []).map((p) => p.id as string);
+  const courseIds = (courses ?? []).map((c) => c.id as string);
+  const subjectIds = [...productIds, ...courseIds];
+  if (subjectIds.length === 0) return [];
+
+  const { data } = await admin
+    .from("reviews")
+    .select("buyer_name, rating, title, body, created_at")
+    .in("subject_id", subjectIds)
+    .eq("status", "published")
+    .gte("rating", 4)
+    .not("body", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(limit * 3);
+
+  const rows = (data ?? []) as Array<{
+    buyer_name: string | null;
+    rating: number;
+    title: string | null;
+    body: string | null;
+  }>;
+
+  return rows
+    .filter((r) => (r.body ?? "").trim().length > 0)
+    .slice(0, limit)
+    .map((r) => ({
+      name: r.buyer_name?.trim() || "Verified buyer",
+      role: "Verified buyer",
+      quote: (r.title ? `**${r.title.trim()}** — ` : "") + (r.body ?? "").trim(),
+      avatar: "",
+      rating: Number(r.rating) || 5,
+    }));
+}
+
+/**
  * Does this email have a PAID purchase of the subject? Products: a direct
  * (single-item) order with product_id, or a cart order_item with product_id.
  * Courses: an enrollment row.

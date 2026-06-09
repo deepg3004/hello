@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import { unstable_noStore as noStore } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getReviewSummaries } from "@/lib/reviews";
+import { getReviewSummaries, getSellerTestimonials } from "@/lib/reviews";
 import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-theme";
 import { topSellingProductIds } from "@/lib/storefront-sections";
 import { CartProvider } from "@/components/store/cart/CartProvider";
@@ -132,6 +132,13 @@ export default async function StoreCatalogPage({ params }: Props) {
       .filter((p): p is CatalogItem => !!p);
   }
 
+  // Testimonials: seller-curated when present, else auto-fill with real
+  // verified reviews so the section never sits empty.
+  const testimonialItems =
+    cfg.sections.testimonials && chrome.testimonials.length === 0
+      ? await getSellerTestimonials(profile.id)
+      : chrome.testimonials;
+
   return (
     <CartProvider username={params.username} sellerId={profile.id}>
       <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName} sellerId={profile.id} username={params.username}>
@@ -166,7 +173,7 @@ export default async function StoreCatalogPage({ params }: Props) {
             />
           )}
 
-          {cfg.sections.testimonials && <TestimonialsSection items={chrome.testimonials} align={cfg.sectionAlign} />}
+          {cfg.sections.testimonials && <TestimonialsSection items={testimonialItems} align={cfg.sectionAlign} />}
           {cfg.sections.brands && <BrandLogoSlider logos={chrome.brandLogos} />}
           {cfg.sections.faq && <FaqSection items={chrome.faqs} align={cfg.sectionAlign} />}
         </main>

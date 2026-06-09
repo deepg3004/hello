@@ -7,7 +7,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getReviewSummary, getReviewSummaries, listReviews } from "@/lib/reviews";
+import { getReviewSummary, getReviewSummaries, listReviews, getSellerTestimonials } from "@/lib/reviews";
 import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-theme";
 import { storefrontBasePath } from "@/lib/storefront-host";
 import { withStorefrontBase } from "@/lib/storefront-base";
@@ -217,6 +217,12 @@ export default async function ProductDetailPage({ params }: Props) {
 
   const sellerName = profile.legal_business_name ?? profile.full_name ?? params.username;
 
+  // Testimonials: seller-curated when present, else real verified reviews.
+  const testimonialItems =
+    cfg.sections.testimonials && chrome.testimonials.length === 0
+      ? await getSellerTestimonials(profile.id)
+      : chrome.testimonials;
+
   return (
     <CartProvider username={params.username} sellerId={profile.id}>
       <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName} sellerId={profile.id} username={params.username} hideBottomNav>
@@ -282,7 +288,7 @@ export default async function ProductDetailPage({ params }: Props) {
             <ReviewsSection subjectType="product" subjectId={prod.id} summary={summary} reviews={reviews} subjectLabel="product" />
           </div>
 
-          {cfg.sections.testimonials && <TestimonialsSection items={chrome.testimonials} align={cfg.sectionAlign} />}
+          {cfg.sections.testimonials && <TestimonialsSection items={testimonialItems} align={cfg.sectionAlign} />}
           {cfg.sections.brands && <BrandLogoSlider logos={chrome.brandLogos} />}
           {cfg.sections.faq && <FaqSection items={chrome.faqs} align={cfg.sectionAlign} />}
         </main>
