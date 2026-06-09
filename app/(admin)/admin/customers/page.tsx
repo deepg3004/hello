@@ -1,6 +1,8 @@
 // Admin · Customers (Session 16) — platform-wide buyers, aggregated from orders
 // by email. Read-only oversight; capped at the latest 10k orders.
 
+import { Download } from "lucide-react";
+
 import {
   AdminCustomersClient,
   type AdminCustomerRow,
@@ -76,7 +78,15 @@ export default async function AdminCustomersPage() {
         title="Customers"
         blurb="Every buyer across the platform, aggregated by email from the latest 10k orders."
         resourcesHref={null}
-      />
+      >
+        <a
+          href="/api/admin/export/customers"
+          download
+          className="inline-flex items-center gap-1.5 rounded-md bg-white/10 px-3 py-1.5 text-xs font-medium text-white ring-1 ring-white/20 transition hover:bg-white/20"
+        >
+          <Download className="h-3.5 w-3.5" /> Export CSV
+        </a>
+      </DashboardHero>
       <div className="animate-in-up" style={{ animationDelay: "100ms" }}>
         <AdminCustomersClient rows={rows} />
       </div>
