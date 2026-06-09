@@ -5,6 +5,7 @@ import { Home, LogIn, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Confetti } from "@/components/ui/Confetti";
 import { PaymentSuccessShare } from "@/components/pages/PaymentSuccessShare";
+import { ContactSellerButton } from "@/components/buyer/ContactSellerButton";
 import { TelegramInviteCard } from "@/components/pages/TelegramInviteCard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { courseForProduct } from "@/lib/courses";
@@ -368,6 +369,13 @@ export default async function OrderConfirmationPage({
             </Button>
           )}
         </div>
+
+        {/* Reach the seller about this order (signed-in buyer only). */}
+        {owns && (
+          <div className="flex justify-center">
+            <ContactSellerButton orderId={order.id} />
+          </div>
+        )}
 
         {/* Footer line */}
         <p className="pt-2 text-center text-[11px] text-muted-foreground">
