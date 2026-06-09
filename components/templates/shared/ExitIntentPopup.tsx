@@ -114,22 +114,29 @@ export function ExitIntentPopup({ pageSlug, config, isPreview }: ExitIntentPopup
         )}
 
         {cfg.action === "show_message" && cfg.cta_text && (
-          <a
-            href={cfg.cta_url ?? "#"}
-            className="mt-5 inline-block rounded-md bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-zinc-700"
-            onClick={dismiss}
-          >
-            {cfg.cta_text}
-          </a>
+          cfg.cta_url ? (
+            <a
+              href={cfg.cta_url}
+              className="mt-5 inline-block rounded-md bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-zinc-700"
+              onClick={dismiss}
+            >
+              {cfg.cta_text}
+            </a>
+          ) : (
+            // No destination configured — make the CTA close the popup rather
+            // than render a dead "#" link.
+            <button
+              type="button"
+              onClick={dismiss}
+              className="mt-5 inline-block rounded-md bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-zinc-700"
+            >
+              {cfg.cta_text}
+            </button>
+          )
         )}
 
-        {cfg.action === "show_form" && (
-          <p className="mt-4 rounded-md border border-dashed bg-zinc-50 p-3 text-center text-xs text-zinc-500">
-            Configure the opt-in form under the page&apos;s <strong>Form</strong> tab.
-            The popup will embed it here automatically once the bundled form
-            embed lands in a future update.
-          </p>
-        )}
+        {/* show_form is not implemented yet — render nothing (headline/body still
+            show) instead of leaking a dev note to buyers. */}
       </div>
     </div>
   );

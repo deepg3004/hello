@@ -51,7 +51,7 @@ export default async function LegalPage({ params }: Props) {
   const content = chrome.legal[doc]?.trim();
 
   return (
-    <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName} sellerId={profile.id}>
+    <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName} sellerId={profile.id} username={params.username}>
       <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
         <h1 className="sf-display text-3xl font-bold tracking-tight">{meta.label}</h1>
         <p className="sf-muted mt-1 text-sm">{sellerName}</p>

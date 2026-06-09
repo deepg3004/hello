@@ -6,6 +6,7 @@ import {
   type ChromeConfig,
 } from "@/lib/storefront-theme";
 import { BUYER_COOKIE, verifyBuyerSession } from "@/lib/buyer-portal";
+import { storefrontBasePath } from "@/lib/storefront-host";
 import { StorefrontHeader } from "@/components/store/StorefrontHeader";
 import { StorefrontFooter } from "@/components/store/StorefrontFooter";
 import { StorefrontTracker } from "@/components/store/StorefrontTracker";
@@ -19,17 +20,22 @@ export function StorefrontShell({
   chrome,
   brandName,
   sellerId,
+  username,
   children,
 }: {
   cfg: SurfaceConfig;
   chrome?: ChromeConfig;
   brandName?: string;
   sellerId?: string;
+  /** Seller username — used to prefix internal links when the storefront is
+   *  viewed directly on the platform host (preview). */
+  username?: string;
   children: React.ReactNode;
 }) {
   const vars = themeCssVars(cfg);
   const showBar = cfg.sections.announcement && !!cfg.announcement.trim();
   const name = brandName ?? "Store";
+  const basePath = username ? storefrontBasePath(username) : "";
   // Show "My Account" instead of Login/Sign-up when the buyer is signed in.
   const buyerCookie = cookies().get(BUYER_COOKIE)?.value;
   const buyerLoggedIn = !!(buyerCookie && verifyBuyerSession(buyerCookie));
@@ -49,9 +55,11 @@ export function StorefrontShell({
         />
       )}
       <div className="flex-1">{children}</div>
-      {chrome?.footer.enabled && <StorefrontFooter footer={chrome.footer} brandName={name} />}
+      {chrome?.footer.enabled && (
+        <StorefrontFooter footer={chrome.footer} brandName={name} basePath={basePath} />
+      )}
       {sellerId && <StorefrontTracker sellerId={sellerId} />}
-      <StorefrontBottomNav nav={chrome?.bottomNav} />
+      <StorefrontBottomNav nav={chrome?.bottomNav} basePath={basePath} />
     </div>
   );
 }

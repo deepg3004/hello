@@ -1408,12 +1408,16 @@ export function CheckoutForm(props: CheckoutFormProps) {
                 value={shipLine1}
                 onChange={(e) => setShipLine1(e.target.value)}
                 placeholder="Street address"
+                type="text"
+                autoComplete="address-line1"
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
               <input
                 value={shipLine2}
                 onChange={(e) => setShipLine2(e.target.value)}
                 placeholder="Apartment, suite, etc. (optional)"
+                type="text"
+                autoComplete="address-line2"
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
               <div className="grid grid-cols-2 gap-2">
@@ -1421,12 +1425,16 @@ export function CheckoutForm(props: CheckoutFormProps) {
                   value={shipCity}
                   onChange={(e) => setShipCity(e.target.value)}
                   placeholder="City"
+                  type="text"
+                  autoComplete="address-level2"
                   className="rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
                 <input
                   value={shipState}
                   onChange={(e) => setShipState(e.target.value)}
                   placeholder="State"
+                  type="text"
+                  autoComplete="address-level1"
                   className="rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
               </div>
@@ -1435,6 +1443,7 @@ export function CheckoutForm(props: CheckoutFormProps) {
                 onChange={(e) => setShipPincode(e.target.value)}
                 placeholder="PIN code"
                 inputMode="numeric"
+                autoComplete="postal-code"
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
               {shipError && <p className="text-sm text-rose-600">{shipError}</p>}

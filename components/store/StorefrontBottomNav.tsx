@@ -7,6 +7,7 @@ import { LayoutGrid } from "lucide-react";
 import { useCartOptional } from "@/components/store/cart/CartProvider";
 import { NAV_ICON_MAP } from "@/components/store/navIcons";
 import { defaultBottomNav, type ChromeConfig } from "@/lib/storefront-theme";
+import { withStorefrontBase } from "@/lib/storefront-base";
 
 const ICONS = NAV_ICON_MAP;
 
@@ -25,7 +26,13 @@ function isActive(path: string, url: string): boolean {
 
 /** Mobile app-style bottom tab bar. Items + icons + links + visibility are
  *  seller-configured via chrome.bottomNav; shown on phones only (md:hidden). */
-export function StorefrontBottomNav({ nav }: { nav?: ChromeConfig["bottomNav"] }) {
+export function StorefrontBottomNav({
+  nav,
+  basePath = "",
+}: {
+  nav?: ChromeConfig["bottomNav"];
+  basePath?: string;
+}) {
   const pathname = usePathname() || "/";
   const path = cleanPath(pathname);
   const cart = useCartOptional();
@@ -65,7 +72,7 @@ export function StorefrontBottomNav({ nav }: { nav?: ChromeConfig["bottomNav"] }
               {item.label}
             </button>
           ) : (
-            <Link key={item.key} href="/store" className={itemBase} style={{ color: "var(--sf-muted)" }}>
+            <Link key={item.key} href={withStorefrontBase(basePath, "/store")} className={itemBase} style={{ color: "var(--sf-muted)" }}>
               <Icon className="h-5 w-5" />
               {item.label}
             </Link>
@@ -76,7 +83,7 @@ export function StorefrontBottomNav({ nav }: { nav?: ChromeConfig["bottomNav"] }
         return (
           <Link
             key={item.key}
-            href={item.url || "/"}
+            href={withStorefrontBase(basePath, item.url || "/")}
             className={itemBase}
             style={{ color: active ? "var(--sf-accent)" : "var(--sf-muted)" }}
           >

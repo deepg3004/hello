@@ -221,7 +221,7 @@ export function StorefrontDesigner({
 
           {/* Layout */}
           <Section title="Layout">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <Pick label="Cards" value={cfg.card} options={CARDS} onChange={(v) => patch({ card: v })} />
               <Pick label="Corners" value={cfg.radius} options={RADII} onChange={(v) => patch({ radius: v })} />
               <Pick label="Density" value={cfg.density} options={DENSITIES} onChange={(v) => patch({ density: v })} />
@@ -232,7 +232,7 @@ export function StorefrontDesigner({
 
           {/* Products per row */}
           <Section title="Products per row">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <NumberPick label="Desktop" value={cfg.cols.desktop} min={2} max={6} onChange={(v) => patch({ cols: { ...cfg.cols, desktop: v } })} />
               <NumberPick label="Tablet" value={cfg.cols.tablet} min={1} max={4} onChange={(v) => patch({ cols: { ...cfg.cols, tablet: v } })} />
               <NumberPick label="Mobile" value={cfg.cols.mobile} min={1} max={2} onChange={(v) => patch({ cols: { ...cfg.cols, mobile: v } })} />

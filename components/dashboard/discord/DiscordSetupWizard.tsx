@@ -102,7 +102,8 @@ export function DiscordSetupWizard({ pages }: { pages: PageOpt[] }) {
         return;
       }
       toast({ title: "Discord connected", description: r.message ?? "Your server is live." });
-      router.push(`/dashboard/discord/${r.data?.id ?? ""}`);
+      // Guard against an empty id → don't navigate to /dashboard/discord/ (404).
+      router.push(r.data?.id ? `/dashboard/discord/${r.data.id}` : "/dashboard/discord");
       router.refresh();
     });
   }

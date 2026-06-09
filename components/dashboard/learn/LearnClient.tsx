@@ -175,15 +175,16 @@ function ResourceCard({ resources }: { resources: ResourcesContent }) {
             </li>
           ))}
         </ul>
-        <a
-          href={resources.ctaUrl || "#"}
-          {...(resources.ctaUrl
-            ? { target: "_blank", rel: "noreferrer" }
-            : {})}
-          className="mt-1 w-full rounded-full bg-white px-4 py-2.5 text-center text-sm font-semibold text-[#1a1a1a] transition hover:bg-white/90 active:scale-[0.98]"
-        >
-          {resources.ctaLabel}
-        </a>
+        {resources.ctaUrl && (
+          <a
+            href={resources.ctaUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-1 w-full rounded-full bg-white px-4 py-2.5 text-center text-sm font-semibold text-[#1a1a1a] transition hover:bg-white/90 active:scale-[0.98]"
+          >
+            {resources.ctaLabel}
+          </a>
+        )}
       </div>
     </div>
   );

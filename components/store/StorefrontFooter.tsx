@@ -1,13 +1,16 @@
 import { LEGAL_DOCS, type ChromeConfig } from "@/lib/storefront-theme";
+import { withStorefrontBase } from "@/lib/storefront-base";
 
 /** Themed storefront footer — link columns, social links, a legal row
  *  (privacy/terms/refund/contact + Powered by InvoxAI), and a copyright line. */
 export function StorefrontFooter({
   footer,
   brandName,
+  basePath = "",
 }: {
   footer: ChromeConfig["footer"];
   brandName: string;
+  basePath?: string;
 }) {
   const text = footer.text.trim() || `© ${brandName}. All rights reserved.`;
   const hasColumns = footer.columns.length > 0;
@@ -36,7 +39,7 @@ export function StorefrontFooter({
                 <ul className="space-y-1.5">
                   {col.links.map((l, j) => (
                     <li key={j}>
-                      <a href={l.url} className="sf-muted text-sm transition hover:opacity-80">
+                      <a href={withStorefrontBase(basePath, l.url)} className="sf-muted text-sm transition hover:opacity-80">
                         {l.label}
                       </a>
                     </li>
@@ -49,7 +52,7 @@ export function StorefrontFooter({
         {/* Legal row */}
         <div className="sf-border flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-5 text-xs">
           {LEGAL_DOCS.map((d) => (
-            <a key={d.key} href={`/legal/${d.key}`} className="sf-muted transition hover:opacity-80">
+            <a key={d.key} href={withStorefrontBase(basePath, `/legal/${d.key}`)} className="sf-muted transition hover:opacity-80">
               {d.label}
             </a>
           ))}

@@ -300,15 +300,15 @@ export function CartDrawer() {
                   <p className="text-xs text-muted-foreground">{formatINR(Math.round(it.price * 100))}</p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setQty(lineKey(it), it.quantity - 1)}>
-                    <Minus className="h-3 w-3" />
+                  <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Decrease quantity" onClick={() => setQty(lineKey(it), it.quantity - 1)}>
+                    <Minus className="h-3.5 w-3.5" />
                   </Button>
                   <span className="w-6 text-center text-sm">{it.quantity}</span>
-                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setQty(lineKey(it), it.quantity + 1)}>
-                    <Plus className="h-3 w-3" />
+                  <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Increase quantity" onClick={() => setQty(lineKey(it), it.quantity + 1)}>
+                    <Plus className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => remove(lineKey(it))}>
-                    <Trash2 className="h-3.5 w-3.5" />
+                  <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive" aria-label="Remove item" onClick={() => remove(lineKey(it))}>
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </div>

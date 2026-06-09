@@ -14,6 +14,8 @@ import {
   type PageCategoryKey,
 } from "@/lib/dashboard/page-categories";
 import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-theme";
+import { storefrontBasePath } from "@/lib/storefront-host";
+import { withStorefrontBase } from "@/lib/storefront-base";
 import { CartProvider } from "@/components/store/cart/CartProvider";
 import { CartDrawer } from "@/components/store/cart/CartDrawer";
 import { StorefrontShell, PromoBanner } from "@/components/store/StorefrontShell";
@@ -120,6 +122,7 @@ export default async function SellerStore({ params }: Props) {
 
   const cfg = resolveSurfaceConfig(profile.storefront_config, "home");
   const chrome = resolveChromeConfig(profile.storefront_config);
+  const base = storefrontBasePath(params.username);
 
   const { data: productsRaw } = await admin
     .from("products")
@@ -186,7 +189,7 @@ export default async function SellerStore({ params }: Props) {
 
   return (
     <CartProvider username={params.username} sellerId={profile.id}>
-    <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName} sellerId={profile.id}>
+    <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName} sellerId={profile.id} username={params.username}>
       <main className="mx-auto max-w-5xl px-6 py-8">
         <StorefrontBanners banners={cfg.banners} autoplay={cfg.bannerAutoplay} />
         <PromoBanner cfg={cfg} />
@@ -194,12 +197,12 @@ export default async function SellerStore({ params }: Props) {
         {(totalProducts > 0 || hasCourses) && (
           <div className="mb-6 flex flex-wrap gap-2">
             {totalProducts > 0 && (
-              <a href="/store" className="sf-btn inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold">
+              <a href={withStorefrontBase(base, "/store")} className="sf-btn inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold">
                 Browse full store →
               </a>
             )}
             {hasCourses && (
-              <a href="/course" className="sf-btn-outline inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition hover:opacity-80">
+              <a href={withStorefrontBase(base, "/course")} className="sf-btn-outline inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition hover:opacity-80">
                 Courses →
               </a>
             )}

@@ -497,7 +497,8 @@ export function ConversionTab({
                   <SelectContent>
                     <SelectItem value="show_coupon">Show a coupon code</SelectItem>
                     <SelectItem value="show_message">Show a message + CTA</SelectItem>
-                    <SelectItem value="show_form">Embed the opt-in form (coming soon)</SelectItem>
+                    {/* show_form embed isn't implemented yet — hidden so a seller
+                        can't ship an empty popup. Re-add when the form embed lands. */}
                   </SelectContent>
                 </Select>
               </div>

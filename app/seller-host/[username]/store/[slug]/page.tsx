@@ -9,6 +9,8 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getReviewSummary, getReviewSummaries, listReviews } from "@/lib/reviews";
 import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-theme";
+import { storefrontBasePath } from "@/lib/storefront-host";
+import { withStorefrontBase } from "@/lib/storefront-base";
 import { CartProvider } from "@/components/store/cart/CartProvider";
 import { CartDrawer } from "@/components/store/cart/CartDrawer";
 import { StorefrontShell } from "@/components/store/StorefrontShell";
@@ -217,10 +219,10 @@ export default async function ProductDetailPage({ params }: Props) {
 
   return (
     <CartProvider username={params.username} sellerId={profile.id}>
-      <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName} sellerId={profile.id}>
+      <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName} sellerId={profile.id} username={params.username}>
         <main className="mx-auto max-w-5xl px-4 pt-8 pb-40 sm:px-6 md:pb-8">
           <nav className="sf-muted mb-6 text-sm">
-            <Link href="/store" className="transition hover:opacity-80">
+            <Link href={withStorefrontBase(storefrontBasePath(params.username), "/store")} className="transition hover:opacity-80">
               Store
             </Link>
             <span className="mx-2">/</span>
