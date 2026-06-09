@@ -76,7 +76,7 @@
     /* Modern Dark Glass — premium navy canvas with an indigo-forward CTA and
        glowing glass surfaces. Unified with the dashboard navy so marketing,
        auth, checkout and app all share one cohesive dark look. */
-    --background: 226 48% 6%;          /* #080d1c deep navy */
+    --background: 220 32% 7%;          /* deep obsidian-slate (cool, not pure black) */
     --foreground: 210 22% 96%;         /* cool near-white */
     --card: 222 47% 11%;               /* #0F172A elevated glass */
     --card-foreground: 210 22% 96%;
@@ -108,14 +108,15 @@
     --progress-fill: 262 83% 64%;
     --progress-track: 217 33% 20%;
 
-    /* Accent gradient + glow — indigo→violet, tuned for dark */
-    --brand-gradient: linear-gradient(120deg, hsl(262 83% 64%), hsl(248 84% 66%));
-    --glow-indigo: 262 83% 64%;
+    /* Cyber-Premium accent — Electric Indigo → Cyan (dark only). Drives primary
+       buttons, active states, text-gradient, and the ambient aurora glows. */
+    --brand-gradient: linear-gradient(120deg, hsl(258 90% 66%), hsl(190 95% 55%));
+    --glow-indigo: 258 90% 66%;
     --glass-bg: 222 47% 12%;
     --glass-alpha: 0.55;
-    --aurora-1: 262 83% 58%;
-    --aurora-2: 248 84% 60%;
-    --aurora-3: 199 90% 48%;
+    --aurora-1: 258 90% 62%;   /* electric indigo */
+    --aurora-2: 190 95% 55%;   /* cyan */
+    --aurora-3: 220 90% 60%;   /* blue link between them */
   }
 }
 

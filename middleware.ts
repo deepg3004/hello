@@ -146,7 +146,13 @@ interface CachedLookup {
   redirect_to_custom: string | null;
   fetchedAt: number;
 }
-const HOST_LOOKUP_TTL_MS = 5 * 60 * 1000;
+// The /api/domains/lookup route is itself Redis-backed (Node runtime, shared
+// across all PM2 workers) — that's the single source of truth. This in-process
+// Map is only a tiny per-worker hop-saver; keep its TTL SHORT (30s) so a worker
+// can't serve a stale subdomain/custom-domain/redirect decision for long after
+// a change (middleware runs in the Edge runtime, which can't use ioredis
+// directly — hence caching on the API side, not here).
+const HOST_LOOKUP_TTL_MS = 30 * 1000;
 const hostLookupCache = new Map<string, CachedLookup>();
 
 async function lookupHost(host: string): Promise<CachedLookup | null> {

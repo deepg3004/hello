@@ -181,6 +181,27 @@ export async function POST(request: Request) {
         },
         admin,
       );
+
+      // Order-bump sync: a bump child rides on the SAME payment. If the buyer
+      // closed their tab before verify-payment ran, the bump would be left
+      // pending. Finalize any pending bump child here (mirrors verify-payment)
+      // and enqueue its own invoice. Guarded by status='pending' so it's
+      // idempotent across the webhook + verify-payment race.
+      const { data: bumpRows } = await admin
+        .from("orders")
+        .update({ status: "paid", gateway_payment_id: payment.id, paid_at: paidAt })
+        .eq("parent_order_id", order.id)
+        .eq("source", "bump")
+        .eq("status", "pending")
+        .select("id");
+      if (bumpRows && bumpRows.length > 0) {
+        try {
+          const { enqueueInvoiceJob } = await import("@/lib/queues/invoices");
+          for (const b of bumpRows) void enqueueInvoiceJob(b.id);
+        } catch (e) {
+          console.error("[razorpay/payment] bump invoice enqueue failed", e);
+        }
+      }
       break;
     }
 
