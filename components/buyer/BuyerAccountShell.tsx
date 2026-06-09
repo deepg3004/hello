@@ -50,7 +50,7 @@ export function BuyerAccountShell({ tabs }: { tabs: AccountTab[] }) {
       orientation="vertical"
       className="grid gap-6 md:grid-cols-[220px_minmax(0,1fr)]"
     >
-      <TabsList className="flex h-auto w-full flex-row gap-1 overflow-x-auto rounded-xl border bg-card p-2 md:flex-col md:overflow-visible">
+      <TabsList className="card-surface flex h-auto w-full flex-row gap-1 overflow-x-auto p-1.5 [-ms-overflow-style:none] [scrollbar-width:none] md:sticky md:top-4 md:flex-col md:self-start md:overflow-visible [&::-webkit-scrollbar]:hidden">
         {tabs.map((t) => {
           const Icon = ICONS[t.key] ?? LayoutDashboard;
           return (
@@ -58,14 +58,15 @@ export function BuyerAccountShell({ tabs }: { tabs: AccountTab[] }) {
               key={t.key}
               value={t.key}
               className={cn(
-                "w-full shrink-0 justify-start gap-2 rounded-lg px-3 py-2 text-sm md:shrink",
+                "group w-full shrink-0 justify-start gap-2 rounded-lg px-3 py-2 text-sm font-medium md:shrink",
+                "transition-colors hover:bg-muted/70",
                 "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm",
               )}
             >
-              <Icon className="h-4 w-4" />
-              <span>{t.label}</span>
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="whitespace-nowrap">{t.label}</span>
               {t.count != null && t.count > 0 && (
-                <span className="ml-auto rounded-full bg-muted px-1.5 text-xs text-muted-foreground">
+                <span className="ml-auto rounded-full bg-muted px-1.5 text-xs font-semibold text-muted-foreground group-data-[state=active]:bg-primary-foreground/20 group-data-[state=active]:text-primary-foreground">
                   {t.count}
                 </span>
               )}

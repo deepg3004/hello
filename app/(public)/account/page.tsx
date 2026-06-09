@@ -746,48 +746,57 @@ export default async function BuyerAccountPage() {
     icon: ReactNode;
     label: string;
     value: string | number;
+    tile: string;
   }> = [
-    { icon: <ShoppingBag className="h-4 w-4" />, label: "Orders", value: orders.length },
-    { icon: <Receipt className="h-4 w-4" />, label: "Total spent", value: inr(totalSpent) },
-    { icon: <BookOpen className="h-4 w-4" />, label: "Courses", value: courseList.length },
-    { icon: <Download className="h-4 w-4" />, label: "Downloads", value: downloads.length },
+    { icon: <ShoppingBag className="h-5 w-5" />, label: "Orders", value: orders.length, tile: "tile-indigo" },
+    { icon: <Receipt className="h-5 w-5" />, label: "Total spent", value: inr(totalSpent), tile: "tile-emerald" },
+    { icon: <BookOpen className="h-5 w-5" />, label: "Courses", value: courseList.length, tile: "tile-violet" },
+    { icon: <Download className="h-5 w-5" />, label: "Downloads", value: downloads.length, tile: "tile-amber" },
   ];
 
   // Keep the account content on a neutral surface (bg-background) so it stays
   // readable even when wrapped in a dark storefront theme below.
   const inner = (
     <div className="bg-background text-foreground">
-      <main className="mx-auto max-w-5xl px-4 py-8 md:py-12">
-        {/* Header */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 font-sora text-lg font-bold uppercase text-primary">
-              {email.trim().charAt(0) || "?"}
+      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 md:py-10">
+        {/* Header — gradient hero strip, stacks cleanly on mobile */}
+        <div className="mb-6 overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/[0.07] via-card to-card p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary font-sora text-lg font-bold uppercase text-primary-foreground shadow-sm">
+                {email.trim().charAt(0) || "?"}
+              </div>
+              <div className="min-w-0">
+                <h1 className="font-sora text-xl font-bold tracking-tight sm:text-2xl">
+                  My Account
+                </h1>
+                <p className="truncate text-sm text-muted-foreground">{email}</p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <h1 className="font-sora text-2xl font-bold tracking-tight">
-                My Account
-              </h1>
-              <p className="truncate text-sm text-muted-foreground">{email}</p>
-            </div>
+            <BuyerLogoutButton />
           </div>
-          <BuyerLogoutButton />
         </div>
 
-        {/* Summary cards — always visible */}
-        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {/* Summary cards — always visible, 2-up on phones / 4-up on desktop */}
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:mb-8 sm:grid-cols-4">
           {summaryCards.map((s) => (
             <div
               key={s.label}
-              className="rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md"
+              className="card-surface card-surface-hover flex items-center gap-3 p-3.5 sm:p-4"
             >
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <span className="text-primary">{s.icon}</span>
-                <span className="text-xs font-medium">{s.label}</span>
+              <span
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${s.tile}`}
+              >
+                {s.icon}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {s.label}
+                </p>
+                <p className="font-sora text-lg font-bold tracking-tight sm:text-xl">
+                  {s.value}
+                </p>
               </div>
-              <p className="mt-1.5 font-sora text-2xl font-bold tracking-tight">
-                {s.value}
-              </p>
             </div>
           ))}
         </div>
