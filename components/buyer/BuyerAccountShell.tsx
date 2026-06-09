@@ -58,7 +58,8 @@ export function BuyerAccountShell({ tabs }: { tabs: AccountTab[] }) {
               key={t.key}
               value={t.key}
               className={cn(
-                "group w-full shrink-0 justify-start gap-2 rounded-lg px-3 py-2 text-sm font-medium md:shrink",
+                "group shrink-0 justify-start gap-2 rounded-lg px-3 py-2 text-sm font-medium",
+                "md:w-full md:shrink",
                 "transition-colors hover:bg-muted/70",
                 "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm",
               )}
@@ -66,7 +67,7 @@ export function BuyerAccountShell({ tabs }: { tabs: AccountTab[] }) {
               <Icon className="h-4 w-4 shrink-0" />
               <span className="whitespace-nowrap">{t.label}</span>
               {t.count != null && t.count > 0 && (
-                <span className="ml-auto rounded-full bg-muted px-1.5 text-xs font-semibold text-muted-foreground group-data-[state=active]:bg-primary-foreground/20 group-data-[state=active]:text-primary-foreground">
+                <span className="ml-1 rounded-full bg-muted px-1.5 text-xs font-semibold text-muted-foreground group-data-[state=active]:bg-primary-foreground/20 group-data-[state=active]:text-primary-foreground md:ml-auto">
                   {t.count}
                 </span>
               )}
