@@ -70,6 +70,8 @@ export interface EditorCourse {
   instructor_bio: string;
   instructor_avatar: string;
   promo_video_url: string;
+  /** HLS transcode state for an uploaded promo video (null otherwise). */
+  promo_transcode_status?: "processing" | "ready" | "failed" | null;
   offer_config: {
     enabled: boolean;
     title: string;
@@ -284,6 +286,11 @@ export function CourseEditor({
           <div>
             <Label className="text-xs">Thumbnail</Label>
             <UploadField value={thumb} onChange={setThumb} accept="image" />
+          </div>
+          <div>
+            <Label className="text-xs">Promo / preview video (YouTube/Vimeo link, direct URL, or upload)</Label>
+            <UploadField value={promo} onChange={setPromo} accept="video" />
+            <TranscodeStatus status={course.promo_transcode_status ?? null} rawPath={promo} />
           </div>
           <Button onClick={saveCourse} disabled={pending}>
             {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
