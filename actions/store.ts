@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActor } from "@/lib/account-context";
 import { slugify } from "@/lib/templates/utils";
 import { getTemplate } from "@/lib/templates/registry";
+import { parseCsv } from "@/lib/csv";
 
 interface Result {
   ok: boolean;
@@ -564,4 +565,74 @@ export async function setReviewVisibilityAction(
 
   revalidatePath("/dashboard/store");
   return { ok: true };
+}
+
+// ----------------------------------------------------------------------------
+// Bulk catalog import from CSV. Header row maps columns (case-insensitive):
+// name, price, description, category, type (digital|physical|service), stock,
+// sku, download_limit. Reuses createCatalogProductAction per row so each product
+// gets its auto-created digital-product page (no money-path change). Capped to
+// keep the request snappy.
+// ----------------------------------------------------------------------------
+export async function importCatalogCsvAction(
+  csvText: string,
+): Promise<Result & { created?: number; failed?: number }> {
+  const actor = await requireActor("store.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+
+  const rows = parseCsv(csvText || "");
+  if (rows.length < 2) {
+    return { ok: false, message: "CSV needs a header row + at least one product row." };
+  }
+  const header = rows[0]!.map((h) => h.trim().toLowerCase());
+  const col = (name: string) => header.indexOf(name);
+  const iName = col("name");
+  const iPrice = col("price");
+  if (iName < 0 || iPrice < 0) {
+    return { ok: false, message: "CSV must have at least 'name' and 'price' columns." };
+  }
+  const iDesc = col("description");
+  const iCat = col("category");
+  const iType = col("type") >= 0 ? col("type") : col("product_type");
+  const iStock = col("stock");
+  const iSku = col("sku");
+  const iDl = col("download_limit");
+
+  const MAX = 100;
+  const dataRows = rows.slice(1, 1 + MAX);
+  let created = 0;
+  let failed = 0;
+  for (const r of dataRows) {
+    const name = (r[iName] ?? "").trim();
+    const price = Number((r[iPrice] ?? "").replace(/[^\d.]/g, ""));
+    if (!name || !(price > 0)) {
+      failed++;
+      continue;
+    }
+    const typeRaw = iType >= 0 ? (r[iType] ?? "").trim().toLowerCase() : "";
+    const product_type = (["digital", "physical", "service"].includes(typeRaw)
+      ? typeRaw
+      : "digital") as ProductType;
+    const res = await createCatalogProductAction({
+      name,
+      price,
+      description: iDesc >= 0 ? (r[iDesc] ?? "").trim() || null : null,
+      category: iCat >= 0 ? (r[iCat] ?? "").trim() || null : null,
+      product_type,
+      stock: iStock >= 0 && (r[iStock] ?? "").trim() !== "" ? Number(r[iStock]) : null,
+      sku: iSku >= 0 ? (r[iSku] ?? "").trim() || null : null,
+      download_limit: iDl >= 0 && (r[iDl] ?? "").trim() !== "" ? Number(r[iDl]) : null,
+    });
+    if (res.ok) created++;
+    else failed++;
+  }
+
+  revalidatePath("/dashboard/store");
+  const capped = rows.length - 1 > MAX ? ` (first ${MAX} rows; ${rows.length - 1 - MAX} skipped)` : "";
+  return {
+    ok: created > 0,
+    created,
+    failed,
+    message: `Imported ${created} product${created === 1 ? "" : "s"}${failed ? `, ${failed} skipped` : ""}${capped}.`,
+  };
 }

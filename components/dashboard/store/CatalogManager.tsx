@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, Plus, Trash2, PackageOpen, Layers, Images } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, PackageOpen, Layers, Images, Upload } from "lucide-react";
 
 import {
   createCatalogProductAction,
@@ -10,6 +10,7 @@ import {
   deleteCatalogProductAction,
   setProductVariantsAction,
   setProductImagesAction,
+  importCatalogCsvAction,
   type CatalogProductInput,
   type ProductType,
 } from "@/actions/store";
@@ -243,13 +244,42 @@ export function CatalogManager({
     });
   }
 
+  async function onImportCsv(file: File) {
+    const text = await file.text();
+    start(async () => {
+      const r = await importCatalogCsvAction(text);
+      toast({
+        title: r.ok ? "Import complete" : "Import failed",
+        description: r.message,
+        variant: r.ok ? undefined : "destructive",
+      });
+      if (r.ok) router.refresh();
+    });
+  }
+
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-2">
+        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition hover:text-foreground">
+          <Upload className="h-3.5 w-3.5" /> Import CSV
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void onImportCsv(f);
+              e.currentTarget.value = "";
+            }}
+          />
+        </label>
         <Button size="sm" onClick={openNew}>
           <Plus className="mr-1.5 h-4 w-4" /> Add product
         </Button>
       </div>
+      <p className="text-right text-[11px] text-muted-foreground">
+        CSV columns: name, price, description, category, type, stock, sku, download_limit
+      </p>
 
       {products.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
