@@ -219,6 +219,92 @@ export const BUILDER_TEMPLATES: BuilderTemplate[] = [
       sec(col(w("form", { title: "Save my seat", button: "Register free", fields: "name_email_phone" }))),
     ),
   },
+
+  {
+    id: "pay-shop",
+    name: "Online Shop Product",
+    page_type: "payment",
+    category: "Online Shop",
+    preview_image_url: PIMG("payshop"),
+    background_style: "solid",
+    header: header(),
+    footer: footer(),
+    bottombar: bar("Buy Now", { whatsapp: true, call: true }),
+    document: doc(
+      sec(col(w("image", { src: PIMG("payshop2"), align: "center" }))),
+      sec(
+        col(
+          w("heading", { text: "Premium product, fair price", level: "h1", align: "center" }),
+          w("text", { text: "Free shipping. Easy returns. Loved by thousands.", align: "center" }),
+          w("buy", { name: "The product", price: "₹1,299", slug: "", label: "Buy now", color: "#16a34a" }),
+        ),
+      ),
+      sec(col(w("testimonial", { quote: "Quality exceeded my expectations.", author: "Verified buyer", role: "" }))),
+    ),
+  },
+  {
+    id: "land-restaurant",
+    name: "Restaurant",
+    page_type: "landing",
+    category: "Restaurant",
+    preview_image_url: PIMG("landrest"),
+    background_style: "gradient",
+    header: header(),
+    footer: footer(),
+    bottombar: bar("Reserve a Table", { whatsapp: true, call: true }),
+    document: doc(
+      sec(
+        col(
+          w("heading", { text: "Taste something unforgettable", level: "h1", align: "center" }),
+          w("text", { text: "Fresh ingredients, bold flavours, warm hospitality.", align: "center" }),
+          w("button", { label: "Reserve a table", url: "#", align: "center", color: "#b45309" }),
+        ),
+      ),
+      sec(col(w("image", { src: PIMG("landrest2"), align: "center" }))),
+      sec(col(w("testimonial", { quote: "Best meal we've had all year.", author: "Diner", role: "" }))),
+    ),
+  },
+  {
+    id: "land-portfolio",
+    name: "Portfolio",
+    page_type: "landing",
+    category: "Portfolio",
+    preview_image_url: PIMG("landport"),
+    background_style: "particles",
+    header: header(),
+    footer: footer(),
+    bottombar: bar("Hire Me", { whatsapp: true, instagram: true }),
+    document: doc(
+      sec(
+        col(
+          w("heading", { text: "Selected work", level: "h1", align: "center" }),
+          w("text", { text: "Design, build, ship — a look at what I create.", align: "center" }),
+        ),
+      ),
+      sec(col(w("image", { src: PIMG("landport2"), align: "center" }))),
+      sec(col(w("button", { label: "Hire me", url: "#", align: "center", color: "#4f46e5" }))),
+    ),
+  },
+  {
+    id: "lead-business",
+    name: "Business Enquiry",
+    page_type: "leads",
+    category: "Business",
+    preview_image_url: PIMG("leadbiz"),
+    background_style: "mesh",
+    header: header(),
+    footer: footer(),
+    bottombar: bar("Contact Us", { whatsapp: true, call: true }),
+    document: doc(
+      sec(
+        col(
+          w("heading", { text: "Let's work together", level: "h1", align: "center" }),
+          w("text", { text: "Tell us about your project and we'll be in touch.", align: "center" }),
+        ),
+      ),
+      sec(col(w("form", { title: "Contact us", button: "Send enquiry", fields: "full" }))),
+    ),
+  },
 ];
 
 export function templateById(id: string): BuilderTemplate | undefined {

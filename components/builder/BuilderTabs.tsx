@@ -5,7 +5,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, PanelTop, PanelBottom, Phone, LayoutGrid } from "lucide-react";
+import { FileText, PanelTop, PanelBottom, Phone, LayoutGrid, Inbox } from "lucide-react";
 
 const TABS = [
   { href: "/dashboard/builder/templates", label: "Templates", Icon: LayoutGrid },
@@ -13,6 +13,7 @@ const TABS = [
   { href: "/dashboard/builder/header", label: "Header", Icon: PanelTop },
   { href: "/dashboard/builder/footer", label: "Footer", Icon: PanelBottom },
   { href: "/dashboard/builder/settings", label: "Contacts", Icon: Phone },
+  { href: "/dashboard/builder/leads", label: "Leads", Icon: Inbox },
 ];
 
 export function BuilderTabs() {

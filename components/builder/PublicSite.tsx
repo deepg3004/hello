@@ -6,6 +6,7 @@
 // and the floating chat button. Interactive widgets run for real (preview=false).
 
 import { BlockRenderer } from "@/components/builder/BlockRenderer";
+import { PublicHeader } from "@/components/builder/PublicHeader";
 import { AnimatedBackground, type BackgroundStyle } from "@/components/builder/AnimatedBackground";
 import { MobileBottomBar, type BottomBarConfig, type PageType } from "@/components/builder/MobileBottomBar";
 import { FloatingChat, type SiteContacts } from "@/components/builder/FloatingChat";
@@ -37,9 +38,7 @@ export function PublicSite({ site, page }: PublicSiteData) {
 
       <div className="relative z-10 flex min-h-screen flex-col">
         {header && header.sections.length > 0 && (
-          <header className="sticky top-0 z-40 border-b border-black/5 bg-white/80 backdrop-blur">
-            <BlockRenderer doc={header} siteId={site.id} />
-          </header>
+          <PublicHeader doc={header} siteId={site.id} />
         )}
 
         {/* pb to clear the fixed mobile bottom bar */}

@@ -50,6 +50,21 @@ export async function POST(request: Request) {
     .maybeSingle();
   if (!owner?.email) return NextResponse.json({ error: "Owner unreachable" }, { status: 404 });
 
+  // Persist the lead (best-effort — emailing is the primary delivery; the
+  // dashboard Leads viewer reads this table).
+  try {
+    await admin.from("builder_leads").insert({
+      site_id: siteId,
+      user_id: site.user_id,
+      name,
+      email,
+      phone: phone || null,
+      message: message || null,
+    });
+  } catch (e) {
+    console.error("[builder/leads] persist failed", e);
+  }
+
   await sendEmail({
     to: owner.email,
     role: "noreply",
