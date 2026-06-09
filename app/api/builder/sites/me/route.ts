@@ -78,3 +78,35 @@ export async function GET() {
 
   return NextResponse.json({ site, pages });
 }
+
+// PUT /api/builder/sites/me — update global styles, contacts, or title.
+export async function PUT(request: Request) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  let body: { title?: string; global_styles_json?: unknown; contacts_json?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (typeof body.title === "string") patch.title = body.title.trim() || "My site";
+  if (body.global_styles_json !== undefined) patch.global_styles_json = body.global_styles_json;
+  if (body.contacts_json !== undefined) patch.contacts_json = body.contacts_json;
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("builder_sites")
+    .update(patch)
+    .eq("user_id", user.id)
+    .select("id")
+    .maybeSingle();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data) return NextResponse.json({ error: "No site" }, { status: 404 });
+  return NextResponse.json({ ok: true });
+}

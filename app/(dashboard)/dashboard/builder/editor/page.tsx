@@ -1,4 +1,5 @@
 import { BuilderEditor } from "@/components/builder/BuilderEditor";
+import { BuilderTabs } from "@/components/builder/BuilderTabs";
 
 export const metadata = { title: "Website Builder" };
 export const dynamic = "force-dynamic";
@@ -15,6 +16,7 @@ export default function BuilderEditorPage() {
           Drag-and-drop builder (beta). Build a page, then save your draft.
         </p>
       </div>
+      <BuilderTabs />
       <BuilderEditor />
     </div>
   );

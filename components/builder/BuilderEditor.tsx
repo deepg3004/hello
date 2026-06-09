@@ -78,11 +78,12 @@ const DEVICE_WIDTH: Record<Device, string> = {
   mobile: "420px",
 };
 
-export function BuilderEditor() {
+export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "footer" }) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState<PageRow | null>(null);
   const [siteId, setSiteId] = useState<string | undefined>(undefined);
+  const [ready, setReady] = useState(false); // loaded a target doc to edit
 
   // History stack — `doc` is always history[hi].
   const [history, setHistory] = useState<BuilderDocument[]>([{ sections: [] }]);
@@ -103,14 +104,25 @@ export function BuilderEditor() {
     (async () => {
       try {
         const res = await fetch("/api/builder/sites/me");
-        const data = (await res.json()) as { pages?: PageRow[]; site?: { id?: string } };
+        const data = (await res.json()) as {
+          pages?: PageRow[];
+          site?: { id?: string; header_json?: unknown; footer_json?: unknown };
+        };
         if (!alive) return;
         const first = data.pages?.[0] ?? null;
         setPage(first);
         setSiteId(data.site?.id);
-        const d = asDocument(first?.content_json);
-        setHistory([d]);
+        // Edit the page's content, or the site's GLOBAL header/footer document.
+        const source =
+          mode === "header"
+            ? data.site?.header_json
+            : mode === "footer"
+              ? data.site?.footer_json
+              : first?.content_json;
+        setHistory([asDocument(source)]);
         setHi(0);
+        // Header/footer don't need a page row to be editable.
+        setReady(mode === "page" ? !!first : !!data.site?.id);
       } catch {
         /* leave empty */
       } finally {
@@ -120,7 +132,7 @@ export function BuilderEditor() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [mode]);
 
   // ── History-aware commit + undo/redo ────────────────────────────────────────
   function commit(next: BuilderDocument) {
@@ -246,16 +258,28 @@ export function BuilderEditor() {
   }
 
   async function save() {
-    if (!page) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/builder/pages/${page.id}`, {
+      // Page content vs the GLOBAL header/footer document go to different endpoints.
+      const req =
+        mode === "header"
+          ? { url: "/api/builder/sites/me/header", body: { header_json: doc } }
+          : mode === "footer"
+            ? { url: "/api/builder/sites/me/footer", body: { footer_json: doc } }
+            : page
+              ? { url: `/api/builder/pages/${page.id}`, body: { content_json: doc } }
+              : null;
+      if (!req) return;
+      const res = await fetch(req.url, {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ content_json: doc }),
+        body: JSON.stringify(req.body),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Save failed");
-      toast({ title: "Saved", description: "Your page draft is saved." });
+      toast({
+        title: "Saved",
+        description: mode === "page" ? "Your page draft is saved." : `Your ${mode} is saved (shows on every page).`,
+      });
     } catch (err) {
       toast({ title: "Couldn't save", description: err instanceof Error ? err.message : undefined, variant: "destructive" });
     } finally {
@@ -278,7 +302,7 @@ export function BuilderEditor() {
       </div>
     );
   }
-  if (!page) {
+  if (!ready) {
     return (
       <div className="rounded-xl border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
         The builder is being set up. Please check back shortly.

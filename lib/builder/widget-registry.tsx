@@ -23,6 +23,7 @@ import {
   Code2,
   MailQuestion,
   ShoppingCart,
+  Menu as MenuIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -332,6 +333,46 @@ export const WIDGETS: Record<string, WidgetDef> = {
       const html = sanitizeEmbedHtml(s(c.html));
       if (!html) return <div className="rounded-lg border border-dashed border-current/20 p-4 text-sm text-current/40">HTML embed — add code</div>;
       return <div className="[&_iframe]:w-full" dangerouslySetInnerHTML={{ __html: html }} />;
+    },
+  },
+
+  menu: {
+    type: "menu",
+    label: "Menu",
+    icon: MenuIcon,
+    fields: [
+      {
+        key: "items",
+        label: "Links",
+        type: "list",
+        itemLabel: "link",
+        itemFields: [
+          { key: "label", label: "Label", type: "text" },
+          { key: "url", label: "URL", type: "url" },
+        ],
+      },
+      { key: "align", label: "Alignment", type: "select", options: ALIGN },
+    ],
+    defaultContent: {
+      align: "left",
+      items: [
+        { label: "Home", url: "/" },
+        { label: "About", url: "#" },
+        { label: "Contact", url: "#" },
+      ],
+    },
+    Render: (c) => {
+      const items = arr<{ label?: string; url?: string }>(c.items);
+      const wrap = c.align === "center" ? "justify-center" : c.align === "right" ? "justify-end" : "justify-start";
+      return (
+        <nav className={`flex flex-wrap items-center gap-x-6 gap-y-2 ${wrap}`}>
+          {items.map((it, i) => (
+            <a key={i} href={s(it.url, "#")} className="text-sm font-medium opacity-80 transition hover:opacity-100">
+              {s(it.label, "Link")}
+            </a>
+          ))}
+        </nav>
+      );
     },
   },
 
