@@ -56,7 +56,7 @@ export function DashboardShell({
   // default light. The `dash-surface` marker makes the dashboard render its
   // premium navy palette whenever dark is active, and the cream palette in light.
   return (
-    <div className="dash-surface app-screen-h flex flex-col overflow-hidden bg-background text-foreground">
+    <div className="dash-surface app-canvas app-screen-h flex flex-col overflow-hidden bg-background text-foreground">
       {!isEditor && <CommandPalette />}
       {!isEditor && <QuickActions />}
       {/* Past-due banner — full width, sits above the whole layout. */}

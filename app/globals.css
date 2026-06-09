@@ -370,10 +370,15 @@
     content: "";
     @apply pointer-events-none absolute -z-10;
     inset: -20%;
+    /* Four layered orbs — two bright anchors top-left/top-right, a soft mid
+       glow, and a wide low orb for depth. Tuned to read as a calm "studio
+       light" wash, not a loud banner. Colours come from the --aurora-* tokens
+       so light (pink/blue) and dark (indigo/cyan) both stay on-brand. */
     background:
-      radial-gradient(38rem 30rem at 8% -6%, hsl(var(--aurora-1) / 0.30), transparent 62%),
-      radial-gradient(36rem 28rem at 98% 8%, hsl(var(--aurora-2) / 0.26), transparent 62%),
-      radial-gradient(34rem 28rem at 50% 112%, hsl(var(--aurora-3) / 0.20), transparent 60%);
+      radial-gradient(44rem 34rem at 4% -10%, hsl(var(--aurora-1) / 0.34), transparent 60%),
+      radial-gradient(42rem 32rem at 100% 2%, hsl(var(--aurora-2) / 0.30), transparent 60%),
+      radial-gradient(30rem 24rem at 82% 64%, hsl(var(--aurora-3) / 0.18), transparent 64%),
+      radial-gradient(40rem 32rem at 38% 118%, hsl(var(--aurora-1) / 0.16), transparent 62%);
     /* Slow drifting "moving lights" — premium living background. */
     animation: auroraDrift 26s ease-in-out infinite alternate;
     will-change: transform;
@@ -381,16 +386,19 @@
   @media (prefers-reduced-motion: reduce) {
     .aurora-bg::before { animation: none; }
   }
-  /* Faint grid overlay for engineered depth — masked to fade at the edges. */
+  /* Faint dot-grid overlay for engineered depth — a fine dotted matrix reads
+     cleaner under dense dashboards than ruled lines. Masked to fade out before
+     it reaches the content below, so it only textures the top band. */
   .grid-overlay::after {
     content: "";
     @apply pointer-events-none absolute inset-0 -z-10;
-    background-image:
-      linear-gradient(to right, hsl(var(--foreground) / 0.05) 1px, transparent 1px),
-      linear-gradient(to bottom, hsl(var(--foreground) / 0.05) 1px, transparent 1px);
-    background-size: 38px 38px;
-    -webkit-mask-image: radial-gradient(ellipse at 50% 0%, black 30%, transparent 75%);
-    mask-image: radial-gradient(ellipse at 50% 0%, black 30%, transparent 75%);
+    background-image: radial-gradient(
+      hsl(var(--foreground) / 0.065) 1px,
+      transparent 1.5px
+    );
+    background-size: 22px 22px;
+    -webkit-mask-image: radial-gradient(ellipse at 50% -4%, black 26%, transparent 72%);
+    mask-image: radial-gradient(ellipse at 50% -4%, black 26%, transparent 72%);
   }
 }
 
@@ -413,10 +421,11 @@
   .app-canvas { position: relative; }
   .app-canvas::before {
     content: "";
-    @apply pointer-events-none fixed inset-x-0 top-0 -z-10 h-72;
+    @apply pointer-events-none fixed inset-x-0 top-0 -z-10 h-80;
     background:
-      radial-gradient(50rem 18rem at 50% -12%, hsl(var(--aurora-1) / 0.10), transparent 70%),
-      radial-gradient(40rem 16rem at 88% -8%, hsl(var(--aurora-2) / 0.08), transparent 72%);
+      radial-gradient(54rem 20rem at 50% -14%, hsl(var(--aurora-1) / 0.12), transparent 70%),
+      radial-gradient(42rem 18rem at 90% -10%, hsl(var(--aurora-2) / 0.10), transparent 72%),
+      radial-gradient(40rem 18rem at 8% -10%, hsl(var(--aurora-3) / 0.08), transparent 72%);
   }
 }
 
@@ -553,5 +562,6 @@
    surfaces (see .aurora-bg). Transform-only so it's GPU-cheap. */
 @keyframes auroraDrift {
   0%   { transform: translate3d(0, 0, 0) scale(1); }
-  100% { transform: translate3d(2.5%, -2%, 0) scale(1.08); }
+  50%  { transform: translate3d(-1.5%, 1.6%, 0) scale(1.05); }
+  100% { transform: translate3d(2.6%, -2%, 0) scale(1.08); }
 }
