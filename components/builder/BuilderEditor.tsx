@@ -46,7 +46,8 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { WIDGET_LIST, widgetDef } from "@/lib/builder/widget-registry";
+import { WIDGET_LIST, widgetDef, type FieldSpec } from "@/lib/builder/widget-registry";
+import { ICON_NAMES } from "@/components/builder/widgets/BuilderIcon";
 import { BlockRenderer } from "@/components/builder/BlockRenderer";
 import {
   asDocument,
@@ -81,6 +82,7 @@ export function BuilderEditor() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState<PageRow | null>(null);
+  const [siteId, setSiteId] = useState<string | undefined>(undefined);
 
   // History stack — `doc` is always history[hi].
   const [history, setHistory] = useState<BuilderDocument[]>([{ sections: [] }]);
@@ -101,10 +103,11 @@ export function BuilderEditor() {
     (async () => {
       try {
         const res = await fetch("/api/builder/sites/me");
-        const data = (await res.json()) as { pages?: PageRow[] };
+        const data = (await res.json()) as { pages?: PageRow[]; site?: { id?: string } };
         if (!alive) return;
         const first = data.pages?.[0] ?? null;
         setPage(first);
+        setSiteId(data.site?.id);
         const d = asDocument(first?.content_json);
         setHistory([d]);
         setHi(0);
@@ -286,7 +289,7 @@ export function BuilderEditor() {
   const canvasInner = (
     <div className="mx-auto transition-all" style={{ maxWidth: DEVICE_WIDTH[device] }}>
       {preview ? (
-        <BlockRenderer doc={doc} device={device} />
+        <BlockRenderer doc={doc} device={device} siteId={siteId} preview />
       ) : (
         doc.sections.map((sec) => (
           <div key={sec.id} className="mb-4 rounded-lg border border-dashed border-border/70 p-3">
@@ -307,7 +310,11 @@ export function BuilderEditor() {
                           onDelete={() => removeWidget(w.id)}
                           onDuplicate={() => duplicateWidget(w.id)}
                         >
-                          <div style={toCss(resolved)}>{widgetDef(w.type)?.Render(w.content ?? {})}</div>
+                          {/* pointer-events-none → clicking selects the widget
+                              rather than interacting with its links/inputs. */}
+                          <div style={toCss(resolved)} className="pointer-events-none">
+                            {widgetDef(w.type)?.Render(w.content ?? {})}
+                          </div>
                         </SortableWidget>
                       );
                     })}
@@ -526,7 +533,6 @@ function SettingsPanel({
 }) {
   const c = widget.content as Record<string, unknown>;
   const dStyle = ((widget.style as ResponsiveStyle | undefined)?.[device] ?? {}) as StyleProps;
-  const str = (v: unknown) => (typeof v === "string" ? v : "");
   const num = (v: unknown) => (typeof v === "number" ? v : undefined);
 
   return (
@@ -550,39 +556,14 @@ function SettingsPanel({
         ))}
       </div>
 
-      {/* CONTENT */}
+      {/* CONTENT — rendered generically from the widget's field schema. */}
       {tab === "content" && (
         <div className="space-y-3">
-          {widget.type === "heading" && (
-            <Field label="Level">
-              <Select value={str(c.level) || "h2"} onChange={(v) => onContent({ level: v })} options={[["h1", "H1"], ["h2", "H2"], ["h3", "H3"]]} />
-            </Field>
-          )}
-          {(widget.type === "heading" || widget.type === "text") && (
-            <Field label="Text">
-              <textarea value={str(c.text)} onChange={(e) => onContent({ text: e.target.value })} rows={widget.type === "text" ? 4 : 2} className={inputCls} />
-            </Field>
-          )}
-          {widget.type === "button" && (
-            <>
-              <Field label="Label"><input value={str(c.label)} onChange={(e) => onContent({ label: e.target.value })} className={inputCls} /></Field>
-              <Field label="Link URL"><input value={str(c.url)} onChange={(e) => onContent({ url: e.target.value })} className={inputCls} /></Field>
-              <Field label="Style">
-                <Select value={str(c.variant) || "filled"} onChange={(v) => onContent({ variant: v })} options={[["filled", "Filled"], ["outline", "Outline"]]} />
-              </Field>
-              <Field label="Button color"><input type="color" value={str(c.color) || "#4f46e5"} onChange={(e) => onContent({ color: e.target.value })} className="h-9 w-full rounded-md border border-input" /></Field>
-            </>
-          )}
-          {widget.type === "image" && (
-            <>
-              <Field label="Image URL"><input value={str(c.src)} onChange={(e) => onContent({ src: e.target.value })} placeholder="https://…" className={inputCls} /></Field>
-              <Field label="Alt text"><input value={str(c.alt)} onChange={(e) => onContent({ alt: e.target.value })} className={inputCls} /></Field>
-            </>
-          )}
-          {(widget.type === "heading" || widget.type === "text" || widget.type === "image" || widget.type === "button") && (
-            <Field label="Alignment">
-              <Select value={str(c.align) || "left"} onChange={(v) => onContent({ align: v })} options={[["left", "Left"], ["center", "Center"], ["right", "Right"]]} />
-            </Field>
+          {(widgetDef(widget.type)?.fields ?? []).map((f) => (
+            <ContentField key={f.key} field={f} value={c[f.key]} onChange={(v) => onContent({ [f.key]: v })} />
+          ))}
+          {(widgetDef(widget.type)?.fields ?? []).length === 0 && (
+            <p className="text-xs text-muted-foreground">No content options for this widget.</p>
           )}
         </div>
       )}
@@ -630,6 +611,91 @@ function SettingsPanel({
 }
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
+
+// Generic content field driven by the widget's field schema.
+function ContentField({
+  field,
+  value,
+  onChange,
+}: {
+  field: FieldSpec;
+  value: unknown;
+  onChange: (v: unknown) => void;
+}) {
+  if (field.type === "list") {
+    return <ListField field={field} value={value} onChange={onChange} />;
+  }
+  const sv = typeof value === "string" ? value : "";
+  const nv = typeof value === "number" ? value : "";
+  return (
+    <Field label={field.label}>
+      {field.type === "textarea" ? (
+        <textarea value={sv} onChange={(e) => onChange(e.target.value)} rows={3} className={inputCls} />
+      ) : field.type === "number" ? (
+        <input
+          type="number"
+          value={nv}
+          onChange={(e) => onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+          className={inputCls}
+        />
+      ) : field.type === "color" ? (
+        <input type="color" value={sv || "#000000"} onChange={(e) => onChange(e.target.value)} className="h-9 w-full rounded-md border border-input" />
+      ) : field.type === "select" ? (
+        <Select value={sv} onChange={onChange} options={field.options} />
+      ) : field.type === "icon" ? (
+        <Select value={sv} onChange={onChange} options={ICON_NAMES.map((n) => [n, n] as [string, string])} />
+      ) : (
+        <input value={sv} onChange={(e) => onChange(e.target.value)} placeholder={field.type === "url" ? "https://…" : undefined} className={inputCls} />
+      )}
+    </Field>
+  );
+}
+
+// Repeater for `list` fields (e.g. social links).
+function ListField({
+  field,
+  value,
+  onChange,
+}: {
+  field: Extract<FieldSpec, { type: "list" }>;
+  value: unknown;
+  onChange: (v: unknown) => void;
+}) {
+  const items = (Array.isArray(value) ? value : []) as Record<string, unknown>[];
+  const setItems = (next: Record<string, unknown>[]) => onChange(next);
+  return (
+    <div>
+      <p className="mb-1 text-xs text-muted-foreground">{field.label}</p>
+      <div className="space-y-2">
+        {items.map((it, i) => (
+          <div key={i} className="rounded-md border border-border p-2">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-[11px] capitalize text-muted-foreground">{field.itemLabel} {i + 1}</span>
+              <button type="button" onClick={() => setItems(items.filter((_, j) => j !== i))} className="text-rose-500 hover:opacity-80">
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+            {field.itemFields.map((sub) => (
+              <ContentField
+                key={sub.key}
+                field={sub}
+                value={it[sub.key]}
+                onChange={(v) => setItems(items.map((x, j) => (j === i ? { ...x, [sub.key]: v } : x)))}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={() => setItems([...items, Object.fromEntries(field.itemFields.map((f) => [f.key, ""]))])}
+        className="mt-2 text-xs font-medium text-primary hover:opacity-80"
+      >
+        + Add {field.itemLabel}
+      </button>
+    </div>
+  );
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

@@ -1,10 +1,11 @@
-// Widget registry for the website builder. ONE place defines each widget's
-// metadata (label, icon, default content) AND its render, so the editor panel,
-// the editor canvas, and the public renderer all stay in sync. Mirrors the
-// existing storefront block registry pattern.
-//
-// Phase 1 widgets: Heading, Text, Image, Button (presentational, server-safe).
-// More widgets (form, gallery, Razorpay, etc.) are added in later phases.
+// Widget registry for the website builder. ONE place per widget defines:
+//   • metadata (label, icon)
+//   • `fields` — a schema the settings panel renders generically (so adding a
+//     widget needs no settings-panel changes)
+//   • `defaultContent`
+//   • `Render` — pure render from content (style + animation applied by the
+//     renderer/editor wrapper)
+// Shared by the editor panel, the editor canvas, and the public renderer.
 
 import type { ReactNode } from "react";
 import {
@@ -12,47 +13,73 @@ import {
   Type as TextIcon,
   Image as ImageIcon,
   MousePointerClick,
+  Star,
+  Minus as DividerIcon,
+  StretchVertical,
+  Video as VideoIcon,
+  Share2,
+  Quote,
+  Tags,
+  Code2,
+  MailQuestion,
+  ShoppingCart,
   type LucideIcon,
 } from "lucide-react";
+
+import { LeadFormWidget } from "@/components/builder/widgets/LeadFormWidget";
+import { BuyWidget } from "@/components/builder/widgets/BuyWidget";
+import { BuilderIcon } from "@/components/builder/widgets/BuilderIcon";
+import { sanitizeEmbedHtml } from "@/lib/sanitize-embed";
+
+// ── Field schema (rendered by the settings panel) ─────────────────────────────
+export type FieldSpec =
+  | { key: string; label: string; type: "text" | "textarea" | "url" | "color" | "icon" }
+  | { key: string; label: string; type: "number" }
+  | { key: string; label: string; type: "select"; options: Array<[string, string]> }
+  | { key: string; label: string; type: "list"; itemLabel: string; itemFields: FieldSpec[] };
 
 export interface WidgetDef {
   type: string;
   label: string;
   icon: LucideIcon;
-  /** Default content when the widget is first dropped. */
+  fields: FieldSpec[];
   defaultContent: Record<string, unknown>;
-  /** Pure render from content. Per-device style + animation are applied by the
-   *  renderer/editor wrapper, not the widget. Server-safe for Phase 1 widgets. */
   Render: (content: Record<string, unknown>) => ReactNode;
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const s = (v: unknown, fb = ""): string => (typeof v === "string" ? v : fb);
+const n = (v: unknown, fb = 0): number => (typeof v === "number" ? v : fb);
+const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 const alignClass = (a: unknown): string =>
   a === "center" ? "text-center" : a === "right" ? "text-right" : "text-left";
+const ALIGN: Array<[string, string]> = [["left", "Left"], ["center", "Center"], ["right", "Right"]];
+
+/** YouTube/Vimeo watch URL → embeddable URL. */
+function toEmbed(url: string): string {
+  if (!url) return "";
+  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]{6,})/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+  const v = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+  if (v) return `https://player.vimeo.com/video/${v[1]}`;
+  return url;
+}
 
 export const WIDGETS: Record<string, WidgetDef> = {
   heading: {
     type: "heading",
     label: "Heading",
     icon: HeadingIcon,
+    fields: [
+      { key: "text", label: "Text", type: "text" },
+      { key: "level", label: "Level", type: "select", options: [["h1", "H1"], ["h2", "H2"], ["h3", "H3"]] },
+      { key: "align", label: "Alignment", type: "select", options: ALIGN },
+    ],
     defaultContent: { text: "Your heading", level: "h2", align: "left" },
     Render: (c) => {
-      const Tag = (["h1", "h2", "h3"].includes(s(c.level)) ? s(c.level) : "h2") as
-        | "h1"
-        | "h2"
-        | "h3";
-      const size =
-        Tag === "h1"
-          ? "text-4xl sm:text-5xl"
-          : Tag === "h2"
-            ? "text-3xl sm:text-4xl"
-            : "text-2xl sm:text-3xl";
-      return (
-        <Tag className={`${size} font-bold tracking-tight ${alignClass(c.align)}`}>
-          {s(c.text, "Your heading")}
-        </Tag>
-      );
+      const Tag = (["h1", "h2", "h3"].includes(s(c.level)) ? s(c.level) : "h2") as "h1" | "h2" | "h3";
+      const size = Tag === "h1" ? "text-4xl sm:text-5xl" : Tag === "h2" ? "text-3xl sm:text-4xl" : "text-2xl sm:text-3xl";
+      return <Tag className={`${size} font-bold tracking-tight ${alignClass(c.align)}`}>{s(c.text, "Your heading")}</Tag>;
     },
   },
 
@@ -60,14 +87,13 @@ export const WIDGETS: Record<string, WidgetDef> = {
     type: "text",
     label: "Text",
     icon: TextIcon,
-    defaultContent: {
-      text: "Write something compelling about your offer here.",
-      align: "left",
-    },
+    fields: [
+      { key: "text", label: "Text", type: "textarea" },
+      { key: "align", label: "Alignment", type: "select", options: ALIGN },
+    ],
+    defaultContent: { text: "Write something compelling about your offer here.", align: "left" },
     Render: (c) => (
-      <p className={`whitespace-pre-wrap leading-relaxed text-current/80 ${alignClass(c.align)}`}>
-        {s(c.text)}
-      </p>
+      <p className={`whitespace-pre-wrap leading-relaxed text-current/80 ${alignClass(c.align)}`}>{s(c.text)}</p>
     ),
   },
 
@@ -75,28 +101,23 @@ export const WIDGETS: Record<string, WidgetDef> = {
     type: "image",
     label: "Image",
     icon: ImageIcon,
+    fields: [
+      { key: "src", label: "Image URL", type: "url" },
+      { key: "alt", label: "Alt text", type: "text" },
+      { key: "align", label: "Alignment", type: "select", options: ALIGN },
+    ],
     defaultContent: { src: "", alt: "", align: "center", rounded: true },
     Render: (c) => {
       const src = s(c.src);
-      const wrap =
-        c.align === "left" ? "mr-auto" : c.align === "right" ? "ml-auto" : "mx-auto";
-      if (!src) {
+      const wrap = c.align === "left" ? "mr-auto" : c.align === "right" ? "ml-auto" : "mx-auto";
+      if (!src)
         return (
-          <div
-            className={`flex aspect-video w-full max-w-xl items-center justify-center rounded-xl border border-dashed border-current/20 bg-current/5 text-sm text-current/40 ${wrap}`}
-          >
+          <div className={`flex aspect-video w-full max-w-xl items-center justify-center rounded-xl border border-dashed border-current/20 bg-current/5 text-sm text-current/40 ${wrap}`}>
             Image — add a URL
           </div>
         );
-      }
-      return (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={src}
-          alt={s(c.alt)}
-          className={`block w-full max-w-xl object-cover ${c.rounded ? "rounded-xl" : ""} ${wrap}`}
-        />
-      );
+      // eslint-disable-next-line @next/next/no-img-element
+      return <img src={src} alt={s(c.alt)} className={`block w-full max-w-xl rounded-xl object-cover ${wrap}`} />;
     },
   },
 
@@ -104,13 +125,14 @@ export const WIDGETS: Record<string, WidgetDef> = {
     type: "button",
     label: "Button",
     icon: MousePointerClick,
-    defaultContent: {
-      label: "Click here",
-      url: "#",
-      align: "left",
-      variant: "filled",
-      color: "#4f46e5",
-    },
+    fields: [
+      { key: "label", label: "Label", type: "text" },
+      { key: "url", label: "Link URL", type: "url" },
+      { key: "variant", label: "Style", type: "select", options: [["filled", "Filled"], ["outline", "Outline"]] },
+      { key: "color", label: "Color", type: "color" },
+      { key: "align", label: "Alignment", type: "select", options: ALIGN },
+    ],
+    defaultContent: { label: "Click here", url: "#", align: "left", variant: "filled", color: "#4f46e5" },
     Render: (c) => {
       const filled = c.variant !== "outline";
       const color = s(c.color, "#4f46e5");
@@ -119,11 +141,7 @@ export const WIDGETS: Record<string, WidgetDef> = {
           <a
             href={s(c.url, "#")}
             className="inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold transition hover:opacity-90"
-            style={
-              filled
-                ? { background: color, color: "#fff" }
-                : { border: `2px solid ${color}`, color }
-            }
+            style={filled ? { background: color, color: "#fff" } : { border: `2px solid ${color}`, color }}
           >
             {s(c.label, "Click here")}
           </a>
@@ -131,9 +149,222 @@ export const WIDGETS: Record<string, WidgetDef> = {
       );
     },
   },
+
+  icon: {
+    type: "icon",
+    label: "Icon",
+    icon: Star,
+    fields: [
+      { key: "name", label: "Icon (lucide name)", type: "icon" },
+      { key: "size", label: "Size (px)", type: "number" },
+      { key: "color", label: "Color", type: "color" },
+      { key: "align", label: "Alignment", type: "select", options: ALIGN },
+    ],
+    defaultContent: { name: "Star", size: 40, color: "#4f46e5", align: "left" },
+    Render: (c) => (
+      <div className={alignClass(c.align)}>
+        <BuilderIcon name={s(c.name, "Star")} size={n(c.size, 40)} color={s(c.color, "#4f46e5")} />
+      </div>
+    ),
+  },
+
+  spacer: {
+    type: "spacer",
+    label: "Spacer",
+    icon: StretchVertical,
+    fields: [{ key: "height", label: "Height (px)", type: "number" }],
+    defaultContent: { height: 40 },
+    Render: (c) => <div style={{ height: `${n(c.height, 40)}px` }} aria-hidden />,
+  },
+
+  divider: {
+    type: "divider",
+    label: "Divider",
+    icon: DividerIcon,
+    fields: [{ key: "color", label: "Color", type: "color" }],
+    defaultContent: { color: "rgba(0,0,0,0.12)" },
+    Render: (c) => <hr style={{ borderColor: s(c.color, "rgba(0,0,0,0.12)") }} className="my-2" />,
+  },
+
+  video: {
+    type: "video",
+    label: "Video",
+    icon: VideoIcon,
+    fields: [{ key: "url", label: "YouTube / Vimeo URL", type: "url" }],
+    defaultContent: { url: "" },
+    Render: (c) => {
+      const src = toEmbed(s(c.url));
+      if (!src)
+        return (
+          <div className="flex aspect-video w-full items-center justify-center rounded-xl border border-dashed border-current/20 bg-current/5 text-sm text-current/40">
+            Video — paste a YouTube/Vimeo link
+          </div>
+        );
+      return (
+        <div className="aspect-video w-full overflow-hidden rounded-xl">
+          <iframe src={src} className="h-full w-full" allowFullScreen title="Video" />
+        </div>
+      );
+    },
+  },
+
+  social: {
+    type: "social",
+    label: "Social Icons",
+    icon: Share2,
+    fields: [
+      {
+        key: "items",
+        label: "Links",
+        type: "list",
+        itemLabel: "link",
+        itemFields: [
+          { key: "icon", label: "Icon", type: "icon" },
+          { key: "url", label: "URL", type: "url" },
+        ],
+      },
+      { key: "align", label: "Alignment", type: "select", options: ALIGN },
+    ],
+    defaultContent: {
+      align: "left",
+      items: [
+        { icon: "Instagram", url: "#" },
+        { icon: "Send", url: "#" },
+        { icon: "Youtube", url: "#" },
+      ],
+    },
+    Render: (c) => {
+      const items = arr<{ icon?: string; url?: string }>(c.items);
+      const wrap = c.align === "center" ? "justify-center" : c.align === "right" ? "justify-end" : "justify-start";
+      return (
+        <div className={`flex flex-wrap items-center gap-3 ${wrap}`}>
+          {items.map((it, i) => (
+            <a key={i} href={s(it.url, "#")} target="_blank" rel="noreferrer" className="opacity-80 transition hover:opacity-100">
+              <BuilderIcon name={s(it.icon, "Link")} size={22} />
+            </a>
+          ))}
+        </div>
+      );
+    },
+  },
+
+  testimonial: {
+    type: "testimonial",
+    label: "Testimonial",
+    icon: Quote,
+    fields: [
+      { key: "quote", label: "Quote", type: "textarea" },
+      { key: "author", label: "Author", type: "text" },
+      { key: "role", label: "Role / company", type: "text" },
+      { key: "avatar", label: "Avatar URL", type: "url" },
+    ],
+    defaultContent: { quote: "This completely changed how I work — highly recommend.", author: "Happy customer", role: "", avatar: "" },
+    Render: (c) => (
+      <figure className="rounded-2xl border border-current/10 bg-current/5 p-6">
+        <Quote className="h-6 w-6 opacity-30" />
+        <blockquote className="mt-2 text-lg leading-relaxed">{s(c.quote)}</blockquote>
+        <figcaption className="mt-4 flex items-center gap-3">
+          {s(c.avatar) ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={s(c.avatar)} alt={s(c.author)} className="h-10 w-10 rounded-full object-cover" />
+          ) : null}
+          <div>
+            <div className="font-semibold">{s(c.author, "Customer")}</div>
+            {s(c.role) && <div className="text-sm opacity-60">{s(c.role)}</div>}
+          </div>
+        </figcaption>
+      </figure>
+    ),
+  },
+
+  pricing: {
+    type: "pricing",
+    label: "Pricing Card",
+    icon: Tags,
+    fields: [
+      { key: "name", label: "Plan name", type: "text" },
+      { key: "price", label: "Price", type: "text" },
+      { key: "period", label: "Period (e.g. /mo)", type: "text" },
+      { key: "features", label: "Features (one per line)", type: "textarea" },
+      { key: "cta_label", label: "Button label", type: "text" },
+      { key: "cta_url", label: "Button link", type: "url" },
+      { key: "color", label: "Accent color", type: "color" },
+    ],
+    defaultContent: {
+      name: "Pro",
+      price: "₹1,499",
+      period: "/mo",
+      features: "Everything you need\nPriority support\nCancel anytime",
+      cta_label: "Get started",
+      cta_url: "#",
+      color: "#4f46e5",
+    },
+    Render: (c) => {
+      const feats = s(c.features).split("\n").map((f) => f.trim()).filter(Boolean);
+      const color = s(c.color, "#4f46e5");
+      return (
+        <div className="rounded-2xl border border-current/10 bg-current/5 p-6 text-center">
+          <div className="text-sm font-semibold uppercase tracking-wide opacity-70">{s(c.name, "Plan")}</div>
+          <div className="mt-2 text-4xl font-extrabold">
+            {s(c.price)}
+            <span className="text-base font-medium opacity-60">{s(c.period)}</span>
+          </div>
+          <ul className="mt-4 space-y-1.5 text-sm">
+            {feats.map((f, i) => (
+              <li key={i} className="opacity-80">{f}</li>
+            ))}
+          </ul>
+          <a href={s(c.cta_url, "#")} className="mt-5 inline-flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold text-white" style={{ background: color }}>
+            {s(c.cta_label, "Get started")}
+          </a>
+        </div>
+      );
+    },
+  },
+
+  html: {
+    type: "html",
+    label: "HTML Embed",
+    icon: Code2,
+    fields: [{ key: "html", label: "Custom HTML", type: "textarea" }],
+    defaultContent: { html: "" },
+    Render: (c) => {
+      const html = sanitizeEmbedHtml(s(c.html));
+      if (!html) return <div className="rounded-lg border border-dashed border-current/20 p-4 text-sm text-current/40">HTML embed — add code</div>;
+      return <div className="[&_iframe]:w-full" dangerouslySetInnerHTML={{ __html: html }} />;
+    },
+  },
+
+  // ── Interactive (the point of the leads + payment page types) ────────────────
+  form: {
+    type: "form",
+    label: "Lead Form",
+    icon: MailQuestion,
+    fields: [
+      { key: "title", label: "Form title", type: "text" },
+      { key: "button", label: "Submit button", type: "text" },
+      { key: "fields", label: "Fields", type: "select", options: [["name_email", "Name + Email"], ["name_email_phone", "Name + Email + Phone"], ["full", "Name + Email + Phone + Message"]] },
+    ],
+    defaultContent: { title: "Get in touch", button: "Submit", fields: "full" },
+    Render: (c) => <LeadFormWidget content={c} />,
+  },
+
+  buy: {
+    type: "buy",
+    label: "Buy / Product",
+    icon: ShoppingCart,
+    fields: [
+      { key: "name", label: "Product name", type: "text" },
+      { key: "price", label: "Price (display)", type: "text" },
+      { key: "slug", label: "Checkout page slug (/p/<slug>)", type: "text" },
+      { key: "label", label: "Button label", type: "text" },
+      { key: "color", label: "Accent color", type: "color" },
+    ],
+    defaultContent: { name: "Your product", price: "₹999", slug: "", label: "Buy now", color: "#16a34a" },
+    Render: (c) => <BuyWidget content={c} />,
+  },
 };
 
-/** Ordered list for the widget panel. */
 export const WIDGET_LIST: WidgetDef[] = Object.values(WIDGETS);
 
 export function widgetDef(type: string): WidgetDef | undefined {

@@ -9,6 +9,7 @@ import { motion } from "framer-motion";
 
 import { widgetDef } from "@/lib/builder/widget-registry";
 import { resolveStyle, toCss, ANIMATIONS, type ResponsiveStyle } from "@/lib/builder/style";
+import { BuilderContextProvider } from "@/components/builder/BuilderContext";
 import type { BuilderDocument, Device, WidgetNode } from "@/lib/builder/types";
 
 function RenderedWidget({ w, device }: { w: WidgetNode; device: Device }) {
@@ -40,12 +41,18 @@ function RenderedWidget({ w, device }: { w: WidgetNode; device: Device }) {
 export function BlockRenderer({
   doc,
   device = "desktop",
+  siteId,
+  preview = false,
 }: {
   doc: BuilderDocument;
   device?: Device;
+  /** Lets interactive widgets (form/buy) resolve the site server-side. */
+  siteId?: string;
+  /** True in the editor preview — interactive widgets mock their action. */
+  preview?: boolean;
 }) {
   return (
-    <>
+    <BuilderContextProvider value={{ siteId, preview }}>
       {doc.sections.map((section) => (
         <section key={section.id} className="w-full px-4 py-8">
           <div
@@ -67,6 +74,6 @@ export function BlockRenderer({
           </div>
         </section>
       ))}
-    </>
+    </BuilderContextProvider>
   );
 }
