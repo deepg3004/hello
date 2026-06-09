@@ -10,8 +10,17 @@ import { revalidatePath } from "next/cache";
 
 import { BUYER_COOKIE, verifyBuyerSession } from "@/lib/buyer-portal";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { rateLimit } from "@/lib/rate-limit";
+import { sendEmail } from "@/lib/email";
 
 type Result = { ok: boolean; message?: string };
+
+const escapeHtml = (s: string) =>
+  s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 
 function buyerEmail(): string | null {
   try {
@@ -183,6 +192,81 @@ export async function deleteAddressAction(id: string): Promise<Result> {
     .eq("buyer_email", email.toLowerCase());
   if (error) return { ok: false, message: "Couldn't delete." };
   revalidatePath("/account");
+  return { ok: true };
+}
+
+const CONTACT_TOPICS: Record<string, string> = {
+  question: "Question about my order",
+  refund: "Refund request",
+  delivery: "Delivery / access issue",
+  other: "Order enquiry",
+};
+
+/** Buyer → seller message about a specific order. Emails the seller (reply-to
+ *  the buyer), so a buyer can ask for help / a refund without a public inbox.
+ *  No DB row — it's a relayed email, gated by the buyer session + order match. */
+export async function contactSellerAboutOrderAction(
+  orderId: string,
+  topic: string,
+  message: string,
+): Promise<Result> {
+  const email = buyerEmail();
+  if (!email) return { ok: false, message: NOT_SIGNED_IN };
+
+  const body = (message ?? "").trim();
+  if (body.length < 5) return { ok: false, message: "Please write a short message." };
+  if (body.length > 4000) return { ok: false, message: "Message is too long." };
+
+  // Light abuse guard: a handful of messages per buyer per hour.
+  const rl = await rateLimit(`contact-seller:${email.toLowerCase()}`, 6, 3600);
+  if (!rl.ok) {
+    return { ok: false, message: "You've sent a few messages — please try again later." };
+  }
+
+  const admin = createAdminClient();
+  const { data: order } = await admin
+    .from("orders")
+    .select("id, buyer_email, buyer_name, seller_user_id, amount, created_at, pages(title)")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (!order || (order.buyer_email ?? "").toLowerCase() !== email.toLowerCase()) {
+    return { ok: false, message: "Order not found." };
+  }
+
+  const { data: seller } = await admin
+    .from("user_profiles")
+    .select("email, full_name")
+    .eq("id", order.seller_user_id)
+    .maybeSingle();
+  if (!seller?.email) {
+    return { ok: false, message: "Seller contact isn't available for this order." };
+  }
+
+  const page = Array.isArray(order.pages) ? order.pages[0] : order.pages;
+  const subjectLabel = CONTACT_TOPICS[topic] ?? CONTACT_TOPICS.other;
+  const shortId = String(order.id).slice(0, 8);
+
+  const html = `
+    <p>You have a new message from a buyer about an order.</p>
+    <table style="border-collapse:collapse;font-size:14px">
+      <tr><td style="padding:2px 12px 2px 0;color:#666">Topic</td><td><strong>${escapeHtml(subjectLabel)}</strong></td></tr>
+      <tr><td style="padding:2px 12px 2px 0;color:#666">Order</td><td>#${escapeHtml(shortId)}${page?.title ? " · " + escapeHtml(page.title) : ""}</td></tr>
+      <tr><td style="padding:2px 12px 2px 0;color:#666">Buyer</td><td>${escapeHtml(order.buyer_name || "—")} &lt;${escapeHtml(order.buyer_email)}&gt;</td></tr>
+    </table>
+    <p style="margin-top:12px;white-space:pre-wrap;border-left:3px solid #e5e7eb;padding-left:12px;color:#111">${escapeHtml(body)}</p>
+    <p style="margin-top:16px;color:#666;font-size:12px">Reply to this email to respond to the buyer directly.</p>
+  `;
+
+  const res = await sendEmail({
+    to: seller.email,
+    subject: `[Order #${shortId}] ${subjectLabel} — ${order.buyer_email}`,
+    html,
+    reply_to: order.buyer_email,
+    sellerId: order.seller_user_id as string,
+  });
+  if (!res.ok && !res.skipped) {
+    return { ok: false, message: "Couldn't send right now. Please try again." };
+  }
   return { ok: true };
 }
 

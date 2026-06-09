@@ -46,6 +46,7 @@ import {
 } from "@/components/buyer/BuyerAccountShell";
 import { WishlistItems } from "@/components/buyer/WishlistItems";
 import { AddressBook } from "@/components/buyer/AddressBook";
+import { ContactSellerButton } from "@/components/buyer/ContactSellerButton";
 
 export const metadata = { title: "Your purchases" };
 export const dynamic = "force-dynamic";
@@ -506,6 +507,7 @@ export default async function BuyerAccountPage() {
                 Details
               </Link>
             </Button>
+            <ContactSellerButton orderId={o.id} />
           </div>
         </CardContent>
       </Card>
