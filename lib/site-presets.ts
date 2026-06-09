@@ -23,6 +23,21 @@ interface Copy {
   aboutBody: string;
 }
 
+// Stable, free demo images (seed-stable → same image every render). Sellers
+// replace these from the editor; they ship so templates look complete on day 1.
+const PIMG = (seed: string, w = 1280, h = 860) =>
+  `https://picsum.photos/seed/invox-${seed}/${w}/${h}`;
+
+// A reusable demo gallery (used by the Showcase template).
+const DEMO_GALLERY = [
+  { image: PIMG("gal1", 800, 800), caption: "Project one" },
+  { image: PIMG("gal2", 800, 800), caption: "Project two" },
+  { image: PIMG("gal3", 800, 800), caption: "Project three" },
+  { image: PIMG("gal4", 800, 800), caption: "Project four" },
+  { image: PIMG("gal5", 800, 800), caption: "Project five" },
+  { image: PIMG("gal6", 800, 800), caption: "Project six" },
+];
+
 // Niche-flavoured copy. Categories not listed use the generic starter.
 const CATEGORY_COPY: Record<string, Copy> = {
   finance: {
@@ -86,6 +101,7 @@ function starterBlocks(copy: Copy): SiteBlock[] {
         headline: copy.headline,
         subheadline: copy.subheadline,
         cta_label: "Get started",
+        image: PIMG("starter-hero"),
       },
     },
     {
@@ -103,7 +119,7 @@ function starterBlocks(copy: Copy): SiteBlock[] {
     {
       id: "about",
       type: "about",
-      data: { heading: "About me", body: copy.aboutBody },
+      data: { heading: "About me", body: copy.aboutBody, image: PIMG("starter-about", 900, 900) },
     },
     {
       id: "features",
@@ -178,6 +194,7 @@ function premiumBlocks(copy: Copy): SiteBlock[] {
         headline: copy.headline,
         subheadline: copy.subheadline,
         cta_label: "Get started",
+        image: PIMG("premium-hero"),
       },
     },
     {
@@ -199,7 +216,7 @@ function premiumBlocks(copy: Copy): SiteBlock[] {
     {
       id: "about",
       type: "about",
-      data: { _bg: "subtle", heading: "About me", body: copy.aboutBody },
+      data: { _bg: "subtle", heading: "About me", body: copy.aboutBody, image: PIMG("premium-about", 900, 900) },
     },
     {
       id: "features",
@@ -289,6 +306,7 @@ function linkInBioBlocks(copy: Copy): SiteBlock[] {
         headline: copy.label,
         subheadline: copy.subheadline,
         cta_label: "See what I offer",
+        image: PIMG("bio-hero", 900, 900),
       },
     },
     { id: "products", type: "products", data: { title: copy.productsTitle } },
@@ -312,7 +330,7 @@ function storefrontBlocks(copy: Copy): SiteBlock[] {
     {
       id: "hero",
       type: "hero",
-      data: { eyebrow: "Shop", headline: copy.headline, subheadline: copy.subheadline, cta_label: "Browse" },
+      data: { eyebrow: "Shop", headline: copy.headline, subheadline: copy.subheadline, cta_label: "Browse", image: PIMG("store-hero") },
     },
     { id: "products", type: "products", data: { _bg: "subtle", title: copy.productsTitle } },
     {
@@ -347,13 +365,82 @@ function showcaseBlocks(copy: Copy): SiteBlock[] {
     {
       id: "hero",
       type: "hero",
-      data: { eyebrow: "Portfolio", headline: copy.headline, subheadline: copy.subheadline, cta_label: "View work" },
+      data: { eyebrow: "Portfolio", headline: copy.headline, subheadline: copy.subheadline, cta_label: "View work", image: PIMG("showcase-hero") },
     },
-    { id: "gallery", type: "gallery", data: { title: "Selected work", images: [] } },
-    { id: "about", type: "about", data: { _bg: "subtle", heading: "About me", body: copy.aboutBody } },
+    { id: "gallery", type: "gallery", data: { title: "Selected work", items: DEMO_GALLERY } },
+    { id: "about", type: "about", data: { _bg: "subtle", heading: "About me", body: copy.aboutBody, image: PIMG("showcase-about", 900, 900) } },
     { id: "products", type: "products", data: { title: copy.productsTitle } },
     { id: "contact", type: "contact", data: { _bg: "subtle", title: "Get in touch" } },
     { id: "social", type: "social", data: { title: "Follow along" } },
+  ];
+}
+
+/** Webinar / live event — urgency-first: hero, countdown, what you'll learn,
+ *  about the host, FAQ, register CTA + contact. */
+function webinarBlocks(copy: Copy): SiteBlock[] {
+  return [
+    {
+      id: "hero",
+      type: "hero",
+      data: {
+        eyebrow: "Free live session",
+        headline: copy.headline,
+        subheadline: copy.subheadline,
+        cta_label: "Save my seat",
+        image: PIMG("webinar-hero"),
+      },
+    },
+    {
+      id: "countdown",
+      type: "countdown",
+      data: { _bg: "accent", title: "Doors close in", subtitle: "Don't miss it." },
+    },
+    {
+      id: "features",
+      type: "features",
+      data: {
+        title: "What you'll learn",
+        items: [
+          { title: "The framework", text: "The exact system, step by step." },
+          { title: "Live Q&A", text: "Get your questions answered in real time." },
+          { title: "Bonus resources", text: "Templates & notes to keep." },
+        ],
+      },
+    },
+    { id: "about", type: "about", data: { _bg: "subtle", heading: "Your host", body: copy.aboutBody, image: PIMG("webinar-about", 900, 900) } },
+    {
+      id: "faq",
+      type: "faq",
+      data: { title: "FAQ", items: [{ q: "Is it really free?", a: "Yes — just register to save your seat." }, { q: "Will there be a replay?", a: "Register and we'll email you the details." }] },
+    },
+    { id: "cta", type: "cta", data: { _bg: "accent", title: "Ready to join?", subtitle: "Reserve your spot now.", cta_label: "Save my seat" } },
+    { id: "contact", type: "contact", data: { title: "Questions?", subtitle: "Send us a message." } },
+  ];
+}
+
+/** Personal brand — story-first: hero, about, stats, gallery, testimonials,
+ *  products, social. */
+function personalBlocks(copy: Copy): SiteBlock[] {
+  return [
+    {
+      id: "hero",
+      type: "hero",
+      data: { eyebrow: copy.label, headline: copy.headline, subheadline: copy.subheadline, cta_label: "Work with me", image: PIMG("personal-hero", 900, 900) },
+    },
+    { id: "about", type: "about", data: { heading: "My story", body: copy.aboutBody, image: PIMG("personal-about", 900, 900) } },
+    {
+      id: "stats",
+      type: "stats",
+      data: { _bg: "subtle", items: [{ value: "100k+", label: "Followers" }, { value: "4.9★", label: "Rating" }, { value: "10+ yrs", label: "Experience" }] },
+    },
+    { id: "gallery", type: "gallery", data: { title: "Highlights", items: DEMO_GALLERY } },
+    {
+      id: "testimonials",
+      type: "testimonials",
+      data: { _bg: "subtle", title: "Kind words", items: [{ quote: "An absolute game-changer.", author: "A fan", role: "" }, { quote: "Worth every rupee.", author: "Verified buyer", role: "" }] },
+    },
+    { id: "products", type: "products", data: { title: copy.productsTitle } },
+    { id: "social", type: "social", data: { _bg: "subtle", title: "Follow me" } },
   ];
 }
 
@@ -401,6 +488,18 @@ export function presetsForCategory(category?: string | null): SitePreset[] {
     label: "Showcase / portfolio",
     description: "Visual-first — hero, gallery, about, products and contact.",
     blocks: showcaseBlocks(c),
+  });
+  out.push({
+    key: "webinar",
+    label: "Webinar / event",
+    description: "Urgency-first — hero, countdown, what you'll learn, host, FAQ and register CTA.",
+    blocks: webinarBlocks(c),
+  });
+  out.push({
+    key: "personal",
+    label: "Personal brand",
+    description: "Story-first — hero, your story, stats, gallery, testimonials and offers.",
+    blocks: personalBlocks(c),
   });
   return out;
 }
