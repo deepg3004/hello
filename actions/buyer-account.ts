@@ -140,6 +140,38 @@ export async function saveAddressAction(input: AddressInput): Promise<Result> {
   return { ok: true };
 }
 
+export interface DefaultAddress {
+  full_name: string;
+  phone: string | null;
+  line1: string;
+  line2: string | null;
+  city: string;
+  state: string | null;
+  pincode: string;
+  country: string;
+}
+
+/** The signed-in buyer's default (or most recent) saved address, for checkout
+ *  autofill. Returns null when not signed in, none saved, or the table is
+ *  absent (migration 085 not yet applied). */
+export async function getDefaultBuyerAddressAction(): Promise<{
+  ok: boolean;
+  address: DefaultAddress | null;
+}> {
+  const email = buyerEmail();
+  if (!email) return { ok: false, address: null };
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("buyer_addresses")
+    .select("full_name, phone, line1, line2, city, state, pincode, country")
+    .eq("buyer_email", email.toLowerCase())
+    .order("is_default", { ascending: false })
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return { ok: true, address: (data as DefaultAddress | null) ?? null };
+}
+
 export async function deleteAddressAction(id: string): Promise<Result> {
   const email = buyerEmail();
   if (!email) return { ok: false, message: NOT_SIGNED_IN };

@@ -17,6 +17,7 @@ import {
 
 import { OrderBump } from "@/components/pages/OrderBump";
 import { useCheckoutConfig } from "@/components/pages/CheckoutConfig";
+import { getDefaultBuyerAddressAction } from "@/actions/buyer-account";
 import type { OrderBumpConfig } from "@/lib/upsells";
 import { GSTIN_REGEX, stateCodeFromGstin } from "@/lib/gst";
 import { getRuntimePixelConfig } from "@/components/pages/PixelScripts";
@@ -348,6 +349,39 @@ export function CheckoutForm(props: CheckoutFormProps) {
         /* private windows / very old browsers */
       }
     })();
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Saved-address autofill: signed-in buyers (physical products) get their
+  //    default address prefilled. Only fills EMPTY fields so it never clobbers
+  //    anything the buyer typed. No-ops when signed out / none saved. ────────
+  useEffect(() => {
+    if (preview || !props.requiresShipping) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await getDefaultBuyerAddressAction();
+        if (cancelled || !r.ok || !r.address) return;
+        const a = r.address;
+        setShipLine1((v) => v || a.line1);
+        setShipLine2((v) => v || (a.line2 ?? ""));
+        setShipCity((v) => v || a.city);
+        setShipState((v) => v || (a.state ?? ""));
+        setShipPincode((v) => v || a.pincode);
+        if (a.full_name && !form.getValues("buyer_name")) {
+          form.setValue("buyer_name", a.full_name);
+        }
+        if (a.phone && !form.getValues("buyer_phone")) {
+          form.setValue("buyer_phone", a.phone);
+        }
+      } catch {
+        /* silent — autofill is best-effort */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
     // run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
