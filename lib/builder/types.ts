@@ -7,13 +7,16 @@
 export type Device = "desktop" | "tablet" | "mobile";
 
 /** A leaf element (heading, text, image, button, …). `content` holds the
- *  widget's data; `style` holds visual overrides (expanded in Phase 2 with
- *  per-device values). */
+ *  widget's data; `style` holds per-device visual overrides (Phase 2);
+ *  `animation` is a framer-motion entrance preset key (Phase 2). */
 export interface WidgetNode {
   id: string;
   type: string;
   content: Record<string, unknown>;
+  // ResponsiveStyle from lib/builder/style — kept loose here to avoid a circular
+  // import (style.ts imports Device from this file).
   style?: Record<string, unknown>;
+  animation?: string;
 }
 
 /** A column inside a section. `width` is a percentage (single-column = 100). */

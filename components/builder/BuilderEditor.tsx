@@ -1,13 +1,17 @@
 "use client";
 
-// Phase-1 Elementor-style editor: a left widget palette, a center drag-drop
-// canvas (PAGE -> SECTIONS -> COLUMNS -> WIDGETS) powered by @dnd-kit, and a
-// minimal right panel to edit the selected widget's text. Drag a widget from the
-// palette onto a column to add it; drag widgets to reorder; click to select;
-// duplicate / delete; Save persists content_json. (Full Style/Advanced tabs,
-// responsive toggle and Undo/Redo land in Phase 2.)
+// Phase-2 Elementor-style editor:
+//  • drag widgets from the palette onto columns (@dnd-kit) + sortable reorder
+//  • click to select; duplicate / delete
+//  • Desktop / Tablet / Mobile toggle — canvas resizes AND style is edited
+//    per-device (tablet/mobile inherit desktop, override what you set)
+//  • Settings panel with CONTENT / STYLE / ADVANCED tabs
+//  • Undo / Redo (history stack)
+//  • Preview mode (renders via the shared BlockRenderer with animations)
+//  • Save draft -> PUT /api/builder/pages/[id]
+// Phase 3 adds the remaining widgets (form, gallery, Razorpay, etc.).
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -24,17 +28,40 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Copy, GripVertical, Loader2, Plus, Save, Trash2 } from "lucide-react";
+import {
+  Copy,
+  Eye,
+  GripVertical,
+  Loader2,
+  Monitor,
+  Pencil,
+  Plus,
+  Redo2,
+  Save,
+  Smartphone,
+  Tablet,
+  Trash2,
+  Undo2,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { WIDGET_LIST, widgetDef } from "@/lib/builder/widget-registry";
+import { BlockRenderer } from "@/components/builder/BlockRenderer";
 import {
   asDocument,
   uid,
   type BuilderDocument,
+  type Device,
   type WidgetNode,
 } from "@/lib/builder/types";
+import {
+  resolveStyle,
+  toCss,
+  ANIMATION_OPTIONS,
+  type ResponsiveStyle,
+  type StyleProps,
+} from "@/lib/builder/style";
 
 interface PageRow {
   id: string;
@@ -42,17 +69,33 @@ interface PageRow {
   content_json: unknown;
 }
 
+type Tab = "content" | "style" | "advanced";
+
+const DEVICE_WIDTH: Record<Device, string> = {
+  desktop: "100%",
+  tablet: "768px",
+  mobile: "420px",
+};
+
 export function BuilderEditor() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState<PageRow | null>(null);
-  const [doc, setDoc] = useState<BuilderDocument>({ sections: [] });
+
+  // History stack — `doc` is always history[hi].
+  const [history, setHistory] = useState<BuilderDocument[]>([{ sections: [] }]);
+  const [hi, setHi] = useState(0);
+  const doc = useMemo<BuilderDocument>(() => history[hi] ?? { sections: [] }, [history, hi]);
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [device, setDevice] = useState<Device>("desktop");
+  const [tab, setTab] = useState<Tab>("content");
+  const [preview, setPreview] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
-  // ── Load (or bootstrap) the seller's site + first page ──────────────────────
+  // ── Load / bootstrap ────────────────────────────────────────────────────────
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -62,7 +105,9 @@ export function BuilderEditor() {
         if (!alive) return;
         const first = data.pages?.[0] ?? null;
         setPage(first);
-        setDoc(asDocument(first?.content_json));
+        const d = asDocument(first?.content_json);
+        setHistory([d]);
+        setHi(0);
       } catch {
         /* leave empty */
       } finally {
@@ -74,18 +119,44 @@ export function BuilderEditor() {
     };
   }, []);
 
-  // ── Tree helpers (immutable) ────────────────────────────────────────────────
+  // ── History-aware commit + undo/redo ────────────────────────────────────────
+  function commit(next: BuilderDocument) {
+    setHistory((h) => {
+      const trimmed = h.slice(0, hi + 1);
+      trimmed.push(next);
+      // Cap history so it can't grow unbounded.
+      const capped = trimmed.slice(-100);
+      setHi(capped.length - 1);
+      return capped;
+    });
+  }
+  const canUndo = hi > 0;
+  const canRedo = hi < history.length - 1;
+  const undo = () => canUndo && setHi(hi - 1);
+  const redo = () => canRedo && setHi(hi + 1);
+
+  // ── Tree mutations (all go through commit) ──────────────────────────────────
   function mutateColumn(colId: string, fn: (widgets: WidgetNode[]) => WidgetNode[]) {
-    setDoc((d) => ({
-      sections: d.sections.map((sec) => ({
+    commit({
+      sections: doc.sections.map((sec) => ({
         ...sec,
         columns: sec.columns.map((col) =>
           col.id === colId ? { ...col, widgets: fn(col.widgets) } : col,
         ),
       })),
-    }));
+    });
   }
-
+  function mutateWidget(id: string, fn: (w: WidgetNode) => WidgetNode) {
+    commit({
+      sections: doc.sections.map((sec) => ({
+        ...sec,
+        columns: sec.columns.map((col) => ({
+          ...col,
+          widgets: col.widgets.map((w) => (w.id === id ? fn(w) : w)),
+        })),
+      })),
+    });
+  }
   function columnIdOfWidget(widgetId: string): string | null {
     for (const sec of doc.sections)
       for (const col of sec.columns)
@@ -96,75 +167,70 @@ export function BuilderEditor() {
   function addWidget(colId: string, type: string, index?: number) {
     const def = widgetDef(type);
     if (!def) return;
-    const w: WidgetNode = { id: uid("w"), type, content: { ...def.defaultContent } };
+    const w: WidgetNode = { id: uid("w"), type, content: { ...def.defaultContent }, style: {}, animation: "none" };
     mutateColumn(colId, (ws) => {
       const next = [...ws];
       next.splice(index ?? next.length, 0, w);
       return next;
     });
     setSelectedId(w.id);
+    setTab("content");
   }
-
   function removeWidget(id: string) {
     const colId = columnIdOfWidget(id);
     if (colId) mutateColumn(colId, (ws) => ws.filter((w) => w.id !== id));
     if (selectedId === id) setSelectedId(null);
   }
-
   function duplicateWidget(id: string) {
     const colId = columnIdOfWidget(id);
     if (!colId) return;
     mutateColumn(colId, (ws) => {
       const i = ws.findIndex((w) => w.id === id);
       if (i < 0) return ws;
-      const copy: WidgetNode = { ...ws[i]!, id: uid("w"), content: { ...ws[i]!.content } };
+      const src = ws[i]!;
+      const copy: WidgetNode = { ...src, id: uid("w"), content: { ...src.content }, style: { ...(src.style ?? {}) } };
       const next = [...ws];
       next.splice(i + 1, 0, copy);
       return next;
     });
   }
-
-  function updateWidgetContent(id: string, patch: Record<string, unknown>) {
-    const colId = columnIdOfWidget(id);
-    if (!colId) return;
-    mutateColumn(colId, (ws) =>
-      ws.map((w) => (w.id === id ? { ...w, content: { ...w.content, ...patch } } : w)),
-    );
+  function updateContent(id: string, patch: Record<string, unknown>) {
+    mutateWidget(id, (w) => ({ ...w, content: { ...w.content, ...patch } }));
   }
-
+  function updateStyle(id: string, patch: Partial<StyleProps>) {
+    mutateWidget(id, (w) => {
+      const style = { ...(w.style as ResponsiveStyle | undefined) } as ResponsiveStyle;
+      style[device] = { ...(style[device] ?? {}), ...patch };
+      return { ...w, style };
+    });
+  }
+  function updateAnimation(id: string, animation: string) {
+    mutateWidget(id, (w) => ({ ...w, animation }));
+  }
   function addSection() {
-    setDoc((d) => ({
-      sections: [...d.sections, { id: uid("sec"), columns: [{ id: uid("col"), width: 100, widgets: [] }] }],
-    }));
+    commit({
+      sections: [...doc.sections, { id: uid("sec"), columns: [{ id: uid("col"), width: 100, widgets: [] }] }],
+    });
   }
 
-  // ── Drag end: palette→column adds; widget→widget reorders within a column ────
+  // ── DnD: palette→column adds; widget→widget reorders within a column ─────────
   function onDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     if (!over) return;
     const activeId = String(active.id);
     const overId = String(over.id);
-
-    // Adding from the palette.
     if (activeId.startsWith("palette:")) {
       const type = activeId.slice("palette:".length);
-      const colId = overId.startsWith("drop:")
-        ? overId.slice("drop:".length)
-        : columnIdOfWidget(overId);
+      const colId = overId.startsWith("drop:") ? overId.slice("drop:".length) : columnIdOfWidget(overId);
       if (colId) {
+        const col = doc.sections.flatMap((s) => s.columns).find((c) => c.id === colId);
         const idx = overId.startsWith("drop:")
           ? undefined
-          : (() => {
-              const col = doc.sections.flatMap((s) => s.columns).find((c) => c.id === colId);
-              const i = col?.widgets.findIndex((w) => w.id === overId) ?? -1;
-              return i >= 0 ? i : undefined;
-            })();
+          : Math.max(0, col?.widgets.findIndex((w) => w.id === overId) ?? -1) || undefined;
         addWidget(colId, type, idx);
       }
       return;
     }
-
-    // Reordering an existing widget within its column.
     if (activeId === overId) return;
     const colId = columnIdOfWidget(activeId);
     if (!colId || columnIdOfWidget(overId) !== colId) return;
@@ -194,6 +260,14 @@ export function BuilderEditor() {
     }
   }
 
+  const selected = useMemo(
+    () =>
+      selectedId
+        ? doc.sections.flatMap((s) => s.columns).flatMap((c) => c.widgets).find((w) => w.id === selectedId) ?? null
+        : null,
+    [selectedId, doc],
+  );
+
   if (loading) {
     return (
       <div className="flex h-[60vh] items-center justify-center text-muted-foreground">
@@ -201,7 +275,6 @@ export function BuilderEditor() {
       </div>
     );
   }
-
   if (!page) {
     return (
       <div className="rounded-xl border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
@@ -210,79 +283,124 @@ export function BuilderEditor() {
     );
   }
 
-  const selected = selectedId
-    ? doc.sections.flatMap((s) => s.columns).flatMap((c) => c.widgets).find((w) => w.id === selectedId)
-    : null;
+  const canvasInner = (
+    <div className="mx-auto transition-all" style={{ maxWidth: DEVICE_WIDTH[device] }}>
+      {preview ? (
+        <BlockRenderer doc={doc} device={device} />
+      ) : (
+        doc.sections.map((sec) => (
+          <div key={sec.id} className="mb-4 rounded-lg border border-dashed border-border/70 p-3">
+            <div className={`flex gap-4 ${device === "mobile" ? "flex-col" : "flex-col md:flex-row"}`}>
+              {sec.columns.map((col) => (
+                <ColumnDropZone key={col.id} colId={col.id} empty={col.widgets.length === 0}>
+                  <SortableContext items={col.widgets.map((w) => w.id)} strategy={verticalListSortingStrategy}>
+                    {col.widgets.map((w) => {
+                      const resolved = resolveStyle(w.style as ResponsiveStyle | undefined, device);
+                      return (
+                        <SortableWidget
+                          key={w.id}
+                          id={w.id}
+                          selected={selectedId === w.id}
+                          hidden={!!resolved.hidden}
+                          device={device}
+                          onSelect={() => setSelectedId(w.id)}
+                          onDelete={() => removeWidget(w.id)}
+                          onDuplicate={() => duplicateWidget(w.id)}
+                        >
+                          <div style={toCss(resolved)}>{widgetDef(w.type)?.Render(w.content ?? {})}</div>
+                        </SortableWidget>
+                      );
+                    })}
+                  </SortableContext>
+                </ColumnDropZone>
+              ))}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
 
   return (
     <DndContext sensors={sensors} onDragEnd={onDragEnd}>
       {/* Top bar */}
-      <div className="mb-4 flex items-center justify-between gap-2 rounded-xl border border-border bg-card px-4 py-3">
-        <div>
-          <p className="text-sm font-semibold">{page?.name ?? "Page"}</p>
-          <p className="text-xs text-muted-foreground">Drag a widget onto the canvas, then click it to edit.</p>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card px-4 py-3">
+        {/* Device toggle */}
+        <div className="flex items-center gap-1 rounded-lg border border-border p-0.5">
+          {(["desktop", "tablet", "mobile"] as Device[]).map((d) => {
+            const Icon = d === "desktop" ? Monitor : d === "tablet" ? Tablet : Smartphone;
+            return (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setDevice(d)}
+                className={`rounded-md p-1.5 transition ${device === d ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                title={d}
+              >
+                <Icon className="h-4 w-4" />
+              </button>
+            );
+          })}
         </div>
+
         <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={undo} disabled={!canUndo} title="Undo">
+            <Undo2 className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={redo} disabled={!canRedo} title="Redo">
+            <Redo2 className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setPreview((p) => !p)}>
+            {preview ? <Pencil className="mr-1.5 h-4 w-4" /> : <Eye className="mr-1.5 h-4 w-4" />}
+            {preview ? "Edit" : "Preview"}
+          </Button>
           <Button variant="outline" size="sm" onClick={addSection}>
             <Plus className="mr-1.5 h-4 w-4" /> Section
           </Button>
-          <Button size="sm" onClick={save} disabled={saving || !page}>
+          <Button size="sm" onClick={save} disabled={saving}>
             {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
-            Save draft
+            Save
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[180px_1fr_260px]">
-        {/* Widget palette */}
-        <aside className="space-y-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[170px_1fr_280px]">
+        {/* Palette */}
+        <aside className={`space-y-2 ${preview ? "pointer-events-none opacity-40" : ""}`}>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Widgets</p>
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
             {WIDGET_LIST.map((def) => (
-              <PaletteItem key={def.type} type={def.type} label={def.label} Icon={def.icon} onAdd={() => {
-                // Click-to-add: append to the first column (handy on mobile / no-drag).
-                const firstCol = doc.sections[0]?.columns[0]?.id;
-                if (firstCol) addWidget(firstCol, def.type);
-              }} />
+              <PaletteItem
+                key={def.type}
+                type={def.type}
+                label={def.label}
+                Icon={def.icon}
+                onAdd={() => {
+                  const firstCol = doc.sections[0]?.columns[0]?.id;
+                  if (firstCol) addWidget(firstCol, def.type);
+                }}
+              />
             ))}
           </div>
         </aside>
 
         {/* Canvas */}
-        <main className="min-h-[60vh] rounded-xl border border-border bg-background p-4">
-          {doc.sections.map((sec) => (
-            <div key={sec.id} className="mb-4 rounded-lg border border-dashed border-border/70 p-3">
-              <div className="flex flex-col gap-4 md:flex-row">
-                {sec.columns.map((col) => (
-                  <ColumnDropZone key={col.id} colId={col.id} empty={col.widgets.length === 0}>
-                    <SortableContext items={col.widgets.map((w) => w.id)} strategy={verticalListSortingStrategy}>
-                      {col.widgets.map((w) => (
-                        <SortableWidget
-                          key={w.id}
-                          id={w.id}
-                          selected={selectedId === w.id}
-                          onSelect={() => setSelectedId(w.id)}
-                          onDelete={() => removeWidget(w.id)}
-                          onDuplicate={() => duplicateWidget(w.id)}
-                        >
-                          {widgetDef(w.type)?.Render(w.content ?? {}, w.style)}
-                        </SortableWidget>
-                      ))}
-                    </SortableContext>
-                  </ColumnDropZone>
-                ))}
-              </div>
-            </div>
-          ))}
-        </main>
+        <main className="min-h-[60vh] rounded-xl border border-border bg-background p-4">{canvasInner}</main>
 
-        {/* Minimal settings panel (Phase 2 expands this into Content/Style/Advanced) */}
+        {/* Settings */}
         <aside className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Settings</p>
           {!selected ? (
-            <p className="mt-3 text-sm text-muted-foreground">Select a widget to edit it.</p>
+            <p className="text-sm text-muted-foreground">Select a widget to edit it.</p>
           ) : (
-            <WidgetQuickEdit widget={selected} onChange={(patch) => updateWidgetContent(selected.id, patch)} />
+            <SettingsPanel
+              widget={selected}
+              device={device}
+              tab={tab}
+              setTab={setTab}
+              onContent={(p) => updateContent(selected.id, p)}
+              onStyle={(p) => updateStyle(selected.id, p)}
+              onAnimation={(v) => updateAnimation(selected.id, v)}
+            />
           )}
         </aside>
       </div>
@@ -290,7 +408,7 @@ export function BuilderEditor() {
   );
 }
 
-// ── Palette item: draggable + click-to-add ────────────────────────────────────
+// ── Palette item ──────────────────────────────────────────────────────────────
 function PaletteItem({
   type,
   label,
@@ -310,9 +428,7 @@ function PaletteItem({
       {...listeners}
       {...attributes}
       onClick={onAdd}
-      className={`flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-left text-sm transition hover:border-primary ${
-        isDragging ? "opacity-50" : ""
-      }`}
+      className={`flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-left text-sm transition hover:border-primary ${isDragging ? "opacity-50" : ""}`}
       title={`Drag onto the canvas or click to add ${label}`}
     >
       <Icon className="h-4 w-4 text-muted-foreground" />
@@ -322,23 +438,10 @@ function PaletteItem({
 }
 
 // ── Column drop zone ──────────────────────────────────────────────────────────
-function ColumnDropZone({
-  colId,
-  empty,
-  children,
-}: {
-  colId: string;
-  empty: boolean;
-  children: React.ReactNode;
-}) {
+function ColumnDropZone({ colId, empty, children }: { colId: string; empty: boolean; children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id: `drop:${colId}` });
   return (
-    <div
-      ref={setNodeRef}
-      className={`flex flex-1 flex-col gap-2 rounded-lg p-2 transition ${
-        isOver ? "bg-primary/5 ring-2 ring-primary/40" : ""
-      }`}
-    >
+    <div ref={setNodeRef} className={`flex flex-1 flex-col gap-2 rounded-lg p-2 transition ${isOver ? "bg-primary/5 ring-2 ring-primary/40" : ""}`}>
       {empty ? (
         <div className="flex min-h-[80px] items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
           Drop a widget here
@@ -350,10 +453,12 @@ function ColumnDropZone({
   );
 }
 
-// ── Sortable widget wrapper (select / drag-handle / duplicate / delete) ────────
+// ── Sortable widget wrapper ─────────────────────────────────────────────────────
 function SortableWidget({
   id,
   selected,
+  hidden,
+  device,
   onSelect,
   onDelete,
   onDuplicate,
@@ -361,6 +466,8 @@ function SortableWidget({
 }: {
   id: string;
   selected: boolean;
+  hidden: boolean;
+  device: Device;
   onSelect: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
@@ -376,42 +483,21 @@ function SortableWidget({
         e.stopPropagation();
         onSelect();
       }}
-      className={`group relative rounded-lg border bg-background p-3 transition ${
-        selected ? "border-primary ring-1 ring-primary" : "border-transparent hover:border-border"
-      }`}
+      className={`group relative rounded-lg border p-3 transition ${selected ? "border-primary ring-1 ring-primary" : "border-transparent hover:border-border"} ${hidden ? "opacity-40" : ""}`}
     >
-      {/* Hover toolbar */}
+      {hidden && (
+        <span className="absolute left-2 top-1 z-10 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+          Hidden on {device}
+        </span>
+      )}
       <div className="absolute -top-3 right-2 z-10 hidden items-center gap-1 rounded-md border border-border bg-card px-1 py-0.5 shadow-sm group-hover:flex">
-        <button
-          type="button"
-          {...listeners}
-          {...attributes}
-          className="cursor-grab p-1 text-muted-foreground hover:text-foreground"
-          title="Drag to reorder"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <button type="button" {...listeners} {...attributes} className="cursor-grab p-1 text-muted-foreground hover:text-foreground" title="Drag to reorder" onClick={(e) => e.stopPropagation()}>
           <GripVertical className="h-3.5 w-3.5" />
         </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDuplicate();
-          }}
-          className="p-1 text-muted-foreground hover:text-foreground"
-          title="Duplicate"
-        >
+        <button type="button" onClick={(e) => { e.stopPropagation(); onDuplicate(); }} className="p-1 text-muted-foreground hover:text-foreground" title="Duplicate">
           <Copy className="h-3.5 w-3.5" />
         </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="p-1 text-destructive hover:opacity-80"
-          title="Delete"
-        >
+        <button type="button" onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-1 text-destructive hover:opacity-80" title="Delete">
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
@@ -420,71 +506,156 @@ function SortableWidget({
   );
 }
 
-// ── Minimal per-widget editor (Phase 2 replaces with full Content/Style tabs) ──
-function WidgetQuickEdit({
+// ── Settings panel (Content / Style / Advanced) ────────────────────────────────
+function SettingsPanel({
   widget,
-  onChange,
+  device,
+  tab,
+  setTab,
+  onContent,
+  onStyle,
+  onAnimation,
 }: {
   widget: WidgetNode;
-  onChange: (patch: Record<string, unknown>) => void;
+  device: Device;
+  tab: Tab;
+  setTab: (t: Tab) => void;
+  onContent: (patch: Record<string, unknown>) => void;
+  onStyle: (patch: Partial<StyleProps>) => void;
+  onAnimation: (v: string) => void;
 }) {
   const c = widget.content as Record<string, unknown>;
+  const dStyle = ((widget.style as ResponsiveStyle | undefined)?.[device] ?? {}) as StyleProps;
   const str = (v: unknown) => (typeof v === "string" ? v : "");
+  const num = (v: unknown) => (typeof v === "number" ? v : undefined);
+
   return (
-    <div className="mt-3 space-y-3 text-sm">
-      <p className="font-medium capitalize">{widget.type}</p>
+    <div className="space-y-3 text-sm">
+      <div className="flex items-center justify-between">
+        <p className="font-medium capitalize">{widget.type}</p>
+        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] capitalize text-muted-foreground">{device}</span>
+      </div>
 
-      {(widget.type === "heading" || widget.type === "text" || widget.type === "button") && (
-        <label className="block">
-          <span className="mb-1 block text-xs text-muted-foreground">
-            {widget.type === "button" ? "Button label" : "Text"}
-          </span>
-          <textarea
-            value={widget.type === "button" ? str(c.label) : str(c.text)}
-            onChange={(e) => onChange(widget.type === "button" ? { label: e.target.value } : { text: e.target.value })}
-            rows={widget.type === "text" ? 4 : 2}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          />
-        </label>
-      )}
-
-      {widget.type === "button" && (
-        <label className="block">
-          <span className="mb-1 block text-xs text-muted-foreground">Link URL</span>
-          <input
-            value={str(c.url)}
-            onChange={(e) => onChange({ url: e.target.value })}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          />
-        </label>
-      )}
-
-      {widget.type === "image" && (
-        <label className="block">
-          <span className="mb-1 block text-xs text-muted-foreground">Image URL</span>
-          <input
-            value={str(c.src)}
-            onChange={(e) => onChange({ src: e.target.value })}
-            placeholder="https://…"
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          />
-        </label>
-      )}
-
-      {(widget.type === "heading" || widget.type === "text" || widget.type === "image" || widget.type === "button") && (
-        <label className="block">
-          <span className="mb-1 block text-xs text-muted-foreground">Alignment</span>
-          <select
-            value={str(c.align) || "left"}
-            onChange={(e) => onChange({ align: e.target.value })}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+      {/* Tabs */}
+      <div className="flex rounded-lg border border-border p-0.5 text-xs">
+        {(["content", "style", "advanced"] as Tab[]).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={`flex-1 rounded-md px-2 py-1 capitalize transition ${tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
           >
-            <option value="left">Left</option>
-            <option value="center">Center</option>
-            <option value="right">Right</option>
-          </select>
-        </label>
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* CONTENT */}
+      {tab === "content" && (
+        <div className="space-y-3">
+          {widget.type === "heading" && (
+            <Field label="Level">
+              <Select value={str(c.level) || "h2"} onChange={(v) => onContent({ level: v })} options={[["h1", "H1"], ["h2", "H2"], ["h3", "H3"]]} />
+            </Field>
+          )}
+          {(widget.type === "heading" || widget.type === "text") && (
+            <Field label="Text">
+              <textarea value={str(c.text)} onChange={(e) => onContent({ text: e.target.value })} rows={widget.type === "text" ? 4 : 2} className={inputCls} />
+            </Field>
+          )}
+          {widget.type === "button" && (
+            <>
+              <Field label="Label"><input value={str(c.label)} onChange={(e) => onContent({ label: e.target.value })} className={inputCls} /></Field>
+              <Field label="Link URL"><input value={str(c.url)} onChange={(e) => onContent({ url: e.target.value })} className={inputCls} /></Field>
+              <Field label="Style">
+                <Select value={str(c.variant) || "filled"} onChange={(v) => onContent({ variant: v })} options={[["filled", "Filled"], ["outline", "Outline"]]} />
+              </Field>
+              <Field label="Button color"><input type="color" value={str(c.color) || "#4f46e5"} onChange={(e) => onContent({ color: e.target.value })} className="h-9 w-full rounded-md border border-input" /></Field>
+            </>
+          )}
+          {widget.type === "image" && (
+            <>
+              <Field label="Image URL"><input value={str(c.src)} onChange={(e) => onContent({ src: e.target.value })} placeholder="https://…" className={inputCls} /></Field>
+              <Field label="Alt text"><input value={str(c.alt)} onChange={(e) => onContent({ alt: e.target.value })} className={inputCls} /></Field>
+            </>
+          )}
+          {(widget.type === "heading" || widget.type === "text" || widget.type === "image" || widget.type === "button") && (
+            <Field label="Alignment">
+              <Select value={str(c.align) || "left"} onChange={(v) => onContent({ align: v })} options={[["left", "Left"], ["center", "Center"], ["right", "Right"]]} />
+            </Field>
+          )}
+        </div>
+      )}
+
+      {/* STYLE (per device) */}
+      {tab === "style" && (
+        <div className="space-y-3">
+          <Field label="Text color"><input type="color" value={dStyle.color || "#000000"} onChange={(e) => onStyle({ color: e.target.value })} className="h-9 w-full rounded-md border border-input" /></Field>
+          <Field label="Background"><input value={dStyle.background ?? ""} onChange={(e) => onStyle({ background: e.target.value })} placeholder="e.g. #f5f5f5 or linear-gradient(...)" className={inputCls} /></Field>
+          <Field label="Font size (px)"><input type="number" value={num(dStyle.fontSize) ?? ""} onChange={(e) => onStyle({ fontSize: e.target.value === "" ? undefined : Number(e.target.value) })} className={inputCls} /></Field>
+          <Field label="Font weight">
+            <Select value={dStyle.fontWeight ?? ""} onChange={(v) => onStyle({ fontWeight: v || undefined })} options={[["", "Default"], ["400", "Normal"], ["600", "Semibold"], ["700", "Bold"], ["800", "Extra bold"]]} />
+          </Field>
+        </div>
+      )}
+
+      {/* ADVANCED (per device) */}
+      {tab === "advanced" && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Padding Y"><input type="number" value={num(dStyle.paddingY) ?? ""} onChange={(e) => onStyle({ paddingY: e.target.value === "" ? undefined : Number(e.target.value) })} className={inputCls} /></Field>
+            <Field label="Padding X"><input type="number" value={num(dStyle.paddingX) ?? ""} onChange={(e) => onStyle({ paddingX: e.target.value === "" ? undefined : Number(e.target.value) })} className={inputCls} /></Field>
+            <Field label="Margin Y"><input type="number" value={num(dStyle.marginY) ?? ""} onChange={(e) => onStyle({ marginY: e.target.value === "" ? undefined : Number(e.target.value) })} className={inputCls} /></Field>
+            <Field label="Margin X"><input type="number" value={num(dStyle.marginX) ?? ""} onChange={(e) => onStyle({ marginX: e.target.value === "" ? undefined : Number(e.target.value) })} className={inputCls} /></Field>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Border width"><input type="number" value={num(dStyle.borderWidth) ?? ""} onChange={(e) => onStyle({ borderWidth: e.target.value === "" ? undefined : Number(e.target.value) })} className={inputCls} /></Field>
+            <Field label="Border color"><input type="color" value={dStyle.borderColor || "#e5e7eb"} onChange={(e) => onStyle({ borderColor: e.target.value })} className="h-9 w-full rounded-md border border-input" /></Field>
+          </div>
+          <Field label="Corner radius"><input type="number" value={num(dStyle.borderRadius) ?? ""} onChange={(e) => onStyle({ borderRadius: e.target.value === "" ? undefined : Number(e.target.value) })} className={inputCls} /></Field>
+          <Field label="Shadow">
+            <Select value={dStyle.shadow ?? "none"} onChange={(v) => onStyle({ shadow: v as StyleProps["shadow"] })} options={[["none", "None"], ["sm", "Small"], ["md", "Medium"], ["lg", "Large"], ["xl", "Extra large"]]} />
+          </Field>
+          <Field label="Entrance animation">
+            <Select value={widget.animation ?? "none"} onChange={onAnimation} options={ANIMATION_OPTIONS.map((a) => [a, a])} />
+          </Field>
+          <label className="flex items-center gap-2 pt-1">
+            <input type="checkbox" checked={!!dStyle.hidden} onChange={(e) => onStyle({ hidden: e.target.checked })} />
+            <span className="text-xs text-muted-foreground">Hide on {device}</span>
+          </label>
+        </div>
       )}
     </div>
+  );
+}
+
+const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs text-muted-foreground">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function Select({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: Array<[string, string]>;
+}) {
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} className={inputCls}>
+      {options.map(([v, label]) => (
+        <option key={v} value={v}>
+          {label}
+        </option>
+      ))}
+    </select>
   );
 }

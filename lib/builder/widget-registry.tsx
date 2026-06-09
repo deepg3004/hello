@@ -21,8 +21,9 @@ export interface WidgetDef {
   icon: LucideIcon;
   /** Default content when the widget is first dropped. */
   defaultContent: Record<string, unknown>;
-  /** Pure render from content (+ style later). Server-safe for Phase 1 widgets. */
-  Render: (content: Record<string, unknown>, style?: Record<string, unknown>) => ReactNode;
+  /** Pure render from content. Per-device style + animation are applied by the
+   *  renderer/editor wrapper, not the widget. Server-safe for Phase 1 widgets. */
+  Render: (content: Record<string, unknown>) => ReactNode;
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
