@@ -50,7 +50,7 @@ export function WishlistItems({ items }: { items: WishlistItem[] }) {
         <Card key={it.id}>
           <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="min-w-0 truncate font-medium">{it.title}</p>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
               {it.available && it.slug ? (
                 <Button asChild size="sm">
                   <Link href={`/p/${it.slug}`}>

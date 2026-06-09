@@ -183,7 +183,7 @@ export function AddressBook({ addresses }: { addresses: SavedAddress[] }) {
                 </p>
                 {a.phone && <p className="text-muted-foreground">{a.phone}</p>}
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
                 {!a.is_default && (
                   <Button variant="outline" size="sm" onClick={() => makeDefault(a.id)} disabled={actionId === a.id}>
                     {actionId === a.id ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Star className="mr-1.5 h-3.5 w-3.5" />}

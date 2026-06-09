@@ -464,7 +464,7 @@ export default async function BuyerAccountPage() {
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
             {courseHref && (
               <Button asChild size="sm">
                 <Link href={courseHref}>
@@ -787,7 +787,7 @@ export default async function BuyerAccountPage() {
               className="card-surface card-surface-hover flex items-center gap-3 p-3.5 sm:p-4"
             >
               <span
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${s.tile}`}
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl sm:h-10 sm:w-10 ${s.tile}`}
               >
                 {s.icon}
               </span>
@@ -795,7 +795,7 @@ export default async function BuyerAccountPage() {
                 <p className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   {s.label}
                 </p>
-                <p className="font-sora text-lg font-bold tracking-tight sm:text-xl">
+                <p className="truncate font-sora text-base font-bold tracking-tight tabular-nums sm:text-xl">
                   {s.value}
                 </p>
               </div>
