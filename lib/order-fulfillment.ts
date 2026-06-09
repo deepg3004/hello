@@ -166,6 +166,22 @@ export async function deliverOrderProducts(
   } catch (e) {
     console.error("[deliver] digital download grant failed", e);
   }
+
+  // ── Drip automation: enroll the buyer into any active 'purchase' sequences ──
+  try {
+    const { enrollInSequences } = await import("@/lib/sequences");
+    await enrollInSequences(
+      {
+        sellerUserId: order.seller_user_id,
+        trigger: "purchase",
+        email: order.buyer_email,
+        name: order.buyer_name,
+      },
+      admin,
+    );
+  } catch (e) {
+    console.error("[deliver] sequence enroll failed", e);
+  }
 }
 
 /**

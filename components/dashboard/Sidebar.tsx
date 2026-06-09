@@ -24,6 +24,7 @@ import {
   Tag,
   TrendingUp,
   Users,
+  Workflow,
   Zap,
 } from "lucide-react";
 
@@ -74,6 +75,7 @@ const NAV_GROWTH: NavItem[] = [
   { href: "/dashboard/upsells", label: "Upsells", Icon: TrendingUp, module: "pages" },
   { href: "/dashboard/affiliates", label: "Affiliates", Icon: Handshake, module: "affiliates" },
   { href: "/dashboard/marketing", label: "Marketing", Icon: Megaphone, module: "marketing" },
+  { href: "/dashboard/marketing/sequences", label: "Email Sequences", Icon: Workflow, module: "marketing" },
   { href: "/dashboard/telegram", label: "Group Integrations", Icon: Boxes, module: "telegram" },
 ];
 

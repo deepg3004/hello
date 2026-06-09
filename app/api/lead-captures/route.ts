@@ -161,6 +161,17 @@ export async function POST(request: Request) {
     page_id,
   });
 
+  // Drip automation: enroll into any active 'lead_created' sequences.
+  try {
+    const { enrollInSequences } = await import("@/lib/sequences");
+    await enrollInSequences(
+      { sellerUserId: page.user_id, trigger: "lead_created", email, name: name ?? null },
+      admin,
+    );
+  } catch (e) {
+    console.error("[lead-captures] sequence enroll failed", e);
+  }
+
   // 4. Generate a signed URL for the lead magnet (if any). Best-effort.
   let downloadUrl: string | undefined;
   if (magnet?.path) {
