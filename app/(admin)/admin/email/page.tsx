@@ -128,7 +128,7 @@ export default async function AdminEmailPage() {
       >
         <Link
           href="/admin/email/templates"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-white/30 bg-white/10 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/20"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition hover:bg-muted"
         >
           <Eye className="h-4 w-4" />
           Preview all templates

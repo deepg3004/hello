@@ -74,11 +74,11 @@ export default async function AdminTransactionsPage() {
         resourcesHref={null}
       >
         <div className="flex flex-col items-end gap-2">
-          <div className="text-right text-sm text-white/80">
+          <div className="text-right text-sm text-foreground">
             <div>
               GMV <span className="ml-2 font-mono">{rupees(totals.gmv)}</span>
             </div>
-            <div className="text-white/60">
+            <div className="text-muted-foreground">
               Commission{" "}
               <span className="ml-2 font-mono">{rupees(totals.commission)}</span>
             </div>
@@ -86,7 +86,7 @@ export default async function AdminTransactionsPage() {
           <a
             href="/api/admin/export/transactions"
             download
-            className="inline-flex items-center gap-1.5 rounded-md bg-white/10 px-3 py-1.5 text-xs font-medium text-white ring-1 ring-white/20 transition hover:bg-white/20"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted"
           >
             <Download className="h-3.5 w-3.5" /> Export all (CSV)
           </a>

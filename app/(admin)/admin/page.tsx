@@ -257,7 +257,7 @@ export default async function AdminOverview() {
         blurb="Live numbers across every seller, page, and order on InvoxAI."
         resourcesHref={null}
       >
-        <div className="text-xs text-white/70">
+        <div className="text-xs text-muted-foreground">
           {totalActive.toLocaleString("en-IN")} active accounts ·{" "}
           {totalPaying.toLocaleString("en-IN")} paying ·{" "}
           {(totalPages ?? 0).toLocaleString("en-IN")} pages

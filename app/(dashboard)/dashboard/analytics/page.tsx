@@ -141,7 +141,7 @@ export default async function AnalyticsPage() {
         }
       >
         {isAdmin && (
-          <Badge className="border-white/30 bg-white/10 text-amber-200">
+          <Badge className="border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300">
             Admin view
           </Badge>
         )}

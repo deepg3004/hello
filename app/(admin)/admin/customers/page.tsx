@@ -82,7 +82,7 @@ export default async function AdminCustomersPage() {
         <a
           href="/api/admin/export/customers"
           download
-          className="inline-flex items-center gap-1.5 rounded-md bg-white/10 px-3 py-1.5 text-xs font-medium text-white ring-1 ring-white/20 transition hover:bg-white/20"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted"
         >
           <Download className="h-3.5 w-3.5" /> Export CSV
         </a>

@@ -59,10 +59,10 @@ export default async function AdminCouponsPage() {
         blurb="Every seller's discount codes. Disable abusive or mistaken codes — changes are audit-logged."
         resourcesHref={null}
       >
-        <div className="text-right text-sm text-white/80">
+        <div className="text-right text-sm text-foreground">
           <div>
             {activeCount} active
-            <span className="ml-2 text-white/60">/ {rows.length} total</span>
+            <span className="ml-2 text-muted-foreground">/ {rows.length} total</span>
           </div>
         </div>
       </DashboardHero>

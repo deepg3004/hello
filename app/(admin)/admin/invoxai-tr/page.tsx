@@ -57,11 +57,11 @@ export default async function AdminInvoxaiTrPage() {
         blurb="InvoxAI's transaction register — platform fees earned and wallet recharges collected (latest 2k movements)."
         resourcesHref={null}
       >
-        <div className="text-right text-sm text-white/80">
+        <div className="text-right text-sm text-foreground">
           <div>
             Fees earned <span className="ml-2 font-mono">{formatINR(fees)}</span>
           </div>
-          <div className="text-white/60">
+          <div className="text-muted-foreground">
             Recharged <span className="ml-2 font-mono">{formatINR(recharged)}</span>
           </div>
         </div>

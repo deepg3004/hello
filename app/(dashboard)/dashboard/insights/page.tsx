@@ -111,8 +111,8 @@ export default async function InsightsPage({
               className={
                 "rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset transition " +
                 (w.days === days
-                  ? "bg-white/20 text-white ring-white/40"
-                  : "bg-white/5 text-white/80 ring-white/20 hover:bg-white/10")
+                  ? "bg-primary text-primary-foreground ring-primary/40"
+                  : "bg-muted text-muted-foreground ring-border hover:bg-muted/70")
               }
             >
               {w.label}

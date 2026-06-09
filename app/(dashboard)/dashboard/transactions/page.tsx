@@ -17,7 +17,7 @@ import { requirePageActor } from "@/lib/account-context";
 import { ExportCsvButton } from "@/components/dashboard/ExportCsvButton";
 
 const HERO_BTN =
-  "border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white";
+  "border-border bg-card text-foreground hover:bg-muted";
 
 export const metadata = { title: "Transactions" };
 
