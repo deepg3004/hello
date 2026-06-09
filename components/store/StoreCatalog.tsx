@@ -1,12 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 
 import { ProductCard, type CatalogItem } from "@/components/store/ProductCard";
 import { gridColsClass, type CardStyle } from "@/lib/storefront-theme";
 
 type SortKey = "popular" | "newest" | "price_asc" | "price_desc" | "rating";
+
+/** Render this many cards at a time; "Load more" reveals the next batch so big
+ *  catalogs don't paint hundreds of nodes (or scroll forever) at once. */
+const PAGE_SIZE = 24;
 
 const SORTS: { key: SortKey; label: string }[] = [
   { key: "popular", label: "Most popular" },
@@ -39,6 +43,12 @@ export function StoreCatalog({
   const [sort, setSort] = useState<SortKey>("popular");
   const [maxPrice, setMaxPrice] = useState<number | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [visible, setVisible] = useState(PAGE_SIZE);
+
+  // Any change to the query/filters resets the visible window to the first page.
+  useEffect(() => {
+    setVisible(PAGE_SIZE);
+  }, [q, cat, sort, maxPrice]);
 
   const priceCeiling = useMemo(() => Math.max(100, ...items.map((i) => Math.ceil(i.price))), [items]);
 
@@ -154,11 +164,23 @@ export function StoreCatalog({
       {filtered.length === 0 ? (
         <p className="sf-muted py-16 text-center">No products match your search.</p>
       ) : (
-        <div className={`grid gap-4 ${gridColsClass(cols)}`}>
-          {filtered.map((p) => (
-            <ProductCard key={p.id} p={p} base={base} cardStyle={cardStyle} showRatings={showRatings} showBadges={showBadges} />
-          ))}
-        </div>
+        <>
+          <div className={`grid gap-4 ${gridColsClass(cols)}`}>
+            {filtered.slice(0, visible).map((p) => (
+              <ProductCard key={p.id} p={p} base={base} cardStyle={cardStyle} showRatings={showRatings} showBadges={showBadges} />
+            ))}
+          </div>
+          {filtered.length > visible && (
+            <div className="mt-8 flex justify-center">
+              <button
+                onClick={() => setVisible((v) => v + PAGE_SIZE)}
+                className="sf-btn-outline px-6 py-3 text-sm font-semibold"
+              >
+                Load more ({filtered.length - visible} more)
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
