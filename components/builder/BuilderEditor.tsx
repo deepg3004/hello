@@ -123,7 +123,10 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
           site?: { id?: string; header_json?: unknown; footer_json?: unknown; contacts_json?: SiteContacts };
         };
         if (!alive) return;
-        const first = data.pages?.[0] ?? null;
+        // Open a specific page when ?page=<id> is present (e.g. just-applied
+        // template), else the first page.
+        const wanted = new URLSearchParams(window.location.search).get("page");
+        const first = (wanted && data.pages?.find((p) => p.id === wanted)) || data.pages?.[0] || null;
         setPage(first);
         setSiteId(data.site?.id);
         setContacts(data.site?.contacts_json ?? {});

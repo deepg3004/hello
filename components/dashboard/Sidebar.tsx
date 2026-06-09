@@ -55,7 +55,7 @@ const NAV_MAIN: NavItem[] = [
   { href: "/dashboard/store", label: "Store", Icon: Store, module: "store" },
   { href: "/dashboard/storefront-design", label: "Storefront Design", Icon: Palette, module: "store" },
   { href: "/dashboard/website", label: "Website", Icon: Globe, module: "website" },
-  { href: "/dashboard/builder/editor", label: "Builder (beta)", Icon: LayoutTemplate, module: "website" },
+  { href: "/dashboard/builder/templates", label: "Builder (beta)", Icon: LayoutTemplate, module: "website" },
   { href: "/dashboard/booking", label: "Booking", Icon: CalendarClock, module: "booking" },
   { href: "/dashboard/transactions", label: "Transactions", Icon: CreditCard, module: "transactions" },
   { href: "/dashboard/insights", label: "Insights", Icon: BarChart3, module: "transactions" },

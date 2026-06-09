@@ -5,9 +5,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, PanelTop, PanelBottom, Phone } from "lucide-react";
+import { FileText, PanelTop, PanelBottom, Phone, LayoutGrid } from "lucide-react";
 
 const TABS = [
+  { href: "/dashboard/builder/templates", label: "Templates", Icon: LayoutGrid },
   { href: "/dashboard/builder/editor", label: "Page", Icon: FileText },
   { href: "/dashboard/builder/header", label: "Header", Icon: PanelTop },
   { href: "/dashboard/builder/footer", label: "Footer", Icon: PanelBottom },
