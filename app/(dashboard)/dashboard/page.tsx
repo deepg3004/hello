@@ -89,6 +89,7 @@ export default async function DashboardOverview() {
     { count: pagesCount },
     { data: yearOrders },
     { count: leadsCount },
+    { count: gatewayCount },
   ] = await Promise.all([
     getDashboardMetrics(ctx.ownerId),
     getRecentTransactions(ctx.ownerId, 10),
@@ -96,7 +97,7 @@ export default async function DashboardOverview() {
     admin
       .from("user_profiles")
       .select(
-        "full_name, phone, avatar_url, onboarded_at, welcome_dismissed_at",
+        "full_name, phone, avatar_url, onboarded_at, welcome_dismissed_at, creator_category",
       )
       .eq("id", ctx.ownerId)
       .single(),
@@ -116,6 +117,11 @@ export default async function DashboardOverview() {
       .from("lead_captures")
       .select("id", { count: "exact", head: true })
       .eq("seller_user_id", ctx.ownerId),
+    admin
+      .from("seller_gateway_config")
+      .select("id", { count: "exact", head: true })
+      .eq("seller_user_id", ctx.ownerId)
+      .eq("is_active", true),
   ]);
 
   // ── Earnings series (last 12 months) + derived KPIs ──────────────────
@@ -151,7 +157,10 @@ export default async function DashboardOverview() {
     avatar_url: profile?.avatar_url ?? null,
     onboarded_at: profile?.onboarded_at ?? null,
     welcome_dismissed_at: profile?.welcome_dismissed_at ?? null,
+    creator_category: (profile as { creator_category?: string | null })?.creator_category ?? null,
     pages_count: pagesCount ?? 0,
+    gateway_connected: (gatewayCount ?? 0) > 0,
+    paid_orders_count: paidYear.length,
   };
   const onboardingSteps = buildOnboardingSteps(onboardingProfile);
   const onboardingProgress = computeOnboardingProgress(onboardingSteps);

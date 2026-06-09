@@ -16,6 +16,9 @@ export function OrderBump({ config, checked, onChange }: OrderBumpProps) {
   const title = config.title ?? ORDER_BUMP_DEFAULTS.title;
   const description = config.description ?? ORDER_BUMP_DEFAULTS.description;
   const price = Number(config.price ?? 0);
+  const wasPrice = Number(config.original_price ?? 0);
+  const hasDiscount = wasPrice > price && price > 0;
+  const pctOff = hasDiscount ? Math.round(((wasPrice - price) / wasPrice) * 100) : 0;
 
   // The checkbox state is mirrored to a custom-styled 24px square so we can
   // theme it consistently without relying on the browser default checkmark.
@@ -56,9 +59,16 @@ export function OrderBump({ config, checked, onChange }: OrderBumpProps) {
           <span>
             Add <span className="underline decoration-amber-400 decoration-2 underline-offset-2">{title}</span>
           </span>
-          <span className="font-mono">· ₹{price.toLocaleString("en-IN")}</span>
+          <span className="font-mono">
+            {hasDiscount && (
+              <span className="mr-1 font-normal text-amber-700/70 line-through">
+                ₹{wasPrice.toLocaleString("en-IN")}
+              </span>
+            )}
+            · ₹{price.toLocaleString("en-IN")}
+          </span>
           <span className="ml-1 inline-flex items-center rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-950">
-            Just ₹{price.toLocaleString("en-IN")} more
+            {hasDiscount ? `Save ${pctOff}%` : `Just ₹${price.toLocaleString("en-IN")} more`}
           </span>
         </p>
         {description && (

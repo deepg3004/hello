@@ -6,6 +6,8 @@ export interface OrderBumpConfig {
   product_id?: string;
   /** Override price (defaults to the product's price). */
   price?: number;
+  /** Optional "was" price for a strike-through anchor (must exceed `price`). */
+  original_price?: number;
   title?: string;       // headline of the bump row
   description?: string;
   image_url?: string;

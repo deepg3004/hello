@@ -7,7 +7,12 @@
 // step 1 + 3 are done) OR profile.welcome_dismissed_at is set.
 // =============================================================================
 
-export type OnboardingStepKey = "profile" | "category" | "page";
+export type OnboardingStepKey =
+  | "profile"
+  | "category"
+  | "page"
+  | "gateway"
+  | "sale";
 
 export interface OnboardingProfile {
   /** From user_profiles. */
@@ -20,6 +25,10 @@ export interface OnboardingProfile {
   creator_category?: string | null;
   /** Total pages — drives the "first page" step. */
   pages_count: number;
+  /** Seller has an active payment gateway connected — drives "gateway" step. */
+  gateway_connected?: boolean;
+  /** Count of paid orders — drives the "first sale" step. */
+  paid_orders_count?: number;
 }
 
 export interface OnboardingStep {
@@ -73,6 +82,30 @@ export function buildOnboardingSteps(
           : "/dashboard/pages/new",
       done: profile.pages_count > 0,
       skippable: false,
+    },
+    {
+      key: "gateway",
+      index: 4,
+      title: "Connect your payment gateway",
+      description:
+        "Add your own Razorpay or Cashfree keys so payments go straight to your account. You can't take a payment until this is connected.",
+      cta_label: "Connect gateway",
+      cta_href: "/dashboard/settings/gateway",
+      done: !!profile.gateway_connected,
+      // Skippable for completion accounting only — it's the real unlock to sell.
+      skippable: true,
+    },
+    {
+      key: "sale",
+      index: 5,
+      title: "Make your first sale 🎉",
+      description:
+        "Share your page link with your audience. Your first sale is the milestone that matters — everything else is setup.",
+      cta_label: (profile.paid_orders_count ?? 0) > 0 ? "View sales" : "Share my page",
+      cta_href:
+        (profile.paid_orders_count ?? 0) > 0 ? "/dashboard/insights" : "/dashboard/pages",
+      done: (profile.paid_orders_count ?? 0) > 0,
+      skippable: true,
     },
   ];
 }

@@ -32,19 +32,30 @@ export default async function OnboardingPage() {
   if (!user) redirect("/login?next=/dashboard/onboarding");
 
   const admin = createAdminClient();
-  const [{ data: profile }, { count: pagesCount }] = await Promise.all([
-    admin
-      .from("user_profiles")
-      .select(
-        "full_name, phone, avatar_url, onboarded_at, welcome_dismissed_at, creator_category, subdomain",
-      )
-      .eq("id", user.id)
-      .single(),
-    admin
-      .from("pages")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id),
-  ]);
+  const [{ data: profile }, { count: pagesCount }, { count: gatewayCount }, { count: paidCount }] =
+    await Promise.all([
+      admin
+        .from("user_profiles")
+        .select(
+          "full_name, phone, avatar_url, onboarded_at, welcome_dismissed_at, creator_category, subdomain",
+        )
+        .eq("id", user.id)
+        .single(),
+      admin
+        .from("pages")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id),
+      admin
+        .from("seller_gateway_config")
+        .select("id", { count: "exact", head: true })
+        .eq("seller_user_id", user.id)
+        .eq("is_active", true),
+      admin
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("seller_user_id", user.id)
+        .eq("status", "paid"),
+    ]);
 
   const steps = buildOnboardingSteps({
     full_name: profile?.full_name ?? null,
@@ -54,6 +65,8 @@ export default async function OnboardingPage() {
     welcome_dismissed_at: profile?.welcome_dismissed_at ?? null,
     creator_category: profile?.creator_category ?? null,
     pages_count: pagesCount ?? 0,
+    gateway_connected: (gatewayCount ?? 0) > 0,
+    paid_orders_count: paidCount ?? 0,
   });
 
   const progress = computeOnboardingProgress(steps);

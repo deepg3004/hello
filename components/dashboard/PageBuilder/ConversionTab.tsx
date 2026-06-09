@@ -335,6 +335,15 @@ export function ConversionTab({
                   />
                 </div>
                 <div>
+                  <Label className="text-xs">“Was” price (optional)</Label>
+                  <Input
+                    type="number"
+                    value={bump.original_price ?? ""}
+                    onChange={(e) => setB("original_price", e.target.value === "" ? undefined : Number(e.target.value))}
+                    placeholder="Shows a strike-through + % off"
+                  />
+                </div>
+                <div>
                   <Label className="text-xs">Bump image</Label>
                   <ImageInput
                     value={bump.image_url ?? ""}
