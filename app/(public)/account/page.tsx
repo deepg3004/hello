@@ -12,6 +12,7 @@ import {
   FileText,
   Hash,
   Receipt,
+  RefreshCw,
   Send,
   ShoppingBag,
   Truck,
@@ -445,6 +446,14 @@ export default async function BuyerAccountPage() {
                   <FileText className="mr-1.5 h-3.5 w-3.5" />
                   Invoice
                 </a>
+              </Button>
+            )}
+            {page?.slug && o.status === "paid" && (
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/p/${page.slug}`}>
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                  Buy again
+                </Link>
               </Button>
             )}
             <Button asChild variant="ghost" size="sm">
