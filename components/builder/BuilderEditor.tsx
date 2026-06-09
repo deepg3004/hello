@@ -30,10 +30,12 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   Copy,
+  ExternalLink,
   Eye,
   GripVertical,
   Loader2,
   Monitor,
+  Rocket,
   Pencil,
   Plus,
   Redo2,
@@ -90,6 +92,9 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState<PageRow | null>(null);
   const [siteId, setSiteId] = useState<string | undefined>(undefined);
+  const [siteSlug, setSiteSlug] = useState<string | undefined>(undefined);
+  const [published, setPublished] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [ready, setReady] = useState(false); // loaded a target doc to edit
 
   // History stack — `doc` is always history[hi].
@@ -120,9 +125,11 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
         const res = await fetch("/api/builder/sites/me");
         const data = (await res.json()) as {
           pages?: PageRow[];
-          site?: { id?: string; header_json?: unknown; footer_json?: unknown; contacts_json?: SiteContacts };
+          site?: { id?: string; slug?: string; is_published?: boolean; header_json?: unknown; footer_json?: unknown; contacts_json?: SiteContacts };
         };
         if (!alive) return;
+        setSiteSlug(data.site?.slug);
+        setPublished(!!data.site?.is_published);
         // Open a specific page when ?page=<id> is present (e.g. just-applied
         // template), else the first page.
         const wanted = new URLSearchParams(window.location.search).get("page");
@@ -318,6 +325,22 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
     }
   }
 
+  async function publish() {
+    setPublishing(true);
+    try {
+      const res = await fetch("/api/builder/sites/me/publish", { method: "POST" });
+      const data = (await res.json()) as { ok?: boolean; slug?: string; error?: string };
+      if (!res.ok || !data.ok) throw new Error(data.error ?? "Publish failed");
+      setPublished(true);
+      if (data.slug) setSiteSlug(data.slug);
+      toast({ title: "Published 🎉", description: data.slug ? `Live at /u/${data.slug}` : "Your site is live." });
+    } catch (err) {
+      toast({ title: "Couldn't publish", description: err instanceof Error ? err.message : undefined, variant: "destructive" });
+    } finally {
+      setPublishing(false);
+    }
+  }
+
   const selected = useMemo(
     () =>
       selectedId
@@ -428,6 +451,21 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
             {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
             Save
           </Button>
+          <Button size="sm" variant="default" onClick={publish} disabled={publishing} className="bg-emerald-600 hover:bg-emerald-700">
+            {publishing ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Rocket className="mr-1.5 h-4 w-4" />}
+            {published ? "Published" : "Publish"}
+          </Button>
+          {published && siteSlug && (
+            <a
+              href={`/u/${siteSlug}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-sm text-muted-foreground transition hover:text-foreground"
+              title="View your live site"
+            >
+              <ExternalLink className="h-4 w-4" /> View live
+            </a>
+          )}
         </div>
       </div>
 
