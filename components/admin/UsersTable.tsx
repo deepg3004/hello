@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Filter,
@@ -96,6 +96,11 @@ function makeInitials(s: string): string {
     .join("");
 }
 
+/** Rows rendered at a time; "Load more" reveals the next batch so a big user
+ *  base doesn't paint hundreds of rows at once. Filtering/sort/stats still run
+ *  over the full set. */
+const PAGE_SIZE = 25;
+
 export function UsersTable({ users }: { users: AdminUserRow[] }) {
   const [search, setSearch] = useState("");
   const [plan, setPlan] = useState("all");
@@ -103,6 +108,7 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [sort, setSort] = useState<"joined" | "revenue" | "name">("joined");
+  const [visible, setVisible] = useState(PAGE_SIZE);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -142,6 +148,11 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
     }
     return sorted;
   }, [users, search, plan, status, from, to, sort]);
+
+  // Any filter/sort change collapses the list back to the first page.
+  useEffect(() => {
+    setVisible(PAGE_SIZE);
+  }, [search, plan, status, from, to, sort]);
 
   // Platform summary for the stat cards (reflects the active filters).
   const summary = useMemo(() => {
@@ -316,16 +327,27 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filtered.map((u) => (
+                {filtered.slice(0, visible).map((u) => (
                   <UserRow key={u.id} user={u} />
                 ))}
               </tbody>
             </table>
+            {filtered.length > visible && (
+              <div className="flex justify-center border-t border-border py-3">
+                <button
+                  onClick={() => setVisible((v) => v + PAGE_SIZE)}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium transition hover:bg-muted"
+                >
+                  Load more ({(filtered.length - visible).toLocaleString("en-IN")} more)
+                </button>
+              </div>
+            )}
           </div>
         )}
         <div className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
-          Showing {filtered.length.toLocaleString("en-IN")} of{" "}
-          {users.length.toLocaleString("en-IN")} users
+          Showing {Math.min(visible, filtered.length).toLocaleString("en-IN")} of{" "}
+          {filtered.length.toLocaleString("en-IN")} match
+          {filtered.length === 1 ? "" : "es"} · {users.length.toLocaleString("en-IN")} total
         </div>
       </div>
     </div>
