@@ -32,6 +32,7 @@ export async function saveGatewayConfigAction(input: {
   key_id: string;
   key_secret: string;
   webhook_secret?: string;
+  is_sandbox?: boolean;
 }): Promise<Result> {
   const actor = await requireActor("gateway.manage");
   if (!actor.ok) return { ok: false, message: actor.error };
@@ -96,6 +97,7 @@ export async function saveGatewayConfigAction(input: {
       key_secret_enc,
       webhook_secret_enc,
       is_active,
+      is_sandbox: !!input.is_sandbox,
       // Re-saving keys means they must be proven again with a test payment.
       is_verified: false,
       updated_at: new Date().toISOString(),
@@ -127,6 +129,7 @@ export async function verifyGatewayAction(input: {
   key_id: string;
   key_secret: string;
   webhook_secret?: string;
+  is_sandbox?: boolean;
 }): Promise<Result> {
   // Gate on the capability and resolve the EFFECTIVE owner — otherwise a team
   // member would save the encrypted keys to their OWN account (and the
@@ -150,6 +153,7 @@ export async function verifyGatewayAction(input: {
     key_id: input.key_id?.trim() ?? "",
     key_secret: input.key_secret?.trim() ?? "",
     webhook_secret: input.webhook_secret?.trim() || undefined,
+    is_sandbox: !!input.is_sandbox, // test against the chosen environment
   };
   if (!keys.key_id || !keys.key_secret) {
     return { ok: false, message: "Key ID and Key Secret are required." };
@@ -187,6 +191,7 @@ export async function verifyGatewayAction(input: {
           ? encryptGatewayKey(keys.webhook_secret)
           : null,
         is_active: activate,
+        is_sandbox: !!input.is_sandbox,
         is_verified: true,
         updated_at: new Date().toISOString(),
       },

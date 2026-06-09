@@ -17,8 +17,20 @@ import {
   type TestResult,
 } from "@/lib/gateways/types";
 
-const BASE = process.env.CASHFREE_API_BASE ?? "https://api.cashfree.com/pg";
+const PROD_BASE = "https://api.cashfree.com/pg";
+const SANDBOX_BASE = "https://sandbox.cashfree.com/pg";
+// Legacy fallback when a row predates the per-seller is_sandbox flag.
+const ENV_DEFAULT = process.env.CASHFREE_API_BASE ?? PROD_BASE;
 const API_VERSION = "2023-08-01";
+
+/** Per-seller API base: the gateway-config is_sandbox flag is authoritative, so
+ *  sandbox keys + sandbox base (and live keys + live base) always match — no
+ *  more global env flipping. Falls back to the env default for legacy rows. */
+function baseFor(keys: GatewayKeys): string {
+  if (keys.is_sandbox === true) return SANDBOX_BASE;
+  if (keys.is_sandbox === false) return PROD_BASE;
+  return ENV_DEFAULT;
+}
 
 function authHeaders(keys: GatewayKeys): Record<string, string> {
   return {
@@ -33,7 +45,7 @@ export const cashfreeGateway: PaymentGateway = {
   type: "cashfree",
 
   async createOrder(keys, input): Promise<CreateOrderResult> {
-    const res = await fetch(`${BASE}/orders`, {
+    const res = await fetch(`${baseFor(keys)}/orders`, {
       method: "POST",
       headers: authHeaders(keys),
       body: JSON.stringify({
@@ -60,7 +72,7 @@ export const cashfreeGateway: PaymentGateway = {
     }
     return {
       providerOrderId: json.order_id ?? input.receipt,
-      client: { paymentSessionId: json.payment_session_id, mode: BASE.includes("sandbox") ? "sandbox" : "production" },
+      client: { paymentSessionId: json.payment_session_id, mode: baseFor(keys).includes("sandbox") ? "sandbox" : "production" },
       raw: json,
     };
   },
@@ -85,7 +97,7 @@ export const cashfreeGateway: PaymentGateway = {
   async refund(keys, input: RefundInput): Promise<RefundResult> {
     // Cashfree refunds are keyed by ORDER id; we pass the order id via paymentId.
     const refundId = `rf_${input.paymentId}_${Math.floor(input.amountPaise ?? 0)}`.slice(0, 40);
-    const res = await fetch(`${BASE}/orders/${encodeURIComponent(input.paymentId)}/refunds`, {
+    const res = await fetch(`${baseFor(keys)}/orders/${encodeURIComponent(input.paymentId)}/refunds`, {
       method: "POST",
       headers: authHeaders(keys),
       body: JSON.stringify({
@@ -100,7 +112,7 @@ export const cashfreeGateway: PaymentGateway = {
   },
 
   async getPaymentStatus(keys, orderId: string): Promise<string> {
-    const res = await fetch(`${BASE}/orders/${encodeURIComponent(orderId)}`, {
+    const res = await fetch(`${baseFor(keys)}/orders/${encodeURIComponent(orderId)}`, {
       headers: authHeaders(keys),
     });
     const json = (await res.json()) as { order_status?: string };
@@ -109,7 +121,7 @@ export const cashfreeGateway: PaymentGateway = {
 
   async testConnection(keys): Promise<TestResult> {
     try {
-      const res = await fetch(`${BASE}/orders/__invoxai_conn_test__`, { headers: authHeaders(keys) });
+      const res = await fetch(`${baseFor(keys)}/orders/__invoxai_conn_test__`, { headers: authHeaders(keys) });
       if (res.status === 401 || res.status === 403) {
         return { ok: false, message: "Cashfree rejected the credentials." };
       }

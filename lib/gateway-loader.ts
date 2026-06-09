@@ -21,6 +21,8 @@ export interface GatewayKeys {
   key_id: string;
   key_secret: string;
   webhook_secret?: string;
+  /** Cashfree only: use the sandbox API base instead of production. */
+  is_sandbox?: boolean;
 }
 
 /**
@@ -37,7 +39,7 @@ export async function loadSellerGatewayKeys(
   const { data } = await admin
     .from("seller_gateway_config")
     .select(
-      "gateway_type, key_id_enc, key_secret_enc, webhook_secret_enc, is_active",
+      "gateway_type, key_id_enc, key_secret_enc, webhook_secret_enc, is_active, is_sandbox",
     )
     .eq("seller_user_id", sellerUserId)
     .eq("is_active", true)
@@ -55,6 +57,7 @@ export async function loadSellerGatewayKeys(
       webhook_secret: data.webhook_secret_enc
         ? decryptGatewayKey(data.webhook_secret_enc)
         : undefined,
+      is_sandbox: !!(data as { is_sandbox?: boolean }).is_sandbox,
     };
   } catch (e) {
     console.error("[gateway-loader] decryption failed for seller", sellerUserId, e);

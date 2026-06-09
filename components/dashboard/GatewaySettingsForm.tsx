@@ -67,6 +67,7 @@ export function GatewaySettingsForm({
   const [keyId, setKeyId] = useState("");
   const [keySecret, setKeySecret] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
+  const [isSandbox, setIsSandbox] = useState(false);
   const [testing, setTesting] = useState(false);
   const f = FIELDS[gatewayType] ?? FIELDS.razorpay!;
 
@@ -86,6 +87,7 @@ export function GatewaySettingsForm({
     setTesting(true);
     void verifyGatewayAction({
       gateway_type: gatewayType,
+      is_sandbox: gatewayType === "cashfree" ? isSandbox : undefined,
       key_id: keyId,
       key_secret: keySecret,
       webhook_secret: webhookSecret || undefined,
@@ -111,6 +113,7 @@ export function GatewaySettingsForm({
     startTransition(async () => {
       const res = await saveGatewayConfigAction({
         gateway_type: gatewayType,
+        is_sandbox: gatewayType === "cashfree" ? isSandbox : undefined,
         key_id: keyId,
         key_secret: keySecret,
         webhook_secret: webhookSecret || undefined,
@@ -284,6 +287,22 @@ export function GatewaySettingsForm({
               autoComplete="off"
             />
           </div>
+
+          {gatewayType === "cashfree" && (
+            <label className="flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3">
+              <input
+                type="checkbox"
+                checked={isSandbox}
+                onChange={(e) => setIsSandbox(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Sandbox (test) mode</span> — turn ON
+                if these are Cashfree TEST keys. Live keys: leave OFF. Sandbox keys against the
+                live API (or vice-versa) return a 401 at checkout.
+              </span>
+            </label>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             <Button onClick={save} disabled={pending || testing}>
