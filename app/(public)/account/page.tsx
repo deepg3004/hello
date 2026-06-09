@@ -44,6 +44,8 @@ import {
   BuyerAccountShell,
   type AccountTab,
 } from "@/components/buyer/BuyerAccountShell";
+import { WishlistItems } from "@/components/buyer/WishlistItems";
+import { AddressBook } from "@/components/buyer/AddressBook";
 
 export const metadata = { title: "Your purchases" };
 export const dynamic = "force-dynamic";
@@ -196,6 +198,48 @@ export default async function BuyerAccountPage() {
         .ilike("buyer_email", emailLike)
         .eq("status", "generated"),
     ]);
+
+  // Wishlist + saved addresses (migration 085). Tolerant of a not-yet-applied
+  // migration — a missing-table error degrades to an empty list.
+  const wishlistRows = await admin
+    .from("buyer_wishlist")
+    .select("id, title, page_id, created_at, pages(slug, status)")
+    .ilike("buyer_email", emailLike)
+    .order("created_at", { ascending: false })
+    .then((r) => r.data ?? []);
+  const wishlist = (wishlistRows as Array<{
+    id: string;
+    title: string | null;
+    pages: { slug: string; status: string } | { slug: string; status: string }[] | null;
+  }>).map((w) => {
+    const pg = Array.isArray(w.pages) ? w.pages[0] : w.pages;
+    return {
+      id: w.id,
+      title: w.title || "Saved item",
+      slug: pg?.slug ?? null,
+      available: pg?.status === "published",
+    };
+  });
+
+  const addressRows = await admin
+    .from("buyer_addresses")
+    .select("id, full_name, phone, line1, line2, city, state, pincode, country, is_default")
+    .ilike("buyer_email", emailLike)
+    .order("is_default", { ascending: false })
+    .order("updated_at", { ascending: false })
+    .then((r) => r.data ?? []);
+  const addresses = addressRows as Array<{
+    id: string;
+    full_name: string;
+    phone: string | null;
+    line1: string;
+    line2: string | null;
+    city: string;
+    state: string | null;
+    pincode: string;
+    country: string;
+    is_default: boolean;
+  }>;
 
   // Bookings for this buyer (independent of orders).
   const { data: bookingRaw } = await admin
@@ -682,6 +726,18 @@ export default async function BuyerAccountPage() {
     tabs.push({ key: "memberships", label: "Memberships", count: membershipList.length, content: membershipsNode });
   if (bookings.length)
     tabs.push({ key: "bookings", label: "Bookings", count: bookings.length, content: bookingsNode });
+  tabs.push({
+    key: "wishlist",
+    label: "Wishlist",
+    count: wishlist.length,
+    content: <WishlistItems items={wishlist} />,
+  });
+  tabs.push({
+    key: "addresses",
+    label: "Addresses",
+    count: addresses.length,
+    content: <AddressBook addresses={addresses} />,
+  });
   tabs.push({ key: "account", label: "Account details", content: accountNode });
 
   // Persistent summary — shown above the tabs so Orders / Total spent stay

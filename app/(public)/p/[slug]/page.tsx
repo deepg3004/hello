@@ -17,6 +17,7 @@ import { visitorsKey } from "@/lib/ab";
 import { SocialProofPopup } from "@/components/templates/shared/SocialProofPopup";
 import { BuyerCountBadge } from "@/components/templates/shared/BuyerCountBadge";
 import { ReferralTracker } from "@/components/pages/ReferralTracker";
+import { WishlistButton } from "@/components/buyer/WishlistButton";
 import {
   resolveSocialProofConfig,
   type SocialProofConfig,
@@ -318,6 +319,7 @@ export async function renderPublicPage(
           position={spCfg.popup_position}
         />
       )}
+      <WishlistButton pageId={page.id} />
       <PixelScripts pixel={pixel} />
       <ReferralTracker slug={page.slug} />
     </>

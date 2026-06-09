@@ -5,7 +5,9 @@ import {
   BookOpen,
   CalendarClock,
   Download,
+  Heart,
   LayoutDashboard,
+  MapPin,
   ShoppingBag,
   UserCircle,
   Users,
@@ -21,6 +23,8 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   courses: BookOpen,
   memberships: Users,
   bookings: CalendarClock,
+  wishlist: Heart,
+  addresses: MapPin,
   account: UserCircle,
 };
 
