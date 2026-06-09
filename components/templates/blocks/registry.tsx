@@ -1269,6 +1269,197 @@ export const BLOCKS: Record<string, BlockDef> = {
       );
     },
   },
+
+  // ── How it works (numbered steps) ──────────────────────────────────────────
+  steps: {
+    type: "steps",
+    label: "How it works",
+    defaultData: {
+      title: "How it works",
+      items: [
+        { title: "Sign up", text: "Create your account in seconds." },
+        { title: "Choose a plan", text: "Pick the option that fits you." },
+        { title: "Get started", text: "Instant access — dive right in." },
+      ],
+    },
+    fields: [
+      { key: "title", label: "Section title", type: "text", defaultValue: "" },
+      {
+        key: "items",
+        label: "Steps",
+        type: "list",
+        itemLabel: "step",
+        itemFields: [
+          { key: "title", label: "Title", type: "text", defaultValue: "" },
+          { key: "text", label: "Text", type: "textarea", defaultValue: "" },
+        ],
+        defaultValue: [],
+      },
+    ],
+    Render: (d, ctx) => {
+      const { accent } = ctx;
+      const items = arr<{ title?: string; text?: string }>(d.items);
+      return (
+        <Section>
+          {s(d.title) && (
+            <h2 className="mb-8 text-center font-sora text-3xl font-bold tracking-tight text-[color:var(--s-fg)]">
+              {s(d.title)}
+            </h2>
+          )}
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {items.map((it, i) => (
+              <div
+                key={i}
+                className="rounded-2xl p-6"
+                style={{ background: "var(--s-surface)", border: "1px solid var(--s-border)" }}
+              >
+                <div
+                  className="flex h-10 w-10 items-center justify-center rounded-full text-base font-bold text-[color:var(--s-fg)]"
+                  style={{ backgroundColor: accent }}
+                >
+                  {i + 1}
+                </div>
+                <p className="mt-4 font-semibold text-[color:var(--s-fg)]">{s(it.title)}</p>
+                <p className="mt-1 text-sm text-[color:var(--s-fg-muted)]">{s(it.text)}</p>
+              </div>
+            ))}
+          </div>
+        </Section>
+      );
+    },
+  },
+
+  // ── Team members ────────────────────────────────────────────────────────────
+  team: {
+    type: "team",
+    label: "Team",
+    defaultData: {
+      title: "Meet the team",
+      items: [
+        { name: "Team member", role: "Role", image: "" },
+        { name: "Team member", role: "Role", image: "" },
+        { name: "Team member", role: "Role", image: "" },
+      ],
+    },
+    fields: [
+      { key: "title", label: "Section title", type: "text", defaultValue: "" },
+      {
+        key: "items",
+        label: "Members",
+        type: "list",
+        itemLabel: "member",
+        itemFields: [
+          { key: "name", label: "Name", type: "text", defaultValue: "" },
+          { key: "role", label: "Role", type: "text", defaultValue: "" },
+          { key: "image", label: "Photo URL", type: "image", defaultValue: "" },
+        ],
+        defaultValue: [],
+      },
+    ],
+    Render: (d) => {
+      const items = arr<{ name?: string; role?: string; image?: string }>(d.items);
+      return (
+        <Section>
+          {s(d.title) && (
+            <h2 className="mb-8 text-center font-sora text-3xl font-bold tracking-tight text-[color:var(--s-fg)]">
+              {s(d.title)}
+            </h2>
+          )}
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {items.map((it, i) => (
+              <div key={i} className="text-center">
+                {s(it.image) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={s(it.image)}
+                    alt={s(it.name)}
+                    className="mx-auto h-28 w-28 rounded-full object-cover ring-1 ring-[color:var(--s-border)]"
+                  />
+                ) : (
+                  <div
+                    className="mx-auto h-28 w-28 rounded-full"
+                    style={{ background: "var(--s-surface)", border: "1px solid var(--s-border)" }}
+                  />
+                )}
+                <p className="mt-3 font-semibold text-[color:var(--s-fg)]">{s(it.name)}</p>
+                <p className="text-sm text-[color:var(--s-fg-dim)]">{s(it.role)}</p>
+              </div>
+            ))}
+          </div>
+        </Section>
+      );
+    },
+  },
+
+  // ── Image + text split ───────────────────────────────────────────────────────
+  imagetext: {
+    type: "imagetext",
+    label: "Image + Text",
+    defaultData: {
+      heading: "A section with an image",
+      body: "Use this to explain a feature, tell your story, or highlight an offer next to a supporting image.",
+      image: "",
+      cta_label: "",
+      cta_url: "",
+      image_right: false,
+    },
+    fields: [
+      { key: "heading", label: "Heading", type: "text", defaultValue: "" },
+      { key: "body", label: "Body", type: "textarea", defaultValue: "" },
+      { key: "image", label: "Image URL", type: "image", defaultValue: "" },
+      { key: "cta_label", label: "Button text (optional)", type: "text", defaultValue: "" },
+      { key: "cta_url", label: "Button link (optional)", type: "text", defaultValue: "" },
+      { key: "image_right", label: "Image on the right", type: "toggle", defaultValue: false },
+    ],
+    Render: (d, ctx) => {
+      const { accent } = ctx;
+      const imageRight = d.image_right === true;
+      const img = s(d.image);
+      return (
+        <Section>
+          <div
+            className={
+              "grid items-center gap-8 md:grid-cols-2 " +
+              (imageRight ? "md:[&>*:first-child]:order-1" : "")
+            }
+          >
+            <div>
+              {s(d.heading) && (
+                <h2 className="font-sora text-3xl font-bold tracking-tight text-[color:var(--s-fg)]">
+                  {s(d.heading)}
+                </h2>
+              )}
+              {s(d.body) && (
+                <p className="mt-3 whitespace-pre-wrap text-[color:var(--s-fg-muted)]">{s(d.body)}</p>
+              )}
+              {s(d.cta_label) && (
+                <a
+                  href={s(d.cta_url, "#")}
+                  className="mt-6 inline-flex rounded-xl px-6 py-3 text-sm font-semibold text-[color:var(--s-fg)] shadow"
+                  style={{ backgroundColor: accent }}
+                >
+                  {s(d.cta_label)}
+                </a>
+              )}
+            </div>
+            {img ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={img}
+                alt={s(d.heading)}
+                className="w-full rounded-2xl object-cover ring-1 ring-[color:var(--s-border)]"
+              />
+            ) : (
+              <div
+                className="aspect-[4/3] w-full rounded-2xl"
+                style={{ background: "var(--s-surface)", border: "1px solid var(--s-border)" }}
+              />
+            )}
+          </div>
+        </Section>
+      );
+    },
+  },
 };
 
 /** Convert a YouTube/Vimeo watch URL to an embeddable URL. Returns "" if unknown. */
