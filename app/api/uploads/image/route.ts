@@ -12,12 +12,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const BUCKET = "learn-media";
+// NOTE: SVG is intentionally NOT allowed — this bucket is PUBLIC and SVGs can
+// carry inline <script>, which would be stored XSS when opened on the seller's
+// storefront origin. (The product-file upload route blocks it for the same
+// reason.) ICO/PNG/JPG/WebP/GIF are raster/binary and safe.
 const EXT: Record<string, string> = {
   "image/png": "png",
   "image/jpeg": "jpg",
   "image/webp": "webp",
   "image/gif": "gif",
-  "image/svg+xml": "svg",
   "image/x-icon": "ico",
   "image/vnd.microsoft.icon": "ico",
 };
@@ -39,7 +42,7 @@ export async function POST(req: Request) {
 
   const ext = EXT[file.type];
   if (!ext) {
-    return NextResponse.json({ error: "Use a PNG, JPG, WebP, GIF, SVG or ICO image." }, { status: 400 });
+    return NextResponse.json({ error: "Use a PNG, JPG, WebP, GIF or ICO image." }, { status: 400 });
   }
   if (file.size > MAX) {
     return NextResponse.json({ error: "Image must be under 5 MB." }, { status: 400 });

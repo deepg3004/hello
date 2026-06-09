@@ -41,6 +41,24 @@ export async function createSellerGatewayOrder(
     };
   } catch (e) {
     console.error("[checkout-gateway] createOrder failed", e);
+    // Distinguish a credentials-rejected failure (the seller saved invalid /
+    // wrong-environment keys — e.g. Cashfree sandbox keys against the prod base)
+    // from a transient outage, so the buyer sees an actionable message and the
+    // seller can tell their keys are wrong from the logs.
+    const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
+    const credsRejected =
+      msg.includes("authentication") ||
+      msg.includes("unauthor") ||
+      msg.includes("401") ||
+      msg.includes("invalid") && msg.includes("key");
+    if (credsRejected) {
+      return {
+        ok: false,
+        status: 502,
+        error:
+          "This store's payment gateway rejected its credentials. The seller needs to re-check their gateway keys.",
+      };
+    }
     return {
       ok: false,
       status: 502,

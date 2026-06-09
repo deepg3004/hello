@@ -236,25 +236,47 @@ export async function POST(request: Request) {
 
   // 5d. Outbound webhook (Zapier/Make).
   if (cfg.webhook_url) {
+    const webhookUrl = cfg.webhook_url;
     sideEffects.push(
-      fetch(cfg.webhook_url, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          lead_id: leadId,
-          page_id,
-          page_slug: page.slug,
-          name,
-          email,
-          phone,
-          custom_fields,
-          tags,
-          utm,
-          source,
-          duplicate,
-          captured_at: new Date().toISOString(),
-        }),
-      }).catch(() => null),
+      (async () => {
+        // SSRF guard: a seller-supplied URL must never hit internal/metadata
+        // hosts (mirrors lib/marketing.ts fireMarketingWebhook).
+        try {
+          const { assertPublicHttpUrl } = await import("@/lib/safe-url");
+          await assertPublicHttpUrl(webhookUrl);
+        } catch {
+          return null;
+        }
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 5000);
+        try {
+          await fetch(webhookUrl, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            redirect: "manual",
+            signal: controller.signal,
+            body: JSON.stringify({
+              lead_id: leadId,
+              page_id,
+              page_slug: page.slug,
+              name,
+              email,
+              phone,
+              custom_fields,
+              tags,
+              utm,
+              source,
+              duplicate,
+              captured_at: new Date().toISOString(),
+            }),
+          });
+        } catch {
+          /* best-effort */
+        } finally {
+          clearTimeout(timer);
+        }
+        return null;
+      })(),
     );
   }
 

@@ -295,8 +295,16 @@ export async function restorePageAction(pageId: string): Promise<AdminResult> {
 // Order actions
 // ============================================================================
 
+/**
+ * Admin refund. Delegates to the REAL refund path in actions/transactions.ts so
+ * it actually returns the money through the order's own gateway AND reverses the
+ * ledger (seller sale + commission), the platform wallet fee, inventory, and
+ * buyer access. (This used to just flip orders.status='refunded' — money never
+ * moved and nothing was reversed.) Supports an optional partial amount.
+ */
 export async function adminRefundOrderAction(
   orderId: string,
+  amountRupees?: number,
 ): Promise<AdminResult> {
   let adminId: string;
   try {
@@ -304,47 +312,21 @@ export async function adminRefundOrderAction(
   } catch (e) {
     return { ok: false, message: (e as Error).message };
   }
-  const admin = createAdminClient();
-  await admin
-    .from("orders")
-    .update({ status: "refunded", refunded_at: new Date().toISOString() })
-    .eq("id", orderId);
+
+  const { refundOrderAction } = await import("@/actions/transactions");
+  const r = await refundOrderAction(orderId, amountRupees);
+  if (!r.ok) return { ok: false, message: r.message };
 
   await writeAuditLog({
     admin_id: adminId,
     action: "order.refunded",
     target_type: "order",
     target_id: orderId,
+    details: { refund_id: r.refund_id ?? null, amount: amountRupees ?? null },
   });
 
   revalidatePath("/admin/transactions");
-  return { ok: true };
-}
-
-export async function adminMarkOrderPaidAction(
-  orderId: string,
-): Promise<AdminResult> {
-  let adminId: string;
-  try {
-    adminId = await requireAdmin();
-  } catch (e) {
-    return { ok: false, message: (e as Error).message };
-  }
-  const admin = createAdminClient();
-  await admin
-    .from("orders")
-    .update({ status: "paid", paid_at: new Date().toISOString() })
-    .eq("id", orderId);
-
-  await writeAuditLog({
-    admin_id: adminId,
-    action: "order.marked_paid",
-    target_type: "order",
-    target_id: orderId,
-  });
-
-  revalidatePath("/admin/transactions");
-  return { ok: true };
+  return { ok: true, message: r.refund_id ? `Refunded (${r.refund_id})` : "Refunded" };
 }
 
 // ============================================================================

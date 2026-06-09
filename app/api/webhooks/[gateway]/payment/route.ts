@@ -22,7 +22,16 @@ import type { GatewayType } from "@/lib/gateway-loader";
 import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
 import { getGateway, isLiveGateway } from "@/lib/gateways";
 import { notifyPaymentReceived } from "@/lib/notifications/events";
-import { chargePlatformWalletFee, decrementStockForOrder } from "@/lib/order-fulfillment";
+import {
+  chargePlatformWalletFee,
+  decrementStockForOrder,
+  deliverOrderProducts,
+} from "@/lib/order-fulfillment";
+import {
+  findPendingBookingOrEvent,
+  finalizePaidBooking,
+  finalizePaidEventRegistration,
+} from "@/lib/event-booking-fulfillment";
 import { fireMarketingWebhook } from "@/lib/marketing";
 
 export const dynamic = "force-dynamic";
@@ -105,12 +114,38 @@ async function handleCashfree(request: Request): Promise<Response> {
   const { data: order } = await admin
     .from("orders")
     .select(
-      "id, status, seller_user_id, page_id, amount, seller_amount, platform_commission, buyer_email, buyer_name, source, gateway_owner, gateway_order_id",
+      "id, status, seller_user_id, page_id, product_id, amount, seller_amount, platform_commission, currency, buyer_email, buyer_name, source, gateway_owner, gateway_order_id",
     )
     .eq("gateway_order_id", cfOrderId)
     .eq("gateway_owner", "seller")
     .maybeSingle();
   if (!order) {
+    // Fallback: a paid booking / event registration whose buyer tab dropped
+    // before in-app verify (they hold a pending row keyed by gateway_order_id
+    // and don't create the orders row until confirmed).
+    const pending = await findPendingBookingOrEvent(cfOrderId, admin);
+    if (pending) {
+      const pkeys = await loadSellerGatewayKeys(pending.sellerUserId);
+      if (!pkeys) {
+        return NextResponse.json({ error: "No seller gateway" }, { status: 400 });
+      }
+      if (!getGateway("cashfree").verifyWebhookSignature(raw, headers, pkeys)) {
+        return NextResponse.json({ error: "Bad signature" }, { status: 401 });
+      }
+      const confirmedAtGw = await getGateway("cashfree").verifyPayment(pkeys, {
+        orderId: cfOrderId,
+      });
+      if (!confirmedAtGw) {
+        return NextResponse.json({ ok: true, ignored: "not_paid_at_gateway" });
+      }
+      const cfPaymentId = String(body.data?.payment?.cf_payment_id ?? cfOrderId);
+      const opts = { provider: "cashfree" as const, paymentRef: cfPaymentId, signatureRef: null };
+      const r =
+        pending.kind === "booking"
+          ? await finalizePaidBooking(pending.id, opts, admin)
+          : await finalizePaidEventRegistration(pending.id, opts, admin);
+      return NextResponse.json({ ok: true, [pending.kind]: true, already: r.already });
+    }
     return NextResponse.json({ ok: true, ignored: "unknown_order" });
   }
 
@@ -208,6 +243,21 @@ async function handleCashfree(request: Request): Promise<Response> {
     );
   } else {
     await decrementStockForOrder(order.id, admin);
+    // Deliver the product when the buyer's tab dropped and this webhook is the
+    // only confirmation (mirrors verify-payment / the razorpay seller webhook).
+    await deliverOrderProducts(
+      {
+        id: order.id,
+        page_id: order.page_id,
+        product_id: (order as { product_id?: string | null }).product_id ?? null,
+        seller_user_id: order.seller_user_id,
+        buyer_email: order.buyer_email,
+        buyer_name: order.buyer_name,
+        amount: Number(order.amount),
+        currency: (order as { currency?: string | null }).currency ?? null,
+      },
+      admin,
+    );
   }
 
   await fireMarketingWebhook(order.seller_user_id, "order_paid", {

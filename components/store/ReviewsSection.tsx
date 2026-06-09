@@ -31,7 +31,6 @@ export function ReviewsSection({
 
   const [rating, setRating] = useState(0);
   const [hover, setHover] = useState(0);
-  const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
   const [bodyText, setBodyText] = useState("");
@@ -39,10 +38,6 @@ export function ReviewsSection({
   async function submit() {
     if (rating < 1) {
       toast({ variant: "destructive", title: "Pick a star rating" });
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      toast({ variant: "destructive", title: "Enter the email you purchased with" });
       return;
     }
     setSubmitting(true);
@@ -54,13 +49,25 @@ export function ReviewsSection({
           subject_type: subjectType,
           subject_id: subjectId,
           rating,
-          email: email.trim().toLowerCase(),
           name: name.trim() || undefined,
           title: title.trim() || undefined,
           body: bodyText.trim() || undefined,
         }),
       });
-      const b = (await res.json()) as { ok?: boolean; error?: string };
+      const b = (await res.json()) as { ok?: boolean; error?: string; needsLogin?: boolean };
+      if (res.status === 401 || b.needsLogin) {
+        // Reviewer must be signed into the buyer portal so we can verify the
+        // purchase against a proven email.
+        toast({
+          title: "Please sign in to review",
+          description: "Use the email you purchased with — redirecting you to sign in…",
+        });
+        const next = encodeURIComponent(window.location.pathname + window.location.search);
+        setTimeout(() => {
+          window.location.href = `/account?next=${next}`;
+        }, 1200);
+        return;
+      }
       if (!res.ok || !b.ok) throw new Error(b.error ?? "Couldn't submit review");
       setDone(true);
       setWriting(false);
@@ -129,12 +136,11 @@ export function ReviewsSection({
             ))}
           </div>
           <p className="text-xs text-muted-foreground">
-            Reviews are only accepted from buyers — use the email you purchased this {subjectLabel} with.
+            Reviews are only accepted from verified buyers. You’ll review as your
+            signed-in account (the email you purchased this {subjectLabel} with) —
+            we’ll ask you to sign in if you haven’t.
           </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Input placeholder="Email you bought with *" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <Input placeholder="Display name (optional)" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
+          <Input placeholder="Display name (optional)" value={name} onChange={(e) => setName(e.target.value)} />
           <Input placeholder="Title (optional)" value={title} onChange={(e) => setTitle(e.target.value)} />
           <Textarea rows={3} placeholder="Share your experience…" value={bodyText} onChange={(e) => setBodyText(e.target.value)} />
           <div className="flex gap-2">

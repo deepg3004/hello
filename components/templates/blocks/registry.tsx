@@ -18,6 +18,7 @@ import { CountdownBlock } from "@/components/templates/blocks/CountdownBlock";
 import { SiteContactForm } from "@/components/templates/blocks/SiteContactForm";
 import { EditableText } from "@/components/templates/blocks/EditableText";
 import { formatINR } from "@/lib/utils";
+import { sanitizeEmbedHtml } from "@/lib/sanitize-embed";
 import type { FieldConfig } from "@/lib/templates/types";
 import type { TgTheme } from "@/lib/telegram-themes";
 
@@ -880,13 +881,14 @@ export const BLOCKS: Record<string, BlockDef> = {
       },
     ],
     Render: (d) => {
-      const html = s(d.html);
+      const html = sanitizeEmbedHtml(s(d.html));
       if (!html) return null;
       return (
         <Section>
           <div
             className="mx-auto max-w-3xl [&_iframe]:w-full"
-            // Seller's own embed on their own site.
+            // Seller's own embed on their own site — stripped of script/handlers
+            // (sanitizeEmbedHtml) as defense-in-depth vs. a non-owner team member.
             dangerouslySetInnerHTML={{ __html: html }}
           />
         </Section>

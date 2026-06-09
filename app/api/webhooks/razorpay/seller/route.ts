@@ -23,7 +23,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyWebhookSignatureWithSecret } from "@/lib/razorpay";
 import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
 import { notifyPaymentReceived } from "@/lib/notifications/events";
-import { chargePlatformWalletFee, decrementStockForOrder } from "@/lib/order-fulfillment";
+import {
+  chargePlatformWalletFee,
+  decrementStockForOrder,
+  deliverOrderProducts,
+} from "@/lib/order-fulfillment";
+import {
+  findPendingBookingOrEvent,
+  finalizePaidBooking,
+  finalizePaidEventRegistration,
+} from "@/lib/event-booking-fulfillment";
 import { fireMarketingWebhook } from "@/lib/marketing";
 
 interface PaymentEntity {
@@ -66,13 +75,32 @@ export async function POST(request: Request) {
   const { data: order } = await admin
     .from("orders")
     .select(
-      "id, status, seller_user_id, page_id, amount, seller_amount, platform_commission, buyer_email, buyer_name, source, gateway_owner",
+      "id, status, seller_user_id, page_id, product_id, amount, seller_amount, platform_commission, currency, buyer_email, buyer_name, source, gateway_owner",
     )
     .eq("gateway_order_id", payment.order_id)
     .eq("gateway_owner", "seller")
     .maybeSingle();
   if (!order) {
-    // Not a seller-gateway order we know about — ack and ignore.
+    // Fallback: a paid 1:1 booking / event registration whose buyer tab dropped
+    // before the in-app verify call. These hold a pending row keyed by
+    // gateway_order_id but don't create the orders row until confirmed.
+    const pending = await findPendingBookingOrEvent(payment.order_id, admin);
+    if (pending) {
+      const keys = await loadSellerGatewayKeys(pending.sellerUserId);
+      if (!keys?.webhook_secret) {
+        return NextResponse.json({ error: "No webhook secret configured" }, { status: 400 });
+      }
+      if (!verifyWebhookSignatureWithSecret(raw, signature, keys.webhook_secret)) {
+        return NextResponse.json({ error: "Bad signature" }, { status: 401 });
+      }
+      const opts = { provider: "razorpay" as const, paymentRef: payment.id, signatureRef: null };
+      const r =
+        pending.kind === "booking"
+          ? await finalizePaidBooking(pending.id, opts, admin)
+          : await finalizePaidEventRegistration(pending.id, opts, admin);
+      return NextResponse.json({ ok: true, [pending.kind]: true, already: r.already });
+    }
+    // Not a seller-gateway order/booking/event we know about — ack and ignore.
     return NextResponse.json({ ok: true, ignored: "unknown_order" });
   }
 
@@ -170,6 +198,22 @@ export async function POST(request: Request) {
     );
   } else {
     await decrementStockForOrder(order.id, admin);
+    // Deliver the product (receipt/invoice/Telegram/Discord/course/downloads) —
+    // the in-checkout verify-payment is the primary path, but if the buyer's tab
+    // dropped this webhook is the only confirmation, so it must deliver too.
+    await deliverOrderProducts(
+      {
+        id: order.id,
+        page_id: order.page_id,
+        product_id: (order as { product_id?: string | null }).product_id ?? null,
+        seller_user_id: order.seller_user_id,
+        buyer_email: order.buyer_email,
+        buyer_name: order.buyer_name,
+        amount: Number(order.amount),
+        currency: (order as { currency?: string | null }).currency ?? null,
+      },
+      admin,
+    );
   }
   await fireMarketingWebhook(order.seller_user_id, "order_paid", {
     order_id: order.id,

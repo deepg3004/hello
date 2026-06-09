@@ -7,6 +7,10 @@ import { getRazorpay } from "@/lib/razorpay";
 import { loadSellerGatewayKeys } from "@/lib/gateway-loader";
 import { getGateway } from "@/lib/gateways";
 import { refundReversal } from "@/lib/pricing";
+import {
+  reversePlatformWalletFee,
+  reverseFulfillmentForOrder,
+} from "@/lib/order-reversal";
 
 export interface TransactionsFilter {
   from?: string;     // ISO date
@@ -176,36 +180,61 @@ export async function refundOrderAction(
   if (!user) return { ok: false, message: "Not signed in" };
 
   const admin = createAdminClient();
-  const { data: profile } = await admin
-    .from("user_profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .single();
-  if (!profile?.is_admin) {
-    return { ok: false, message: "Refunds are admin-only" };
-  }
 
-  // Pull the order + ledger context we need for the reversal.
+  // Pull the order + ledger context we need for both authorization and the
+  // reversal. (Loaded BEFORE the auth decision because a seller may only refund
+  // their own seller-gateway orders.)
   const { data: order, error: loadErr } = await admin
     .from("orders")
     .select(
-      "id, status, gateway_payment_id, amount, seller_amount, platform_commission, seller_user_id, gateway_owner",
+      "id, status, gateway_payment_id, gateway_order_id, payment_gateway, amount, seller_amount, platform_commission, seller_user_id, gateway_owner",
     )
     .eq("id", orderId)
     .single();
   if (loadErr || !order) {
     return { ok: false, message: "Order not found" };
   }
+
+  // Authorization: platform admins can refund ANY order; a seller (with
+  // transactions.manage) can refund THEIR OWN orders that were charged on the
+  // seller's own gateway. Platform-gateway orders stay admin-only.
+  const { data: profile } = await admin
+    .from("user_profiles")
+    .select("is_admin")
+    .eq("id", user.id)
+    .single();
+  const isAdmin = !!profile?.is_admin;
+  if (!isAdmin) {
+    if (order.gateway_owner !== "seller") {
+      return {
+        ok: false,
+        message:
+          "This order was charged on the platform gateway — only an admin can refund it.",
+      };
+    }
+    const actor = await requireActor("transactions.manage");
+    if (!actor.ok) return { ok: false, message: actor.error };
+    if (actor.ctx.ownerId !== order.seller_user_id) {
+      return { ok: false, message: "You can only refund your own orders." };
+    }
+  }
+
   if (order.status !== "paid" && order.status !== "partially_refunded") {
     return {
       ok: false,
       message: `Order is ${order.status} — only paid orders can be refunded`,
     };
   }
-  if (!order.gateway_payment_id) {
+
+  // The provider id to refund against differs by gateway: Cashfree refunds key
+  // off the ORDER id (always stored in gateway_order_id, in both the in-app and
+  // webhook confirm paths), Razorpay off the PAYMENT id (gateway_payment_id).
+  const isCashfree = order.payment_gateway === "cashfree";
+  const refundRef = isCashfree ? order.gateway_order_id : order.gateway_payment_id;
+  if (!refundRef) {
     return {
       ok: false,
-      message: "Order has no Razorpay payment id — cannot refund",
+      message: "Order has no gateway payment reference — cannot refund",
     };
   }
 
@@ -259,15 +288,23 @@ export async function refundOrderAction(
       if (!keys) {
         return { ok: false, message: "Seller gateway not connected — cannot refund." };
       }
+      // Pick the id the driver expects (Cashfree=order id, Razorpay=payment id).
+      const targetId =
+        keys.gateway_type === "cashfree"
+          ? order.gateway_order_id
+          : order.gateway_payment_id;
+      if (!targetId) {
+        return { ok: false, message: "Order has no gateway reference — cannot refund." };
+      }
       const r = await getGateway(keys.gateway_type).refund(keys, {
-        paymentId: order.gateway_payment_id,
+        paymentId: targetId,
         amountPaise: Math.round(refundAmt * 100),
         notes: { invoxai_order_id: orderId, invoxai_initiator: user.id },
       });
       refundId = r.refundId;
     } else {
       const razorpay = getRazorpay();
-      const refund = await razorpay.payments.refund(order.gateway_payment_id, {
+      const refund = await razorpay.payments.refund(refundRef, {
         amount: Math.round(refundAmt * 100), // paise
         speed: "normal",
         notes: { invoxai_order_id: orderId, invoxai_initiator: user.id },
@@ -317,6 +354,10 @@ export async function refundOrderAction(
       .update({ status: "reversed", reversed_at: now })
       .eq("order_id", orderId)
       .in("status", ["pending", "paid"]);
+    // Reverse the platform wallet fee + restore stock + revoke buyer access.
+    // Best-effort; runs once (guarded by the status transition above).
+    await reversePlatformWalletFee(orderId, order.seller_user_id, admin);
+    await reverseFulfillmentForOrder(orderId, admin);
     return { ok: true, refund_id: refundId };
   }
 
@@ -368,13 +409,16 @@ export async function refundOrderAction(
     },
   ]);
 
-  // Affiliate clawback only once the order is fully refunded.
+  // Affiliate clawback + wallet-fee/stock/access reversal only once the order is
+  // fully refunded (the per-order platform fee is fixed, not proportional).
   if (fully) {
     await admin
       .from("affiliate_payouts")
       .update({ status: "reversed", reversed_at: now })
       .eq("order_id", orderId)
       .in("status", ["pending", "paid"]);
+    await reversePlatformWalletFee(orderId, order.seller_user_id, admin);
+    await reverseFulfillmentForOrder(orderId, admin);
   }
 
   return { ok: true, refund_id: refundId };

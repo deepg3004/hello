@@ -4,10 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, MoreVertical } from "lucide-react";
 
-import {
-  adminMarkOrderPaidAction,
-  adminRefundOrderAction,
-} from "@/actions/admin";
+import { adminRefundOrderAction } from "@/actions/admin";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -60,7 +57,7 @@ export function OrderActionsMenu({
             </a>
           </DropdownMenuItem>
         )}
-        {status === "paid" && (
+        {(status === "paid" || status === "partially_refunded") && (
           <DropdownMenuItem
             onSelect={() =>
               run("Refund this order", () => adminRefundOrderAction(orderId))
@@ -68,15 +65,6 @@ export function OrderActionsMenu({
             className="text-destructive focus:text-destructive"
           >
             Refund
-          </DropdownMenuItem>
-        )}
-        {status !== "paid" && (
-          <DropdownMenuItem
-            onSelect={() =>
-              run("Mark order as paid", () => adminMarkOrderPaidAction(orderId))
-            }
-          >
-            Mark as paid
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

@@ -16,6 +16,7 @@ import { nanoid } from "nanoid";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { scheduleRecovery } from "@/lib/queues/recovery";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -46,6 +47,18 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+
+  // This unauthenticated endpoint inserts a DB row + schedules a 4-step email
+  // sequence to buyer_email, so throttle per IP and per (page, email) to stop
+  // an attacker spamming victim inboxes / bloating the recovery queue.
+  const ipRl = await rateLimit(`precapture-ip:${clientIp(request)}`, 30, 60 * 60);
+  if (!ipRl.ok) return tooManyRequests(ipRl.retryAfter);
+  const pairRl = await rateLimit(
+    `precapture:${page_id}:${buyer_email.toLowerCase()}`,
+    5,
+    24 * 60 * 60,
+  );
+  if (!pairRl.ok) return tooManyRequests(pairRl.retryAfter);
 
   const admin = createAdminClient();
 

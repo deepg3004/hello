@@ -18,7 +18,11 @@ import { verifyPayment, verifyPaymentWithSecret } from "@/lib/razorpay";
 import { loadSellerGatewayKeys, type GatewayType } from "@/lib/gateway-loader";
 import { getGateway, isLiveGateway } from "@/lib/gateways";
 import { notifyPaymentReceived } from "@/lib/notifications/events";
-import { chargePlatformWalletFee, decrementStockForOrder } from "@/lib/order-fulfillment";
+import {
+  chargePlatformWalletFee,
+  decrementStockForOrder,
+  deliverOrderProducts,
+} from "@/lib/order-fulfillment";
 import { fireMarketingWebhook } from "@/lib/marketing";
 import { settleCoupon } from "@/lib/coupons";
 import { getRedis } from "@/lib/redis";
@@ -476,13 +480,26 @@ export async function POST(request: Request) {
     );
   }
 
-  // 5f. Enqueue invoice generation. The job runs in the background BullMQ
-  //     worker — we don't await it so the response stays snappy. The OTO
-  //     follow-on order generates its own separate invoice when it's paid.
+  // 5f. Deliver the purchased products: receipt + invoice + Telegram + Discord
+  //     + course enrollment + digital downloads. Shared with the seller-gateway
+  //     webhook (lib/order-fulfillment.deliverOrderProducts) so a dropped-tab
+  //     payment confirmed by webhook still delivers everything. Best-effort.
+  await deliverOrderProducts(
+    {
+      id: order.id,
+      page_id: order.page_id,
+      product_id: order.product_id,
+      seller_user_id: order.seller_user_id,
+      buyer_email: order.buyer_email,
+      buyer_name: order.buyer_name,
+      amount: Number(order.amount),
+      currency: order.currency,
+    },
+    admin,
+  );
+  // The order-bump child rides on the same payment and needs its own invoice.
   try {
     const { enqueueInvoiceJob } = await import("@/lib/queues/invoices");
-    void enqueueInvoiceJob(order_id);
-    // Also enqueue an invoice for the bump child row if there is one.
     const { data: bumpChild } = await admin
       .from("orders")
       .select("id")
@@ -493,7 +510,7 @@ export async function POST(request: Request) {
       void enqueueInvoiceJob(bumpChild.id);
     }
   } catch (e) {
-    console.error("[verify-payment] invoice enqueue failed", e);
+    console.error("[verify-payment] bump invoice enqueue failed", e);
   }
 
   // 5h*. Meta Conversions API — best-effort server-side Purchase fire.
@@ -517,44 +534,6 @@ export async function POST(request: Request) {
     }
   } catch (e) {
     console.error("[verify-payment] CAPI dispatch failed", e);
-  }
-
-  // 5g. Sale-confirmation receipt to the buyer. The PDF link points at our
-  //     public /api/orders/:id/invoice redirect — it generates inline if the
-  //     worker hasn't caught up. The email itself goes out immediately.
-  try {
-    const { sendEmail } = await import("@/lib/email");
-    const { renderEmail } = await import("@/lib/emails/render");
-    const { data: prod } = order.product_id
-      ? await admin
-          .from("products")
-          .select("name")
-          .eq("id", order.product_id)
-          .single<{ name: string }>()
-      : { data: null };
-    const { data: sellerForReceipt } = await admin
-      .from("user_profiles")
-      .select("legal_business_name, full_name")
-      .eq("id", order.seller_user_id)
-      .single<{ legal_business_name: string | null; full_name: string | null }>();
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io";
-    const tpl = await renderEmail("sale_receipt", {
-      buyerName: order.buyer_name,
-      sellerLegalName:
-        sellerForReceipt?.legal_business_name ??
-        sellerForReceipt?.full_name ??
-        null,
-      productName: prod?.name ?? null,
-      amountInr: Number(order.amount),
-      currency: order.currency ?? "INR",
-      orderId: order_id,
-      invoiceUrl: `${baseUrl}/api/orders/${order_id}/invoice`,
-      orderUrl: `${baseUrl}/order/${order_id}`,
-    });
-    void sendEmail({ to: order.buyer_email, role: "billing", subject: tpl.subject, html: tpl.html, sellerId: order.seller_user_id });
-  } catch (e) {
-    console.error("[verify-payment] receipt email dispatch failed", e);
   }
 
   // 5h. Social-proof event — anonymised name + city for the public widgets
@@ -624,86 +603,8 @@ export async function POST(request: Request) {
     console.error("[verify-payment] social-proof insert failed", e);
   }
 
-  // 6. Post-purchase: if the page has a Telegram VIP group attached, mint a
-  //    one-time invite + membership row. Best-effort — bot/group failures
-  //    surface on the thank-you page but don't block checkout.
-  try {
-    const { issueInviteForOrder } = await import("@/actions/telegram");
-    const inviteResult = await issueInviteForOrder(order_id);
-    if (inviteResult.ok && "invite_link" in inviteResult) {
-      const { sendEmail } = await import("@/lib/email");
-      const { renderEmail } = await import("@/lib/emails/render");
-      const { data: page } = await admin
-        .from("pages")
-        .select("telegram_group_id, telegram_vip_groups(group_name)")
-        .eq("id", order.page_id ?? "")
-        .single();
-      type Joined = { group_name: string | null };
-      const groupRel = (page as unknown as { telegram_vip_groups: Joined | Joined[] | null } | null)?.telegram_vip_groups;
-      const groupName = (Array.isArray(groupRel) ? groupRel[0]?.group_name : groupRel?.group_name) ?? undefined;
-      const tpl = await renderEmail("telegram_invite", {
-        buyerName: order.buyer_name ?? undefined,
-        groupName,
-        inviteLink: inviteResult.invite_link,
-      });
-      await sendEmail({
-        to: order.buyer_email,
-        role: "buyer",
-        subject: tpl.subject,
-        html: tpl.html,
-        sellerId: order.seller_user_id,
-      });
-    }
-  } catch (e) {
-    console.error("[verify-payment] telegram invite failed", e);
-  }
-
-  // 6a2. Post-purchase: if the page has a Discord server attached, mint a
-  //      one-time invite + membership row and email the buyer. Best-effort —
-  //      mirrors the Telegram block above (issueDiscordAccessForOrder sends
-  //      its own invite email internally).
-  try {
-    const { issueDiscordAccessForOrder } = await import("@/actions/discord");
-    await issueDiscordAccessForOrder(order_id);
-  } catch (e) {
-    console.error("[verify-payment] discord invite failed", e);
-  }
-
-  // 6b. LMS — if the purchased product is linked to a published course, enroll
-  //     the buyer (idempotent, best-effort). Access link is shown on the
-  //     receipt page (/order/[id]).
-  try {
-    const { createEnrollmentForOrder } = await import("@/lib/courses");
-    await createEnrollmentForOrder(
-      {
-        id: order.id,
-        product_id: order.product_id,
-        buyer_email: order.buyer_email,
-      },
-      admin,
-    );
-  } catch (e) {
-    console.error("[verify-payment] course enrollment failed", e);
-  }
-
-  // 6c. Digital download — if the purchased product is a digital product with
-  //     a file, grant the buyer a download + email the link (idempotent).
-  try {
-    if (order.product_id) {
-      const { grantDigitalDownloads } = await import("@/lib/downloads");
-      await grantDigitalDownloads(
-        {
-          orderId: order.id,
-          sellerUserId: order.seller_user_id,
-          buyerEmail: order.buyer_email,
-          productIds: [order.product_id],
-        },
-        admin,
-      );
-    }
-  } catch (e) {
-    console.error("[verify-payment] digital download grant failed", e);
-  }
+  // (Product delivery — receipt/invoice/Telegram/Discord/course/downloads — was
+  //  handled by deliverOrderProducts() at step 5f above, shared with the webhook.)
 
   // 7. OTO — if the page has an OTO configured AND this is the original
   // (non-OTO) order, mint a 15-min signed cookie and redirect to /p/<slug>/oto.

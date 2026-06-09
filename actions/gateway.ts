@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 import { requireActor } from "@/lib/account-context";
 import { encryptGatewayKey } from "@/lib/gateway-crypto";
 import type { GatewayType, GatewayKeys } from "@/lib/gateway-loader";
@@ -129,11 +128,12 @@ export async function verifyGatewayAction(input: {
   key_secret: string;
   webhook_secret?: string;
 }): Promise<Result> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Not signed in" };
+  // Gate on the capability and resolve the EFFECTIVE owner — otherwise a team
+  // member would save the encrypted keys to their OWN account (and the
+  // capability check was bypassed entirely). Mirrors saveGatewayConfigAction.
+  const actor = await requireActor("gateway.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
 
   const gateway_type = input.gateway_type as GatewayType;
   if (!GATEWAY_TYPES.includes(gateway_type)) {
@@ -171,7 +171,7 @@ export async function verifyGatewayAction(input: {
   const { data: rows } = await admin
     .from("seller_gateway_config")
     .select("gateway_type, is_active")
-    .eq("seller_user_id", user.id);
+    .eq("seller_user_id", ctx.ownerId);
   const existingRow = rows?.find((r) => r.gateway_type === gateway_type);
   const anyActive = (rows ?? []).some((r) => r.is_active);
   const activate = existingRow ? !!existingRow.is_active || !anyActive : !anyActive;
@@ -179,7 +179,7 @@ export async function verifyGatewayAction(input: {
   try {
     await admin.from("seller_gateway_config").upsert(
       {
-        seller_user_id: user.id,
+        seller_user_id: ctx.ownerId,
         gateway_type,
         key_id_enc: encryptGatewayKey(keys.key_id),
         key_secret_enc: encryptGatewayKey(keys.key_secret),

@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { extractSubdomain } from "@/lib/domains";
 import { sendEmail } from "@/lib/email";
 import { escapeHtml } from "@/lib/emails/layout";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   let body: { host?: string; name?: string; email?: string; message?: string };
@@ -24,6 +25,13 @@ export async function POST(request: Request) {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return NextResponse.json({ error: "Enter a valid email." }, { status: 400 });
   }
+
+  // Unauthenticated → emails the seller per call. Throttle per IP and per host
+  // so the contact form can't be used as a spam amplifier.
+  const ipRl = await rateLimit(`sitecontact-ip:${clientIp(request)}`, 15, 60 * 60);
+  if (!ipRl.ok) return tooManyRequests(ipRl.retryAfter);
+  const hostRl = await rateLimit(`sitecontact:${host}`, 30, 60 * 60);
+  if (!hostRl.ok) return tooManyRequests(hostRl.retryAfter);
 
   const admin = createAdminClient();
   const sub = extractSubdomain(host);

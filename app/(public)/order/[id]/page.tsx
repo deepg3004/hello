@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Home, RotateCcw } from "lucide-react";
+import { cookies } from "next/headers";
+import { Home, LogIn, RotateCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Confetti } from "@/components/ui/Confetti";
@@ -9,10 +10,20 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { courseForProduct } from "@/lib/courses";
 import { signCourseToken } from "@/lib/course-token";
 import { signContentToken } from "@/lib/content-token";
+import { BUYER_COOKIE, verifyBuyerSession } from "@/lib/buyer-portal";
 import { publicPageUrl } from "@/lib/page-url";
 import { cn, formatDateTime } from "@/lib/utils";
 
 export const metadata = { title: "Order" };
+export const dynamic = "force-dynamic";
+
+/** Mask an email for display when the viewer isn't the verified owner. */
+function maskEmail(email: string): string {
+  const [user, domain] = email.split("@");
+  if (!domain) return "•••";
+  const head = user.slice(0, 1);
+  return `${head}${"•".repeat(Math.max(2, user.length - 1))}@${domain}`;
+}
 
 interface OrderRow {
   id: string;
@@ -45,6 +56,16 @@ export default async function OrderConfirmationPage({
   if (!order) {
     return <NotFoundShell />;
   }
+
+  // OWNERSHIP: the order id (a UUID) alone must NOT expose buyer PII or grant
+  // access tokens. The buyer is auto-signed-in after payment (verify-payment
+  // sets the buyer cookie), so a matching buyer session proves ownership.
+  // Non-owners get a redacted summary + a "sign in to access" prompt.
+  const cookieStore = await cookies();
+  const viewerEmail = verifyBuyerSession(cookieStore.get(BUYER_COOKIE)?.value ?? "");
+  const owns =
+    !!viewerEmail &&
+    viewerEmail.toLowerCase() === (order.buyer_email ?? "").toLowerCase();
 
   // Cart orders carry line items instead of a single product.
   const { data: itemsRaw } = await admin
@@ -83,10 +104,13 @@ export default async function OrderConfirmationPage({
   const course = order.product_id
     ? await courseForProduct(order.product_id, admin)
     : null;
+  // Only mint the access token for the verified owner — the token grants free
+  // course access, so it must never render for a stranger holding the URL.
+  const hasCourse = !!course && order.status === "paid";
   const courseHref =
-    course && order.status === "paid"
-      ? `/course/${course.id}?t=${signCourseToken({
-          course_id: course.id,
+    hasCourse && owns
+      ? `/course/${course!.id}?t=${signCourseToken({
+          course_id: course!.id,
           order_id: order.id,
           email: order.buyer_email,
         })}`
@@ -120,12 +144,14 @@ export default async function OrderConfirmationPage({
     : null;
 
   // Lock Content pages unlock a private content page after payment.
-  const unlockHref =
+  const hasUnlock =
     page?.template_id === "lock-content" &&
     order.status === "paid" &&
-    order.page_id
+    !!order.page_id;
+  const unlockHref =
+    hasUnlock && owns
       ? `/unlock/${order.page_id}?t=${signContentToken({
-          page_id: order.page_id,
+          page_id: order.page_id!,
           order_id: order.id,
           email: order.buyer_email,
         })}`
@@ -143,6 +169,12 @@ export default async function OrderConfirmationPage({
     order.status === "failed" ||
     order.status === "cancelled" ||
     order.status === "expired";
+
+  // A paid order with deliverables, viewed by someone who isn't signed in as the
+  // buyer → prompt them to sign in rather than handing over access.
+  const hasTelegram = paid && !!order.telegram_invite_link;
+  const needsSignInForAccess =
+    paid && !owns && (hasCourse || hasUnlock || hasTelegram);
 
   return (
     <main
@@ -169,7 +201,7 @@ export default async function OrderConfirmationPage({
           </h1>
           <p className="mt-2 text-lg text-muted-foreground sm:text-xl">
             {paid
-              ? `Thank you${order.buyer_name ? `, ${order.buyer_name}` : ""}`
+              ? `Thank you${owns && order.buyer_name ? `, ${order.buyer_name}` : ""}`
               : failed
                 ? "We couldn't capture this payment."
                 : "Hold tight — confirmation is on its way."}
@@ -208,7 +240,7 @@ export default async function OrderConfirmationPage({
               label="Date"
               value={formatDateTime(order.paid_at ?? order.created_at)}
             />
-            <KV label="Email" value={order.buyer_email} />
+            <KV label="Email" value={owns ? order.buyer_email : maskEmail(order.buyer_email)} />
           </div>
           <div className="mt-4 flex items-baseline justify-between border-t border-border pt-4">
             <span className="text-sm font-medium text-foreground">
@@ -255,13 +287,31 @@ export default async function OrderConfirmationPage({
           </div>
         )}
 
-        {/* Telegram invite card — only when present and order is paid */}
-        {paid && order.telegram_invite_link && (
+        {/* Telegram invite card — only for the verified owner (the invite link
+            grants group access). */}
+        {hasTelegram && owns && (
           <TelegramInviteCard
-            inviteLink={order.telegram_invite_link}
+            inviteLink={order.telegram_invite_link!}
             groupName={groupName ?? "the VIP group"}
             buyerEmail={order.buyer_email}
           />
+        )}
+
+        {/* Not signed in as the buyer → prompt sign-in to reach the deliverables
+            instead of exposing access tokens to anyone with the order URL. */}
+        {needsSignInForAccess && (
+          <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-5 text-sm">
+            <p className="font-semibold text-foreground">Sign in to access your purchase</p>
+            <p className="mt-1 text-muted-foreground">
+              For your security, your course / content / group access is unlocked
+              after you sign in with the email you purchased with.
+            </p>
+            <Button asChild className="mt-3">
+              <Link href={`/account?next=${encodeURIComponent(`/order/${order.id}`)}`}>
+                <LogIn className="mr-2 h-4 w-4" /> Sign in to access
+              </Link>
+            </Button>
+          </div>
         )}
 
         {/* Failure helper */}

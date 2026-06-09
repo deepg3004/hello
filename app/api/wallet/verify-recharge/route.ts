@@ -5,19 +5,19 @@
 
 import { NextResponse } from "next/server";
 
-import { createClient } from "@/lib/supabase/server";
+import { requireActor } from "@/lib/account-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyPayment } from "@/lib/razorpay";
 import { RECHARGE_AMOUNTS_PAISE } from "@/lib/wallet";
 
 export async function POST(request: Request) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Credit the ACCOUNT OWNER's wallet (require wallet.manage) — never the
+  // logged-in team member's, which would put the funds in the wrong ledger.
+  const actor = await requireActor("wallet.manage");
+  if (!actor.ok) {
+    return NextResponse.json({ error: actor.error }, { status: 403 });
   }
+  const ownerId = actor.ctx.ownerId;
 
   let body: {
     razorpay_order_id?: string;
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
   const { data: newBalance, error } = await admin.rpc("credit_wallet_balance", {
-    p_seller_id: user.id,
+    p_seller_id: ownerId,
     p_amount_paise: amount_paise,
     p_description: `Wallet recharge — ₹${amount_paise / 100}`,
   });

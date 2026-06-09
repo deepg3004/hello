@@ -6,18 +6,19 @@
 
 import { NextResponse } from "next/server";
 
-import { createClient } from "@/lib/supabase/server";
+import { requireActor } from "@/lib/account-context";
 import { createOrder } from "@/lib/razorpay";
 import { RECHARGE_AMOUNTS_PAISE } from "@/lib/wallet";
 
 export async function POST(request: Request) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // The wallet belongs to the ACCOUNT OWNER. Resolve the effective owner and
+  // require wallet.manage so a team member (e.g. a manager with wallet view-only)
+  // can't recharge — which would otherwise credit the WRONG ledger.
+  const actor = await requireActor("wallet.manage");
+  if (!actor.ok) {
+    return NextResponse.json({ error: actor.error }, { status: 403 });
   }
+  const ownerId = actor.ctx.ownerId;
 
   let body: { amount_paise?: number };
   try {
@@ -38,8 +39,8 @@ export async function POST(request: Request) {
     const order = await createOrder({
       amount: amount_paise,
       currency: "INR",
-      receipt: `wallet_${user.id.slice(0, 8)}_${amount_paise}`,
-      notes: { purpose: "wallet_recharge", seller_id: user.id },
+      receipt: `wallet_${ownerId.slice(0, 8)}_${amount_paise}`,
+      notes: { purpose: "wallet_recharge", seller_id: ownerId },
     });
 
     return NextResponse.json({

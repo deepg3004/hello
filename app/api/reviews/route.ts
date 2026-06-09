@@ -3,10 +3,12 @@
 // submitReview). Rate-limited per email+IP.
 
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { submitReview, type ReviewSubject } from "@/lib/reviews";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { BUYER_COOKIE, verifyBuyerSession } from "@/lib/buyer-portal";
 
 export async function POST(request: Request) {
   let body: {
@@ -31,8 +33,19 @@ export async function POST(request: Request) {
   if (!body.subject_id || typeof body.subject_id !== "string") {
     return NextResponse.json({ error: "Missing subject" }, { status: 400 });
   }
-  const email = body.email?.trim().toLowerCase();
-  if (!email) return NextResponse.json({ error: "Email is required" }, { status: 400 });
+
+  // OWNERSHIP PROOF: the reviewer must be signed into the buyer portal. We use
+  // the verified session email (NOT the free-text body.email) so nobody can
+  // post a "verified buyer" review against an email they don't control.
+  const cookieStore = await cookies();
+  const sessionEmail = verifyBuyerSession(cookieStore.get(BUYER_COOKIE)?.value ?? "");
+  if (!sessionEmail) {
+    return NextResponse.json(
+      { error: "Please sign in (with the email you purchased with) to leave a review.", needsLogin: true },
+      { status: 401 },
+    );
+  }
+  const email = sessionEmail.trim().toLowerCase();
 
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   const rl = await rateLimit(`review:${email}:${ip}`, 6, 15 * 60);

@@ -12,8 +12,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { loadSellerGatewayKeys, type GatewayType } from "@/lib/gateway-loader";
 import { getGateway, isLiveGateway } from "@/lib/gateways";
 import { verifyPaymentWithSecret } from "@/lib/razorpay";
-import { chargePlatformWalletFee } from "@/lib/order-fulfillment";
-import { fireMarketingWebhook } from "@/lib/marketing";
+import { finalizePaidBooking } from "@/lib/event-booking-fulfillment";
 
 export async function POST(request: Request) {
   let body: {
@@ -86,54 +85,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, already: true });
   }
 
-  // Record a paid order row for revenue/transactions (full amount → seller).
-  const { data: order } = await admin
-    .from("orders")
-    .insert({
-      seller_user_id: booking.seller_user_id,
-      buyer_email: booking.buyer_email,
-      buyer_name: booking.buyer_name,
-      buyer_phone: booking.buyer_phone,
-      amount: Number(booking.amount),
-      seller_amount: Number(booking.amount),
-      platform_commission: 0,
-      status: "paid",
-      payment_gateway: provider,
-      gateway_owner: "seller",
-      gateway_order_id: booking.gateway_order_id,
-      gateway_payment_id: paymentRef,
-      gateway_signature: signatureRef,
-    })
-    .select("id")
-    .single();
-
-  await admin
-    .from("bookings")
-    .update({ status: "confirmed", order_id: order?.id ?? null })
-    .eq("id", booking_id)
-    .eq("status", "pending");
-
-  if (order?.id) {
-    await admin.from("transactions").insert({
-      user_id: booking.seller_user_id,
-      order_id: order.id,
-      type: "sale",
-      amount: Number(booking.amount),
-      status: "completed",
-      reference_id: paymentRef,
-      notes: `Booking ${booking_id.slice(-8)}`,
-    });
-    await chargePlatformWalletFee(
-      { sellerUserId: booking.seller_user_id, orderId: order.id },
-      admin,
-    );
+  // Finalize via the shared, race-safe helper (guarded transition first, then
+  // order + ledger + wallet fee). Same path the webhook fallback uses.
+  const res = await finalizePaidBooking(
+    booking_id,
+    { provider, paymentRef, signatureRef },
+    admin,
+  );
+  if (!res.ok) {
+    return NextResponse.json({ error: "Booking not found" }, { status: 404 });
   }
-
-  await fireMarketingWebhook(booking.seller_user_id, "booking_created", {
-    booking_id: booking.id,
-    buyer_email: booking.buyer_email,
-    amount: Number(booking.amount ?? 0),
-  });
-
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, already: res.already });
 }

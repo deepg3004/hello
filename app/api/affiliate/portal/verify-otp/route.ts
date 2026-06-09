@@ -14,8 +14,13 @@ import {
   hashPortalOtp,
   signPortalSession,
 } from "@/lib/affiliate";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 const MAX_ATTEMPTS = 5;
+
+function clientIp(req: Request): string {
+  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+}
 
 export async function POST(request: Request) {
   let body: { email?: string; otp?: string };
@@ -32,6 +37,12 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+
+  // Rate-limit verify attempts per email+IP so the per-row attempt counter
+  // can't be reset by re-requesting codes to brute-force the OTP space.
+  // (The affiliate portal unlocks payout/bank-detail editing, so this matters.)
+  const rl = await rateLimit(`aff-verify:${email}:${clientIp(request)}`, 10, 15 * 60);
+  if (!rl.ok) return tooManyRequests(rl.retryAfter);
 
   const admin = createAdminClient();
   const { data: row } = await admin

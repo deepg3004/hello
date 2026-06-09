@@ -11,6 +11,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { mintReferralCode } from "@/lib/affiliate";
 import { sendEmail } from "@/lib/emails/send";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io";
@@ -40,6 +41,13 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+
+  // Unauthenticated + sends two emails per call → throttle per IP and per
+  // (page, email) to prevent email-bombing / affiliate-row spam.
+  const ipRl = await rateLimit(`affsignup-ip:${clientIp(request)}`, 20, 60 * 60);
+  if (!ipRl.ok) return tooManyRequests(ipRl.retryAfter);
+  const pairRl = await rateLimit(`affsignup:${page_id}:${email}`, 3, 24 * 60 * 60);
+  if (!pairRl.ok) return tooManyRequests(pairRl.retryAfter);
 
   const admin = createAdminClient();
   const { data: page } = await admin

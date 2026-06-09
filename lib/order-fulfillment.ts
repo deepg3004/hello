@@ -15,6 +15,159 @@ import type { PlanKey } from "@/lib/plans";
 
 type DB = SupabaseClient;
 
+/** Order fields needed to deliver the purchased products to the buyer. */
+export interface DeliverableOrder {
+  id: string;
+  page_id: string | null;
+  product_id: string | null;
+  seller_user_id: string;
+  buyer_email: string;
+  buyer_name: string | null;
+  amount: number;
+  currency?: string | null;
+}
+
+/**
+ * Deliver everything the buyer paid for, for a SINGLE-ITEM (non-cart) order:
+ * receipt email, GST invoice, Telegram invite, Discord access, course
+ * enrollment, and any digital-download grant. Each step is independent and
+ * best-effort — a failure in one never blocks the others or throws into the
+ * caller. Idempotent at the data layer (enroll / grant / invite are keyed by
+ * order), so it's safe to call from BOTH the in-checkout verify-payment route
+ * AND the seller-gateway webhook fallback (so a dropped-tab payment still
+ * delivers the product). Cart orders use fulfillCartOrder instead.
+ */
+export async function deliverOrderProducts(
+  order: DeliverableOrder,
+  admin: DB,
+): Promise<void> {
+  // ── Buyer receipt email ────────────────────────────────────────────────────
+  try {
+    const { sendEmail } = await import("@/lib/email");
+    const { renderEmail } = await import("@/lib/emails/render");
+    const { data: prod } = order.product_id
+      ? await admin
+          .from("products")
+          .select("name")
+          .eq("id", order.product_id)
+          .single<{ name: string }>()
+      : { data: null };
+    const { data: sellerForReceipt } = await admin
+      .from("user_profiles")
+      .select("legal_business_name, full_name")
+      .eq("id", order.seller_user_id)
+      .single<{ legal_business_name: string | null; full_name: string | null }>();
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io";
+    const tpl = await renderEmail("sale_receipt", {
+      buyerName: order.buyer_name,
+      sellerLegalName:
+        sellerForReceipt?.legal_business_name ??
+        sellerForReceipt?.full_name ??
+        null,
+      productName: prod?.name ?? null,
+      amountInr: Number(order.amount),
+      currency: order.currency ?? "INR",
+      orderId: order.id,
+      invoiceUrl: `${baseUrl}/api/orders/${order.id}/invoice`,
+      orderUrl: `${baseUrl}/order/${order.id}`,
+    });
+    await sendEmail({
+      to: order.buyer_email,
+      role: "billing",
+      subject: tpl.subject,
+      html: tpl.html,
+      sellerId: order.seller_user_id,
+    });
+  } catch (e) {
+    console.error("[deliver] receipt email failed", e);
+  }
+
+  // ── GST invoice (background) ───────────────────────────────────────────────
+  try {
+    const { enqueueInvoiceJob } = await import("@/lib/queues/invoices");
+    void enqueueInvoiceJob(order.id);
+  } catch (e) {
+    console.error("[deliver] invoice enqueue failed", e);
+  }
+
+  // ── Telegram VIP invite + email ────────────────────────────────────────────
+  try {
+    const { issueInviteForOrder } = await import("@/actions/telegram");
+    const inviteResult = await issueInviteForOrder(order.id);
+    if (inviteResult.ok && "invite_link" in inviteResult) {
+      const { sendEmail } = await import("@/lib/email");
+      const { renderEmail } = await import("@/lib/emails/render");
+      const { data: page } = await admin
+        .from("pages")
+        .select("telegram_group_id, telegram_vip_groups(group_name)")
+        .eq("id", order.page_id ?? "")
+        .single();
+      type Joined = { group_name: string | null };
+      const groupRel = (
+        page as unknown as { telegram_vip_groups: Joined | Joined[] | null } | null
+      )?.telegram_vip_groups;
+      const groupName =
+        (Array.isArray(groupRel) ? groupRel[0]?.group_name : groupRel?.group_name) ??
+        undefined;
+      const tpl = await renderEmail("telegram_invite", {
+        buyerName: order.buyer_name ?? undefined,
+        groupName,
+        inviteLink: inviteResult.invite_link,
+      });
+      await sendEmail({
+        to: order.buyer_email,
+        role: "buyer",
+        subject: tpl.subject,
+        html: tpl.html,
+        sellerId: order.seller_user_id,
+      });
+    }
+  } catch (e) {
+    console.error("[deliver] telegram invite failed", e);
+  }
+
+  // ── Discord access (sends its own invite email) ────────────────────────────
+  try {
+    const { issueDiscordAccessForOrder } = await import("@/actions/discord");
+    await issueDiscordAccessForOrder(order.id);
+  } catch (e) {
+    console.error("[deliver] discord invite failed", e);
+  }
+
+  // ── Course enrollment ──────────────────────────────────────────────────────
+  try {
+    const { createEnrollmentForOrder } = await import("@/lib/courses");
+    await createEnrollmentForOrder(
+      {
+        id: order.id,
+        product_id: order.product_id,
+        buyer_email: order.buyer_email,
+      },
+      admin,
+    );
+  } catch (e) {
+    console.error("[deliver] course enrollment failed", e);
+  }
+
+  // ── Digital download grant + email ─────────────────────────────────────────
+  try {
+    if (order.product_id) {
+      const { grantDigitalDownloads } = await import("@/lib/downloads");
+      await grantDigitalDownloads(
+        {
+          orderId: order.id,
+          sellerUserId: order.seller_user_id,
+          buyerEmail: order.buyer_email,
+          productIds: [order.product_id],
+        },
+        admin,
+      );
+    }
+  } catch (e) {
+    console.error("[deliver] digital download grant failed", e);
+  }
+}
+
 /**
  * Wallet-balance gate for checkout. Returns false (→ block the order) ONLY when
  * the admin setting `require_wallet_balance` is on AND the seller's wallet can't
