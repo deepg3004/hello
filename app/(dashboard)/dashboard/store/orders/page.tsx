@@ -39,7 +39,7 @@ export default async function StoreOrdersPage() {
   const { data: rows } = await admin
     .from("orders")
     .select(
-      "id, buyer_name, buyer_email, amount, shipping_fee, shipping_address, fulfillment_status, tracking_number, tracking_url, created_at, products(name)",
+      "id, buyer_name, buyer_email, amount, shipping_fee, shipping_address, fulfillment_status, tracking_number, tracking_url, created_at, products!orders_product_id_fkey(name)",
     )
     .eq("seller_user_id", ctx.ownerId)
     .in("status", ["paid", "partially_refunded"])

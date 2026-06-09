@@ -67,7 +67,7 @@ async function handle(req: Request): Promise<Response> {
   const { data: rows, error } = await admin
     .from("orders")
     .select(
-      "id, buyer_email, buyer_name, seller_user_id, product_id, products(name, page_id)",
+      "id, buyer_email, buyer_name, seller_user_id, product_id, products!orders_product_id_fkey(name, page_id)",
     )
     .eq("status", "paid")
     .is("review_requested_at", null)

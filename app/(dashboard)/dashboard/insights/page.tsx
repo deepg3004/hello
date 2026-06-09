@@ -53,7 +53,7 @@ export default async function InsightsPage({
   const { data: raw } = await admin
     .from("orders")
     .select(
-      "amount, status, buyer_email, product_id, created_at, products(name), pages(title)",
+      "amount, status, buyer_email, product_id, created_at, products!orders_product_id_fkey(name), pages(title)",
     )
     .eq("seller_user_id", ctx.ownerId)
     .gte("created_at", since)

@@ -155,7 +155,7 @@ export default async function BuyerAccountPage() {
   const { data: ordersRaw } = await admin
     .from("orders")
     .select(
-      "id, seller_user_id, product_id, page_id, amount, currency, status, created_at, fulfillment_status, tracking_number, tracking_url, products(name), pages(title, slug)",
+      "id, seller_user_id, product_id, page_id, amount, currency, status, created_at, fulfillment_status, tracking_number, tracking_url, products!orders_product_id_fkey(name), pages(title, slug)",
     )
     .ilike("buyer_email", emailLike)
     .in("status", ["paid", "partially_refunded", "refunded"])
