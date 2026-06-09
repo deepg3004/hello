@@ -141,6 +141,7 @@ export default async function TransactionsPage() {
         pages={pages}
         initialFilter={{ from: "", to: "", status: "", page_id: "", search: "" }}
         isAdmin={!!profile?.is_admin}
+        canRefund
       />
     </div>
   );

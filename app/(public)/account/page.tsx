@@ -14,6 +14,7 @@ import {
   Receipt,
   Send,
   ShoppingBag,
+  Truck,
 } from "lucide-react";
 
 import { formatSlotLabel } from "@/lib/booking";
@@ -150,7 +151,7 @@ export default async function BuyerAccountPage() {
   const { data: ordersRaw } = await admin
     .from("orders")
     .select(
-      "id, seller_user_id, product_id, page_id, amount, currency, status, created_at, products(name), pages(title, slug)",
+      "id, seller_user_id, product_id, page_id, amount, currency, status, created_at, fulfillment_status, tracking_number, tracking_url, products(name), pages(title, slug)",
     )
     .ilike("buyer_email", emailLike)
     .in("status", ["paid", "partially_refunded", "refunded"])
@@ -166,6 +167,9 @@ export default async function BuyerAccountPage() {
     currency: string | null;
     status: string;
     created_at: string;
+    fulfillment_status: string | null;
+    tracking_number: string | null;
+    tracking_url: string | null;
     products: { name: string } | { name: string }[] | null;
     pages: { title: string; slug: string } | { title: string; slug: string }[] | null;
   }>;
@@ -387,6 +391,29 @@ export default async function BuyerAccountPage() {
                 <Hash className="mr-1 inline h-3 w-3" />
                 {dc.server}
                 {dc.expiresAt ? ` · access until ${fmtDate(dc.expiresAt)}` : ""}
+              </p>
+            )}
+            {o.fulfillment_status && o.fulfillment_status !== "unfulfilled" && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                <Truck className="mr-1 inline h-3 w-3" />
+                <span className="capitalize">{o.fulfillment_status}</span>
+                {o.tracking_number ? (
+                  o.tracking_url ? (
+                    <>
+                      {" · "}
+                      <a
+                        href={o.tracking_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline hover:text-foreground"
+                      >
+                        Track {o.tracking_number}
+                      </a>
+                    </>
+                  ) : (
+                    ` · ${o.tracking_number}`
+                  )
+                ) : null}
               </p>
             )}
           </div>

@@ -20,6 +20,7 @@ import {
   Sparkles,
   Store,
   Tag,
+  TrendingUp,
   Users,
   Zap,
 } from "lucide-react";
@@ -66,6 +67,7 @@ const NAV_CRM: NavItem[] = [
 
 const NAV_GROWTH: NavItem[] = [
   { href: "/dashboard/coupons", label: "Coupons", Icon: Tag, module: "coupons" },
+  { href: "/dashboard/upsells", label: "Upsells", Icon: TrendingUp, module: "pages" },
   { href: "/dashboard/affiliates", label: "Affiliates", Icon: Handshake, module: "affiliates" },
   { href: "/dashboard/marketing", label: "Marketing", Icon: Megaphone, module: "marketing" },
   { href: "/dashboard/telegram", label: "Group Integrations", Icon: Boxes, module: "telegram" },

@@ -1,11 +1,20 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
-import { Boxes, PackageCheck, PackageX, Search, Truck } from "lucide-react";
+import { Boxes, Loader2, PackageCheck, PackageX, Search, Truck } from "lucide-react";
 
+import { adminUpdateFulfillmentAction } from "@/actions/admin";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -14,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useToast } from "@/hooks/use-toast";
 import { cn, formatINR } from "@/lib/utils";
 
 const rupees = (n: number) => formatINR(n * 100);
@@ -177,12 +187,13 @@ export function AdminStoreClient({
                 <TableHead className="th-label">Fulfillment</TableHead>
                 <TableHead className="th-label">Tracking</TableHead>
                 <TableHead className="th-label">Date</TableHead>
+                <TableHead className="th-label text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {fOrders.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-12 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
                     {orders.length === 0 ? "No physical orders yet." : "No matches."}
                   </TableCell>
                 </TableRow>
@@ -208,6 +219,9 @@ export function AdminStoreClient({
                     <TableCell className="text-muted-foreground">
                       {format(new Date(o.createdAt), "d MMM yyyy")}
                     </TableCell>
+                    <TableCell className="text-right">
+                      <FulfillControl order={o} />
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -216,6 +230,58 @@ export function AdminStoreClient({
         )}
       </div>
     </div>
+  );
+}
+
+const FULFILL_STEPS = ["unfulfilled", "packed", "shipped", "delivered"] as const;
+
+function FulfillControl({ order }: { order: AdminStoreOrder }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+
+  async function set(status: (typeof FULFILL_STEPS)[number]) {
+    let tracking: string | null = order.trackingNumber;
+    if (status === "shipped") {
+      const t = prompt("Tracking number (optional):", order.trackingNumber ?? "");
+      if (t === null) return; // cancelled
+      tracking = t.trim() || null;
+    }
+    setBusy(true);
+    const r = await adminUpdateFulfillmentAction({
+      order_id: order.id,
+      fulfillment_status: status,
+      tracking_number: tracking,
+    });
+    setBusy(false);
+    if (!r.ok) {
+      toast({ title: "Failed", description: r.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: r.message ?? "Updated" });
+    router.refresh();
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" disabled={busy}>
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Update"}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-40">
+        {FULFILL_STEPS.map((s) => (
+          <DropdownMenuItem
+            key={s}
+            disabled={s === order.fulfillmentStatus}
+            onSelect={() => set(s)}
+            className="capitalize"
+          >
+            Mark {s}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

@@ -34,7 +34,29 @@ export function OrderActionsMenu({
       toast({ title: "Action failed", description: r.message, variant: "destructive" });
       return;
     }
-    toast({ title: label.replace(/\?$/, "") });
+    toast({ title: r.message ?? label.replace(/\?$/, "") });
+    router.refresh();
+  }
+
+  async function refundPartial() {
+    const input = prompt(
+      "Partial refund amount in ₹ (leave blank to refund the full order):",
+    );
+    if (input === null) return; // cancelled
+    const trimmed = input.trim();
+    const amount = trimmed === "" ? undefined : Number(trimmed);
+    if (amount !== undefined && (!Number.isFinite(amount) || amount <= 0)) {
+      toast({ title: "Enter a valid amount", variant: "destructive" });
+      return;
+    }
+    setBusy(true);
+    const r = await adminRefundOrderAction(orderId, amount);
+    setBusy(false);
+    if (!r.ok) {
+      toast({ title: "Refund failed", description: r.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: r.message ?? "Refunded" });
     router.refresh();
   }
 
@@ -58,14 +80,22 @@ export function OrderActionsMenu({
           </DropdownMenuItem>
         )}
         {(status === "paid" || status === "partially_refunded") && (
-          <DropdownMenuItem
-            onSelect={() =>
-              run("Refund this order", () => adminRefundOrderAction(orderId))
-            }
-            className="text-destructive focus:text-destructive"
-          >
-            Refund
-          </DropdownMenuItem>
+          <>
+            <DropdownMenuItem
+              onSelect={() =>
+                run("Refund this order in full", () => adminRefundOrderAction(orderId))
+              }
+              className="text-destructive focus:text-destructive"
+            >
+              Refund (full)
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={refundPartial}
+              className="text-destructive focus:text-destructive"
+            >
+              Refund partial amount…
+            </DropdownMenuItem>
+          </>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

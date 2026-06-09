@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   Sliders,
   Store,
+  Ticket,
   Users,
 } from "lucide-react";
 
@@ -74,6 +75,7 @@ export function AdminSidebar({
       items: [
         { href: "/admin/customers", label: "Customers", Icon: Contact },
         { href: "/admin/store", label: "Store", Icon: Store },
+        { href: "/admin/coupons", label: "Coupons", Icon: Ticket },
         { href: "/admin/invoxai-tr", label: "InvoxAI-TR", Icon: Receipt },
         { href: "/admin/domains", label: "Domains", Icon: Globe },
       ],

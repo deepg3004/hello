@@ -149,6 +149,70 @@ export interface RefundResult {
 }
 
 /**
+ * Resend a paid order's delivery (receipt + access links) to the buyer — for
+ * when they lost the email. Re-runs the same idempotent fulfilment the checkout
+ * uses (downloads/course/Telegram/Discord re-issued; receipt re-sent). Scoped to
+ * the order's owner.
+ */
+export async function resendOrderDeliveryAction(
+  orderId: string,
+): Promise<{ ok: boolean; message?: string }> {
+  const actor = await requireActor("transactions.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const admin = createAdminClient();
+  const { data: order } = await admin
+    .from("orders")
+    .select(
+      "id, page_id, product_id, seller_user_id, buyer_email, buyer_name, amount, currency, status, source",
+    )
+    .eq("id", orderId)
+    .maybeSingle();
+  if (!order) return { ok: false, message: "Order not found" };
+  if (order.seller_user_id !== ctx.ownerId) {
+    return { ok: false, message: "You can only resend your own orders." };
+  }
+  if (order.status !== "paid") {
+    return { ok: false, message: "Only paid orders can be resent." };
+  }
+
+  try {
+    if (order.source === "cart") {
+      const { fulfillCartOrder } = await import("@/lib/cart-fulfillment");
+      await fulfillCartOrder(
+        {
+          id: order.id,
+          buyer_email: order.buyer_email,
+          buyer_name: order.buyer_name,
+          seller_user_id: order.seller_user_id,
+        },
+        admin,
+      );
+    } else {
+      const { deliverOrderProducts } = await import("@/lib/order-fulfillment");
+      await deliverOrderProducts(
+        {
+          id: order.id,
+          page_id: order.page_id,
+          product_id: order.product_id,
+          seller_user_id: order.seller_user_id,
+          buyer_email: order.buyer_email,
+          buyer_name: order.buyer_name,
+          amount: Number(order.amount),
+          currency: order.currency,
+        },
+        admin,
+      );
+    }
+  } catch (e) {
+    console.error("[resendOrderDeliveryAction] failed", e);
+    return { ok: false, message: "Couldn't resend — try again." };
+  }
+  return { ok: true, message: `Delivery resent to ${order.buyer_email}` };
+}
+
+/**
  * Admin-only full refund.
  *
  * Sequence (audit #2 — refund ledger reversal, NOW IMPLEMENTED):

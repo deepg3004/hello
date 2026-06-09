@@ -14,6 +14,7 @@ import {
   IndianRupee,
   Inbox,
   Loader2,
+  MailCheck,
   Search,
   ShoppingBag,
   TrendingUp,
@@ -36,6 +37,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   exportTransactionsCsvAction,
   refundOrderAction,
+  resendOrderDeliveryAction,
 } from "@/actions/transactions";
 import { cn, formatDateTime, formatINR, truncate } from "@/lib/utils";
 
@@ -113,6 +115,9 @@ interface TransactionsClientProps {
     search: string;
   };
   isAdmin?: boolean;
+  /** The seller may refund their OWN seller-gateway orders (the server action
+   *  still blocks platform-gateway orders for non-admins). */
+  canRefund?: boolean;
 }
 
 const rupees = (n: number) => formatINR(n * 100);
@@ -152,6 +157,7 @@ export function TransactionsClient({
   pages,
   initialFilter,
   isAdmin,
+  canRefund,
 }: TransactionsClientProps) {
   const { toast } = useToast();
   const [filter, setFilter] = useState(initialFilter);
@@ -548,6 +554,7 @@ export function TransactionsClient({
                       open={open}
                       onToggle={() => setExpandedId(open ? null : row.id)}
                       isAdmin={!!isAdmin}
+                      canRefund={!!canRefund}
                       onRefund={onRefund}
                       refunding={refundingId === row.id}
                     />
@@ -733,11 +740,42 @@ function EmptyTable({ filtered }: { filtered: boolean }) {
   );
 }
 
+function ResendDeliveryButton({ orderId }: { orderId: string }) {
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      disabled={busy}
+      onClick={async (e) => {
+        e.stopPropagation();
+        setBusy(true);
+        const r = await resendOrderDeliveryAction(orderId);
+        setBusy(false);
+        toast({
+          title: r.ok ? "Delivery resent" : "Couldn't resend",
+          description: r.message,
+          variant: r.ok ? undefined : "destructive",
+        });
+      }}
+    >
+      {busy ? (
+        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <MailCheck className="mr-1.5 h-3.5 w-3.5" />
+      )}
+      Resend delivery
+    </Button>
+  );
+}
+
 function ExpandableRow({
   row,
   open,
   onToggle,
   isAdmin,
+  canRefund,
   onRefund,
   refunding,
 }: {
@@ -745,6 +783,7 @@ function ExpandableRow({
   open: boolean;
   onToggle: () => void;
   isAdmin: boolean;
+  canRefund: boolean;
   onRefund: (id: string, amount: number) => void;
   refunding: boolean;
 }) {
@@ -893,7 +932,8 @@ function ExpandableRow({
                     </a>
                   </Button>
                 )}
-                {isAdmin &&
+                {row.status === "paid" && <ResendDeliveryButton orderId={row.id} />}
+                {(isAdmin || canRefund) &&
                   (row.status === "paid" ||
                     row.status === "partially_refunded") && (
                     <Button

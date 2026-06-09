@@ -330,6 +330,79 @@ export async function adminRefundOrderAction(
 }
 
 // ============================================================================
+// Coupon oversight (platform-wide)
+// ============================================================================
+
+/** Enable/disable any seller's coupon (abuse control). Audit-logged. */
+export async function adminToggleCouponAction(
+  couponId: string,
+  active: boolean,
+): Promise<AdminResult> {
+  let adminId: string;
+  try {
+    adminId = await requireAdmin();
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("coupons")
+    .update({ active })
+    .eq("id", couponId);
+  if (error) return { ok: false, message: error.message };
+
+  await writeAuditLog({
+    admin_id: adminId,
+    action: active ? "coupon.enabled" : "coupon.disabled",
+    target_type: "coupon",
+    target_id: couponId,
+  });
+
+  revalidatePath("/admin/coupons");
+  return { ok: true, message: active ? "Coupon enabled" : "Coupon disabled" };
+}
+
+// ============================================================================
+// Store fulfillment (platform-wide — admins can fulfill any seller's order)
+// ============================================================================
+
+export async function adminUpdateFulfillmentAction(input: {
+  order_id: string;
+  fulfillment_status: "unfulfilled" | "packed" | "shipped" | "delivered";
+  tracking_number?: string | null;
+  tracking_url?: string | null;
+}): Promise<AdminResult> {
+  let adminId: string;
+  try {
+    adminId = await requireAdmin();
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+  const admin = createAdminClient();
+  const patch: Record<string, unknown> = {
+    fulfillment_status: input.fulfillment_status,
+    tracking_number: input.tracking_number?.trim() || null,
+    tracking_url: input.tracking_url?.trim() || null,
+  };
+  if (input.fulfillment_status === "shipped") {
+    patch.shipped_at = new Date().toISOString();
+  }
+  const { error } = await admin.from("orders").update(patch).eq("id", input.order_id);
+  if (error) return { ok: false, message: error.message };
+
+  await writeAuditLog({
+    admin_id: adminId,
+    action: "order.fulfillment_updated",
+    target_type: "order",
+    target_id: input.order_id,
+    details: { status: input.fulfillment_status, tracking: input.tracking_number ?? null },
+  });
+
+  revalidatePath("/admin/store");
+  return { ok: true, message: `Marked ${input.fulfillment_status}` };
+}
+
+// ============================================================================
 // Platform settings + credentials
 // ============================================================================
 

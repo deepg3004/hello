@@ -57,13 +57,39 @@ export async function generateMetadata({ params }: Props) {
   noStore();
   const admin = createAdminClient();
   const [{ data: page }, { data: prof }] = await Promise.all([
-    admin.from("pages").select("title").eq("slug", params.slug).maybeSingle(),
+    admin.from("pages").select("id, title").eq("slug", params.slug).maybeSingle(),
     admin.from("user_profiles").select("storefront_config").eq("subdomain", params.username).maybeSingle(),
   ]);
+  // Product description + image for richer link previews / SEO.
+  let description: string | null = null;
+  let image: string | null = null;
+  if (page?.id) {
+    const { data: prod } = await admin
+      .from("products")
+      .select("description, image_url")
+      .eq("page_id", page.id)
+      .maybeSingle();
+    description = prod?.description ?? null;
+    image = prod?.image_url ?? null;
+  }
   const cfg = resolveSurfaceConfig(prof?.storefront_config, "product");
+  const title = page?.title ?? "Product";
   return {
-    title: page?.title ?? "Product",
+    title,
+    description: description ?? undefined,
     icons: cfg.favicon ? { icon: cfg.favicon } : undefined,
+    openGraph: {
+      title,
+      description: description ?? undefined,
+      type: "website" as const,
+      images: image ? [{ url: image }] : undefined,
+    },
+    twitter: {
+      card: image ? ("summary_large_image" as const) : ("summary" as const),
+      title,
+      description: description ?? undefined,
+      images: image ? [image] : undefined,
+    },
   };
 }
 

@@ -1,3 +1,5 @@
+import { Download } from "lucide-react";
+
 import {
   AdminTransactionsClient,
   type AdminTxnRow,
@@ -68,17 +70,26 @@ export default async function AdminTransactionsPage() {
     <div className="space-y-6">
       <DashboardHero
         title="Transactions"
-        blurb="All orders platform-wide. Refund or mark-as-paid actions log to admin audit."
+        blurb="All orders platform-wide. Refunds (full or partial) log to admin audit."
         resourcesHref={null}
       >
-        <div className="text-right text-sm text-white/80">
-          <div>
-            GMV <span className="ml-2 font-mono">{rupees(totals.gmv)}</span>
+        <div className="flex flex-col items-end gap-2">
+          <div className="text-right text-sm text-white/80">
+            <div>
+              GMV <span className="ml-2 font-mono">{rupees(totals.gmv)}</span>
+            </div>
+            <div className="text-white/60">
+              Commission{" "}
+              <span className="ml-2 font-mono">{rupees(totals.commission)}</span>
+            </div>
           </div>
-          <div className="text-white/60">
-            Commission{" "}
-            <span className="ml-2 font-mono">{rupees(totals.commission)}</span>
-          </div>
+          <a
+            href="/api/admin/export/transactions"
+            download
+            className="inline-flex items-center gap-1.5 rounded-md bg-white/10 px-3 py-1.5 text-xs font-medium text-white ring-1 ring-white/20 transition hover:bg-white/20"
+          >
+            <Download className="h-3.5 w-3.5" /> Export all (CSV)
+          </a>
         </div>
       </DashboardHero>
 
