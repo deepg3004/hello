@@ -120,7 +120,7 @@ export function AdminSidebar({
   return (
     <div
       className="flex h-full flex-col text-[hsl(var(--sidebar-fg))]"
-      style={{ background: "#050810" }}
+      style={{ background: "hsl(var(--sidebar-bg))" }}
     >
       {/* ── Logo block (h-16 to match user sidebar) ─────────────────── */}
       <div
@@ -138,11 +138,11 @@ export function AdminSidebar({
           <Link
             href="/admin"
             onClick={onNavigate}
-            className="block font-sora text-base font-semibold tracking-tight text-white"
+            className="block font-sora text-base font-semibold tracking-tight text-[hsl(var(--sidebar-fg-strong))]"
           >
             {branding.name}
           </Link>
-          <p className="text-[10px] uppercase tracking-wider text-amber-300/70">
+          <p className="text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-300/70">
             Admin Console
           </p>
         </div>
@@ -175,8 +175,8 @@ export function AdminSidebar({
         onClick={onNavigate}
         className={cn(
           "mx-3 mt-3 flex items-center gap-2 rounded-lg px-3 py-2",
-          "text-xs font-medium text-zinc-400 transition",
-          "hover:bg-white/5 hover:text-zinc-100",
+          "text-xs font-medium text-[hsl(var(--sidebar-fg))] transition",
+          "hover:bg-[hsl(var(--sidebar-hover-bg))] hover:text-[hsl(var(--sidebar-fg-strong))]",
         )}
       >
         <ArrowLeft className="h-3.5 w-3.5" />
@@ -184,7 +184,7 @@ export function AdminSidebar({
       </Link>
 
       {/* ── Admin identity row ──────────────────────────────────────── */}
-      <div className="mt-3 flex items-center gap-3 border-t border-white/10 px-3 py-3">
+      <div className="mt-3 flex items-center gap-3 border-t border-[hsl(var(--sidebar-border))] px-3 py-3">
         <span
           aria-hidden
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-400 text-xs font-semibold text-zinc-950"
@@ -192,12 +192,12 @@ export function AdminSidebar({
           {makeInitials(profile.full_name ?? profile.email)}
         </span>
         <div className="min-w-0 flex-1 leading-tight">
-          <p className="truncate text-xs font-medium text-white">
+          <p className="truncate text-xs font-medium text-[hsl(var(--sidebar-fg-strong))]">
             {profile.full_name ?? "Admin"}
           </p>
-          <p className="truncate text-[11px] text-zinc-500">{profile.email}</p>
+          <p className="truncate text-[11px] text-[hsl(var(--sidebar-fg))]/60">{profile.email}</p>
         </div>
-        <span className="inline-flex shrink-0 items-center rounded-md bg-amber-400/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-amber-300">
+        <span className="inline-flex shrink-0 items-center rounded-md bg-amber-400/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-300">
           Admin
         </span>
       </div>
@@ -228,8 +228,8 @@ function NavRow({
       className={cn(
         "group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all duration-150",
         active
-          ? "bg-amber-400/10 text-white ring-1 ring-inset ring-amber-400/25"
-          : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100",
+          ? "bg-amber-400/15 text-[hsl(var(--sidebar-fg-strong))] ring-1 ring-inset ring-amber-500/30"
+          : "text-[hsl(var(--sidebar-fg))] hover:bg-[hsl(var(--sidebar-hover-bg))] hover:text-[hsl(var(--sidebar-fg-strong))]",
       )}
     >
       <span className={cn("nav-icon", active && "nav-icon-active-amber")}>

@@ -40,7 +40,7 @@ export function AdminShell({
         <SheetContent
           side="left"
           className="dash-surface w-60 border-0 p-0"
-          style={{ background: "#050810" }}
+          style={{ background: "hsl(var(--sidebar-bg))" }}
         >
           <AdminSidebar
             pathname={pathname}
