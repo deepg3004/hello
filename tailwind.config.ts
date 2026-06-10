@@ -20,10 +20,10 @@ const config: Config = {
     extend: {
       // ── Typography ────────────────────────────────────────────────────
       fontFamily: {
-        // Premium-monochrome look uses Inter throughout. `sora`/`dm` are kept
-        // as aliases pointing at Inter so existing font-sora/font-dm classes
-        // shift over without touching every call site.
-        sora: ["Inter", "system-ui", "sans-serif"],
+        // Font pairing: Sora (geometric display) for headings/`font-sora`,
+        // Inter for body/UI. `dm` kept as an Inter alias. Sora falls back to
+        // Inter so headings stay sane if the webfont is slow/unavailable.
+        sora: ["Sora", "Inter", "system-ui", "sans-serif"],
         dm: ["Inter", "system-ui", "sans-serif"],
         sans: ["Inter", "system-ui", "sans-serif"],
       },
