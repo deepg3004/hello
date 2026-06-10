@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActor } from "@/lib/account-context";
+import { requireAdmin, writeAuditLog } from "@/lib/admin/audit";
 import {
   HARD_RESERVED_SUBDOMAINS,
   appRootHost,
@@ -389,6 +390,132 @@ export async function removeCustomDomainAction(): Promise<Result> {
   await bustHostCache(previous);
   revalidatePath("/dashboard/settings/domains");
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Admin overrides — re-verify / release a seller's custom domain on their
+// behalf (support ops). Reuse the exact DNS + TLS checks above; gate on
+// requireAdmin and audit-log each action.
+// ---------------------------------------------------------------------------
+
+export async function adminReVerifyCustomDomainAction(
+  userId: string,
+): Promise<Result> {
+  let adminId: string;
+  try {
+    adminId = await requireAdmin();
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+  if (!userId) return { ok: false, message: "Missing user." };
+
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("user_profiles")
+    .select("custom_domain")
+    .eq("id", userId)
+    .single();
+  const domain = profile?.custom_domain;
+  if (!domain) return { ok: false, message: "This seller has no custom domain." };
+
+  const targetIps = customDomainTargetIps();
+  const domainIps = await resolveARecords(domain);
+  const matched = domainIps.some((ip) => targetIps.includes(ip));
+  const nowIso = new Date().toISOString();
+
+  if (!matched) {
+    const seen = domainIps.length ? domainIps.join(", ") : "no A record";
+    await admin
+      .from("user_profiles")
+      .update({
+        custom_domain_verified_at: null,
+        custom_domain_cert_status: "pending",
+        custom_domain_last_checked_at: nowIso,
+        custom_domain_last_error: `${domain} resolves to ${seen}; expected an A record pointing to ${targetIps[0]}.`,
+      })
+      .eq("id", userId);
+    await writeAuditLog({
+      admin_id: adminId,
+      action: "custom_domain.admin_reverify_failed",
+      target_type: "user_profile",
+      target_id: userId,
+      details: { domain, resolved: seen },
+    });
+    await bustHostCache(domain);
+    revalidatePath("/admin/domains");
+    return { ok: false, message: `${domain} resolves to ${seen} — not pointing at us yet.` };
+  }
+
+  const live = await isServingHttps(domain);
+  await admin
+    .from("user_profiles")
+    .update({
+      custom_domain_verified_at: nowIso,
+      custom_domain_cert_status: live ? "active" : "provisioning",
+      custom_domain_last_checked_at: nowIso,
+      custom_domain_last_error: null,
+      custom_domain_dcv: null,
+    })
+    .eq("id", userId);
+
+  await writeAuditLog({
+    admin_id: adminId,
+    action: "custom_domain.admin_reverified",
+    target_type: "user_profile",
+    target_id: userId,
+    details: { domain, cert_status: live ? "active" : "provisioning" },
+  });
+  await bustHostCache(domain);
+  revalidatePath("/admin/domains");
+  return {
+    ok: true,
+    message: live ? `${domain} verified and live.` : `${domain} DNS verified; cert still provisioning.`,
+  };
+}
+
+export async function adminReleaseCustomDomainAction(
+  userId: string,
+): Promise<Result> {
+  let adminId: string;
+  try {
+    adminId = await requireAdmin();
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+  if (!userId) return { ok: false, message: "Missing user." };
+
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("user_profiles")
+    .select("custom_domain")
+    .eq("id", userId)
+    .single();
+  const previous = profile?.custom_domain ?? null;
+  if (!previous) return { ok: false, message: "This seller has no custom domain." };
+
+  await admin
+    .from("user_profiles")
+    .update({
+      custom_domain: null,
+      custom_domain_verified_at: null,
+      custom_domain_cert_status: null,
+      custom_domain_last_checked_at: null,
+      custom_domain_last_error: null,
+      custom_domain_dcv: null,
+      subdomain_redirect_to_custom: false,
+    })
+    .eq("id", userId);
+
+  await writeAuditLog({
+    admin_id: adminId,
+    action: "custom_domain.admin_released",
+    target_type: "user_profile",
+    target_id: userId,
+    details: { domain: previous },
+  });
+  await bustHostCache(previous);
+  revalidatePath("/admin/domains");
+  return { ok: true, message: `Released ${previous}.` };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { format } from "date-fns";
-import { Globe, Link2, Search, ShieldCheck } from "lucide-react";
+import { Globe, Link2, Loader2, RefreshCw, Search, ShieldCheck, Unlink } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -14,7 +14,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import {
+  adminReVerifyCustomDomainAction,
+  adminReleaseCustomDomainAction,
+} from "@/actions/domains";
 
 export interface AdminDomainRow {
   userId: string;
@@ -96,12 +101,13 @@ export function AdminDomainsClient({ rows }: { rows: AdminDomainRow[] }) {
               <TableHead className="th-label">Custom domain</TableHead>
               <TableHead className="th-label">Cert</TableHead>
               <TableHead className="th-label">Last error</TableHead>
+              <TableHead className="th-label text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-12 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={6} className="py-12 text-center text-sm text-muted-foreground">
                   {rows.length === 0 ? "No domains yet." : "No matches."}
                 </TableCell>
               </TableRow>
@@ -133,6 +139,13 @@ export function AdminDomainsClient({ rows }: { rows: AdminDomainRow[] }) {
                   <TableCell className="max-w-[260px] truncate text-xs text-rose-600" title={r.lastError ?? ""}>
                     {r.lastError ?? "—"}
                   </TableCell>
+                  <TableCell className="text-right">
+                    {r.customDomain ? (
+                      <RowActions userId={r.userId} domain={r.customDomain} />
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))
             )}
@@ -144,6 +157,52 @@ export function AdminDomainsClient({ rows }: { rows: AdminDomainRow[] }) {
         Showing {filtered.length.toLocaleString("en-IN")} of{" "}
         {rows.length.toLocaleString("en-IN")} sellers with a domain.
       </p>
+    </div>
+  );
+}
+
+function RowActions({ userId, domain }: { userId: string; domain: string }) {
+  const { toast } = useToast();
+  const [pending, startTransition] = useTransition();
+
+  function run(
+    fn: () => Promise<{ ok: boolean; message?: string }>,
+    okTitle: string,
+  ) {
+    startTransition(async () => {
+      const r = await fn();
+      toast({
+        title: r.ok ? okTitle : "Action failed",
+        description: r.message,
+        variant: r.ok ? undefined : "destructive",
+      });
+    });
+  }
+
+  return (
+    <div className="flex justify-end gap-1.5">
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={pending}
+        onClick={() => run(() => adminReVerifyCustomDomainAction(userId), "Re-verify run")}
+      >
+        {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1 h-3.5 w-3.5" />}
+        Re-verify
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={pending}
+        className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-500/30 dark:text-rose-400 dark:hover:bg-rose-500/10"
+        onClick={() => {
+          if (!confirm(`Release ${domain}? The seller will need to re-add and re-verify it.`)) return;
+          run(() => adminReleaseCustomDomainAction(userId), "Domain released");
+        }}
+      >
+        <Unlink className="mr-1 h-3.5 w-3.5" />
+        Release
+      </Button>
     </div>
   );
 }
