@@ -35,6 +35,8 @@ import {
 } from "@/lib/fees";
 import { getWalletFeePaise } from "@/lib/wallet";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { isBlocked } from "@/lib/risk/blocklist";
+import { evaluateAndFlagOrder } from "@/lib/risk/evaluate";
 
 export async function POST(request: Request) {
   let body: {
@@ -143,6 +145,20 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "page_id, product_id and buyer_email are required" },
       { status: 400 },
+    );
+  }
+
+  // Abuse hard-gate: refuse checkout for blocklisted email / IP / phone before
+  // doing any gateway work. Fails open if the lookup errors.
+  const block = await isBlocked({
+    email: buyer_email,
+    ip: clientIp(request),
+    phone: buyer_phone,
+  });
+  if (block.blocked) {
+    return NextResponse.json(
+      { error: "This order can't be processed. Please contact support." },
+      { status: 403 },
     );
   }
 
@@ -474,6 +490,17 @@ export async function POST(request: Request) {
   });
   if (insertErr) {
     console.error("orders insert failed", insertErr);
+  } else {
+    // Score the order for abuse/fraud signals and flag for admin review if it
+    // crosses the threshold. Best-effort, non-blocking — never delays checkout.
+    void evaluateAndFlagOrder({
+      orderId,
+      sellerUserId: page.user_id,
+      email: buyer_email,
+      ip,
+      amountInr: totalPaise / 100,
+      productId: product_id,
+    });
   }
 
   // 7b. If bump accepted, insert the bump as a separate child order row
