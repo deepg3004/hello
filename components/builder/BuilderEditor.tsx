@@ -45,6 +45,8 @@ import {
   Tablet,
   Trash2,
   Undo2,
+  History,
+  RotateCcw,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -125,6 +127,12 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
   const [ogImage, setOgImage] = useState("");
   const [noindex, setNoindex] = useState(false);
   const [pageAction, setPageAction] = useState<"" | "duplicate" | "delete">("");
+
+  // Version history (migration 091) — list + open state + which one is restoring.
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [versions, setVersions] = useState<Array<{ id: string; created_at: string }>>([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -374,6 +382,41 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
     }
   }
 
+  async function toggleHistory() {
+    const next = !historyOpen;
+    setHistoryOpen(next);
+    if (next && page) {
+      setVersionsLoading(true);
+      try {
+        const res = await fetch(`/api/builder/pages/${page.id}/versions`);
+        const data = (await res.json()) as { versions?: Array<{ id: string; created_at: string }> };
+        setVersions(data.versions ?? []);
+      } catch {
+        setVersions([]);
+      } finally {
+        setVersionsLoading(false);
+      }
+    }
+  }
+
+  async function restoreVersion(vid: string) {
+    if (!page) return;
+    setRestoringId(vid);
+    try {
+      const res = await fetch(`/api/builder/pages/${page.id}/versions/${vid}`);
+      const data = (await res.json()) as { content_json?: unknown; error?: string };
+      if (!res.ok || data.content_json === undefined) throw new Error(data.error ?? "Couldn't load version");
+      commit(asDocument(data.content_json)); // load into the canvas as an unsaved change
+      setSelectedId(null);
+      setHistoryOpen(false);
+      toast({ title: "Version loaded", description: "Review it, then click Save to keep this version." });
+    } catch (err) {
+      toast({ title: "Couldn't restore", description: err instanceof Error ? err.message : undefined, variant: "destructive" });
+    } finally {
+      setRestoringId(null);
+    }
+  }
+
   async function publish() {
     setPublishing(true);
     try {
@@ -498,6 +541,9 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
           )}
           {mode === "page" && page && (
             <>
+              <Button variant="outline" size="icon" onClick={toggleHistory} title="Version history">
+                <History className="h-4 w-4" />
+              </Button>
               <Button variant="outline" size="icon" onClick={duplicatePage} disabled={pageAction !== ""} title="Duplicate page">
                 {pageAction === "duplicate" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
               </Button>
@@ -527,6 +573,37 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
           )}
         </div>
       </div>
+
+      {/* Version history (page mode) — restore a previous save */}
+      {mode === "page" && historyOpen && (
+        <div className="mb-4 rounded-xl border border-border bg-card p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <History className="h-4 w-4 text-muted-foreground" />
+            <p className="text-sm font-semibold">Version history</p>
+            <span className="text-xs text-muted-foreground">— latest 20 saves; restoring loads it onto the canvas to review &amp; save</span>
+          </div>
+          {versionsLoading ? (
+            <p className="py-3 text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Loading…</p>
+          ) : versions.length === 0 ? (
+            <p className="py-3 text-sm text-muted-foreground">No saved versions yet — they appear here after you save.</p>
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {versions.map((v, i) => (
+                <li key={v.id} className="flex items-center justify-between gap-3 py-2">
+                  <span className="text-sm">
+                    {i === 0 ? <span className="font-medium">Latest</span> : `Save ${versions.length - i}`}
+                    <span className="ml-2 text-xs text-muted-foreground">{new Date(v.created_at).toLocaleString("en-IN")}</span>
+                  </span>
+                  <Button variant="outline" size="sm" onClick={() => restoreVersion(v.id)} disabled={restoringId !== null}>
+                    {restoringId === v.id ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="mr-1.5 h-3.5 w-3.5" />}
+                    Restore
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Page settings (page mode) — type, background, mobile bottom bar */}
       {mode === "page" && pageSettingsOpen && (

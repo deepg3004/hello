@@ -62,6 +62,30 @@ export async function PUT(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Snapshot the saved document into version history (best-effort — never block
+  // the save). Capped to the latest 20 per page (migration 091).
+  if (body.content_json !== undefined) {
+    void (async () => {
+      try {
+        await admin.from("builder_page_versions").insert({
+          page_id: params.id,
+          user_id: user.id,
+          content_json: body.content_json,
+        });
+        const { data: old } = await admin
+          .from("builder_page_versions")
+          .select("id")
+          .eq("page_id", params.id)
+          .order("created_at", { ascending: false })
+          .range(20, 200);
+        const ids = (old ?? []).map((r) => r.id as string);
+        if (ids.length) await admin.from("builder_page_versions").delete().in("id", ids);
+      } catch {
+        /* version history is best-effort */
+      }
+    })();
+  }
+
   return NextResponse.json({ ok: true });
 }
 
