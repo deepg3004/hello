@@ -83,6 +83,7 @@ interface PageRow {
   seo_description?: string | null;
   og_image?: string | null;
   noindex?: boolean | null;
+  access_password?: string | null;
 }
 
 type Tab = "content" | "style" | "advanced";
@@ -126,6 +127,7 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
   const [seoDescription, setSeoDescription] = useState("");
   const [ogImage, setOgImage] = useState("");
   const [noindex, setNoindex] = useState(false);
+  const [accessPassword, setAccessPassword] = useState("");
   const [pageAction, setPageAction] = useState<"" | "duplicate" | "delete">("");
 
   // Version history (migration 091) — list + open state + which one is restoring.
@@ -164,6 +166,7 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
           setSeoDescription(first.seo_description ?? "");
           setOgImage(first.og_image ?? "");
           setNoindex(!!first.noindex);
+          setAccessPassword(first.access_password ?? "");
         }
         // Edit the page's content, or the site's GLOBAL header/footer document.
         const source =
@@ -331,6 +334,7 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
                     seo_description: seoDescription,
                     og_image: ogImage,
                     noindex,
+                    access_password: accessPassword,
                   },
                 }
               : null;
@@ -672,6 +676,23 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
             <input type="checkbox" checked={noindex} onChange={(e) => setNoindex(e.target.checked)} />
             <span className="text-xs">Hide from search engines (noindex) — for thank-you / unlisted pages</span>
           </label>
+
+          <div className="sm:col-span-3 border-t border-border pt-3">
+            <p className="mb-2 text-xs font-semibold text-foreground">Password protection</p>
+          </div>
+          <label className="block text-sm sm:col-span-2">
+            <span className="mb-1 block text-xs text-muted-foreground">Page password</span>
+            <input
+              value={accessPassword}
+              onChange={(e) => setAccessPassword(e.target.value)}
+              placeholder="Leave empty for a public page"
+              maxLength={200}
+              className={inputCls}
+            />
+          </label>
+          <p className="self-end pb-2 text-xs text-muted-foreground sm:col-span-1">
+            Visitors must enter this to view the published page. Share it with your members. Clear it to make the page public again.
+          </p>
         </div>
       )}
 

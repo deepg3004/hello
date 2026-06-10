@@ -30,6 +30,7 @@ export async function PUT(
     seo_description?: string;
     og_image?: string;
     noindex?: boolean;
+    access_password?: string;
   };
   try {
     body = await request.json();
@@ -50,6 +51,8 @@ export async function PUT(
     patch.seo_description = body.seo_description.trim().slice(0, 400) || null;
   if (typeof body.og_image === "string") patch.og_image = body.og_image.trim().slice(0, 1000) || null;
   if (typeof body.noindex === "boolean") patch.noindex = body.noindex;
+  // Password gate (migration 092) — empty string clears the lock.
+  if (typeof body.access_password === "string") patch.access_password = body.access_password.trim().slice(0, 200) || null;
 
   const admin = createAdminClient();
   const { data, error } = await admin

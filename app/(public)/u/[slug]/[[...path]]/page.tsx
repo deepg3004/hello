@@ -2,9 +2,12 @@
 // Renders the published page with header/footer/background/bottom-bar/chat.
 
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PublicSite } from "@/components/builder/PublicSite";
+import { PagePasswordGate } from "@/components/builder/PagePasswordGate";
+import { isUnlocked, unlockCookieName } from "@/lib/builder-unlock";
 
 export const dynamic = "force-dynamic";
 
@@ -74,22 +77,32 @@ export default async function PublicBuilderPage({ params }: Props) {
   if (!site || !site.is_published) notFound();
 
   // Resolve the page by path; fall back to the first page (home).
+  const cols = "id, name, content_json, page_type, background_style, bottombar_json, access_password";
   let { data: page } = await admin
     .from("builder_pages")
-    .select("content_json, page_type, background_style, bottombar_json")
+    .select(cols)
     .eq("site_id", site.id)
     .eq("path", path)
     .maybeSingle();
   if (!page) {
     const { data: pages } = await admin
       .from("builder_pages")
-      .select("content_json, page_type, background_style, bottombar_json")
+      .select(cols)
       .eq("site_id", site.id)
       .order("sort_order", { ascending: true })
       .limit(1);
     page = pages?.[0] ?? null;
   }
   if (!page) notFound();
+
+  // Password gate (migration 092) — no-op unless the seller set a password.
+  const pw = (page.access_password as string | null) ?? "";
+  if (pw) {
+    const cookie = cookies().get(unlockCookieName(page.id as string))?.value;
+    if (!isUnlocked(page.id as string, pw, cookie)) {
+      return <PagePasswordGate pageId={page.id as string} title={(page.name as string) ?? undefined} />;
+    }
+  }
 
   return <PublicSite site={site} page={page} />;
 }
