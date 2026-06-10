@@ -22,6 +22,7 @@ import { formatSlotLabel } from "@/lib/booking";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BUYER_COOKIE, verifyBuyerSession } from "@/lib/buyer-portal";
+import { buyerGoogleEnabled } from "@/lib/buyer-google";
 import { signCourseToken } from "@/lib/course-token";
 import { formatINR } from "@/lib/utils";
 import {
@@ -141,7 +142,7 @@ export default async function BuyerAccountPage() {
   if (!email)
     return withChrome(
       <div className="bg-background text-foreground">
-        <BuyerLogin />
+        <BuyerLogin googleEnabled={buyerGoogleEnabled()} />
       </div>,
     );
   // Narrowed to string here, but the narrowing is lost inside nested helpers
