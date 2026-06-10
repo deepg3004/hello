@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   Activity,
   ArrowLeft,
+  Bell,
   Coins,
   Contact,
   Film,
@@ -93,6 +94,7 @@ export function AdminSidebar({
       label: "Ops",
       items: [
         { href: "/admin/system-health", label: "System Health", Icon: Activity },
+        { href: "/admin/notifications", label: "Notifications", Icon: Bell },
         { href: "/admin/broadcast", label: "Broadcast", Icon: Megaphone },
         { href: "/admin/transcodes", label: "Video DRM", Icon: Film },
       ],

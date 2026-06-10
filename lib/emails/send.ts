@@ -17,6 +17,7 @@ import { renderEmail } from "./render";
 import { sendViaSmtp, getAdminBcc } from "./smtp";
 import { primeEmailBranding } from "./branding";
 import { TEMPLATE_ROLE, type TemplateKey } from "./routing";
+import { logNotification } from "@/lib/notification-log";
 
 export type { TemplateKey };
 
@@ -46,7 +47,7 @@ export interface SendOptions {
   reply_to?: string;
 }
 
-export async function sendEmail<K extends TemplateKey>(
+async function sendEmailInner<K extends TemplateKey>(
   template: K,
   to: string,
   data: TemplateDataMap[K],
@@ -107,5 +108,24 @@ export async function sendEmail<K extends TemplateKey>(
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/** Public templated sender — delegates to the impl and records the attempt
+ *  (best-effort, fire-and-forget) to notification_logs with the template key. */
+export async function sendEmail<K extends TemplateKey>(
+  template: K,
+  to: string,
+  data: TemplateDataMap[K],
+  options: SendOptions = {},
+): Promise<SendResult> {
+  const result = await sendEmailInner(template, to, data, options);
+  void logNotification({
+    channel: "email",
+    recipient: to,
+    eventKey: template,
+    provider: "email",
+    result,
+  });
+  return result;
 }
 

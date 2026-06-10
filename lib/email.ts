@@ -8,6 +8,7 @@ import { Resend } from "resend";
 
 import { sendViaSmtp, getAdminBcc, type MailboxRole } from "@/lib/emails/smtp";
 import { SHELL, ctaButton, escapeHtml, kvRow } from "@/lib/emails/layout";
+import { logNotification } from "@/lib/notification-log";
 
 let cached: Resend | null = null;
 
@@ -49,7 +50,7 @@ export interface SendResult {
   skipped?: boolean;
 }
 
-export async function sendEmail(args: SendArgs): Promise<SendResult> {
+async function sendEmailInner(args: SendArgs): Promise<SendResult> {
   // Seller custom SMTP first (Session 14) — send buyer-facing email from the
   // seller's own domain when configured. Open-tracking sends (tags) skip this
   // to keep Resend's `email.opened` webhook working.
@@ -111,6 +112,21 @@ export async function sendEmail(args: SendArgs): Promise<SendResult> {
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/** Public sender — delegates to the impl and records the attempt (best-effort,
+ *  fire-and-forget) to notification_logs. */
+export async function sendEmail(args: SendArgs): Promise<SendResult> {
+  const result = await sendEmailInner(args);
+  void logNotification({
+    channel: "email",
+    recipient: args.to,
+    subject: args.subject,
+    sellerId: args.sellerId ?? null,
+    provider: "email",
+    result,
+  });
+  return result;
 }
 
 // ============================================================================
