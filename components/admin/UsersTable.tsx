@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
-  Filter,
+  ChevronLeft,
+  ChevronRight,
   IndianRupee,
   Inbox,
+  Loader2,
   MoreVertical,
   Search,
   ShieldCheck,
@@ -96,101 +99,111 @@ function makeInitials(s: string): string {
     .join("");
 }
 
-/** Rows rendered at a time; "Load more" reveals the next batch so a big user
- *  base doesn't paint hundreds of rows at once. Filtering/sort/stats still run
- *  over the full set. */
-const PAGE_SIZE = 25;
+interface Filters {
+  q: string;
+  plan: string;
+  status: string;
+  from: string;
+  to: string;
+  sort: string;
+}
 
-export function UsersTable({ users }: { users: AdminUserRow[] }) {
-  const [search, setSearch] = useState("");
-  const [plan, setPlan] = useState("all");
-  const [status, setStatus] = useState<string>("all");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [sort, setSort] = useState<"joined" | "revenue" | "name">("joined");
-  const [visible, setVisible] = useState(PAGE_SIZE);
+interface Stats {
+  total: number;
+  paying: number;
+  suspended: number;
+  revenue: number | null;
+}
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const list = users.filter((u) => {
-      if (
-        q &&
-        !u.email.toLowerCase().includes(q) &&
-        !u.full_name?.toLowerCase().includes(q)
-      )
-        return false;
-      if (plan !== "all" && u.subscription_plan !== plan) return false;
-      if (status === "active" && u.suspended) return false;
-      if (status === "suspended" && !u.suspended) return false;
-      if (from && new Date(u.created_at) < new Date(from)) return false;
-      if (to) {
-        const end = new Date(to);
-        end.setHours(23, 59, 59, 999);
-        if (new Date(u.created_at) > end) return false;
-      }
-      return true;
-    });
-    const sorted = [...list];
-    switch (sort) {
-      case "revenue":
-        sorted.sort((a, b) => b.total_revenue - a.total_revenue);
-        break;
-      case "name":
-        sorted.sort((a, b) =>
-          (a.full_name ?? a.email).localeCompare(b.full_name ?? b.email),
-        );
-        break;
-      default:
-        sorted.sort(
-          (a, b) =>
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-        );
+export function UsersTable({
+  users,
+  stats,
+  total,
+  page,
+  pageSize,
+  filters,
+}: {
+  users: AdminUserRow[];
+  stats: Stats;
+  total: number;
+  page: number;
+  pageSize: number;
+  filters: Filters;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [pending, setPending] = useState(false);
+
+  // Controlled inputs, seeded from the server-resolved filters. Kept in sync
+  // when the URL changes (back/forward) via the effect below.
+  const [search, setSearch] = useState(filters.q);
+  useEffect(() => setSearch(filters.q), [filters.q]);
+
+  // Build the next URL from the current filters + an override, resetting to
+  // page 1 unless the override sets a page explicitly. Empty / "all" values
+  // are dropped so the URL stays clean.
+  function pushParams(updates: Record<string, string>) {
+    const merged: Record<string, string> = {
+      q: filters.q,
+      plan: filters.plan,
+      status: filters.status,
+      from: filters.from,
+      to: filters.to,
+      sort: filters.sort,
+      ...updates,
+    };
+    if (!("page" in updates)) merged.page = "1";
+    const sp = new URLSearchParams();
+    for (const [k, v] of Object.entries(merged)) {
+      if (!v) continue;
+      if (k === "plan" && v === "all") continue;
+      if (k === "status" && v === "all") continue;
+      if (k === "sort" && v === "joined") continue;
+      if (k === "page" && v === "1") continue;
+      sp.set(k, v);
     }
-    return sorted;
-  }, [users, search, plan, status, from, to, sort]);
+    const qs = sp.toString();
+    setPending(true);
+    router.push(qs ? `${pathname}?${qs}` : pathname);
+  }
+  // Clear the pending spinner whenever fresh server data arrives.
+  useEffect(() => setPending(false), [users, page]);
 
-  // Any filter/sort change collapses the list back to the first page.
+  // Debounced search → URL. Skips the initial mount and no-op changes.
+  const firstRun = useRef(true);
   useEffect(() => {
-    setVisible(PAGE_SIZE);
-  }, [search, plan, status, from, to, sort]);
-
-  // Platform summary for the stat cards (reflects the active filters).
-  const summary = useMemo(() => {
-    let paying = 0;
-    let suspended = 0;
-    let revenue = 0;
-    for (const u of filtered) {
-      revenue += u.total_revenue;
-      if (u.suspended) suspended += 1;
-      else if (
-        u.subscription_plan !== "free" &&
-        (u.subscription_status === "active" ||
-          u.subscription_status === "trialing")
-      )
-        paying += 1;
+    if (firstRun.current) {
+      firstRun.current = false;
+      return;
     }
-    return { total: filtered.length, paying, suspended, revenue };
-  }, [filtered]);
+    if (search === filters.q) return;
+    const t = setTimeout(() => pushParams({ q: search }), 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const anyFilter =
-    !!search || plan !== "all" || status !== "all" || !!from || !!to;
+    !!filters.q || filters.plan !== "all" || filters.status !== "all" || !!filters.from || !!filters.to;
 
   function reset() {
     setSearch("");
-    setPlan("all");
-    setStatus("all");
-    setFrom("");
-    setTo("");
+    router.push(pathname);
   }
 
   return (
     <div className="space-y-4">
-      {/* ── Summary cards — reflect the active filters ────────────────── */}
+      {/* ── Summary cards — platform-wide totals ─────────────────────── */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <UserStat label="Users" value={summary.total.toLocaleString("en-IN")} tile="tile-indigo" icon={Users} />
-        <UserStat label="Paying" value={summary.paying.toLocaleString("en-IN")} tile="tile-emerald" icon={UserCheck} />
-        <UserStat label="Suspended" value={summary.suspended.toLocaleString("en-IN")} tile="tile-rose" icon={UserX} />
-        <UserStat label="Lifetime Revenue" value={`₹${summary.revenue.toLocaleString("en-IN")}`} tile="tile-amber" icon={IndianRupee} />
+        <UserStat label="Users" value={stats.total.toLocaleString("en-IN")} tile="tile-indigo" icon={Users} />
+        <UserStat label="Paying" value={stats.paying.toLocaleString("en-IN")} tile="tile-emerald" icon={UserCheck} />
+        <UserStat label="Suspended" value={stats.suspended.toLocaleString("en-IN")} tile="tile-rose" icon={UserX} />
+        <UserStat
+          label="Lifetime Revenue"
+          value={stats.revenue === null ? "—" : `₹${stats.revenue.toLocaleString("en-IN")}`}
+          tile="tile-amber"
+          icon={IndianRupee}
+        />
       </div>
 
       {/* ── Filter bar ──────────────────────────────────────────────── */}
@@ -214,7 +227,7 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
             <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Plan
             </Label>
-            <Select value={plan} onValueChange={setPlan}>
+            <Select value={filters.plan} onValueChange={(v) => pushParams({ plan: v })}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue />
               </SelectTrigger>
@@ -232,7 +245,7 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
             <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Status
             </Label>
-            <Select value={status} onValueChange={setStatus}>
+            <Select value={filters.status} onValueChange={(v) => pushParams({ status: v })}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue />
               </SelectTrigger>
@@ -251,8 +264,8 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
             </Label>
             <Input
               type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
+              value={filters.from}
+              onChange={(e) => pushParams({ from: e.target.value })}
               className="w-[150px]"
             />
           </div>
@@ -262,8 +275,8 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
             </Label>
             <Input
               type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
+              value={filters.to}
+              onChange={(e) => pushParams({ to: e.target.value })}
               className="w-[150px]"
             />
           </div>
@@ -271,7 +284,7 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
             <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Sort
             </Label>
-            <Select value={sort} onValueChange={(v) => setSort(v as typeof sort)}>
+            <Select value={filters.sort} onValueChange={(v) => pushParams({ sort: v })}>
               <SelectTrigger className="w-[150px]">
                 <SelectValue />
               </SelectTrigger>
@@ -295,22 +308,20 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
           )}
         </div>
 
-        {anyFilter && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <Filter className="h-3 w-3" />
-            <span>
-              <span className="font-medium text-foreground">
-                {filtered.length.toLocaleString("en-IN")}
-              </span>{" "}
-              of {users.length.toLocaleString("en-IN")} users
-            </span>
-          </div>
-        )}
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          {pending && <Loader2 className="h-3 w-3 animate-spin" />}
+          <span>
+            <span className="font-medium text-foreground">
+              {total.toLocaleString("en-IN")}
+            </span>{" "}
+            {anyFilter ? "matching" : "total"} user{total === 1 ? "" : "s"}
+          </span>
+        </div>
       </div>
 
       {/* ── Table ──────────────────────────────────────────────────── */}
       <div className="card-surface overflow-hidden">
-        {filtered.length === 0 ? (
+        {users.length === 0 ? (
           <EmptyState filtered={anyFilter} />
         ) : (
           <div className="overflow-x-auto">
@@ -327,27 +338,39 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filtered.slice(0, visible).map((u) => (
+                {users.map((u) => (
                   <UserRow key={u.id} user={u} />
                 ))}
               </tbody>
             </table>
-            {filtered.length > visible && (
-              <div className="flex justify-center border-t border-border py-3">
-                <button
-                  onClick={() => setVisible((v) => v + PAGE_SIZE)}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium transition hover:bg-muted"
-                >
-                  Load more ({(filtered.length - visible).toLocaleString("en-IN")} more)
-                </button>
-              </div>
-            )}
           </div>
         )}
-        <div className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
-          Showing {Math.min(visible, filtered.length).toLocaleString("en-IN")} of{" "}
-          {filtered.length.toLocaleString("en-IN")} match
-          {filtered.length === 1 ? "" : "es"} · {users.length.toLocaleString("en-IN")} total
+
+        {/* ── Pager ──────────────────────────────────────────────── */}
+        <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3 text-xs text-muted-foreground">
+          <span>
+            Page <span className="font-medium text-foreground">{page}</span> of{" "}
+            {totalPages.toLocaleString("en-IN")} · {total.toLocaleString("en-IN")} user
+            {total === 1 ? "" : "s"}
+          </span>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1 || pending}
+              onClick={() => pushParams({ page: String(page - 1) })}
+            >
+              <ChevronLeft className="mr-1 h-3.5 w-3.5" /> Prev
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages || pending}
+              onClick={() => pushParams({ page: String(page + 1) })}
+            >
+              Next <ChevronRight className="ml-1 h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>
