@@ -10,7 +10,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getWalletFeePaise } from "@/lib/wallet";
 import { notifyLowWalletBalance } from "@/lib/notifications/events";
 import { getFeeConfig, getRequireWalletBalance } from "@/lib/settings";
-import { resolvePlatformFeePaise, feeCategoryForPage } from "@/lib/fees";
+import {
+  resolvePlatformFeePaise,
+  feeCategoryForPage,
+  gstPercentFromConfig,
+  gstOnFeePaise,
+} from "@/lib/fees";
+import { formatINR } from "@/lib/utils";
 import type { PlanKey } from "@/lib/plans";
 
 type DB = SupabaseClient;
@@ -211,22 +217,25 @@ export async function walletCoversPlatformFee(
       .eq("id", args.sellerUserId)
       .single();
     const plan = (sellerProfile?.subscription_plan ?? "free") as PlanKey;
+    const cfg = await getFeeConfig();
     const resolved = resolvePlatformFeePaise(
       {
         plan,
         feeCategory: args.feeCategory ?? null,
         orderAmountPaise: args.orderAmountPaise,
       },
-      await getFeeConfig(),
+      cfg,
     );
     const feePaise = resolved ?? getWalletFeePaise(plan);
     if (feePaise <= 0) return true;
+    // The wallet must cover the fee PLUS the GST charged on it.
+    const duePaise = feePaise + gstOnFeePaise(feePaise, gstPercentFromConfig(cfg));
     const { data: w } = await admin
       .from("seller_wallets")
       .select("balance_paise")
       .eq("seller_user_id", args.sellerUserId)
       .maybeSingle();
-    return Number(w?.balance_paise ?? 0) >= feePaise;
+    return Number(w?.balance_paise ?? 0) >= duePaise;
   } catch (e) {
     console.error("[wallet-gate] check failed", e);
     return true; // fail-open — never block all checkout on an internal error
@@ -310,13 +319,26 @@ export async function chargePlatformWalletFee(
     // charge. The deduct RPC also rejects non-positive amounts.
     if (feePaise <= 0) return;
 
+    // GST is charged on the platform fee and debited together with it as a
+    // single (gross) wallet transaction — keeps the per-order idempotency guard
+    // (migration 060) and the full-refund reversal (lib/order-reversal) correct,
+    // since both key off the order's debit amount.
+    const gstPercent = gstPercentFromConfig(cfg);
+    const gstPaise = gstOnFeePaise(feePaise, gstPercent);
+    const totalPaise = feePaise + gstPaise;
+    const orderRef = orderId.slice(-8).toUpperCase();
+    const description =
+      gstPaise > 0
+        ? `Platform fee ${formatINR(feePaise)} + ${gstPercent}% GST ${formatINR(gstPaise)} — Order #${orderRef}`
+        : `Platform fee ${formatINR(feePaise)} — Order #${orderRef}`;
+
     const { data: deducted, error: deductErr } = await admin.rpc(
       "deduct_wallet_balance",
       {
         p_seller_id: sellerUserId,
-        p_amount_paise: feePaise,
+        p_amount_paise: totalPaise,
         p_order_id: orderId,
-        p_description: `Platform fee — Order #${orderId.slice(-8).toUpperCase()}`,
+        p_description: description,
       },
     );
 

@@ -27,7 +27,12 @@ import {
   getFeeConfig,
   getRequireWalletBalance,
 } from "@/lib/settings";
-import { resolvePlatformFeePaise, feeCategoryForPage } from "@/lib/fees";
+import {
+  resolvePlatformFeePaise,
+  feeCategoryForPage,
+  gstPercentFromConfig,
+  gstOnFeePaise,
+} from "@/lib/fees";
 import { getWalletFeePaise } from "@/lib/wallet";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
@@ -359,18 +364,22 @@ export async function POST(request: Request) {
       template_id: pg.template_id ?? null,
       fee_category: pg.fee_category ?? null,
     });
+    const feeCfg = await getFeeConfig();
     const feePaise =
       resolvePlatformFeePaise(
         { plan: planKey, feeCategory, orderAmountPaise: amountPaise },
-        await getFeeConfig(),
+        feeCfg,
       ) ?? getWalletFeePaise(planKey);
     if (feePaise > 0) {
+      // Wallet must cover the fee plus the GST charged on it (matches the debit).
+      const duePaise =
+        feePaise + gstOnFeePaise(feePaise, gstPercentFromConfig(feeCfg));
       const { data: w } = await admin
         .from("seller_wallets")
         .select("balance_paise")
         .eq("seller_user_id", seller.id)
         .maybeSingle();
-      if (Number(w?.balance_paise ?? 0) < feePaise) {
+      if (Number(w?.balance_paise ?? 0) < duePaise) {
         if (couponId) await releaseCoupon(couponId, buyer_email);
         return NextResponse.json(
           {

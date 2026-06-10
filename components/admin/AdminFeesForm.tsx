@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { updateSettingAction } from "@/actions/admin";
 import { PLANS, type PlanKey } from "@/lib/plans";
-import { BUILT_IN_FEE_CATEGORIES } from "@/lib/fees";
+import { BUILT_IN_FEE_CATEGORIES, DEFAULT_GST_PERCENT } from "@/lib/fees";
 
 interface RuleInput {
   fixed: string; // rupees
@@ -45,16 +45,21 @@ export function AdminFeesForm({
   defaultJson,
   byPlanJson,
   categoriesJson,
+  gstPercent,
 }: {
   defaultJson: string;
   byPlanJson: string;
   categoriesJson: string;
+  gstPercent: string;
 }) {
   const router = useRouter();
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
 
   const [def, setDef] = useState<RuleInput>(() => parseRuleToInput(defaultJson));
+  const [gst, setGst] = useState<string>(() =>
+    gstPercent !== "" ? gstPercent : String(DEFAULT_GST_PERCENT),
+  );
 
   const [plans, setPlans] = useState<Record<string, RuleInput>>(() => {
     const out: Record<string, RuleInput> = {};
@@ -122,10 +127,12 @@ export function AdminFeesForm({
       });
 
     startTransition(async () => {
+      const gstPct = Math.max(0, Number(gst)) || 0;
       const results = await Promise.all([
         updateSettingAction("platform_fee_default", ruleToJson(def)),
         updateSettingAction("platform_fee_by_plan", JSON.stringify(byPlan)),
         updateSettingAction("platform_fee_categories", JSON.stringify(categories)),
+        updateSettingAction("platform_fee_gst_percent", String(gstPct)),
       ]);
       const bad = results.find((r) => !r.ok);
       if (bad) {
@@ -144,6 +151,27 @@ export function AdminFeesForm({
         wins: <strong>category → plan → default</strong>. Leave both at 0 to fall
         back to the built-in per-plan fee.
       </p>
+
+      {/* GST on the platform fee */}
+      <div>
+        <p className="mb-2 text-sm font-semibold">GST on platform fee</p>
+        <div className="flex items-end gap-2">
+          <div>
+            <Label className="text-[11px]">GST (%)</Label>
+            <Input
+              value={gst}
+              onChange={(e) => setGst(e.target.value)}
+              placeholder={String(DEFAULT_GST_PERCENT)}
+              inputMode="decimal"
+              className="mt-1 h-9 w-24"
+            />
+          </div>
+          <p className="pb-2 text-xs text-muted-foreground">
+            Added on top of the fee and debited from the seller&apos;s wallet
+            together with it (e.g. ₹30 fee + {gst || DEFAULT_GST_PERCENT}% GST).
+          </p>
+        </div>
+      </div>
 
       {/* Default */}
       <div>

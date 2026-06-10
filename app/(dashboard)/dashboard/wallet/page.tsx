@@ -49,6 +49,9 @@ export default async function WalletPage() {
     effectivePlanRule(plan, feeConfig, PLANS[plan].wallet_fee_paise),
     formatINR,
   );
+  // GST is added on top of the platform fee and debited together with it.
+  const gstNote =
+    feeConfig.gstPercent > 0 ? ` + ${feeConfig.gstPercent}% GST` : "";
 
   return (
     <div className="space-y-6">
@@ -60,7 +63,7 @@ export default async function WalletPage() {
         </p>
         <p className="mt-1 text-sm">
           <span className="text-muted-foreground">Your plan&apos;s platform fee:</span>{" "}
-          <span className="font-medium text-foreground">{feeText}</span>
+          <span className="font-medium text-foreground">{feeText}{gstNote}</span>
         </p>
       </div>
 
