@@ -139,12 +139,14 @@ export default async function BuyerAccountPage() {
 
   const token = cookies().get(BUYER_COOKIE)?.value;
   const email = token ? verifyBuyerSession(token) : null;
-  if (!email)
+  if (!email) {
+    const googleEnabled = await buyerGoogleEnabled();
     return withChrome(
       <div className="bg-background text-foreground">
-        <BuyerLogin googleEnabled={buyerGoogleEnabled()} />
+        <BuyerLogin googleEnabled={googleEnabled} />
       </div>,
     );
+  }
   // Narrowed to string here, but the narrowing is lost inside nested helpers
   // (renderOrderCard) — capture it so course-token signing stays type-safe.
   const buyerEmail: string = email;

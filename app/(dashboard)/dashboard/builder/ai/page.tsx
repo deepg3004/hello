@@ -7,7 +7,8 @@ export const dynamic = "force-dynamic";
 
 // One-click AI page generation — describe the business, get a premium landing
 // page in the builder, ready to edit.
-export default function BuilderAiPage() {
+export default async function BuilderAiPage() {
+  const enabled = await aiGeneratorEnabled();
   return (
     <div>
       <div className="mb-4">
@@ -17,7 +18,7 @@ export default function BuilderAiPage() {
         </p>
       </div>
       <BuilderTabs />
-      <AiGenerator disabled={!aiGeneratorEnabled()} />
+      <AiGenerator disabled={!enabled} />
     </div>
   );
 }

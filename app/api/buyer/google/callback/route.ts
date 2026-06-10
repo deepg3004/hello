@@ -13,7 +13,7 @@ import {
   signBuyerHandoff,
 } from "@/lib/buyer-portal";
 import { recordBuyerLogin } from "@/lib/buyers";
-import { exchangeCodeForProfile } from "@/lib/buyer-google";
+import { exchangeCodeForProfile, getGoogleBuyerConfig } from "@/lib/buyer-google";
 
 function clientIp(req: NextRequest): string | null {
   return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
@@ -34,7 +34,8 @@ export async function GET(request: NextRequest) {
   }
 
   const origin = `https://${state.host}`;
-  const profile = await exchangeCodeForProfile(code);
+  const cfg = await getGoogleBuyerConfig();
+  const profile = await exchangeCodeForProfile(code, cfg);
   if (!profile) {
     return NextResponse.redirect(`${origin}/account?login=google_failed`);
   }

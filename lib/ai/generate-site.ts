@@ -10,6 +10,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 
 import { AI_SITE_SCHEMA, type AiSite } from "@/lib/builder/ai-map";
+import { getAnthropicCredential } from "@/lib/integration-settings";
 
 const MODEL = "claude-opus-4-8";
 
@@ -30,9 +31,10 @@ export interface GenerateResult {
   outputTokens?: number;
 }
 
-/** True when the AI generator is configured (API key present). */
-export function aiGeneratorEnabled(): boolean {
-  return !!process.env.ANTHROPIC_API_KEY;
+/** True when the AI generator has a usable credential (admin-saved or env). */
+export async function aiGeneratorEnabled(): Promise<boolean> {
+  const cred = await getAnthropicCredential();
+  return !!(cred.apiKey || cred.authToken);
 }
 
 const SYSTEM = `You are a senior conversion copywriter and web designer for InvoxAI, a creator-commerce platform. Given a short brief, design a single premium, modern, mobile-first landing page.
@@ -61,10 +63,14 @@ function buildUserPrompt(b: SiteBrief): string {
 }
 
 export async function generateSite(brief: SiteBrief): Promise<GenerateResult> {
-  if (!aiGeneratorEnabled()) {
+  const cred = await getAnthropicCredential();
+  if (!cred.apiKey && !cred.authToken) {
     return { ok: false, error: "AI generation isn't configured." };
   }
-  const client = new Anthropic();
+  // Prefer an API key; fall back to an account auth token (sk-ant-oat…).
+  const client = cred.apiKey
+    ? new Anthropic({ apiKey: cred.apiKey })
+    : new Anthropic({ authToken: cred.authToken! });
   try {
     const response = await client.messages.create({
       model: MODEL,

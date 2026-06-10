@@ -11,6 +11,10 @@
 import "server-only";
 
 import { platformRootDomain } from "@/lib/domains";
+import {
+  getGoogleBuyerConfig,
+  type GoogleBuyerConfig,
+} from "@/lib/integration-settings";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -24,30 +28,33 @@ export interface GoogleProfile {
   sub: string; // Google's stable user id
 }
 
-/** True when Google buyer login is configured (creds present). */
-export function buyerGoogleEnabled(): boolean {
-  return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+/** Re-export so routes can fetch the config once and pass it around. */
+export { getGoogleBuyerConfig };
+
+/** True when Google buyer login is configured (admin-saved or env creds). */
+export async function buyerGoogleEnabled(): Promise<boolean> {
+  const cfg = await getGoogleBuyerConfig();
+  return !!(cfg.clientId && cfg.clientSecret);
 }
 
 /**
  * The single host Google redirects back to. Must exactly match the Authorized
  * redirect URI registered in Google Cloud Console. Defaults to the apex.
  */
-export function buyerOAuthBaseUrl(): string {
-  const base = process.env.BUYER_OAUTH_BASE_URL;
-  if (base) return base.replace(/\/+$/, "");
+export function buyerOAuthBaseUrl(cfg: GoogleBuyerConfig): string {
+  if (cfg.baseUrl) return cfg.baseUrl.replace(/\/+$/, "");
   return `https://${platformRootDomain()}`;
 }
 
-export function buyerGoogleRedirectUri(): string {
-  return `${buyerOAuthBaseUrl()}/api/buyer/google/callback`;
+export function buyerGoogleRedirectUri(cfg: GoogleBuyerConfig): string {
+  return `${buyerOAuthBaseUrl(cfg)}/api/buyer/google/callback`;
 }
 
 /** Build the Google consent URL for a given signed state. */
-export function buildGoogleAuthUrl(state: string): string {
+export function buildGoogleAuthUrl(state: string, cfg: GoogleBuyerConfig): string {
   const params = new URLSearchParams({
-    client_id: process.env.GOOGLE_CLIENT_ID ?? "",
-    redirect_uri: buyerGoogleRedirectUri(),
+    client_id: cfg.clientId ?? "",
+    redirect_uri: buyerGoogleRedirectUri(cfg),
     response_type: "code",
     scope: "openid email profile",
     state,
@@ -64,6 +71,7 @@ export function buildGoogleAuthUrl(state: string): string {
  */
 export async function exchangeCodeForProfile(
   code: string,
+  cfg: GoogleBuyerConfig,
 ): Promise<GoogleProfile | null> {
   try {
     const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
@@ -71,9 +79,9 @@ export async function exchangeCodeForProfile(
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         code,
-        client_id: process.env.GOOGLE_CLIENT_ID ?? "",
-        client_secret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-        redirect_uri: buyerGoogleRedirectUri(),
+        client_id: cfg.clientId ?? "",
+        client_secret: cfg.clientSecret ?? "",
+        redirect_uri: buyerGoogleRedirectUri(cfg),
         grant_type: "authorization_code",
       }),
     });

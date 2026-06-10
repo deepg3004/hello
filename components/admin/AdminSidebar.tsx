@@ -5,6 +5,7 @@ import {
   Activity,
   ArrowLeft,
   Bell,
+  Blocks,
   Coins,
   Contact,
   Film,
@@ -103,6 +104,7 @@ export function AdminSidebar({
       label: "System",
       items: [
         { href: "/admin/learn", label: "Creator Academy", Icon: GraduationCap },
+        { href: "/admin/integrations", label: "Integrations", Icon: Blocks },
         { href: "/admin/email", label: "Email", Icon: Mail },
         { href: "/admin/credentials", label: "Credentials", Icon: KeyRound },
         { href: "/admin/settings", label: "Platform Settings", Icon: Sliders },
