@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  Activity,
   BarChart3,
   BookOpen,
   Boxes,
@@ -80,6 +81,7 @@ const NAV_GROWTH: NavItem[] = [
 ];
 
 const NAV_ACCOUNT: NavItem[] = [
+  { href: "/dashboard/activity", label: "Activity", Icon: Activity },
   { href: "/dashboard/settings", label: "Settings", Icon: Settings },
 ];
 
