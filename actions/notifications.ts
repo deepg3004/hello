@@ -12,8 +12,10 @@ import type {
 
 interface UpdateInput {
   enabled?: boolean;
-  events?: NotificationEventToggles;
+  events?: NotificationEventToggles; // WhatsApp toggles
   email?: NotificationEventToggles;
+  inapp?: NotificationEventToggles;
+  sms?: NotificationEventToggles;
 }
 
 const VALID_KEYS: NotificationEventKey[] = [
@@ -65,6 +67,10 @@ export async function updateNotificationPrefsAction(
   if (events) next.events = { ...(current.events ?? {}), ...events };
   const email = sanitiseToggles(input.email);
   if (email) next.email = { ...(current.email ?? {}), ...email };
+  const inapp = sanitiseToggles(input.inapp);
+  if (inapp) next.inapp = { ...(current.inapp ?? {}), ...inapp };
+  const sms = sanitiseToggles(input.sms);
+  if (sms) next.sms = { ...(current.sms ?? {}), ...sms };
 
   const { error } = await admin
     .from("user_profiles")

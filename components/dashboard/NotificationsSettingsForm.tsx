@@ -22,6 +22,7 @@ import {
   updateNotificationPrefsAction,
 } from "@/actions/notifications";
 import type {
+  NotificationChannel,
   NotificationEventKey,
   NotificationEventToggles,
 } from "@/lib/notifications-config";
@@ -30,12 +31,15 @@ interface EventCatalogEntry {
   key: NotificationEventKey;
   label: string;
   description: string;
+  channels: NotificationChannel[];
 }
 
 interface Props {
   initialEnabled: boolean;
   initialEvents: Required<NotificationEventToggles>;
   initialEmailEvents: Required<NotificationEventToggles>;
+  initialInappEvents: Required<NotificationEventToggles>;
+  initialSmsEvents: Required<NotificationEventToggles>;
   verifiedNumber: string | null;
   verifiedAt: string | null;
   pendingNumber: string | null;
@@ -44,6 +48,14 @@ interface Props {
   eventCatalog: EventCatalogEntry[];
 }
 
+// Column order shown in the matrix.
+const CHANNEL_COLUMNS: { channel: NotificationChannel; label: string }[] = [
+  { channel: "inapp", label: "In-app" },
+  { channel: "email", label: "Email" },
+  { channel: "whatsapp", label: "WhatsApp" },
+  { channel: "sms", label: "SMS" },
+];
+
 type Stage = "idle" | "sending" | "awaiting_otp" | "verifying";
 
 export function NotificationsSettingsForm(props: Props) {
@@ -51,12 +63,15 @@ export function NotificationsSettingsForm(props: Props) {
   const [pending, startTransition] = useTransition();
 
   const [enabled, setEnabled] = useState(props.initialEnabled);
-  const [events, setEvents] = useState<Required<NotificationEventToggles>>(
-    props.initialEvents,
-  );
-  const [emailEvents, setEmailEvents] = useState<Required<NotificationEventToggles>>(
-    props.initialEmailEvents,
-  );
+  // One toggle map per channel, keyed by the engine's channel names.
+  const [matrix, setMatrix] = useState<
+    Record<NotificationChannel, Required<NotificationEventToggles>>
+  >({
+    whatsapp: props.initialEvents,
+    email: props.initialEmailEvents,
+    inapp: props.initialInappEvents,
+    sms: props.initialSmsEvents,
+  });
 
   // ── OTP flow state ─────────────────────────────────────────────────────
   const [stage, setStage] = useState<Stage>(
@@ -78,6 +93,8 @@ export function NotificationsSettingsForm(props: Props) {
     enabled?: boolean;
     events?: NotificationEventToggles;
     email?: NotificationEventToggles;
+    inapp?: NotificationEventToggles;
+    sms?: NotificationEventToggles;
   }) {
     startTransition(async () => {
       const res = await updateNotificationPrefsAction(next);
@@ -104,16 +121,36 @@ export function NotificationsSettingsForm(props: Props) {
     commitPrefs({ enabled: value });
   }
 
-  function toggleEvent(key: NotificationEventKey, value: boolean) {
-    const next = { ...events, [key]: value };
-    setEvents(next);
-    commitPrefs({ events: { [key]: value } });
+  // The server action's field name matches the channel name for every channel
+  // except WhatsApp, which is historically stored under `events`.
+  const CHANNEL_FIELD: Record<
+    NotificationChannel,
+    "events" | "email" | "inapp" | "sms"
+  > = {
+    whatsapp: "events",
+    email: "email",
+    inapp: "inapp",
+    sms: "sms",
+  };
+
+  function toggleChannel(
+    channel: NotificationChannel,
+    key: NotificationEventKey,
+    value: boolean,
+  ) {
+    setMatrix((m) => ({
+      ...m,
+      [channel]: { ...m[channel], [key]: value },
+    }));
+    commitPrefs({ [CHANNEL_FIELD[channel]]: { [key]: value } });
   }
 
-  function toggleEmailEvent(key: NotificationEventKey, value: boolean) {
-    const next = { ...emailEvents, [key]: value };
-    setEmailEvents(next);
-    commitPrefs({ email: { [key]: value } });
+  // Per-channel disabled rule for the switches.
+  function channelDisabled(channel: NotificationChannel): boolean {
+    if (pending) return true;
+    if (channel === "whatsapp") return !isVerified || !enabled;
+    if (channel === "sms") return !isVerified; // SMS reuses the verified number
+    return false; // in-app + email always available
   }
 
   // ── OTP send / verify ──────────────────────────────────────────────────
@@ -363,44 +400,54 @@ export function NotificationsSettingsForm(props: Props) {
         </CardContent>
       </Card>
 
-      {/* ─── Event toggles ──────────────────────────────────────────── */}
+      {/* ─── Event × channel matrix ─────────────────────────────────── */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">What we&apos;ll alert you about</CardTitle>
           <CardDescription>
-            Each event can fire on WhatsApp, email, or both. Email is on by
-            default; WhatsApp requires the master switch above.
+            Pick exactly which channels fire for each event. In-app and email
+            are on by default; WhatsApp needs the master switch above; SMS is
+            opt-in and reuses your verified number.
           </CardDescription>
         </CardHeader>
         <CardContent className="divide-y">
-          <div className="grid grid-cols-[1fr_64px_64px] items-center gap-3 pb-3 text-xs uppercase tracking-wide text-muted-foreground">
+          <div className="grid grid-cols-[1fr_repeat(4,56px)] items-center gap-2 pb-3 text-[11px] uppercase tracking-wide text-muted-foreground">
             <span>Event</span>
-            <span className="text-center">WhatsApp</span>
-            <span className="text-center">Email</span>
+            {CHANNEL_COLUMNS.map((c) => (
+              <span key={c.channel} className="text-center">
+                {c.label}
+              </span>
+            ))}
           </div>
           {props.eventCatalog.map((evt) => (
             <div
               key={evt.key}
-              className="grid grid-cols-[1fr_64px_64px] items-center gap-3 py-3"
+              className="grid grid-cols-[1fr_repeat(4,56px)] items-center gap-2 py-3"
             >
               <div>
                 <p className="text-sm font-medium">{evt.label}</p>
                 <p className="text-xs text-muted-foreground">{evt.description}</p>
               </div>
-              <div className="flex justify-center">
-                <Switch
-                  checked={!!events[evt.key]}
-                  onCheckedChange={(v) => toggleEvent(evt.key, v)}
-                  disabled={pending || !isVerified || !enabled}
-                />
-              </div>
-              <div className="flex justify-center">
-                <Switch
-                  checked={!!emailEvents[evt.key]}
-                  onCheckedChange={(v) => toggleEmailEvent(evt.key, v)}
-                  disabled={pending}
-                />
-              </div>
+              {CHANNEL_COLUMNS.map((c) =>
+                evt.channels.includes(c.channel) ? (
+                  <div key={c.channel} className="flex justify-center">
+                    <Switch
+                      checked={!!matrix[c.channel][evt.key]}
+                      onCheckedChange={(v) => toggleChannel(c.channel, evt.key, v)}
+                      disabled={channelDisabled(c.channel)}
+                      aria-label={`${evt.label} — ${c.label}`}
+                    />
+                  </div>
+                ) : (
+                  <div
+                    key={c.channel}
+                    className="flex justify-center text-muted-foreground/40"
+                    title="Not available for this event"
+                  >
+                    —
+                  </div>
+                ),
+              )}
             </div>
           ))}
         </CardContent>
