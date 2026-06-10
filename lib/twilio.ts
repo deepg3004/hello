@@ -30,6 +30,8 @@
 
 import crypto from "node:crypto";
 
+import { logNotification } from "@/lib/notification-log";
+
 // ---- Template registry ------------------------------------------------------
 
 /**
@@ -204,7 +206,7 @@ async function twilioFetchMessage(
  *
  * `to` may be E.164 ("+91...") or digits-only ("918240972331"); we coerce.
  */
-export async function sendWhatsApp(
+async function sendWhatsAppInner(
   to: string,
   template_id: WaTemplateName | string,
   variables: string[] = [],
@@ -240,6 +242,23 @@ export async function sendWhatsApp(
   return twilioFetchMessage(form);
 }
 
+/** Public WhatsApp sender — delegates + records the attempt (best-effort). */
+export async function sendWhatsApp(
+  to: string,
+  template_id: WaTemplateName | string,
+  variables: string[] = [],
+): Promise<WaResult> {
+  const result = await sendWhatsAppInner(to, template_id, variables);
+  void logNotification({
+    channel: "whatsapp",
+    recipient: to,
+    eventKey: typeof template_id === "string" ? template_id : null,
+    provider: "twilio",
+    result,
+  });
+  return result;
+}
+
 // ---- SMS --------------------------------------------------------------------
 
 /**
@@ -249,7 +268,7 @@ export async function sendWhatsApp(
  * For production India delivery you need DLT registration + a Messaging
  * Service SID — drop a `template_id` mapping in here later if you set that up.
  */
-export async function sendSms(args: SmsArgs): Promise<WaResult> {
+async function sendSmsInner(args: SmsArgs): Promise<WaResult> {
   const from = process.env.TWILIO_PHONE_NUMBER;
   if (!twilioCreds() || !from) {
     console.warn("[twilio] SMS credentials not set — skipping send", {
@@ -264,6 +283,18 @@ export async function sendSms(args: SmsArgs): Promise<WaResult> {
     To: toE164(args.to),
     Body: args.message,
   });
+}
+
+/** Public SMS sender — delegates + records the attempt (best-effort). */
+export async function sendSms(args: SmsArgs): Promise<WaResult> {
+  const result = await sendSmsInner(args);
+  void logNotification({
+    channel: "sms",
+    recipient: args.to,
+    provider: "twilio",
+    result,
+  });
+  return result;
 }
 
 // ---- OTP helpers (server-side, used by verify-whatsapp routes) -------------
