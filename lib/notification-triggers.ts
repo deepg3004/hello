@@ -1,47 +1,17 @@
-// Notification triggers — fire WhatsApp + email to sellers when
-// significant events happen. Every function is best-effort and wrapped
-// in try/catch so notification failures never affect the core flow.
+// Notification triggers — fire a seller-facing event across every channel the
+// seller has enabled. Each function builds per-channel payloads and hands them
+// to the unified notification engine (lib/notification-engine), which gates on
+// the event registry + the seller's saved preferences and sends best-effort.
+//
+// All functions are wrapped in try/catch so a notification failure never
+// affects the core flow (a payment, a lead capture).
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendWhatsApp, WA_TEMPLATES } from "@/lib/twilio";
-import {
-  isEmailEventEnabled,
-  isEventEnabled,
-  type NotificationEventKey,
-  type NotificationsConfig,
-} from "@/lib/notifications-config";
+import { WA_TEMPLATES } from "@/lib/twilio";
+import { dispatchNotification } from "@/lib/notification-engine";
+import { APP_URL } from "@/lib/emails/layout";
 
 // ---- Internal helpers ------------------------------------------------------
-
-interface SellerPrefs {
-  email: string;
-  full_name: string | null;
-  config: NotificationsConfig | null;
-  whatsapp_verified_number: string | null;
-}
-
-async function loadSellerPrefs(userId: string): Promise<SellerPrefs | null> {
-  try {
-    const admin = createAdminClient();
-    const { data, error } = await admin
-      .from("user_profiles")
-      .select(
-        "email, full_name, notifications_config, whatsapp_verified_number",
-      )
-      .eq("id", userId)
-      .single();
-    if (error || !data) return null;
-    return {
-      email: data.email,
-      full_name: data.full_name,
-      config: (data.notifications_config as NotificationsConfig | null) ?? null,
-      whatsapp_verified_number: data.whatsapp_verified_number,
-    };
-  } catch (e) {
-    console.error("[notify] loadSellerPrefs failed", e);
-    return null;
-  }
-}
 
 function formatIst(date?: Date | string | null): string {
   const d = date ? new Date(date) : new Date();
@@ -65,19 +35,6 @@ function inr(n: number | string | null | undefined): string {
   return v.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 
-/**
- * Decide whether we should fire WhatsApp for this event. Returns the verified
- * number to send to, or null if any gate fails.
- */
-function shouldFireWa(
-  prefs: SellerPrefs,
-  event: NotificationEventKey,
-): string | null {
-  if (!prefs.whatsapp_verified_number) return null;
-  if (!isEventEnabled(prefs.config, event)) return null;
-  return prefs.whatsapp_verified_number;
-}
-
 // ---- Trigger: new sale -----------------------------------------------------
 
 export interface OrderForNotify {
@@ -94,9 +51,6 @@ export interface OrderForNotify {
 
 export async function notifyNewSale(order: OrderForNotify): Promise<void> {
   try {
-    const prefs = await loadSellerPrefs(order.seller_user_id);
-    if (!prefs) return;
-
     // Resolve product name lazily if not provided.
     let productName = order.product?.name ?? null;
     if (!productName && order.product_id) {
@@ -110,39 +64,42 @@ export async function notifyNewSale(order: OrderForNotify): Promise<void> {
     }
 
     const time = formatIst();
+    const buyer = order.buyer_name ?? "Customer";
+    const product = productName ?? "Your product";
 
-    // WhatsApp
-    const to = shouldFireWa(prefs, "new_sale");
-    if (to) {
-      await sendWhatsApp(to, WA_TEMPLATES.NEW_SALE, [
-        order.buyer_name ?? "Customer",
-        productName ?? "Your product",
-        inr(order.amount),
-        inr(order.seller_amount),
-        time,
-      ]);
-    }
-
-    // Email (defaults on)
-    if (isEmailEventEnabled(prefs.config, "new_sale")) {
-      const { sendEmail } = await import("@/lib/email");
-      await sendEmail({
-        to: prefs.email,
-        subject: `New sale — ₹${inr(order.amount)} on ${productName ?? "InvoxAI"}`,
-        html: `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#18181b">
-          <p>Hi ${prefs.full_name ?? ""},</p>
+    await dispatchNotification({
+      event: "new_sale",
+      recipientUserId: order.seller_user_id,
+      payloads: {
+        whatsapp: {
+          template: WA_TEMPLATES.NEW_SALE,
+          variables: [
+            buyer,
+            product,
+            inr(order.amount),
+            inr(order.seller_amount),
+            time,
+          ],
+        },
+        sms: {
+          message: `New sale on InvoxAI: ₹${inr(order.amount)} for ${product} (buyer ${buyer}). You earned ₹${inr(order.seller_amount)}.`,
+        },
+        email: {
+          subject: `New sale — ₹${inr(order.amount)} on ${productName ?? "InvoxAI"}`,
+          html: `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#18181b">
           <p><strong>You have a new sale! 🎉</strong></p>
           <table style="border-collapse:collapse">
-            <tr><td style="padding:4px 12px 4px 0;color:#71717a">Buyer</td><td>${order.buyer_name ?? "Customer"} (${order.buyer_email})</td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#71717a">Buyer</td><td>${buyer} (${order.buyer_email})</td></tr>
             <tr><td style="padding:4px 12px 4px 0;color:#71717a">Product</td><td>${productName ?? "—"}</td></tr>
             <tr><td style="padding:4px 12px 4px 0;color:#71717a">Amount</td><td>₹${inr(order.amount)}</td></tr>
             <tr><td style="padding:4px 12px 4px 0;color:#71717a">Your earnings</td><td>₹${inr(order.seller_amount)}</td></tr>
             <tr><td style="padding:4px 12px 4px 0;color:#71717a">Time</td><td>${time}</td></tr>
           </table>
-          <p style="margin-top:16px"><a href="${process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io"}/dashboard/transactions" style="color:#0ea5e9">View in dashboard →</a></p>
+          <p style="margin-top:16px"><a href="${APP_URL}/dashboard/transactions" style="color:#0ea5e9">View in dashboard →</a></p>
         </div>`,
-      });
-    }
+        },
+      },
+    });
   } catch (e) {
     console.error("[notify] notifyNewSale failed", e);
   }
@@ -160,11 +117,10 @@ export interface FailedOrderForNotify {
   reason?: string | null;
 }
 
-export async function notifyPaymentFailed(order: FailedOrderForNotify): Promise<void> {
+export async function notifyPaymentFailed(
+  order: FailedOrderForNotify,
+): Promise<void> {
   try {
-    const prefs = await loadSellerPrefs(order.seller_user_id);
-    if (!prefs) return;
-
     let pageTitle = order.page_title ?? null;
     if (!pageTitle && order.page_id) {
       const admin = createAdminClient();
@@ -178,37 +134,48 @@ export async function notifyPaymentFailed(order: FailedOrderForNotify): Promise<
 
     const time = formatIst();
     const reason = order.reason ?? "Unknown";
+    const buyer = order.buyer_name ?? "Customer";
+    const page = pageTitle ?? "—";
 
-    const to = shouldFireWa(prefs, "payment_failed");
-    if (to) {
-      await sendWhatsApp(to, WA_TEMPLATES.PAYMENT_FAILED, [
-        order.buyer_name ?? "Customer",
-        order.buyer_email,
-        pageTitle ?? "—",
-        inr(order.amount),
-        reason,
-        time,
-      ]);
-    }
-
-    if (isEmailEventEnabled(prefs.config, "payment_failed")) {
-      const { sendEmail } = await import("@/lib/email");
-      await sendEmail({
-        to: prefs.email,
-        subject: `Payment failed on ${pageTitle ?? "InvoxAI"} (₹${inr(order.amount)})`,
-        html: `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#18181b">
-          <p>Hi ${prefs.full_name ?? ""},</p>
+    await dispatchNotification({
+      event: "payment_failed",
+      recipientUserId: order.seller_user_id,
+      payloads: {
+        inApp: {
+          title: "Payment failed",
+          body: `${buyer} couldn't pay ₹${inr(order.amount)} on ${page}. Recover them from Customers.`,
+          link: "/dashboard/customers",
+          meta: { amount: order.amount, page_id: order.page_id ?? null },
+        },
+        whatsapp: {
+          template: WA_TEMPLATES.PAYMENT_FAILED,
+          variables: [
+            buyer,
+            order.buyer_email,
+            page,
+            inr(order.amount),
+            reason,
+            time,
+          ],
+        },
+        sms: {
+          message: `Payment failed on InvoxAI: ₹${inr(order.amount)} on ${page} (buyer ${buyer}). Reason: ${reason}.`,
+        },
+        email: {
+          subject: `Payment failed on ${pageTitle ?? "InvoxAI"} (₹${inr(order.amount)})`,
+          html: `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#18181b">
           <p><strong>A buyer's payment failed.</strong> You can reach out and recover them from the Customers tab.</p>
           <table style="border-collapse:collapse">
-            <tr><td style="padding:4px 12px 4px 0;color:#71717a">Buyer</td><td>${order.buyer_name ?? "Customer"} (${order.buyer_email})</td></tr>
-            <tr><td style="padding:4px 12px 4px 0;color:#71717a">Page</td><td>${pageTitle ?? "—"}</td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#71717a">Buyer</td><td>${buyer} (${order.buyer_email})</td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#71717a">Page</td><td>${page}</td></tr>
             <tr><td style="padding:4px 12px 4px 0;color:#71717a">Amount</td><td>₹${inr(order.amount)}</td></tr>
             <tr><td style="padding:4px 12px 4px 0;color:#71717a">Reason</td><td>${reason}</td></tr>
             <tr><td style="padding:4px 12px 4px 0;color:#71717a">Time</td><td>${time}</td></tr>
           </table>
         </div>`,
-      });
-    }
+        },
+      },
+    });
   } catch (e) {
     console.error("[notify] notifyPaymentFailed failed", e);
   }
@@ -227,9 +194,6 @@ export interface LeadForNotify {
 
 export async function notifyNewLead(lead: LeadForNotify): Promise<void> {
   try {
-    const prefs = await loadSellerPrefs(lead.seller_user_id);
-    if (!prefs) return;
-
     let pageTitle = lead.page_title ?? null;
     if (!pageTitle && lead.page_id) {
       const admin = createAdminClient();
@@ -242,22 +206,34 @@ export async function notifyNewLead(lead: LeadForNotify): Promise<void> {
     }
 
     const time = formatIst();
-    const to = shouldFireWa(prefs, "new_lead");
-    if (to) {
-      await sendWhatsApp(to, WA_TEMPLATES.NEW_LEAD, [
-        lead.name ?? "Anonymous",
-        lead.email,
-        lead.phone ?? "—",
-        pageTitle ?? "—",
-        time,
-      ]);
-    }
-    // Lead capture endpoint already sends its own seller email — we don't
-    // duplicate here.
+    const name = lead.name ?? "Anonymous";
+    const page = pageTitle ?? "—";
+
+    // Email for new_lead is intentionally omitted — the lead-capture endpoint
+    // sends its own seller email, so the registry excludes "email" here.
+    await dispatchNotification({
+      event: "new_lead",
+      recipientUserId: lead.seller_user_id,
+      payloads: {
+        inApp: {
+          title: "New lead captured",
+          body: `${name} just submitted a form on ${page}.`,
+          link: "/dashboard/leads",
+          meta: { page_id: lead.page_id ?? null },
+        },
+        whatsapp: {
+          template: WA_TEMPLATES.NEW_LEAD,
+          variables: [name, lead.email, lead.phone ?? "—", page, time],
+        },
+        sms: {
+          message: `New lead on InvoxAI: ${name} (${lead.phone ?? lead.email}) on ${page}.`,
+        },
+      },
+    });
   } catch (e) {
     console.error("[notify] notifyNewLead failed", e);
   }
 }
 
-// Payout & KYC notifications removed (Sessions 2 & 3): no seller payouts and
-// no KYC — sellers are gated on "own gateway connected AND wallet funded".
+// Payout & KYC notifications are not wired yet (no seller payouts / KYC). Their
+// events remain in the registry so preferences + future dispatch are ready.
