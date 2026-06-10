@@ -22,7 +22,17 @@ export interface MarketingIntegrations {
   webhook_url: string | null;
   webhook_events: string[];
   active: boolean;
+  // Phase 15 — per-provider enable toggles + status (migration 095).
+  enable_meta_pixel: boolean;
+  enable_ga4: boolean;
+  enable_google_ads: boolean;
+  enable_advanced_matching: boolean;
+  enable_consent_mode: boolean;
+  status: string;
 }
+
+const MARKETING_COLS =
+  "user_id, meta_pixel_id, ga4_id, google_ads_id, tiktok_pixel_id, custom_head_html, webhook_url, webhook_events, active, enable_meta_pixel, enable_ga4, enable_google_ads, enable_advanced_matching, enable_consent_mode, status";
 
 export async function loadMarketing(
   sellerId: string,
@@ -31,9 +41,7 @@ export async function loadMarketing(
   const admin = client ?? createAdminClient();
   const { data } = await admin
     .from("marketing_integrations")
-    .select(
-      "user_id, meta_pixel_id, ga4_id, google_ads_id, tiktok_pixel_id, custom_head_html, webhook_url, webhook_events, active",
-    )
+    .select(MARKETING_COLS)
     .eq("user_id", sellerId)
     .maybeSingle();
   return (data as MarketingIntegrations | null) ?? null;
