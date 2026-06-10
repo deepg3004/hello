@@ -13,6 +13,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   BUILT_IN_FEE_CATEGORIES,
+  DEFAULT_GST_PERCENT,
   emptyRule,
   type FeeCategory,
   type FeeConfig,
@@ -157,7 +158,12 @@ export async function getFeeConfig(): Promise<FeeConfig> {
     platform_fee_default: "",
     platform_fee_by_plan: "",
     platform_fee_categories: "",
+    platform_fee_gst_percent: "",
   });
+
+  const gstRaw = Number(s.platform_fee_gst_percent);
+  const gstPercent =
+    Number.isFinite(gstRaw) && gstRaw >= 0 ? gstRaw : DEFAULT_GST_PERCENT;
 
   const def = s.platform_fee_default ? parseRule(s.platform_fee_default) : emptyRule();
 
@@ -199,5 +205,5 @@ export async function getFeeConfig(): Promise<FeeConfig> {
     }
   }
 
-  return { default: def, byPlan, categories };
+  return { default: def, byPlan, categories, gstPercent };
 }

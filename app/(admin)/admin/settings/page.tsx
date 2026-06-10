@@ -47,6 +47,7 @@ const KEYS = [
   "platform_fee_default",
   "platform_fee_by_plan",
   "platform_fee_categories",
+  "platform_fee_gst_percent",
   "require_wallet_balance",
   "min_payout_amount",
   "payout_hold_days",
@@ -131,6 +132,7 @@ export default async function AdminPlatformSettingsPage() {
               defaultJson={get("platform_fee_default")}
               byPlanJson={get("platform_fee_by_plan")}
               categoriesJson={get("platform_fee_categories")}
+              gstPercent={get("platform_fee_gst_percent")}
             />
           </div>
         </CardContent>

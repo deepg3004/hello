@@ -29,7 +29,12 @@ export interface FeeConfig {
   default: FeeRule;
   byPlan: Record<string, FeeRule>;
   categories: FeeCategory[];
+  /** GST % charged on the platform fee itself (the fee is a taxable service). */
+  gstPercent: number;
 }
+
+/** Statutory GST on the platform fee. Admin-overridable via platform_settings. */
+export const DEFAULT_GST_PERCENT = 18;
 
 /** Built-in fee categories (seeded into the admin form when none are stored). */
 export const BUILT_IN_FEE_CATEGORIES: FeeCategory[] = [
@@ -119,4 +124,28 @@ export function resolvePlatformFeePaise(
   if (isSet(cfg.default)) return feeFromRule(cfg.default, args.orderAmountPaise);
 
   return null;
+}
+
+// ── GST on the platform fee ─────────────────────────────────────────────────
+// The platform fee is a taxable service, so GST is added ON TOP of the fee and
+// debited from the seller's wallet together with it. Example: ₹1,000 order, 3%
+// fee = ₹30 fee + 18% GST (₹5.40) = ₹35.40 wallet debit.
+
+/** Pick a usable GST percent from a (possibly null) config. */
+export function gstPercentFromConfig(cfg: FeeConfig | null): number {
+  const pct = cfg?.gstPercent;
+  return Number.isFinite(pct) && (pct as number) >= 0
+    ? (pct as number)
+    : DEFAULT_GST_PERCENT;
+}
+
+/** GST amount (paise) charged on a platform fee. */
+export function gstOnFeePaise(feePaise: number, gstPercent: number): number {
+  const pct = Number.isFinite(gstPercent) && gstPercent > 0 ? gstPercent : 0;
+  return Math.max(0, Math.round((pct / 100) * Math.max(0, feePaise)));
+}
+
+/** Total wallet debit for a platform fee = fee + GST-on-fee. */
+export function grossFeePaise(feePaise: number, gstPercent: number): number {
+  return Math.max(0, feePaise) + gstOnFeePaise(feePaise, gstPercent);
 }
