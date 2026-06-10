@@ -7,6 +7,8 @@ import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PublicSite } from "@/components/builder/PublicSite";
 import { PagePasswordGate } from "@/components/builder/PagePasswordGate";
+import { TrackingProvider } from "@/components/tracking/TrackingProvider";
+import { loadMarketing } from "@/lib/marketing";
 import { isUnlocked, unlockCookieName } from "@/lib/builder-unlock";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +72,7 @@ export default async function PublicBuilderPage({ params }: Props) {
 
   const { data: site } = await admin
     .from("builder_sites")
-    .select("id, title, is_published, header_json, footer_json, contacts_json")
+    .select("id, user_id, title, is_published, header_json, footer_json, contacts_json")
     .eq("slug", params.slug)
     .maybeSingle();
   // Only published sites are publicly visible.
@@ -104,5 +106,21 @@ export default async function PublicBuilderPage({ params }: Props) {
     }
   }
 
-  return <PublicSite site={site} page={page} />;
+  // Phase 15 — tenant ad pixels + first-party PageView for this builder site.
+  const sellerId = site.user_id as string;
+  const m = await loadMarketing(sellerId, admin);
+  const pixels = m
+    ? {
+        meta_pixel_id: m.enable_meta_pixel ? m.meta_pixel_id : null,
+        ga4_id: m.enable_ga4 ? m.ga4_id : null,
+        custom_head_html: m.custom_head_html,
+      }
+    : null;
+
+  return (
+    <>
+      <TrackingProvider sellerId={sellerId} pageType="builder" pixels={pixels} />
+      <PublicSite site={site} page={page} />
+    </>
+  );
 }
