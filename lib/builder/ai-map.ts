@@ -28,17 +28,22 @@ export type AiWidgetType =
   | "testimonial"
   | "pricing"
   | "icon"
-  | "video";
+  | "video"
+  | "faq"
+  | "features"
+  | "stats"
+  | "badges"
+  | "cta_banner";
 
 export interface AiWidget {
   type: AiWidgetType;
-  text?: string; // heading / text
+  text?: string; // heading / text / cta sub-text
   level?: "h1" | "h2" | "h3"; // heading
   align?: "left" | "center" | "right";
-  label?: string; // button
-  url?: string; // button / image / video
+  label?: string; // button / cta / pricing cta
+  url?: string; // button / image / video / cta
   variant?: "filled" | "outline"; // button
-  color?: string; // button / icon accent (hex)
+  color?: string; // button / icon / features / stats / cta accent (hex)
   src?: string; // image
   alt?: string; // image
   quote?: string; // testimonial
@@ -50,6 +55,10 @@ export interface AiWidget {
   features?: string[]; // pricing
   size?: number; // icon
   height?: number; // spacer
+  heading?: string; // cta_banner headline
+  // List rows for faq / features / stats / badges — interpreted per type:
+  //   faq:{q,a}  features:{icon,title,text}  stats:{value,label}  badges:{text}
+  items?: Array<Record<string, unknown>>;
 }
 
 export interface AiSection {
@@ -162,6 +171,11 @@ function num(v: unknown, fallback: number, lo: number, hi: number): number {
   if (!Number.isFinite(n)) return fallback;
   return Math.min(hi, Math.max(lo, Math.round(n)));
 }
+function rows(v: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(v)
+    ? (v.filter((x) => x && typeof x === "object") as Array<Record<string, unknown>>)
+    : [];
+}
 
 /** Map one AI widget → a builder WidgetNode, or null to drop it. */
 function mapWidget(w: AiWidget): WidgetNode | null {
@@ -249,6 +263,53 @@ function mapWidget(w: AiWidget): WidgetNode | null {
       const u = url(w.url);
       if (!u) return null;
       return { id, type: "video", content: { url: u } };
+    }
+    case "faq": {
+      const list = rows(w.items)
+        .map((it) => ({ q: str(it.q, 200), a: str(it.a, 1000) }))
+        .filter((x) => x.q)
+        .slice(0, 12);
+      if (!list.length) return null;
+      return { id, type: "faq", content: { items: list } };
+    }
+    case "features": {
+      const list = rows(w.items)
+        .map((it) => ({ icon: str(it.icon, 60) || "Star", title: str(it.title, 120), text: str(it.text, 400) }))
+        .filter((x) => x.title || x.text)
+        .slice(0, 9);
+      if (!list.length) return null;
+      return { id, type: "features", content: { items: list, color: color(w.color, "#4f46e5") } };
+    }
+    case "stats": {
+      const list = rows(w.items)
+        .map((it) => ({ value: str(it.value, 40), label: str(it.label, 80) }))
+        .filter((x) => x.value)
+        .slice(0, 6);
+      if (!list.length) return null;
+      return { id, type: "stats", content: { items: list, color: color(w.color, "#4f46e5") } };
+    }
+    case "badges": {
+      const list = rows(w.items)
+        .map((it) => ({ text: str(it.text, 80) }))
+        .filter((x) => x.text)
+        .slice(0, 8);
+      if (!list.length) return null;
+      return { id, type: "badges", content: { items: list, align: align(w.align, "center") } };
+    }
+    case "cta_banner": {
+      const heading = str(w.heading, 200);
+      if (!heading) return null;
+      return {
+        id,
+        type: "cta_banner",
+        content: {
+          heading,
+          text: str(w.text, 400),
+          label: str(w.label, 60) || "Get started",
+          url: url(w.url) || "#",
+          color: color(w.color, "#4f46e5"),
+        },
+      };
     }
     default:
       return null;

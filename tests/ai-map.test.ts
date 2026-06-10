@@ -86,4 +86,37 @@ describe("documentFromAiSite", () => {
     // section had no valid widgets → whole doc degrades to emptyDocument
     expect(doc.sections[0].columns[0].widgets).toHaveLength(0);
   });
+
+  it("maps the rich widgets (faq, features, stats, badges, cta_banner)", () => {
+    const ai = {
+      title: "Rich",
+      sections: [
+        {
+          widgets: [
+            { type: "features", color: "#111111", items: [{ icon: "Zap", title: "Fast", text: "Quick" }] },
+            { type: "stats", items: [{ value: "10k+", label: "Users" }] },
+            { type: "faq", items: [{ q: "How?", a: "Easy." }] },
+            { type: "badges", items: [{ text: "Secure" }] },
+            { type: "cta_banner", heading: "Start now", label: "Go", url: "https://x.com" },
+          ],
+        },
+      ],
+    } as unknown as AiSite;
+    const w = documentFromAiSite(ai).sections[0].columns[0].widgets;
+    expect(w.map((x) => x.type)).toEqual(["features", "stats", "faq", "badges", "cta_banner"]);
+    expect((w[0].content.items as unknown[]).length).toBe(1);
+    expect(w[0].content.color).toBe("#111111");
+    expect(w[2].content.items).toEqual([{ q: "How?", a: "Easy." }]);
+    expect(w[4].content.heading).toBe("Start now");
+    expect(w[4].content.url).toBe("https://x.com");
+  });
+
+  it("drops list widgets with no usable rows", () => {
+    const ai = {
+      title: "X",
+      sections: [{ widgets: [{ type: "faq", items: [] }, { type: "stats", items: [{ label: "no value" }] }, { type: "heading", text: "ok" }] }],
+    } as unknown as AiSite;
+    const w = documentFromAiSite(ai).sections[0].columns[0].widgets;
+    expect(w.map((x) => x.type)).toEqual(["heading"]); // empty faq + value-less stats dropped
+  });
 });

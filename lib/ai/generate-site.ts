@@ -69,7 +69,13 @@ Each WIDGET is ONE of these objects (set "type" plus only that type's fields):
 - {"type":"spacer","height":40}
 - {"type":"image","src":"https://REAL-URL","alt":"..."}   (only if a real image URL is given)
 - {"type":"video","url":"https://youtube.com/..."}        (only if a real video URL is given)
-Output valid JSON only — start with { and end with }.`;
+- {"type":"features","color":"#4f46e5","items":[{"icon":"Zap","title":"...","text":"..."},{"icon":"ShieldCheck","title":"...","text":"..."}]}
+- {"type":"stats","color":"#4f46e5","items":[{"value":"10k+","label":"Customers"},{"value":"4.9★","label":"Rating"}]}
+- {"type":"faq","items":[{"q":"...","a":"..."},{"q":"...","a":"..."}]}
+- {"type":"badges","items":[{"text":"Secure checkout"},{"text":"30-day guarantee"}]}
+- {"type":"cta_banner","heading":"...","text":"...","label":"Get started","url":"#","color":"#4f46e5"}
+
+Prefer the rich widgets where they fit: a "features" grid for benefits, a "stats" row for social proof, a "faq" near the end, "badges" under the hero or pricing, and a "cta_banner" as the closing call-to-action. Output valid JSON only — start with { and end with }.`;
 
 function buildUserPrompt(b: SiteBrief): string {
   const lines = [

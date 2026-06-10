@@ -28,6 +28,7 @@ import {
   LayoutGrid,
   TrendingUp,
   BadgeCheck,
+  Megaphone,
   type LucideIcon,
 } from "lucide-react";
 
@@ -569,6 +570,42 @@ export const WIDGETS: Record<string, WidgetDef> = {
               {s(it.text, "Badge")}
             </span>
           ))}
+        </div>
+      );
+    },
+  },
+
+  cta_banner: {
+    type: "cta_banner",
+    label: "CTA Banner",
+    icon: Megaphone,
+    fields: [
+      { key: "heading", label: "Heading", type: "text" },
+      { key: "text", label: "Sub-text", type: "textarea" },
+      { key: "label", label: "Button label", type: "text" },
+      { key: "url", label: "Button link", type: "url" },
+      { key: "color", label: "Accent color", type: "color" },
+    ],
+    defaultContent: {
+      heading: "Ready to get started?",
+      text: "Join today and see results in your first week.",
+      label: "Get started",
+      url: "#",
+      color: "#4f46e5",
+    },
+    Render: (c) => {
+      const color = s(c.color, "#4f46e5");
+      return (
+        <div className="rounded-2xl px-6 py-10 text-center" style={{ background: `${color}14` }}>
+          <h2 className="text-2xl font-bold sm:text-3xl">{s(c.heading, "Ready to get started?")}</h2>
+          {s(c.text) && <p className="mx-auto mt-2 max-w-xl text-current/70">{s(c.text)}</p>}
+          <a
+            href={s(c.url, "#")}
+            className="mt-5 inline-flex items-center justify-center rounded-xl px-7 py-3 text-sm font-semibold text-white"
+            style={{ background: color }}
+          >
+            {s(c.label, "Get started")}
+          </a>
         </div>
       );
     },
