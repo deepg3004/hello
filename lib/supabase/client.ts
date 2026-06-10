@@ -1,5 +1,7 @@
 import { createBrowserClient } from "@supabase/ssr";
 
+import { authCookieDomain } from "@/lib/domains";
+
 export function createClient() {
   // IMPORTANT: read these as STATIC `process.env.NEXT_PUBLIC_*` member
   // accesses. Next.js only inlines NEXT_PUBLIC_* values into the browser
@@ -18,5 +20,12 @@ export function createClient() {
         "and read as static process.env.NEXT_PUBLIC_* literals.",
     );
   }
-  return createBrowserClient(url, anon);
+  // Scope the auth cookie to .invoxai.io so a login carries across the apex,
+  // app.* and admin.* (host-only on localhost / custom domains).
+  const domain =
+    typeof window !== "undefined"
+      ? authCookieDomain(window.location.hostname)
+      : undefined;
+
+  return createBrowserClient(url, anon, domain ? { cookieOptions: { domain } } : undefined);
 }

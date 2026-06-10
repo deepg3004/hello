@@ -9,7 +9,7 @@ import {
   newVisitorId,
   variantCookieName,
 } from "@/lib/ab";
-import { appHostPrefix, isPlatformOwnHost, extractSubdomain } from "@/lib/domains";
+import { appHostPrefix, isPlatformOwnHost, extractSubdomain, authCookieDomain } from "@/lib/domains";
 import { safeNext } from "@/lib/safe-redirect";
 
 const AUTH_ROUTES = ["/login", "/signup", "/forgot-password"];
@@ -369,6 +369,9 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
+  // Cross-subdomain session: scope auth cookies to .invoxai.io so the apex,
+  // app.* and admin.* share one login (host-only on localhost / custom domains).
+  const cookieDomain = authCookieDomain(request.headers.get("host"));
   const supabase = createServerClient(
     url,
     anon,
@@ -382,14 +385,14 @@ export async function middleware(request: NextRequest) {
           response = NextResponse.next({
             request: { headers: request.headers },
           });
-          response.cookies.set({ name, value, ...options });
+          response.cookies.set({ name, value, ...options, ...(cookieDomain ? { domain: cookieDomain } : {}) });
         },
         remove(name: string, options: CookieOptions) {
           request.cookies.set({ name, value: "", ...options });
           response = NextResponse.next({
             request: { headers: request.headers },
           });
-          response.cookies.set({ name, value: "", ...options });
+          response.cookies.set({ name, value: "", ...options, ...(cookieDomain ? { domain: cookieDomain } : {}) });
         },
       },
     },

@@ -100,6 +100,21 @@ export function customDomainTargetIps(): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Cookie `domain` for the seller/admin auth session so ONE login works across
+ * the apex + app.* + admin.* (and any *.invoxai.io). Returns `.invoxai.io` when
+ * the request host is under the platform root; `undefined` for localhost or a
+ * seller's custom domain (host-only, the correct default there). Without this,
+ * a login on one host doesn't carry to the others — they bounce back to /login.
+ */
+export function authCookieDomain(host: string | null | undefined): string | undefined {
+  const h = (host ?? "").toLowerCase().split(":")[0];
+  if (!h) return undefined;
+  const root = platformRootDomain().toLowerCase();
+  if (h === root || h.endsWith(`.${root}`)) return `.${root}`;
+  return undefined;
+}
+
 /** True when the host is one of OUR canonical hostnames — never rewrite
  *  to /seller-host. */
 export function isPlatformOwnHost(host: string): boolean {
