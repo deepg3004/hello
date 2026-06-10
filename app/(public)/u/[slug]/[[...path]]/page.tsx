@@ -16,10 +16,49 @@ export async function generateMetadata({ params }: Props) {
   const admin = createAdminClient();
   const { data: site } = await admin
     .from("builder_sites")
-    .select("title, is_published")
+    .select("id, title, is_published")
     .eq("slug", params.slug)
     .maybeSingle();
-  return { title: site?.title ?? "Site" };
+  if (!site) return { title: "Site" };
+
+  // Resolve the same page the component renders (path, else home) for its SEO.
+  const path = (params.path ?? []).join("/");
+  let { data: pg } = await admin
+    .from("builder_pages")
+    .select("name, seo_title, seo_description, og_image, noindex")
+    .eq("site_id", site.id)
+    .eq("path", path)
+    .maybeSingle();
+  if (!pg) {
+    const { data: rows } = await admin
+      .from("builder_pages")
+      .select("name, seo_title, seo_description, og_image, noindex")
+      .eq("site_id", site.id)
+      .order("sort_order", { ascending: true })
+      .limit(1);
+    pg = rows?.[0] ?? null;
+  }
+
+  const title =
+    pg?.seo_title?.trim() ||
+    (pg?.name ? `${pg.name} · ${site.title}` : site.title) ||
+    "Site";
+  const description = pg?.seo_description?.trim() || undefined;
+  const ogImage = pg?.og_image?.trim() || undefined;
+
+  return {
+    title,
+    description,
+    robots: pg?.noindex ? { index: false, follow: false } : undefined,
+    openGraph: {
+      title,
+      description,
+      images: ogImage ? [{ url: ogImage }] : undefined,
+    },
+    twitter: ogImage
+      ? { card: "summary_large_image", title, description, images: [ogImage] }
+      : undefined,
+  };
 }
 
 export default async function PublicBuilderPage({ params }: Props) {

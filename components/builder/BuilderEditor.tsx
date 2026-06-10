@@ -77,6 +77,10 @@ interface PageRow {
   page_type?: PageType;
   background_style?: string;
   bottombar_json?: unknown;
+  seo_title?: string | null;
+  seo_description?: string | null;
+  og_image?: string | null;
+  noindex?: boolean | null;
 }
 
 type Tab = "content" | "style" | "advanced";
@@ -115,6 +119,13 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
   const [contacts, setContacts] = useState<SiteContacts>({});
   const [pageSettingsOpen, setPageSettingsOpen] = useState(false);
 
+  // Per-page SEO (migration 089) + a flag for the duplicate/delete actions.
+  const [seoTitle, setSeoTitle] = useState("");
+  const [seoDescription, setSeoDescription] = useState("");
+  const [ogImage, setOgImage] = useState("");
+  const [noindex, setNoindex] = useState(false);
+  const [pageAction, setPageAction] = useState<"" | "duplicate" | "delete">("");
+
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   // ── Load / bootstrap ────────────────────────────────────────────────────────
@@ -141,6 +152,10 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
           setPageType((first.page_type as PageType) ?? "landing");
           setBgStyle((first.background_style as BackgroundStyle) ?? "gradient");
           setBottombar((first.bottombar_json as BottomBarConfig) ?? { enabled: true, channels: {} });
+          setSeoTitle(first.seo_title ?? "");
+          setSeoDescription(first.seo_description ?? "");
+          setOgImage(first.og_image ?? "");
+          setNoindex(!!first.noindex);
         }
         // Edit the page's content, or the site's GLOBAL header/footer document.
         const source =
@@ -304,6 +319,10 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
                     page_type: pageType,
                     background_style: bgStyle,
                     bottombar_json: bottombar,
+                    seo_title: seoTitle,
+                    seo_description: seoDescription,
+                    og_image: ogImage,
+                    noindex,
                   },
                 }
               : null;
@@ -322,6 +341,36 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
       toast({ title: "Couldn't save", description: err instanceof Error ? err.message : undefined, variant: "destructive" });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function duplicatePage() {
+    if (!page) return;
+    setPageAction("duplicate");
+    try {
+      const res = await fetch(`/api/builder/pages/${page.id}`, { method: "POST" });
+      const data = (await res.json()) as { ok?: boolean; pageId?: string; error?: string };
+      if (!res.ok || !data.pageId) throw new Error(data.error ?? "Couldn't duplicate");
+      // Reload the editor onto the new copy.
+      window.location.href = `/dashboard/builder/editor?page=${data.pageId}`;
+    } catch (err) {
+      toast({ title: "Couldn't duplicate", description: err instanceof Error ? err.message : undefined, variant: "destructive" });
+      setPageAction("");
+    }
+  }
+
+  async function deletePage() {
+    if (!page) return;
+    if (!window.confirm("Delete this page? This can't be undone.")) return;
+    setPageAction("delete");
+    try {
+      const res = await fetch(`/api/builder/pages/${page.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Couldn't delete");
+      toast({ title: "Page deleted" });
+      window.location.href = "/dashboard/builder/editor";
+    } catch (err) {
+      toast({ title: "Couldn't delete", description: err instanceof Error ? err.message : undefined, variant: "destructive" });
+      setPageAction("");
     }
   }
 
@@ -447,6 +496,16 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
               <Settings2 className="mr-1.5 h-4 w-4" /> Page
             </Button>
           )}
+          {mode === "page" && page && (
+            <>
+              <Button variant="outline" size="icon" onClick={duplicatePage} disabled={pageAction !== ""} title="Duplicate page">
+                {pageAction === "duplicate" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
+              </Button>
+              <Button variant="outline" size="icon" onClick={deletePage} disabled={pageAction !== ""} title="Delete page" className="text-rose-600 hover:text-rose-700">
+                {pageAction === "delete" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              </Button>
+            </>
+          )}
           <Button size="sm" onClick={save} disabled={saving}>
             {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
             Save
@@ -514,6 +573,27 @@ export function BuilderEditor({ mode = "page" }: { mode?: "page" | "header" | "f
           <label className="block text-sm">
             <span className="mb-1 block text-xs text-muted-foreground">Primary button link</span>
             <input value={bottombar.primaryHref ?? ""} onChange={(e) => setBottombar((b) => ({ ...b, primaryHref: e.target.value }))} placeholder="#" className={inputCls} />
+          </label>
+
+          {/* ── SEO ─────────────────────────────────────────────────────── */}
+          <div className="sm:col-span-3 border-t border-border pt-3">
+            <p className="mb-2 text-xs font-semibold text-foreground">SEO &amp; sharing</p>
+          </div>
+          <label className="block text-sm sm:col-span-2">
+            <span className="mb-1 block text-xs text-muted-foreground">SEO title</span>
+            <input value={seoTitle} onChange={(e) => setSeoTitle(e.target.value)} placeholder="Shown in the browser tab &amp; search results" maxLength={200} className={inputCls} />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs text-muted-foreground">Social image URL (OG)</span>
+            <input value={ogImage} onChange={(e) => setOgImage(e.target.value)} placeholder="https://…/cover.png" className={inputCls} />
+          </label>
+          <label className="block text-sm sm:col-span-3">
+            <span className="mb-1 block text-xs text-muted-foreground">Meta description</span>
+            <textarea value={seoDescription} onChange={(e) => setSeoDescription(e.target.value)} placeholder="One or two sentences for search engines &amp; link previews." maxLength={400} rows={2} className={inputCls} />
+          </label>
+          <label className="flex items-center gap-2 text-sm sm:col-span-3">
+            <input type="checkbox" checked={noindex} onChange={(e) => setNoindex(e.target.checked)} />
+            <span className="text-xs">Hide from search engines (noindex) — for thank-you / unlisted pages</span>
           </label>
         </div>
       )}
