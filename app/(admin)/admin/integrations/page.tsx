@@ -3,7 +3,7 @@
 // platform_settings (secrets AES-encrypted via INVOXAI_VAULT_KEY) and read at
 // runtime with an env fallback (lib/integration-settings).
 
-import { Sparkles, Chrome, ShieldCheck, KeyRound, Info } from "lucide-react";
+import { Sparkles, Chrome, ShieldCheck, KeyRound, Info, ExternalLink, CreditCard } from "lucide-react";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { maskValue, vaultConfigured } from "@/lib/admin/vault";
@@ -119,6 +119,32 @@ export default async function AdminIntegrationsPage() {
           <p className="mt-1.5">The API key is used first when both are set. You can add a key later — the feature stays hidden until one is present.</p>
         </div>
 
+        {/* Generate / connect buttons → open Anthropic's console to create the key, then paste below. */}
+        <div className="flex flex-wrap gap-2">
+          <a
+            href="https://console.anthropic.com/settings/keys"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+          >
+            <Sparkles className="h-4 w-4" /> Generate API key on Anthropic
+            <ExternalLink className="h-3.5 w-3.5 opacity-80" />
+          </a>
+          <a
+            href="https://console.anthropic.com/settings/billing"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-sm font-medium text-foreground transition hover:bg-muted"
+          >
+            <CreditCard className="h-4 w-4" /> Add credits / billing
+            <ExternalLink className="h-3.5 w-3.5 opacity-60" />
+          </a>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Click <strong>Generate API key on Anthropic</strong> → create &amp; copy the key (<code className="font-mono">sk-ant-api…</code>) → paste it in the field below and Save.
+          For the account auth token instead, run <code className="font-mono">claude setup-token</code> in a terminal (Max/Pro account) and paste the <code className="font-mono">sk-ant-oat…</code> token.
+        </p>
+
         <div className="space-y-2">
           {renderField({ key: "anthropic_api_key", label: "Anthropic API key", encrypted: true, description: "sk-ant-api… — from console.anthropic.com." })}
           {renderField({ key: "anthropic_auth_token", label: "Anthropic account auth token", encrypted: true, description: "sk-ant-oat… — your normal Claude account, via `claude setup-token`." })}
@@ -152,6 +178,18 @@ export default async function AdminIntegrationsPage() {
             </li>
             <li>Copy the <strong>Client ID</strong> and <strong>Client secret</strong> into the fields below and Save.</li>
           </ol>
+        </div>
+
+        <div>
+          <a
+            href="https://console.cloud.google.com/apis/credentials"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+          >
+            <Chrome className="h-4 w-4" /> Open Google Cloud Console
+            <ExternalLink className="h-3.5 w-3.5 opacity-80" />
+          </a>
         </div>
 
         <div className="space-y-2">
