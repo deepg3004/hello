@@ -574,23 +574,18 @@ export default async function BuyerAccountPage() {
                         {d.limit == null
                           ? "Unlimited downloads"
                           : exhausted
-                            ? "Download limit reached"
-                            : `${d.remaining} of ${d.limit} download${d.limit === 1 ? "" : "s"} left`}
+                            ? "Emailed-link limit reached — re-download here anytime"
+                            : `${d.remaining} of ${d.limit} on the emailed link · re-download here anytime`}
                       </p>
                     </div>
-                    {exhausted ? (
-                      <Button size="sm" variant="outline" disabled>
+                    {/* Signed-in re-download — identity-verified, so it always
+                        works regardless of the emailed link's limit. */}
+                    <Button asChild size="sm" variant={exhausted ? "outline" : "default"}>
+                      <a href={`/api/account/download/${d.token}`}>
                         <Download className="mr-1.5 h-3.5 w-3.5" />
-                        Limit reached
-                      </Button>
-                    ) : (
-                      <Button asChild size="sm">
-                        <a href={`/api/download/${d.token}`}>
-                          <Download className="mr-1.5 h-3.5 w-3.5" />
-                          Download
-                        </a>
-                      </Button>
-                    )}
+                        {exhausted ? "Download again" : "Download"}
+                      </a>
+                    </Button>
                   </CardContent>
                 </Card>
               );
