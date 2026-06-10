@@ -24,6 +24,10 @@ import {
   MailQuestion,
   ShoppingCart,
   Menu as MenuIcon,
+  HelpCircle,
+  LayoutGrid,
+  TrendingUp,
+  BadgeCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -403,6 +407,171 @@ export const WIDGETS: Record<string, WidgetDef> = {
     ],
     defaultContent: { name: "Your product", price: "₹999", slug: "", label: "Buy now", color: "#16a34a" },
     Render: (c) => <BuyWidget content={c} />,
+  },
+
+  // ── Content blocks (presentational, SSR-safe) ────────────────────────────────
+  faq: {
+    type: "faq",
+    label: "FAQ",
+    icon: HelpCircle,
+    fields: [
+      {
+        key: "items",
+        label: "Questions",
+        type: "list",
+        itemLabel: "question",
+        itemFields: [
+          { key: "q", label: "Question", type: "text" },
+          { key: "a", label: "Answer", type: "textarea" },
+        ],
+      },
+    ],
+    defaultContent: {
+      items: [
+        { q: "How does it work?", a: "Sign up, pick a plan, and you're ready to go in minutes." },
+        { q: "Can I cancel anytime?", a: "Yes — there are no lock-in contracts. Cancel whenever you like." },
+        { q: "Do you offer support?", a: "Absolutely. Our team is here to help whenever you need us." },
+      ],
+    },
+    // Native <details> so it works on the server-rendered public page (no JS).
+    Render: (c) => {
+      const items = arr<{ q?: string; a?: string }>(c.items);
+      return (
+        <div className="mx-auto max-w-2xl divide-y divide-current/10 rounded-2xl border border-current/10 bg-current/5">
+          {items.map((it, i) => (
+            <details key={i} className="group px-5 py-4">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold">
+                {s(it.q, "Question")}
+                <span className="opacity-50 transition group-open:rotate-45">+</span>
+              </summary>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed opacity-80">{s(it.a)}</p>
+            </details>
+          ))}
+        </div>
+      );
+    },
+  },
+
+  features: {
+    type: "features",
+    label: "Feature Grid",
+    icon: LayoutGrid,
+    fields: [
+      {
+        key: "items",
+        label: "Features",
+        type: "list",
+        itemLabel: "feature",
+        itemFields: [
+          { key: "icon", label: "Icon", type: "icon" },
+          { key: "title", label: "Title", type: "text" },
+          { key: "text", label: "Description", type: "textarea" },
+        ],
+      },
+      { key: "color", label: "Icon color", type: "color" },
+    ],
+    defaultContent: {
+      color: "#4f46e5",
+      items: [
+        { icon: "Zap", title: "Fast setup", text: "Go live in minutes, not weeks." },
+        { icon: "ShieldCheck", title: "Secure", text: "Your data is encrypted and safe." },
+        { icon: "Rocket", title: "Built to scale", text: "Grows with you, no replatforming." },
+      ],
+    },
+    Render: (c) => {
+      const items = arr<{ icon?: string; title?: string; text?: string }>(c.items);
+      const color = s(c.color, "#4f46e5");
+      return (
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((it, i) => (
+            <div key={i} className="rounded-2xl border border-current/10 bg-current/5 p-5">
+              <BuilderIcon name={s(it.icon, "Star")} size={28} color={color} />
+              <h3 className="mt-3 text-lg font-semibold">{s(it.title, "Feature")}</h3>
+              <p className="mt-1 text-sm leading-relaxed opacity-75">{s(it.text)}</p>
+            </div>
+          ))}
+        </div>
+      );
+    },
+  },
+
+  stats: {
+    type: "stats",
+    label: "Stats Counter",
+    icon: TrendingUp,
+    fields: [
+      {
+        key: "items",
+        label: "Stats",
+        type: "list",
+        itemLabel: "stat",
+        itemFields: [
+          { key: "value", label: "Value", type: "text" },
+          { key: "label", label: "Label", type: "text" },
+        ],
+      },
+      { key: "color", label: "Number color", type: "color" },
+    ],
+    defaultContent: {
+      color: "#4f46e5",
+      items: [
+        { value: "10k+", label: "Happy customers" },
+        { value: "4.9★", label: "Average rating" },
+        { value: "99.9%", label: "Uptime" },
+      ],
+    },
+    Render: (c) => {
+      const items = arr<{ value?: string; label?: string }>(c.items);
+      const color = s(c.color, "#4f46e5");
+      return (
+        <div className="flex flex-wrap items-stretch justify-center gap-x-10 gap-y-6 text-center">
+          {items.map((it, i) => (
+            <div key={i}>
+              <div className="text-4xl font-extrabold sm:text-5xl" style={{ color }}>{s(it.value, "0")}</div>
+              <div className="mt-1 text-sm font-medium opacity-70">{s(it.label)}</div>
+            </div>
+          ))}
+        </div>
+      );
+    },
+  },
+
+  badges: {
+    type: "badges",
+    label: "Trust Badges",
+    icon: BadgeCheck,
+    fields: [
+      {
+        key: "items",
+        label: "Badges",
+        type: "list",
+        itemLabel: "badge",
+        itemFields: [{ key: "text", label: "Text", type: "text" }],
+      },
+      { key: "align", label: "Alignment", type: "select", options: ALIGN },
+    ],
+    defaultContent: {
+      align: "center",
+      items: [
+        { text: "Secure checkout" },
+        { text: "30-day money-back guarantee" },
+        { text: "24/7 support" },
+      ],
+    },
+    Render: (c) => {
+      const items = arr<{ text?: string }>(c.items);
+      const wrap = c.align === "left" ? "justify-start" : c.align === "right" ? "justify-end" : "justify-center";
+      return (
+        <div className={`flex flex-wrap items-center gap-3 ${wrap}`}>
+          {items.map((it, i) => (
+            <span key={i} className="inline-flex items-center gap-1.5 rounded-full border border-current/10 bg-current/5 px-3 py-1.5 text-sm font-medium opacity-80">
+              <BadgeCheck className="h-4 w-4 text-emerald-500" />
+              {s(it.text, "Badge")}
+            </span>
+          ))}
+        </div>
+      );
+    },
   },
 };
 
