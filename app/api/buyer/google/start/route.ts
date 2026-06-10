@@ -8,13 +8,14 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { signBuyerOAuthState } from "@/lib/buyer-portal";
 import { isKnownSellerHost } from "@/lib/buyers";
-import { buyerGoogleEnabled, buildGoogleAuthUrl } from "@/lib/buyer-google";
+import { getGoogleBuyerConfig, buildGoogleAuthUrl } from "@/lib/buyer-google";
 
 export async function GET(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
   const accountUrl = new URL("/account", request.url);
 
-  if (!buyerGoogleEnabled()) {
+  const cfg = await getGoogleBuyerConfig();
+  if (!cfg.clientId || !cfg.clientSecret) {
     accountUrl.searchParams.set("login", "google_unavailable");
     return NextResponse.redirect(accountUrl);
   }
@@ -23,5 +24,5 @@ export async function GET(request: NextRequest) {
   }
 
   const state = signBuyerOAuthState(host);
-  return NextResponse.redirect(buildGoogleAuthUrl(state));
+  return NextResponse.redirect(buildGoogleAuthUrl(state, cfg));
 }

@@ -30,7 +30,7 @@ function slugify(s: string): string {
 }
 
 export async function POST(request: Request) {
-  if (!aiGeneratorEnabled()) {
+  if (!(await aiGeneratorEnabled())) {
     return NextResponse.json({ error: "AI generation isn't available yet." }, { status: 503 });
   }
 
