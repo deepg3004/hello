@@ -113,6 +113,98 @@ export function verifyBuyerSession(value: string): string | null {
   ) {
     return null;
   }
+  // A plain session token has no `t` tag. Typed tokens (oauth state / handoff)
+  // must never be accepted as a session, even though they share the signer.
+  if ((payload as unknown as Record<string, unknown>).t) return null;
   if (payload.exp < Math.floor(Date.now() / 1000)) return null;
   return payload.e;
+}
+
+// ── Google OAuth: signed state + cross-host handoff token ────────────────────
+// Buyers sign in on many hosts (*.invoxai.io + custom domains) but Google only
+// allows ONE registered redirect URI, so the consent round-trip happens on a
+// single central host and the verified result is handed back to the originating
+// host. Both artifacts are HMAC-signed with the buyer-portal secret (no DB, no
+// cookie needed across hosts) and short-lived. `t` tags prevent any one token
+// type from being replayed as another.
+
+const OAUTH_STATE_TTL_S = 10 * 60; // consent must complete within 10 min
+const HANDOFF_TTL_S = 60; // host hand-back token is single-use, 60s
+
+interface TypedPayload {
+  t: "oauth_state" | "handoff";
+  h?: string; // origin host (state)
+  e?: string; // verified email (handoff)
+  n: string; // nonce
+  iat: number;
+  exp: number;
+}
+
+function verifyTyped(value: string, type: TypedPayload["t"]): TypedPayload | null {
+  if (typeof value !== "string" || !value.includes(".")) return null;
+  const [bodyB64, sigB64] = value.split(".");
+  if (!bodyB64 || !sigB64) return null;
+  const expected = crypto
+    .createHmac("sha256", buyerPortalSecret())
+    .update(bodyB64)
+    .digest("base64url");
+  if (expected.length !== sigB64.length) return null;
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sigB64))) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+  let payload: TypedPayload;
+  try {
+    payload = JSON.parse(
+      Buffer.from(bodyB64, "base64url").toString("utf-8"),
+    ) as TypedPayload;
+  } catch {
+    return null;
+  }
+  if (payload.t !== type) return null;
+  if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) return null;
+  return payload;
+}
+
+/** Sign the OAuth `state` that carries the originating host through Google. */
+export function signBuyerOAuthState(host: string): string {
+  const now = Math.floor(Date.now() / 1000);
+  const payload: TypedPayload = {
+    t: "oauth_state",
+    h: host,
+    n: crypto.randomBytes(12).toString("base64url"),
+    iat: now,
+    exp: now + OAUTH_STATE_TTL_S,
+  };
+  return signWith(JSON.stringify(payload), buyerPortalSecret());
+}
+
+/** Verify the OAuth state; returns the origin host or null. */
+export function verifyBuyerOAuthState(value: string): { host: string } | null {
+  const p = verifyTyped(value, "oauth_state");
+  if (!p || typeof p.h !== "string" || !p.h) return null;
+  return { host: p.h };
+}
+
+/** Sign the short-lived token handed back to the origin host after consent. */
+export function signBuyerHandoff(email: string): string {
+  const now = Math.floor(Date.now() / 1000);
+  const payload: TypedPayload = {
+    t: "handoff",
+    e: email,
+    n: crypto.randomBytes(12).toString("base64url"),
+    iat: now,
+    exp: now + HANDOFF_TTL_S,
+  };
+  return signWith(JSON.stringify(payload), buyerPortalSecret());
+}
+
+/** Verify the handoff token; returns the verified email or null. */
+export function verifyBuyerHandoff(value: string): string | null {
+  const p = verifyTyped(value, "handoff");
+  if (!p || typeof p.e !== "string" || !p.e) return null;
+  return p.e;
 }

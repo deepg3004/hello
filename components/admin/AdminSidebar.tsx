@@ -24,6 +24,7 @@ import {
   Sliders,
   Store,
   Ticket,
+  UserCircle,
   Users,
 } from "lucide-react";
 
@@ -74,6 +75,7 @@ export function AdminSidebar({
       label: "Data",
       items: [
         { href: "/admin/customers", label: "Customers", Icon: Contact },
+        { href: "/admin/buyers", label: "Buyer Accounts", Icon: UserCircle },
         { href: "/admin/store", label: "Store", Icon: Store },
         { href: "/admin/coupons", label: "Coupons", Icon: Ticket },
         { href: "/admin/invoxai-tr", label: "InvoxAI-TR", Icon: Receipt },

@@ -3,7 +3,12 @@ import path from "node:path";
 
 export default defineConfig({
   resolve: {
-    alias: { "@": path.resolve(__dirname) },
+    alias: {
+      "@": path.resolve(__dirname),
+      // `server-only` throws when imported outside a React Server Component;
+      // stub it so server-lib units (e.g. buyer-portal token crypto) can run.
+      "server-only": path.resolve(__dirname, "tests/stubs/server-only.ts"),
+    },
   },
   test: {
     environment: "node",

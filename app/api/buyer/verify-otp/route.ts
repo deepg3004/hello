@@ -14,6 +14,7 @@ import {
   hashBuyerOtp,
   signBuyerSession,
 } from "@/lib/buyer-portal";
+import { recordBuyerLogin } from "@/lib/buyers";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 const MAX_ATTEMPTS = 5;
@@ -76,6 +77,19 @@ export async function POST(request: Request) {
     .from("buyer_portal_otps")
     .update({ used_at: new Date().toISOString() })
     .eq("id", row.id);
+
+  // Record the buyer account + login event (best-effort, never blocks login).
+  await recordBuyerLogin(
+    {
+      email,
+      provider: "email_otp",
+      emailVerified: true,
+      host: request.headers.get("host"),
+      ip: clientIp(request),
+      userAgent: request.headers.get("user-agent"),
+    },
+    admin,
+  );
 
   const token = signBuyerSession(email);
   const response = NextResponse.json({ ok: true });
