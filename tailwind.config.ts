@@ -20,10 +20,10 @@ const config: Config = {
     extend: {
       // ── Typography ────────────────────────────────────────────────────
       fontFamily: {
-        // Font pairing: Sora (geometric display) for headings/`font-sora`,
-        // Inter for body/UI. `dm` kept as an Inter alias. Sora falls back to
-        // Inter so headings stay sane if the webfont is slow/unavailable.
-        sora: ["Sora", "Inter", "system-ui", "sans-serif"],
+        // Font pairing: Space Grotesk (characterful display) for headings/
+        // `font-sora`, Inter for body/UI. `dm` kept as an Inter alias. Falls
+        // back to Inter so headings stay sane if the webfont is slow.
+        sora: ["Space Grotesk", "Inter", "system-ui", "sans-serif"],
         dm: ["Inter", "system-ui", "sans-serif"],
         sans: ["Inter", "system-ui", "sans-serif"],
       },
