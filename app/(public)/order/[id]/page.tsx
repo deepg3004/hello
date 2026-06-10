@@ -8,6 +8,7 @@ import { PaymentSuccessShare } from "@/components/pages/PaymentSuccessShare";
 import { ContactSellerButton } from "@/components/buyer/ContactSellerButton";
 import { RequestRefundButton } from "@/components/buyer/RequestRefundButton";
 import { TelegramInviteCard } from "@/components/pages/TelegramInviteCard";
+import { PurchaseBeacon } from "@/components/tracking/PurchaseBeacon";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { courseForProduct } from "@/lib/courses";
 import { signCourseToken } from "@/lib/course-token";
@@ -40,6 +41,7 @@ interface OrderRow {
   telegram_invite_link: string | null;
   page_id: string | null;
   refund_request_status: string | null;
+  seller_user_id: string | null;
 }
 
 export default async function OrderConfirmationPage({
@@ -51,7 +53,7 @@ export default async function OrderConfirmationPage({
   const { data: order } = await admin
     .from("orders")
     .select(
-      "id, amount, currency, status, buyer_email, buyer_name, paid_at, created_at, product_id, telegram_invite_link, page_id, refund_request_status",
+      "id, seller_user_id, amount, currency, status, buyer_email, buyer_name, paid_at, created_at, product_id, telegram_invite_link, page_id, refund_request_status",
     )
     .eq("id", params.id)
     .single<OrderRow>();
@@ -187,6 +189,15 @@ export default async function OrderConfirmationPage({
       )}
     >
       <div className="mx-auto max-w-xl space-y-6">
+        {/* First-party Purchase event (server-confirmed paid order). */}
+        {paid && order.seller_user_id && (
+          <PurchaseBeacon
+            sellerId={order.seller_user_id}
+            orderId={order.id}
+            value={Number(order.amount ?? 0)}
+            currency={order.currency}
+          />
+        )}
         {/* Animated status circle */}
         {paid && <Confetti />}
         {paid && <StatusCircle variant="success" />}

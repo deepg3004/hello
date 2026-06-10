@@ -6,6 +6,8 @@
 
 import { Send, MessageCircle } from "lucide-react";
 
+import { trackClick } from "@/lib/tracking/events";
+
 export interface SiteContacts {
   telegram?: string;
   whatsapp?: string;
@@ -28,9 +30,9 @@ function waLink(v: string): string {
 }
 
 export function FloatingChat({ contacts }: { contacts?: SiteContacts }) {
-  const btns: Array<{ href: string; color: string; label: string; Icon: typeof Send }> = [];
-  if (contacts?.whatsapp) btns.push({ href: waLink(contacts.whatsapp), color: "#25D366", label: "WhatsApp", Icon: MessageCircle });
-  if (contacts?.telegram) btns.push({ href: tgLink(contacts.telegram), color: "#229ED9", label: "Telegram", Icon: Send });
+  const btns: Array<{ href: string; color: string; label: string; event: string; Icon: typeof Send }> = [];
+  if (contacts?.whatsapp) btns.push({ href: waLink(contacts.whatsapp), color: "#25D366", label: "WhatsApp", event: "WhatsAppClick", Icon: MessageCircle });
+  if (contacts?.telegram) btns.push({ href: tgLink(contacts.telegram), color: "#229ED9", label: "Telegram", event: "TelegramClick", Icon: Send });
   if (btns.length === 0) return null;
 
   return (
@@ -41,6 +43,7 @@ export function FloatingChat({ contacts }: { contacts?: SiteContacts }) {
           href={b.href}
           target="_blank"
           rel="noreferrer"
+          onClick={() => trackClick(b.event)}
           aria-label={`Chat on ${b.label}`}
           className="flex h-12 w-12 items-center justify-center rounded-full text-white shadow-lg transition hover:scale-105"
           style={{ background: b.color }}

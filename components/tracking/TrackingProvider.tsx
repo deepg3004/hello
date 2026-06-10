@@ -30,6 +30,9 @@ export function TrackingProvider({
 }: TrackingProviderProps) {
   useEffect(() => {
     if (disabled || !sellerId || typeof window === "undefined") return;
+    // Expose the seller id so click/conversion widgets on this page can fire
+    // first-party events without threading it through props.
+    window.__INVOX_SELLER__ = sellerId;
     // Fire at most once per path per load (app-router can double-mount).
     const key = `__invox_pv_${location.pathname}`;
     if ((window as unknown as Record<string, boolean>)[key]) return;
