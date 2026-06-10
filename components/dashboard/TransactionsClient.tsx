@@ -20,6 +20,7 @@ import {
   TrendingUp,
   Undo2,
   X,
+  XCircle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ import {
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
 import {
+  declineRefundRequestAction,
   exportTransactionsCsvAction,
   refundOrderAction,
   resendOrderDeliveryAction,
@@ -97,6 +99,9 @@ export interface TransactionRow {
   coupon_code: string | null;
   discount_amount: number;
   created_at: string;
+  /** "none" | "requested" | "declined" — buyer-initiated refund request. */
+  refund_request_status?: string | null;
+  refund_request_reason?: string | null;
 }
 
 export interface PageOption {
@@ -740,6 +745,37 @@ function EmptyTable({ filtered }: { filtered: boolean }) {
   );
 }
 
+function DeclineRefundButton({ orderId }: { orderId: string }) {
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      disabled={busy}
+      onClick={async (e) => {
+        e.stopPropagation();
+        if (!confirm("Decline this refund request? The buyer is not refunded.")) return;
+        setBusy(true);
+        const r = await declineRefundRequestAction(orderId);
+        setBusy(false);
+        toast({
+          title: r.ok ? "Request declined" : "Couldn't decline",
+          description: r.message,
+          variant: r.ok ? undefined : "destructive",
+        });
+      }}
+    >
+      {busy ? (
+        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <XCircle className="mr-1.5 h-3.5 w-3.5" />
+      )}
+      Decline request
+    </Button>
+  );
+}
+
 function ResendDeliveryButton({ orderId }: { orderId: string }) {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
@@ -849,7 +885,14 @@ function ExpandableRow({
           </div>
         </td>
         <td className="px-4 py-3">
-          <StatusBadge status={row.status} />
+          <div className="flex flex-col items-start gap-1">
+            <StatusBadge status={row.status} />
+            {row.refund_request_status === "requested" && row.status === "paid" && (
+              <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                Refund requested
+              </span>
+            )}
+          </div>
         </td>
         <td className="px-4 py-3 text-xs text-muted-foreground">
           {formatDateTime(row.created_at)}
@@ -896,6 +939,23 @@ function ExpandableRow({
                 </DetailBlock>
               </div>
 
+              {/* Buyer refund request notice */}
+              {row.refund_request_status === "requested" && row.status === "paid" && (
+                <div className="mt-4 rounded-lg border border-amber-300/60 bg-amber-50/60 p-3 dark:border-amber-500/30 dark:bg-amber-500/10">
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                    Buyer requested a refund
+                  </p>
+                  {row.refund_request_reason && (
+                    <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">
+                      “{row.refund_request_reason}”
+                    </p>
+                  )}
+                  <p className="mt-1.5 text-[11px] text-muted-foreground">
+                    Approve by issuing a refund below, or decline the request.
+                  </p>
+                </div>
+              )}
+
               {/* Action row */}
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 {row.page_slug && (
@@ -933,6 +993,9 @@ function ExpandableRow({
                   </Button>
                 )}
                 {row.status === "paid" && <ResendDeliveryButton orderId={row.id} />}
+                {row.refund_request_status === "requested" && row.status === "paid" && (
+                  <DeclineRefundButton orderId={row.id} />
+                )}
                 {(isAdmin || canRefund) &&
                   (row.status === "paid" ||
                     row.status === "partially_refunded") && (

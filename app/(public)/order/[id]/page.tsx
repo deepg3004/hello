@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Confetti } from "@/components/ui/Confetti";
 import { PaymentSuccessShare } from "@/components/pages/PaymentSuccessShare";
 import { ContactSellerButton } from "@/components/buyer/ContactSellerButton";
+import { RequestRefundButton } from "@/components/buyer/RequestRefundButton";
 import { TelegramInviteCard } from "@/components/pages/TelegramInviteCard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { courseForProduct } from "@/lib/courses";
@@ -38,6 +39,7 @@ interface OrderRow {
   product_id: string | null;
   telegram_invite_link: string | null;
   page_id: string | null;
+  refund_request_status: string | null;
 }
 
 export default async function OrderConfirmationPage({
@@ -49,7 +51,7 @@ export default async function OrderConfirmationPage({
   const { data: order } = await admin
     .from("orders")
     .select(
-      "id, amount, currency, status, buyer_email, buyer_name, paid_at, created_at, product_id, telegram_invite_link, page_id",
+      "id, amount, currency, status, buyer_email, buyer_name, paid_at, created_at, product_id, telegram_invite_link, page_id, refund_request_status",
     )
     .eq("id", params.id)
     .single<OrderRow>();
@@ -372,8 +374,13 @@ export default async function OrderConfirmationPage({
 
         {/* Reach the seller about this order (signed-in buyer only). */}
         {owns && (
-          <div className="flex justify-center">
+          <div className="flex flex-wrap items-center justify-center gap-1.5">
             <ContactSellerButton orderId={order.id} />
+            <RequestRefundButton
+              orderId={order.id}
+              status={order.status}
+              refundRequestStatus={order.refund_request_status}
+            />
           </div>
         )}
 

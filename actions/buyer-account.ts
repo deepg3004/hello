@@ -12,6 +12,7 @@ import { BUYER_COOKIE, verifyBuyerSession } from "@/lib/buyer-portal";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rateLimit } from "@/lib/rate-limit";
 import { sendEmail } from "@/lib/email";
+import { createNotification } from "@/lib/notifications/create";
 
 type Result = { ok: boolean; message?: string };
 
@@ -267,6 +268,102 @@ export async function contactSellerAboutOrderAction(
   if (!res.ok && !res.skipped) {
     return { ok: false, message: "Couldn't send right now. Please try again." };
   }
+  return { ok: true };
+}
+
+/**
+ * Structured refund request on a PAID order. Unlike contactSeller (a relayed
+ * email), this stamps a tracked status on the order so it lands in the seller's
+ * transactions queue, and pings the seller (in-app bell + email). The seller
+ * resolves it by issuing the existing refund or declining.
+ */
+export async function requestRefundAction(
+  orderId: string,
+  reason: string,
+): Promise<Result> {
+  const email = buyerEmail();
+  if (!email) return { ok: false, message: NOT_SIGNED_IN };
+
+  const note = (reason ?? "").trim();
+  if (note.length < 5) return { ok: false, message: "Please tell the seller why (a short reason)." };
+  if (note.length > 2000) return { ok: false, message: "Reason is too long." };
+
+  const rl = await rateLimit(`refund-req:${email.toLowerCase()}`, 5, 3600);
+  if (!rl.ok) {
+    return { ok: false, message: "Too many requests — please try again later." };
+  }
+
+  const admin = createAdminClient();
+  const { data: order, error: readErr } = await admin
+    .from("orders")
+    .select(
+      "id, buyer_email, buyer_name, seller_user_id, amount, status, refund_request_status, pages(title)",
+    )
+    .eq("id", orderId)
+    .maybeSingle();
+  // Pre-migration tolerance: if the column doesn't exist yet, fail soft.
+  if (readErr) return { ok: false, message: "Refund requests aren't available yet." };
+  if (!order || (order.buyer_email ?? "").toLowerCase() !== email.toLowerCase()) {
+    return { ok: false, message: "Order not found." };
+  }
+  if (order.status !== "paid") {
+    return { ok: false, message: "Only paid orders can be refunded." };
+  }
+  if (order.refund_request_status === "requested") {
+    return { ok: false, message: "You've already requested a refund for this order." };
+  }
+
+  const { error } = await admin
+    .from("orders")
+    .update({
+      refund_request_status: "requested",
+      refund_requested_at: new Date().toISOString(),
+      refund_request_reason: note,
+    })
+    .eq("id", orderId);
+  if (error) return { ok: false, message: "Couldn't submit. Please try again." };
+
+  const page = Array.isArray(order.pages) ? order.pages[0] : order.pages;
+  const shortId = String(order.id).slice(0, 8);
+
+  // In-app bell — always reaches the seller regardless of their prefs.
+  await createNotification({
+    userId: order.seller_user_id as string,
+    type: "refund_requested",
+    title: "Refund requested",
+    body: `${order.buyer_name || order.buyer_email} requested a refund of ₹${Number(
+      order.amount ?? 0,
+    ).toLocaleString("en-IN")} (order #${shortId}).`,
+    link: "/dashboard/transactions",
+    meta: { order_id: order.id, reason: note },
+  });
+
+  // Email the seller too (best-effort).
+  const { data: seller } = await admin
+    .from("user_profiles")
+    .select("email")
+    .eq("id", order.seller_user_id)
+    .maybeSingle();
+  if (seller?.email) {
+    await sendEmail({
+      to: seller.email,
+      subject: `[Order #${shortId}] Refund requested — ${order.buyer_email}`,
+      html: `
+        <p>A buyer has requested a refund.</p>
+        <table style="border-collapse:collapse;font-size:14px">
+          <tr><td style="padding:2px 12px 2px 0;color:#666">Order</td><td>#${escapeHtml(shortId)}${page?.title ? " · " + escapeHtml(page.title) : ""}</td></tr>
+          <tr><td style="padding:2px 12px 2px 0;color:#666">Buyer</td><td>${escapeHtml(order.buyer_name || "—")} &lt;${escapeHtml(order.buyer_email)}&gt;</td></tr>
+          <tr><td style="padding:2px 12px 2px 0;color:#666">Amount</td><td>₹${Number(order.amount ?? 0).toLocaleString("en-IN")}</td></tr>
+        </table>
+        <p style="margin-top:12px;white-space:pre-wrap;border-left:3px solid #e5e7eb;padding-left:12px;color:#111">${escapeHtml(note)}</p>
+        <p style="margin-top:16px;color:#666;font-size:13px">Review it in your <a href="${process.env.NEXT_PUBLIC_APP_URL ?? "https://app.invoxai.io"}/dashboard/transactions">transactions</a> — refund or decline from there.</p>
+      `,
+      reply_to: order.buyer_email,
+      sellerId: order.seller_user_id as string,
+    });
+  }
+
+  revalidatePath("/account");
   return { ok: true };
 }
 

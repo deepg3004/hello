@@ -1,5 +1,7 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { requireActor } from "@/lib/account-context";
@@ -154,6 +156,43 @@ export interface RefundResult {
  * uses (downloads/course/Telegram/Discord re-issued; receipt re-sent). Scoped to
  * the order's owner.
  */
+/**
+ * Decline a buyer's refund request without issuing money. Flips the tracked
+ * status to 'declined' (the request leaves the seller's queue). Issuing an
+ * actual refund is handled by refundOrderAction, which moves the order to
+ * 'refunded' and thereby supersedes the request.
+ */
+export async function declineRefundRequestAction(
+  orderId: string,
+): Promise<{ ok: boolean; message?: string }> {
+  const actor = await requireActor("transactions.manage");
+  if (!actor.ok) return { ok: false, message: actor.error };
+  const { ctx } = actor;
+
+  const admin = createAdminClient();
+  const { data: order } = await admin
+    .from("orders")
+    .select("id, seller_user_id, refund_request_status")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (!order) return { ok: false, message: "Order not found" };
+  if (order.seller_user_id !== ctx.ownerId) {
+    return { ok: false, message: "You can only manage your own orders." };
+  }
+  if (order.refund_request_status !== "requested") {
+    return { ok: false, message: "No open refund request on this order." };
+  }
+
+  const { error } = await admin
+    .from("orders")
+    .update({ refund_request_status: "declined" })
+    .eq("id", orderId);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/dashboard/transactions");
+  return { ok: true };
+}
+
 export async function resendOrderDeliveryAction(
   orderId: string,
 ): Promise<{ ok: boolean; message?: string }> {

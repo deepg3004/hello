@@ -48,6 +48,7 @@ import {
 import { WishlistItems } from "@/components/buyer/WishlistItems";
 import { AddressBook } from "@/components/buyer/AddressBook";
 import { ContactSellerButton } from "@/components/buyer/ContactSellerButton";
+import { RequestRefundButton } from "@/components/buyer/RequestRefundButton";
 
 export const metadata = { title: "Your purchases" };
 export const dynamic = "force-dynamic";
@@ -158,7 +159,7 @@ export default async function BuyerAccountPage() {
   const { data: ordersRaw } = await admin
     .from("orders")
     .select(
-      "id, seller_user_id, product_id, page_id, amount, currency, status, created_at, fulfillment_status, tracking_number, tracking_url, products!orders_product_id_fkey(name), pages(title, slug)",
+      "id, seller_user_id, product_id, page_id, amount, currency, status, created_at, fulfillment_status, tracking_number, tracking_url, refund_request_status, products!orders_product_id_fkey(name), pages(title, slug)",
     )
     .ilike("buyer_email", emailLike)
     .in("status", ["paid", "partially_refunded", "refunded"])
@@ -177,6 +178,7 @@ export default async function BuyerAccountPage() {
     fulfillment_status: string | null;
     tracking_number: string | null;
     tracking_url: string | null;
+    refund_request_status: string | null;
     products: { name: string } | { name: string }[] | null;
     pages: { title: string; slug: string } | { title: string; slug: string }[] | null;
   }>;
@@ -511,6 +513,11 @@ export default async function BuyerAccountPage() {
               </Link>
             </Button>
             <ContactSellerButton orderId={o.id} />
+            <RequestRefundButton
+              orderId={o.id}
+              status={o.status}
+              refundRequestStatus={o.refund_request_status}
+            />
           </div>
         </CardContent>
       </Card>

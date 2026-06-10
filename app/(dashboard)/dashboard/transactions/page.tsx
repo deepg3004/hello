@@ -29,7 +29,7 @@ export default async function TransactionsPage() {
     admin
       .from("orders")
       .select(
-        "id, buyer_name, buyer_email, buyer_phone, buyer_address, amount, platform_commission, seller_amount, status, payment_gateway, gateway_payment_id, coupon_id, discount_amount, utm_source, utm_medium, utm_campaign, created_at, pages(title, slug)",
+        "id, buyer_name, buyer_email, buyer_phone, buyer_address, amount, platform_commission, seller_amount, status, payment_gateway, gateway_payment_id, coupon_id, discount_amount, utm_source, utm_medium, utm_campaign, created_at, refund_request_status, refund_request_reason, pages(title, slug)",
       )
       .eq("seller_user_id", ctx.ownerId)
       .order("created_at", { ascending: false })
@@ -100,6 +100,10 @@ export default async function TransactionsPage() {
       coupon_code: r.coupon_id ? couponMap.get(r.coupon_id) ?? null : null,
       discount_amount: Number(r.discount_amount ?? 0),
       created_at: r.created_at,
+      refund_request_status:
+        (r as { refund_request_status?: string | null }).refund_request_status ?? null,
+      refund_request_reason:
+        (r as { refund_request_reason?: string | null }).refund_request_reason ?? null,
     };
   });
 
