@@ -13,7 +13,7 @@ const Card = React.forwardRef<
       // glass edge — faint inner highlight, indigo-tinted ring, subtle backdrop
       // blur, and an indigo glow on hover. Smooth transition so any page-level
       // hover lift feels considered.
-      "rounded-xl border border-border bg-card text-card-foreground shadow-card",
+      "rounded-2xl border border-border bg-card text-card-foreground shadow-card",
       "transition-[box-shadow,transform] duration-200",
       "dark:bg-card/80 dark:backdrop-blur-xl dark:ring-1 dark:ring-inset dark:ring-white/[0.06] dark:hover:shadow-glow",
       className

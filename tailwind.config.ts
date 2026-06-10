@@ -90,8 +90,9 @@ const config: Config = {
       //    grey haze, on the warm-ivory surfaces. Use shadow-card on resting
       //    panels, shadow-card-md on hover, shadow-card-lg on overlays/heroes.
       boxShadow: {
-        // Ultra-soft, almost-invisible elevation per the premium-monochrome spec.
-        card: "0 1px 2px 0 rgb(0 0 0 / 0.04), 0 4px 12px 0 rgb(0 0 0 / 0.03)",
+        // Soft, refined elevation — present enough to read as a floating surface
+        // without feeling heavy (Emil-style layered shadow).
+        card: "0 1px 3px 0 rgb(0 0 0 / 0.05), 0 6px 20px -4px rgb(0 0 0 / 0.07)",
         "card-md":
           "0 1px 2px 0 rgb(0 0 0 / 0.05), 0 8px 24px -8px rgb(0 0 0 / 0.10)",
         "card-lg":

@@ -261,7 +261,7 @@
      hairline border, soft layered shadow. `card-surface-hover` adds the
      lift used on interactive/clickable panels. */
   .card-surface {
-    @apply rounded-xl border border-border bg-card shadow-card
+    @apply rounded-2xl border border-border bg-card shadow-card
            dark:bg-card/80 dark:backdrop-blur-xl dark:ring-1 dark:ring-inset dark:ring-white/[0.06];
   }
   .card-surface-hover {
@@ -271,7 +271,7 @@
   /* Metric card — surface + hover lift. A faint primary-tinted border on hover
      reads as "interactive" without a heavy fill, matching the card-surface lift. */
   .metric-card {
-    @apply rounded-xl border border-border bg-card p-5 shadow-card
+    @apply rounded-2xl border border-border bg-card p-5 shadow-card
            transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-card-md;
   }
 
