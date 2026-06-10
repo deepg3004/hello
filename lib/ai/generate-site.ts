@@ -9,7 +9,7 @@ import "server-only";
 
 import Anthropic from "@anthropic-ai/sdk";
 
-import { AI_SITE_SCHEMA, type AiSite } from "@/lib/builder/ai-map";
+import { type AiSite } from "@/lib/builder/ai-map";
 import { getAnthropicCredential } from "@/lib/integration-settings";
 
 const MODEL = "claude-opus-4-8";
@@ -48,7 +48,28 @@ Rules:
 - Use spacers/dividers sparingly for rhythm. Keep headings concise.
 - Do NOT invent image or video URLs — omit image/video widgets unless a real URL is provided in the brief. Icons (lucide names like "Zap", "ShieldCheck", "Rocket", "Star", "Check") are fine.
 - Pick a tasteful theme: a primary hex colour, an accent hex, and a light background. Apply the primary colour to buttons.
-- Aim for 5-8 sections. Make it feel finished and trustworthy.`;
+- Aim for 5-8 sections. Make it feel finished and trustworthy.
+
+OUTPUT FORMAT — return ONLY a single JSON object (no markdown fences, no commentary), exactly this shape:
+{
+  "title": "Page title",
+  "seoTitle": "<=60 char SEO title",
+  "seoDescription": "<=155 char meta description",
+  "theme": { "primary": "#4f46e5", "accent": "#06b6d4", "background": "#ffffff" },
+  "sections": [ { "widgets": [ WIDGET, WIDGET ] } ]
+}
+Each WIDGET is ONE of these objects (set "type" plus only that type's fields):
+- {"type":"heading","text":"...","level":"h1|h2|h3","align":"left|center|right"}
+- {"type":"text","text":"...","align":"left|center|right"}
+- {"type":"button","label":"...","url":"#","variant":"filled|outline","color":"#4f46e5","align":"center"}
+- {"type":"icon","name":"<lucide icon e.g. Zap, ShieldCheck, Rocket, Star>","color":"#4f46e5","size":40,"align":"center"}
+- {"type":"testimonial","quote":"...","author":"...","role":"..."}
+- {"type":"pricing","name":"Pro","price":"₹1,499","period":"/mo","features":["Feature one","Feature two"],"label":"Get started","url":"#","color":"#4f46e5"}
+- {"type":"divider"}
+- {"type":"spacer","height":40}
+- {"type":"image","src":"https://REAL-URL","alt":"..."}   (only if a real image URL is given)
+- {"type":"video","url":"https://youtube.com/..."}        (only if a real video URL is given)
+Output valid JSON only — start with { and end with }.`;
 
 function buildUserPrompt(b: SiteBrief): string {
   const lines = [
@@ -76,10 +97,7 @@ export async function generateSite(brief: SiteBrief): Promise<GenerateResult> {
       model: MODEL,
       max_tokens: 16000,
       system: SYSTEM,
-      output_config: {
-        effort: "medium",
-        format: { type: "json_schema", schema: AI_SITE_SCHEMA },
-      },
+      output_config: { effort: "medium" },
       messages: [{ role: "user", content: buildUserPrompt(brief) }],
     } as Anthropic.MessageCreateParamsNonStreaming);
 
@@ -88,8 +106,14 @@ export async function generateSite(brief: SiteBrief): Promise<GenerateResult> {
     }
 
     const textBlock = response.content.find((b) => b.type === "text");
-    const raw = textBlock && textBlock.type === "text" ? textBlock.text : "";
-    if (!raw) return { ok: false, error: "No content was generated." };
+    const text = textBlock && textBlock.type === "text" ? textBlock.text : "";
+    if (!text) return { ok: false, error: "No content was generated." };
+
+    // Robustly extract the JSON object — tolerate ``` fences or stray prose.
+    let raw = text.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+    const a = raw.indexOf("{");
+    const b = raw.lastIndexOf("}");
+    if (a >= 0 && b > a) raw = raw.slice(a, b + 1);
 
     let site: AiSite;
     try {
