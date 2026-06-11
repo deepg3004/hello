@@ -40,7 +40,7 @@ export function LandingPricing() {
             Simple plans that scale with you
           </h2>
           <p className="mt-3 text-muted-foreground">
-            Start free. Upgrade when you&apos;re ready — no lock-in.
+            Transparent pricing that grows with you — no lock-in.
           </p>
         </div>
 
