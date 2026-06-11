@@ -26,25 +26,30 @@ export function createClient() {
     "lib/supabase/server.ts",
   );
 
+  // @supabase/ssr v0.5 getAll/setAll API. setAll writes EVERY cookie the auth
+  // library wants to update in one shot — critical because the session is split
+  // into chunked cookies (sb-…-auth-token.0/.1); the old per-cookie set() lost
+  // chunks and corrupted the session, which made every later request look
+  // expired and triggered a refresh-token storm (refresh_token_already_used).
   return createServerClient(url, anon, {
     cookies: {
-      get(name: string) {
-        return cookieStore.get(name)?.value;
+      getAll() {
+        return cookieStore.getAll();
       },
-      set(name: string, value: string, options: CookieOptions) {
+      setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
         try {
-          cookieStore.set({ name, value, ...options, ...(cookieDomain ? { domain: cookieDomain } : {}) });
+          for (const { name, value, options } of cookiesToSet) {
+            cookieStore.set({
+              name,
+              value,
+              ...options,
+              ...(cookieDomain ? { domain: cookieDomain } : {}),
+            });
+          }
         } catch {
-          // Called from a Server Component — Next forbids cookie mutation
-          // here. Middleware is responsible for refreshing the session, so
-          // ignoring this is safe.
-        }
-      },
-      remove(name: string, options: CookieOptions) {
-        try {
-          cookieStore.set({ name, value: "", ...options, ...(cookieDomain ? { domain: cookieDomain } : {}) });
-        } catch {
-          // See note above.
+          // Called from a Server Component — Next forbids cookie mutation here.
+          // Middleware is the designated refresher (it CAN write cookies), so
+          // ignoring this is safe. Server actions / route handlers DO persist.
         }
       },
     },

@@ -372,27 +372,34 @@ export async function middleware(request: NextRequest) {
   // Cross-subdomain session: scope auth cookies to .invoxai.io so the apex,
   // app.* and admin.* share one login (host-only on localhost / custom domains).
   const cookieDomain = authCookieDomain(request.headers.get("host"));
+  // @supabase/ssr v0.5 getAll/setAll. setAll writes ALL refreshed cookies in a
+  // SINGLE pass and recreates the response ONCE — the old per-cookie set()
+  // rebuilt the response on every call, dropping earlier Set-Cookie headers for
+  // the chunked session cookie (…auth-token.0/.1). That sent the browser a
+  // corrupted/partial session → every later request looked expired → a storm of
+  // concurrent refreshes racing to rotate the same token (refresh_token_already_used)
+  // that exhausted the GoTrue rate limit and 429'd real logins.
   const supabase = createServerClient(
     url,
     anon,
     {
       cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value;
+        getAll() {
+          return request.cookies.getAll();
         },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({ name, value, ...options });
-          response = NextResponse.next({
-            request: { headers: request.headers },
-          });
-          response.cookies.set({ name, value, ...options, ...(cookieDomain ? { domain: cookieDomain } : {}) });
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({ name, value: "", ...options });
-          response = NextResponse.next({
-            request: { headers: request.headers },
-          });
-          response.cookies.set({ name, value: "", ...options, ...(cookieDomain ? { domain: cookieDomain } : {}) });
+        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
+          for (const { name, value } of cookiesToSet) {
+            request.cookies.set(name, value);
+          }
+          response = NextResponse.next({ request: { headers: request.headers } });
+          for (const { name, value, options } of cookiesToSet) {
+            response.cookies.set({
+              name,
+              value,
+              ...options,
+              ...(cookieDomain ? { domain: cookieDomain } : {}),
+            });
+          }
         },
       },
     },
