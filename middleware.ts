@@ -431,9 +431,31 @@ export async function middleware(request: NextRequest) {
   }
 
   // Refresh the session cookie + resolve the user for the redirect gates below.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  // Self-heal a dead/rotated session: a stale or already-used refresh token
+  // returns an auth error while a session cookie is still present, so every
+  // subsequent request keeps firing a doomed refresh. Clear the Supabase auth
+  // cookies once so the user lands on a clean login. Scoped to refresh-token
+  // errors only — a transient GoTrue outage must NOT log everyone out.
+  if (!user && authError) {
+    const code = (authError as { code?: string }).code ?? "";
+    const isRefreshError =
+      code.includes("refresh_token") || /refresh token/i.test(authError.message);
+    if (isRefreshError) {
+      for (const c of request.cookies.getAll()) {
+        if (/^sb-.*-auth-token/.test(c.name)) {
+          response.cookies.set({
+            name: c.name,
+            value: "",
+            maxAge: 0,
+            path: "/",
+            ...(cookieDomain ? { domain: cookieDomain } : {}),
+          });
+        }
+      }
+    }
+  }
 
   if (!user && isProtected) {
     const redirect = request.nextUrl.clone();

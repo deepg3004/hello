@@ -12,6 +12,7 @@
 //   if (!ctx.can("pages.manage")) return { ok: false, message: DENIED_MESSAGE };
 //   // scope BUSINESS resources to ctx.ownerId; keep IDENTITY ops on ctx.authUserId
 
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -46,8 +47,15 @@ function build(authUserId: string, ownerId: string, role: Role): ActorContext {
  * Resolve the actor context for the current request. Returns null when not
  * signed in. Falls back to the user's OWN account (owner role) when the
  * acting-account cookie is missing or doesn't map to an active membership.
+ *
+ * Wrapped in React cache() so it runs ONCE per server render: a single
+ * /dashboard render previously called this ~8 times (layout + each page's
+ * requirePageActor + nested components), each firing supabase.auth.getUser()
+ * which can trigger a token refresh. At access-token expiry those concurrent
+ * per-render refreshes raced to rotate the same token -> refresh_token_already_used
+ * bursts that exhausted the GoTrue rate limit. cache() collapses them to one.
  */
-export async function getActorContext(): Promise<ActorContext | null> {
+export const getActorContext = cache(async function getActorContext(): Promise<ActorContext | null> {
   const supabase = createClient();
   const {
     data: { user },
@@ -76,7 +84,7 @@ export async function getActorContext(): Promise<ActorContext | null> {
 
   if (!membership) return build(user.id, user.id, "owner");
   return build(user.id, acting, membership.role as Role);
-}
+});
 
 /**
  * Guard for server actions. Resolves the actor and (optionally) checks a
