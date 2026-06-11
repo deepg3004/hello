@@ -10,7 +10,9 @@ import { extractSubdomain, platformRootDomain } from "@/lib/domains";
 import { formatINR } from "@/lib/utils";
 import { getReviewSummary, getReviewSummaries, listReviews } from "@/lib/reviews";
 import { resolveSurfaceConfig, resolveChromeConfig } from "@/lib/storefront-theme";
+import { loadMarketing } from "@/lib/marketing";
 import { StorefrontShell } from "@/components/store/StorefrontShell";
+import { TrackingProvider } from "@/components/tracking/TrackingProvider";
 import {
   CoursePlayerClient,
   type PlayerModule,
@@ -404,6 +406,18 @@ export default async function CoursePage({
   const cfg = resolveSurfaceConfig(seller?.storefront_config, "course");
   const chrome = resolveChromeConfig(seller?.storefront_config);
 
+  // Phase 15 — tenant ad pixels + first-party PageView/ViewContent for this
+  // course landing (this route is NOT under the seller-host layout, so it needs
+  // its own pixel injection; toggle-gated like the builder pages).
+  const mkt = await loadMarketing(sellerUserId, admin);
+  const coursePixels = mkt
+    ? {
+        meta_pixel_id: mkt.enable_meta_pixel ? mkt.meta_pixel_id : null,
+        ga4_id: mkt.enable_ga4 ? mkt.ga4_id : null,
+        custom_head_html: mkt.custom_head_html,
+      }
+    : null;
+
   // Inline checkout (direct on-site, no separate /p payment page).
   const pageId = (page as { id?: string } | null)?.id ?? null;
   const checkout =
@@ -419,6 +433,12 @@ export default async function CoursePage({
 
   return (
     <StorefrontShell cfg={cfg} chrome={chrome} brandName={sellerName ?? "Course"} sellerId={sellerUserId}>
+    <TrackingProvider
+      sellerId={sellerUserId}
+      pageType="course"
+      pixels={coursePixels}
+      viewContent={{ productId: courseId, value: product ? Number(product.price) : undefined }}
+    />
     <CourseLanding
       courseId={courseId}
       title={course.title as string}

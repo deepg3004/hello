@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Allow a verification build to an isolated dir (NEXT_DIST_DIR=.next-verify)
+  // so it never overwrites the live `.next` that pm2 is serving.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "*.supabase.co" },

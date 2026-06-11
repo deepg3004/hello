@@ -3,14 +3,20 @@
 import { useEffect } from "react";
 
 import { MarketingScripts, type MarketingPixels } from "@/components/marketing/MarketingScripts";
+import { trackEvent } from "@/lib/tracking/events";
 
 export interface TrackingProviderProps {
   /** The seller/tenant whose pixels + events these are. */
   sellerId: string;
   /** payment / landing / lead / course / builder / store / checkout / success… */
   pageType: string;
-  /** Tenant pixels (already toggle-gated server-side — pass null ids for off). */
+  /** Tenant pixels (already toggle-gated server-side — pass null ids for off).
+   *  Pass null on pages that already inject pixels (PixelScripts / a parent
+   *  MarketingScripts) to keep this beacon-only and avoid double-firing Meta. */
   pixels?: MarketingPixels | null;
+  /** Product context for a detail page — fires one first-party ViewContent
+   *  alongside the PageView (for retargeting audiences). */
+  viewContent?: { productId?: string | null; value?: number | null; currency?: string | null } | null;
   /** Seller preview / staging — inject nothing, fire no events. */
   disabled?: boolean;
 }
@@ -26,8 +32,12 @@ export function TrackingProvider({
   sellerId,
   pageType,
   pixels,
+  viewContent,
   disabled,
 }: TrackingProviderProps) {
+  const vcProductId = viewContent?.productId ?? null;
+  const vcValue = viewContent?.value ?? null;
+  const vcCurrency = viewContent?.currency ?? null;
   useEffect(() => {
     if (disabled || !sellerId || typeof window === "undefined") return;
     // Expose the seller id so click/conversion widgets on this page can fire
@@ -57,7 +67,19 @@ export function TrackingProvider({
       body: JSON.stringify(payload),
       keepalive: true,
     }).catch(() => {});
-  }, [sellerId, pageType, disabled]);
+
+    // Product-detail pages also record a first-party ViewContent (once per
+    // path, guarded by the same PageView dedupe above) for retargeting.
+    if (vcProductId || vcValue != null) {
+      trackEvent("ViewContent", {
+        sellerId,
+        pageType,
+        productId: vcProductId ?? undefined,
+        value: vcValue ?? undefined,
+        currency: vcCurrency ?? undefined,
+      });
+    }
+  }, [sellerId, pageType, disabled, vcProductId, vcValue, vcCurrency]);
 
   return <MarketingScripts pixels={pixels} disabled={disabled} />;
 }

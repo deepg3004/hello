@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { pagePrefix, publicPagePath, type PagePrefix } from "@/lib/page-url";
 import { PixelScripts } from "@/components/pages/PixelScripts";
+import { TrackingProvider } from "@/components/tracking/TrackingProvider";
 import { getTemplate } from "@/lib/templates/registry";
 import { PageSkin } from "@/components/templates/PageSkin";
 import { CheckoutConfigProvider } from "@/components/pages/CheckoutConfig";
@@ -321,6 +322,14 @@ export async function renderPublicPage(
       )}
       <WishlistButton pageId={page.id} />
       <PixelScripts pixel={pixel} />
+      {/* First-party PageView/ViewContent beacon — beacon-only (PixelScripts
+          above already injects the page-level Meta/Google pixels). */}
+      <TrackingProvider
+        sellerId={page.user_id as string}
+        pageType="payment"
+        pixels={null}
+        viewContent={product ? { productId: product.id, value: Number(product.price) } : null}
+      />
       <ReferralTracker slug={page.slug} />
     </>
   );

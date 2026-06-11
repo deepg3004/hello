@@ -19,6 +19,7 @@ import {
   launchCheckout,
   type CreateOrderResponse,
 } from "@/lib/checkout-launch";
+import { trackEvent } from "@/lib/tracking/events";
 import { useCart, lineKey } from "./CartProvider";
 
 const RAZORPAY_SDK = "https://checkout.razorpay.com/v1/checkout.js";
@@ -199,6 +200,8 @@ export function CartDrawer() {
       return;
     }
     setPaying(true);
+    // First-party InitiateCheckout (cart value, post-discount).
+    trackEvent("InitiateCheckout", { sellerId, value: payable });
     try {
       const res = await fetch("/api/checkout/create-cart-order", {
         method: "POST",

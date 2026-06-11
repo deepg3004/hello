@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatINR } from "@/lib/utils";
+import { trackEvent } from "@/lib/tracking/events";
 import { useCart, type CartItem } from "./CartProvider";
 
 export interface VariantOption {
@@ -43,6 +44,13 @@ export function AddToCartButton({
       variant_id: v?.id ?? null,
       variant_name: v?.name ?? null,
       price: v ? v.price : product.price,
+    });
+    // First-party AddToCart event (seller id from window.__INVOX_SELLER__,
+    // set by the storefront-host TrackingProvider).
+    trackEvent("AddToCart", {
+      pageType: "storefront",
+      productId: product.product_id,
+      value: v ? v.price : product.price,
     });
     setPicking(false);
     setAdded(true);

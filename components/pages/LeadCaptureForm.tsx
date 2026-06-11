@@ -25,6 +25,7 @@ import {
   fireGoogleLeadConversion,
   fireMetaLeadEvent,
 } from "@/lib/pixel-events";
+import { trackLead } from "@/lib/tracking/events";
 
 interface LeadCaptureFormProps {
   pageId: string;
@@ -137,6 +138,10 @@ export function LeadCaptureForm({
       } catch (pixelErr) {
         console.warn("[lead-form] pixel fire failed", pixelErr);
       }
+
+      // First-party Lead event (separate from the pixel fire above so an
+      // ad-blocker can't drop it). Seller id resolves from window.__INVOX_SELLER__.
+      trackLead({ pageType: "lead" });
 
       const redirectTarget = effectiveRedirect ?? body.redirect_url;
       if (redirectTarget) {
