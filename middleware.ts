@@ -19,7 +19,7 @@ const PROTECTED_PREFIXES = ["/dashboard", "/admin"];
 // the UI and blocked at the route level — both redirect to "/". Flip to false to
 // restore browser sign-in/sign-up. NOTE: while true, NOBODY can sign in via the
 // browser (no bypass), by design.
-const BLOCK_PUBLIC_AUTH = true;
+const BLOCK_PUBLIC_AUTH = false;
 const BLOCKED_AUTH_PATHS = ["/login", "/signup"];
 
 // ── A/B variant routing for public /p/[slug] ───────────────────────────────

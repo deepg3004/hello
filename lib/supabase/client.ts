@@ -27,5 +27,15 @@ export function createClient() {
       ? authCookieDomain(window.location.hostname)
       : undefined;
 
-  return createBrowserClient(url, anon, domain ? { cookieOptions: { domain } } : undefined);
+  // Disable the browser's background token-refresh timer. The SERVER
+  // (middleware) is the single source of truth for refreshing + rotating the
+  // session cookie. When the browser ALSO auto-refreshed, the two raced to
+  // rotate the same refresh token -> `refresh_token_already_used` storms that
+  // exhausted the GoTrue rate limit and 429'd login. Login itself
+  // (signInWithPassword) and the stored session are unaffected; middleware
+  // keeps the cookie fresh on every navigation.
+  return createBrowserClient(url, anon, {
+    auth: { autoRefreshToken: false },
+    ...(domain ? { cookieOptions: { domain } } : {}),
+  });
 }
