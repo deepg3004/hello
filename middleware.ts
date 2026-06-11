@@ -398,13 +398,35 @@ export async function middleware(request: NextRequest) {
     },
   );
 
-  // Refresh the session cookie on every request.
+  const isAuthRoute = AUTH_ROUTES.some((p) => pathname.startsWith(p));
+  const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
+
+  // Speculative App-Router prefetches should never rotate the session: a
+  // dashboard full of <Link>s prefetches many routes at once, and each used to
+  // fire its own getUser()/refresh -> a burst of concurrent refreshes racing to
+  // rotate the same token. The real navigation re-runs middleware, and every
+  // protected page also has its own server-side guard (requirePageActor), so
+  // skipping the refresh here cannot leak protected content.
+  const isPrefetch =
+    request.headers.get("next-router-prefetch") === "1" ||
+    request.headers.get("purpose") === "prefetch" ||
+    request.headers.get("sec-purpose")?.includes("prefetch") === true;
+
+  // Only touch Supabase auth when the route needs it for a redirect decision
+  // (protected pages, or auth pages that bounce a logged-in user to /dashboard).
+  // getUser() forces a token refresh; under the broad matcher that previously
+  // meant EVERY public page + every /api/* call (which all do their own auth)
+  // refreshed on each request. At token expiry a burst of concurrent requests
+  // then raced to rotate the SAME refresh token -> `refresh_token_already_used`
+  // storms that exhaust the GoTrue auth rate limit and 429 real logins.
+  if (isPrefetch || (!isProtected && !isAuthRoute)) {
+    return response;
+  }
+
+  // Refresh the session cookie + resolve the user for the redirect gates below.
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const isAuthRoute = AUTH_ROUTES.some((p) => pathname.startsWith(p));
-  const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
 
   if (!user && isProtected) {
     const redirect = request.nextUrl.clone();
