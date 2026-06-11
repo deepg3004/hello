@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { Zap } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-
 /** Sticky frosted-glass top nav for the marketing site. */
 export function MarketingNav({
   name,
@@ -32,16 +30,6 @@ export function MarketingNav({
           <div className="hidden items-center gap-7 text-sm text-muted-foreground md:flex">
             <a href="#features" className="transition hover:text-foreground">Features</a>
             <a href="#pricing" className="transition hover:text-foreground">Pricing</a>
-            <Link href="/login" className="transition hover:text-foreground">Log in</Link>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-              <Link href="/login">Log in</Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link href="/signup">Start free</Link>
-            </Button>
           </div>
         </nav>
       </div>

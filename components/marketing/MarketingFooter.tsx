@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Zap } from "lucide-react";
 
 /** Minimal marketing footer. */
@@ -28,8 +27,6 @@ export function MarketingFooter({
         <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
           <a href="#features" className="transition hover:text-foreground">Features</a>
           <a href="#pricing" className="transition hover:text-foreground">Pricing</a>
-          <Link href="/login" className="transition hover:text-foreground">Log in</Link>
-          <Link href="/signup" className="transition hover:text-foreground">Sign up</Link>
         </nav>
 
         <p className="text-xs text-muted-foreground">

@@ -15,6 +15,13 @@ import { safeNext } from "@/lib/safe-redirect";
 const AUTH_ROUTES = ["/login", "/signup", "/forgot-password"];
 const PROTECTED_PREFIXES = ["/dashboard", "/admin"];
 
+// Public auth fully disabled (user request): /login and /signup are removed from
+// the UI and blocked at the route level — both redirect to "/". Flip to false to
+// restore browser sign-in/sign-up. NOTE: while true, NOBODY can sign in via the
+// browser (no bypass), by design.
+const BLOCK_PUBLIC_AUTH = true;
+const BLOCKED_AUTH_PATHS = ["/login", "/signup"];
+
 // ── A/B variant routing for public /p/[slug] ───────────────────────────────
 // 60-second module-level cache so a hot page doesn't fetch from /api/ab/config
 // on every request. Each Edge worker keeps its own copy.
@@ -407,6 +414,15 @@ export async function middleware(request: NextRequest) {
 
   const isAuthRoute = AUTH_ROUTES.some((p) => pathname.startsWith(p));
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
+
+  // Public auth disabled — send /login and /signup to the home page instead of
+  // rendering the auth pages (defence-in-depth alongside removing the buttons).
+  if (BLOCK_PUBLIC_AUTH && BLOCKED_AUTH_PATHS.some((p) => pathname.startsWith(p))) {
+    const home = request.nextUrl.clone();
+    home.pathname = "/";
+    home.search = "";
+    return NextResponse.redirect(home);
+  }
 
   // Speculative App-Router prefetches should never rotate the session: a
   // dashboard full of <Link>s prefetches many routes at once, and each used to

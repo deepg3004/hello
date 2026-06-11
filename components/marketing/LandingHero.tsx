@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
 import {
-  ArrowRight,
   BadgeCheck,
   IndianRupee,
   ShieldCheck,
@@ -45,12 +43,6 @@ export function LandingHero({ name }: { name: string }) {
 
         {/* CTAs */}
         <div className="animate-in-up delay-3 mt-9 flex flex-wrap items-center justify-center gap-3">
-          <Button asChild size="lg" className="group">
-            <Link href="/signup">
-              Start free
-              <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            </Link>
-          </Button>
           <Button asChild size="lg" variant="outline">
             <a href="#pricing">See pricing</a>
           </Button>

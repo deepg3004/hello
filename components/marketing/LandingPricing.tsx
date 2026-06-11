@@ -1,7 +1,5 @@
-import Link from "next/link";
 import { Check } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { PLANS, type PlanKey } from "@/lib/plans";
 import { cn } from "@/lib/utils";
 
@@ -85,16 +83,6 @@ export function LandingPricing() {
                     </li>
                   ))}
                 </ul>
-
-                <Button
-                  asChild
-                  variant={popular ? "default" : "outline"}
-                  className="mt-7 w-full"
-                >
-                  <Link href="/signup">
-                    {key === "free" ? "Start free" : `Choose ${plan.name}`}
-                  </Link>
-                </Button>
               </div>
             );
           })}

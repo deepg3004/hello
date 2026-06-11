@@ -1,8 +1,3 @@
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
-
 /** Closing call-to-action band — charcoal with the brand purple glow. */
 export function LandingCTA({ name }: { name: string }) {
   return (
@@ -20,21 +15,8 @@ export function LandingCTA({ name }: { name: string }) {
           Start selling on {name} today
         </h2>
         <p className="relative mx-auto mt-4 max-w-xl text-balance text-white/70">
-          Create your first payment or landing page in minutes. No card required
-          to get started.
+          Create your first payment or landing page in minutes.
         </p>
-        <div className="relative mt-8 flex justify-center">
-          <Button
-            asChild
-            size="lg"
-            className="group bg-white text-zinc-900 hover:bg-white/90"
-          >
-            <Link href="/signup">
-              Get started free
-              <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            </Link>
-          </Button>
-        </div>
       </div>
     </section>
   );
